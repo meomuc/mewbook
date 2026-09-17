@@ -42,6 +42,11 @@ class AppConfig:
     # policies, not in keeping this secret. See application/cloud_reviews.py.
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
+    # Optional list-view columns beyond the mandatory Title -- see
+    # presentation/library_view.py's OPTIONAL_COLUMNS for the valid keys.
+    visible_columns: list[str] = field(default_factory=lambda: ["author", "created_at"])
+    font_family: str | None = None  # None = Qt/OS default
+    font_size: int = 10
 
 
 class ConfigManager:

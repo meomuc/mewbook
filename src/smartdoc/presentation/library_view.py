@@ -8,18 +8,22 @@ yet.
 from __future__ import annotations
 
 import math
+from datetime import datetime
 
-from PySide6.QtCore import QAbstractListModel, QModelIndex, QSize, Qt, QTimer
+from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QListView,
     QMenu,
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
@@ -68,6 +72,23 @@ def _placeholder_icon() -> QIcon:
     return QIcon(pixmap)
 
 
+# Character-based, not pixel-based (that would need a QFontMetrics call
+# inside the model, awkward to keep in sync with the current font/DPI) --
+# a conservative cap that keeps a two-line title+author label from
+# expanding a grid cell taller than its neighbors, so every cover in the
+# grid stays aligned to the same row/column grid rather than however tall
+# its own text happens to wrap.
+_TITLE_MAX_CHARS = 42
+_AUTHOR_MAX_CHARS = 30
+
+
+def _truncate(text: str, max_chars: int) -> str:
+    text = text or ""
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
 class LibraryModel(QAbstractListModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -93,7 +114,9 @@ class LibraryModel(QAbstractListModel):
             return None
         doc = self._documents[index.row()]
         if role == Qt.DisplayRole:
-            return f"{doc.get('title', '')}\n{doc.get('author', '')}"
+            title = _truncate(doc.get("title", ""), _TITLE_MAX_CHARS)
+            author = _truncate(doc.get("author", ""), _AUTHOR_MAX_CHARS)
+            return f"{title}\n{author}"
         if role == Qt.DecorationRole:
             cover_path = doc.get("cover_path")
             if cover_path:
@@ -109,6 +132,103 @@ class LibraryModel(QAbstractListModel):
                 if not icon.isNull():
                     return icon
             return self._placeholder
+        if role == DocumentRole:
+            return doc
+        return None
+
+
+# (column key, header label). "title" is mandatory and always the first
+# column; the rest are optional, user-chosen (right-click the list view's
+# header -> see LibraryListWidget._show_column_picker), persisted in
+# AppConfig.visible_columns.
+COLUMN_DEFS: list[tuple[str, str]] = [
+    ("title", "Tiêu đề"),
+    ("author", "Tác giả"),
+    ("tags", "Thể loại"),
+    ("avg_rating", "Đánh giá TB"),
+    ("review_count", "Số đánh giá"),
+    ("created_at", "Ngày thêm"),
+    ("updated_at", "Ngày chỉnh sửa"),
+]
+_COLUMN_LABELS = dict(COLUMN_DEFS)
+OPTIONAL_COLUMN_KEYS = [key for key, _label in COLUMN_DEFS if key != "title"]
+
+
+def _format_datetime(value) -> str:
+    if not value:
+        return "—"
+    try:
+        return datetime.fromtimestamp(value).strftime("%d/%m/%Y %H:%M")
+    except (TypeError, ValueError, OSError):
+        return "—"
+
+
+def _format_cell(doc: dict, key: str) -> str:
+    if key == "title":
+        return doc.get("title", "")
+    if key == "author":
+        return doc.get("author", "") or "—"
+    if key == "tags":
+        return doc.get("tags", "") or "—"
+    if key == "avg_rating":
+        value = doc.get("avg_rating")
+        return f"{value:.1f} ★" if value is not None else "—"
+    if key == "review_count":
+        return str(doc.get("review_count") or 0)
+    if key in ("created_at", "updated_at"):
+        return _format_datetime(doc.get(key))
+    return ""
+
+
+class LibraryTableModel(QAbstractTableModel):
+    """Backs the List view's QTableView -- a proper multi-column table,
+    unlike QListView's ListMode (still just one column of icon+text). Grid
+    mode's LibraryModel above and this model are kept showing the same
+    document list (see LibraryListWidget.reload()), just rendered two
+    different ways.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._documents: list[dict] = []
+        self._columns: list[str] = ["title", *OPTIONAL_COLUMN_KEYS]
+
+    def set_documents(self, documents: list[dict]) -> None:
+        self.beginResetModel()
+        self._documents = documents
+        self.endResetModel()
+
+    def set_visible_columns(self, optional_keys: list[str]) -> None:
+        self.beginResetModel()
+        self._columns = ["title", *[k for k in optional_keys if k in OPTIONAL_COLUMN_KEYS]]
+        self.endResetModel()
+
+    def visible_optional_columns(self) -> list[str]:
+        return [key for key in self._columns if key != "title"]
+
+    def document_at(self, row: int) -> dict | None:
+        if 0 <= row < len(self._documents):
+            return self._documents[row]
+        return None
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: B008
+        return 0 if parent.isValid() else len(self._documents)
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:  # noqa: B008
+        return 0 if parent.isValid() else len(self._columns)
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(self._columns):
+            return _COLUMN_LABELS[self._columns[section]]
+        return None
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole):
+        if not index.isValid():
+            return None
+        doc = self._documents[index.row()]
+        column_key = self._columns[index.column()]
+        if role == Qt.DisplayRole:
+            return _format_cell(doc, column_key)
         if role == DocumentRole:
             return doc
         return None
@@ -143,17 +263,47 @@ class LibraryListWidget(QWidget):
         self.list_view.setIconSize(ICON_SIZE)
         self.list_view.setSpacing(12)
         self.list_view.setMovement(QListView.Static)
+        self.list_view.setWordWrap(True)
+        self.list_view.setTextElideMode(Qt.ElideRight)
+        # A fixed grid cell size (set in _update_grid_size, below) rather
+        # than letting each item size itself off its own text is what
+        # actually keeps every cover aligned into even rows/columns
+        # regardless of title length; uniform sizes is also a real perf win
+        # for QListView since it can skip per-item size hints.
+        self.list_view.setUniformItemSizes(True)
         self.list_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.list_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._show_context_menu)
         self.list_view.doubleClicked.connect(self._open_selected)
+        self._update_grid_size()
+
+        self.table_model = LibraryTableModel(self)
+        self.table_model.set_visible_columns(context.config.config.visible_columns)
+        self.table_view = QTableView(self)
+        self.table_view.setModel(self.table_model)
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.table_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table_view.setAlternatingRowColors(True)
+        self.table_view.verticalHeader().setVisible(False)
+        self.table_view.horizontalHeader().setStretchLastSection(True)
+        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.table_view.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table_view.horizontalHeader().customContextMenuRequested.connect(self._show_column_picker)
+        self.table_view.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table_view.customContextMenuRequested.connect(self._show_context_menu)
+        self.table_view.doubleClicked.connect(self._open_selected)
+
+        self.view_stack = QStackedWidget(self)
+        self.view_stack.addWidget(self.list_view)
+        self.view_stack.addWidget(self.table_view)
 
         self.pagination_bar = self._build_pagination_bar()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.list_view)
+        layout.addWidget(self.view_stack)
         layout.addWidget(self.pagination_bar)
 
         # A bulk import fires one LibraryUpdatedEvent per document. Reacting
@@ -229,23 +379,36 @@ class LibraryListWidget(QWidget):
     def set_view_mode(self, mode: str) -> None:
         self._view_mode = mode
         if mode == "list":
-            self.list_view.setViewMode(QListView.ListMode)
-            self.list_view.setFlow(QListView.TopToBottom)
-            self.list_view.setWrapping(False)
-            self.list_view.setIconSize(QSize(48, 64))
+            self.view_stack.setCurrentWidget(self.table_view)
         else:
-            self.list_view.setViewMode(QListView.IconMode)
-            self.list_view.setFlow(QListView.LeftToRight)
-            self.list_view.setWrapping(True)
-            self.list_view.setIconSize(self._grid_icon_size())
+            self.view_stack.setCurrentWidget(self.list_view)
+
+    def _active_view(self) -> QAbstractItemView:
+        return self.table_view if self._view_mode == "list" else self.list_view
+
+    def _active_model(self):
+        return self.table_model if self._view_mode == "list" else self.model
 
     def _grid_icon_size(self) -> QSize:
         return QSize(self._grid_icon_width, int(self._grid_icon_width * 1.33))
 
+    def _update_grid_size(self) -> None:
+        icon_size = self._grid_icon_size()
+        # Padding: horizontal breathing room either side of the cover, plus
+        # two lines of title/author text (~36px) and the item's own
+        # padding/spacing below the cover.
+        cell_width = icon_size.width() + 32
+        cell_height = icon_size.height() + 64
+        self.list_view.setGridSize(QSize(cell_width, cell_height))
+
     def set_grid_icon_width(self, width: int) -> None:
+        # list_view is now a persistent widget (just hidden, not
+        # reconfigured, while table_view is the active one in the stack) --
+        # always keep it current so switching back to grid mode later shows
+        # the right size instead of a stale one from before the last switch.
         self._grid_icon_width = width
-        if self._view_mode != "list":
-            self.list_view.setIconSize(self._grid_icon_size())
+        self.list_view.setIconSize(self._grid_icon_size())
+        self._update_grid_size()
 
     def reload(self) -> None:
         where_sql, params = self._build_combined_where()
@@ -262,6 +425,7 @@ class LibraryListWidget(QWidget):
             order_by=self._current_sort,
         )
         self.model.set_documents(documents)
+        self.table_model.set_documents(documents)
         self._update_pagination_ui(total)
 
     def _build_combined_where(self) -> tuple[str, tuple]:
@@ -314,22 +478,24 @@ class LibraryListWidget(QWidget):
             self.set_view_mode(event.mode)
 
     def _open_selected(self, index: QModelIndex) -> None:
-        doc = self.model.document_at(index.row())
+        doc = self._active_model().document_at(index.row())
         if doc:
             self.file_actions.open_file(doc["file_path"])
 
     def _show_context_menu(self, position) -> None:
-        index = self.list_view.indexAt(position)
+        view = self._active_view()
+        model = self._active_model()
+        index = view.indexAt(position)
         if not index.isValid():
             return
 
-        selected_rows = sorted({idx.row() for idx in self.list_view.selectedIndexes()})
+        selected_rows = sorted({idx.row() for idx in view.selectedIndexes()})
         if index.row() not in selected_rows:
             # Right-clicking outside the current selection acts on just that item.
-            self.list_view.setCurrentIndex(index)
+            view.setCurrentIndex(index)
             selected_rows = [index.row()]
 
-        docs = [d for d in (self.model.document_at(row) for row in selected_rows) if d]
+        docs = [d for d in (model.document_at(row) for row in selected_rows) if d]
         if not docs:
             return
 
@@ -347,7 +513,29 @@ class LibraryListWidget(QWidget):
         has no way to be dismissed by a simulated click and hangs forever.
         Patching the wrapper avoids ever entering that loop.
         """
-        return menu.exec(self.list_view.viewport().mapToGlobal(position))
+        return menu.exec(self._active_view().viewport().mapToGlobal(position))
+
+    def _show_column_picker(self, position) -> None:
+        """Right-click the list view's header to toggle which optional
+        columns are visible -- Title is always shown and not offered here."""
+        menu = QMenu(self)
+        actions = {}
+        current = set(self.table_model.visible_optional_columns())
+        for key in OPTIONAL_COLUMN_KEYS:
+            action = menu.addAction(_COLUMN_LABELS[key])
+            action.setCheckable(True)
+            action.setChecked(key in current)
+            actions[action] = key
+
+        chosen = self._exec_menu(menu, self.table_view.horizontalHeader().mapTo(self, position))
+        if chosen is None or chosen not in actions:
+            return
+        toggled_key = actions[chosen]
+        new_columns = current ^ {toggled_key}  # symmetric difference: flip just this one
+        ordered = [key for key in OPTIONAL_COLUMN_KEYS if key in new_columns]
+        self.table_model.set_visible_columns(ordered)
+        self.context.config.config.visible_columns = ordered
+        self.context.config.save()
 
     def _show_single_document_menu(self, menu: QMenu, doc: dict, position) -> None:
         open_action = menu.addAction("Mở file")

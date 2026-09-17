@@ -10,7 +10,7 @@ from smartdoc.core.event_bus import (
     SortChangedEvent,
 )
 from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
-from smartdoc.presentation.library_view import LibraryListWidget
+from smartdoc.presentation.library_view import LibraryListWidget, _truncate
 
 
 def _pump_until(qapp, predicate, timeout: float = 3.0) -> bool:
@@ -22,6 +22,51 @@ def _pump_until(qapp, predicate, timeout: float = 3.0) -> bool:
         time.sleep(0.02)
     qapp.processEvents()
     return predicate()
+
+
+def test_truncate_leaves_short_text_untouched():
+    assert _truncate("Short Title", 42) == "Short Title"
+
+
+def test_truncate_elides_long_text_with_ellipsis():
+    long_title = "A" * 60
+    result = _truncate(long_title, 42)
+    assert len(result) == 42
+    assert result.endswith("…")
+
+
+def test_truncate_handles_empty_and_none():
+    assert _truncate("", 42) == ""
+    assert _truncate(None, 42) == ""
+
+
+def test_grid_view_uses_a_fixed_grid_size_covering_the_icon(qapp, app_context):
+    widget = LibraryListWidget(app_context)
+    grid = widget.list_view.gridSize()
+    icon = widget.list_view.iconSize()
+    assert grid.width() > icon.width()
+    assert grid.height() > icon.height()
+
+
+def test_grid_size_grows_with_cover_size_changes(qapp, app_context):
+    from smartdoc.core.event_bus import CoverSizeChangedEvent
+
+    widget = LibraryListWidget(app_context)
+    small_grid = widget.list_view.gridSize()
+
+    app_context.event_bus.publish(CoverSizeChangedEvent(size=280))
+    assert _pump_until(qapp, lambda: widget.list_view.gridSize().width() > small_grid.width(), timeout=3.0)
+
+
+def test_list_mode_switches_the_stack_to_the_table_view(qapp, app_context):
+    widget = LibraryListWidget(app_context)
+    assert widget.view_stack.currentWidget() is widget.list_view
+
+    widget.set_view_mode("list")
+    assert widget.view_stack.currentWidget() is widget.table_view
+
+    widget.set_view_mode("grid")
+    assert widget.view_stack.currentWidget() is widget.list_view
 
 
 def test_initial_load_shows_existing_documents(qapp, app_context):
@@ -123,15 +168,13 @@ def test_cover_size_changed_event_updates_grid_icon_size(qapp, app_context):
 
 
 def test_view_mode_changed_event_switches_to_list_mode(qapp, app_context):
-    from PySide6.QtWidgets import QListView
-
     from smartdoc.core.event_bus import ViewModeChangedEvent
 
     widget = LibraryListWidget(app_context)
-    assert widget.list_view.viewMode() == QListView.IconMode
+    assert widget.view_stack.currentWidget() is widget.list_view
 
     app_context.event_bus.publish(ViewModeChangedEvent(mode="list"))
-    assert _pump_until(qapp, lambda: widget.list_view.viewMode() == QListView.ListMode, timeout=3.0)
+    assert _pump_until(qapp, lambda: widget.view_stack.currentWidget() is widget.table_view, timeout=3.0)
 
 
 def test_bursts_of_library_updated_events_trigger_one_debounced_reload(qapp, app_context):
