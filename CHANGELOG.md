@@ -5,6 +5,35 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — In-app EPUB reading (not just PDF)
+
+The reader window's non-PDF fallback ("open with the OS's own app") was
+reported as a bug, not accepted as a known limitation -- fair, since
+EPUB is one of this app's two real formats.
+
+- New `infrastructure/epub_reader.py`: `EpubDocument` opens an EPUB and
+  exposes its chapters *in spine order* (the OPF's `<spine>` lists
+  `<itemref idref="...">` pointing at `<item>` entries in the
+  `<manifest>` -- reading order is not just alphabetical filenames, and a
+  test specifically constructs a manifest/spine that disagree in order to
+  prove this is respected). Raises `EpubReadError` on a corrupt zip,
+  missing OPF, or missing manifest/spine, so the reader window can fall
+  back cleanly instead of crashing.
+- `ReaderWindow` gained an EPUB path: chapters render in a `QTextBrowser`
+  (a `_EpubTextBrowser` subclass overrides `loadResource()` to pull
+  `<img>` bytes straight out of the zip, since the browser has no idea
+  those relative paths live inside an archive) with prev/next chapter,
+  a chapter-number jump box, font zoom in/out (reusing `QTextEdit`'s own
+  `zoomIn`/`zoomOut`), and fullscreen -- the same control shape as the
+  PDF reader, just chapter-granularity instead of page-granularity.
+  A corrupt/unparseable EPUB falls back to the existing "open externally"
+  message rather than a broken viewer. AZW3/MOBI still fall back too --
+  they aren't real zip/OPF containers (see import_queue.py's own
+  known-limitations note), so there's nothing here to read yet regardless.
+- The open zip handle is closed in `closeEvent`, verified by a test that
+  the handle actually becomes unusable after the window closes (not just
+  that no exception occurred).
+
 ## 2026-09-17 — Fix cover search rate-limiting
 
 Reproduced live: searching a real Vietnamese title ("Đắc Nhân Tâm") returns
