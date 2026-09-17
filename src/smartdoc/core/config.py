@@ -42,10 +42,6 @@ class AppConfig:
     # ConfigManager keeps everything else app-specific; see
     # application/cloud_reviews.py for why this file must never be committed.
     service_account_path: str | None = None
-    # A real Google Drive folder shared with the service account's email as
-    # Editor -- required because service accounts have no storage quota of
-    # their own (see cloud_reviews.py's module docstring).
-    drive_folder_id: str | None = None
 
 
 class ConfigManager:

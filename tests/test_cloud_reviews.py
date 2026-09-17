@@ -1,87 +1,69 @@
-"""Unit tests against a fake Drive service (no network) -- see
-test_cloud_reviews_live.py (skipped by default) for the real-API smoke test.
+"""Unit tests against a fake Firestore REST session (no network) -- see
+cloud_reviews.py's __main__ for the real-API smoke test.
 """
-import json
-
 import pytest
 
-from smartdoc.application.cloud_reviews import CloudReviewError, GoogleDriveSync
+from smartdoc.application.cloud_reviews import CloudReviewError, FirestoreReviewSync, _encode_review
 
 
-class _FakeExecutable:
-    def __init__(self, result) -> None:
-        self._result = result
+class _FakeResponse:
+    def __init__(self, status_code: int, json_body: dict | None = None, text: str = "") -> None:
+        self.status_code = status_code
+        self.ok = 200 <= status_code < 300
+        self._json_body = json_body or {}
+        self.text = text or str(json_body)
 
-    def execute(self):
-        if isinstance(self._result, Exception):
-            raise self._result
-        return self._result
-
-
-class _FakeFiles:
-    def __init__(self, store: dict[str, bytes]) -> None:
-        self.store = store  # filename -> raw bytes
-        self._name_to_id = {}
-        self.create_bodies: list[dict] = []
-
-    def list(self, q, spaces, fields):
-        # q is like: "name = 'X' and 'folder-id' in parents and trashed = false"
-        name = q.split("'")[1]
-        if name in self.store:
-            file_id = self._name_to_id.setdefault(name, f"id-{name}")
-            return _FakeExecutable({"files": [{"id": file_id, "name": name}]})
-        return _FakeExecutable({"files": []})
-
-    def get_media(self, fileId):
-        for name, content in self.store.items():
-            if self._name_to_id.get(name) == fileId:
-                return _FakeExecutable(content)
-        return _FakeExecutable(FileNotFoundError("no such file"))
-
-    def create(self, body, media_body, fields):
-        self.create_bodies.append(body)
-        name = body["name"]
-        content = media_body.getbytes(0, media_body.size())
-        self.store[name] = content
-        file_id = self._name_to_id.setdefault(name, f"id-{name}")
-        return _FakeExecutable({"id": file_id})
-
-    def update(self, fileId, media_body):
-        for name, current_id in self._name_to_id.items():
-            if current_id == fileId:
-                self.store[name] = media_body.getbytes(0, media_body.size())
-                return _FakeExecutable({"id": fileId})
-        return _FakeExecutable(FileNotFoundError("no such file"))
-
-    def delete(self, fileId):
-        for name, current_id in list(self._name_to_id.items()):
-            if current_id == fileId:
-                del self.store[name]
-                del self._name_to_id[name]
-                return _FakeExecutable({})
-        return _FakeExecutable(FileNotFoundError("no such file"))
+    def json(self):
+        return self._json_body
 
 
-class _FakeDriveService:
+class _FakeFirestoreSession:
+    """In-memory stand-in for AuthorizedSession, keyed by document path."""
+
     def __init__(self) -> None:
-        self._files = _FakeFiles({})
+        self.store: dict[str, list[dict]] = {}  # doc_id -> reviews
+        self.patch_calls: list[tuple[str, dict]] = []
 
-    def files(self):
-        return self._files
+    @staticmethod
+    def _doc_id_from_url(url: str) -> str:
+        return url.rsplit("/", 1)[-1]
+
+    def get(self, url):
+        doc_id = self._doc_id_from_url(url)
+        if doc_id not in self.store:
+            return _FakeResponse(404)
+        reviews = self.store[doc_id]
+        body = {"fields": {"reviews": {"arrayValue": {"values": [_encode_review(r) for r in reviews]}}}}
+        return _FakeResponse(200, body)
+
+    def patch(self, url, json):
+        doc_id = self._doc_id_from_url(url)
+        self.patch_calls.append((doc_id, json))
+        values = json["fields"]["reviews"]["arrayValue"]["values"]
+        from smartdoc.application.cloud_reviews import _decode_review
+
+        self.store[doc_id] = [_decode_review(v["mapValue"]["fields"]) for v in values]
+        return _FakeResponse(200, {})
+
+    def delete(self, url):
+        doc_id = self._doc_id_from_url(url)
+        self.store.pop(doc_id, None)
+        return _FakeResponse(200, {})
 
 
 @pytest.fixture
 def sync():
-    instance = GoogleDriveSync("unused-path.json", "fake-folder-id")
-    instance._service = _FakeDriveService()  # bypass real auth entirely
+    instance = FirestoreReviewSync("unused-path.json")
+    instance._session = _FakeFirestoreSession()  # bypass real auth entirely
+    instance._project_id = "fake-project"
     return instance
 
 
-def test_fetch_reviews_on_nonexistent_file_returns_empty_list(sync):
+def test_fetch_reviews_on_nonexistent_document_returns_empty_list(sync):
     assert sync.fetch_reviews("doc1") == []
 
 
-def test_submit_review_creates_new_file_when_none_exists(sync):
+def test_submit_review_creates_new_document_when_none_exists(sync):
     reviews = sync.submit_review("doc1", "Kevin", 5, "Sach hay")
     assert len(reviews) == 1
     assert reviews[0]["nickname"] == "Kevin"
@@ -119,25 +101,39 @@ def test_reviews_for_different_documents_are_isolated(sync):
     assert len(sync.fetch_reviews("doc2")) == 1
 
 
-def test_delete_reviews_file_removes_it(sync):
+def test_delete_reviews_removes_the_document(sync):
     sync.submit_review("doc1", "A", 5, "x")
-    sync.delete_reviews_file("doc1")
+    sync.delete_reviews("doc1")
     assert sync.fetch_reviews("doc1") == []
 
 
-def test_get_service_raises_cloud_review_error_on_missing_file(tmp_path):
-    sync = GoogleDriveSync(str(tmp_path / "does_not_exist.json"), "some-folder-id")
+def test_get_session_raises_cloud_review_error_on_missing_file(tmp_path):
+    sync = FirestoreReviewSync(str(tmp_path / "does_not_exist.json"))
     with pytest.raises(CloudReviewError):
-        sync._get_service()
+        sync._get_session()
 
 
-def test_new_file_is_created_inside_the_configured_parent_folder(sync):
-    sync.submit_review("doc1", "A", 5, "x")
-    assert sync._service._files.create_bodies == [{"name": "doc1_reviews.json", "parents": ["fake-folder-id"]}]
+def test_get_session_raises_cloud_review_error_on_invalid_json(tmp_path):
+    bad_file = tmp_path / "bad_service_account.json"
+    bad_file.write_text("not valid json", encoding="utf-8")
+    sync = FirestoreReviewSync(str(bad_file))
+    with pytest.raises(CloudReviewError):
+        sync._get_session()
 
 
-def test_stored_json_is_actually_valid_json(sync):
-    sync.submit_review("doc1", "A", 5, "x")
-    raw = sync._service._files.store["doc1_reviews.json"]
-    parsed = json.loads(raw)
-    assert parsed[0]["nickname"] == "A"
+def test_submit_review_raises_cloud_review_error_on_http_failure(sync):
+    def failing_patch(url, json):
+        return _FakeResponse(403, text="permission denied")
+
+    sync._session.patch = failing_patch
+    with pytest.raises(CloudReviewError):
+        sync.submit_review("doc1", "A", 5, "x")
+
+
+def test_fetch_reviews_raises_cloud_review_error_on_non_404_http_failure(sync):
+    def failing_get(url):
+        return _FakeResponse(500, text="server error")
+
+    sync._session.get = failing_get
+    with pytest.raises(CloudReviewError):
+        sync.fetch_reviews("doc1")

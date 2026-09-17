@@ -106,7 +106,7 @@ antivirus on a fresh machine, and the auto-updater (TDD-024).
 
 ## Status
 
-**Milestones A–D** are done and verified by `uv run pytest` (167 tests) plus
+**Milestones A–D** are done and verified by `uv run pytest` (168 tests) plus
 an end-to-end smoke test that launches the real `MainWindow`, bulk-scans a
 folder, and proves the live file watcher flows through to the UI.
 
@@ -137,24 +137,41 @@ Calibre tag/rating carryover (see calibre_migrator.py's docstring), an
 installed app icon (done) but no signed installer yet, and most of
 Milestone F (AI review, semantic search, personal cloud export).
 
-**Milestone F, Cloud Review System (TDD-016):** `application/cloud_reviews.py`
-is built and verified against the real Google Drive API (unit tests against
-a fake Drive service, plus a live smoke test in
-`cloud_reviews.py`'s `__main__`). It is not wired into the UI yet (no
-review panel/dialog on a document). Two things anyone deploying this needs
-to know, both documented in that module's docstring:
+**Milestone F, Cloud Review System (TDD-016), redesigned from Drive to
+Firestore:** the original spec (a shared service account writing review
+JSON files to Google Drive) turned out not to work at all: verified against
+the real API that Google has removed personal storage quota for service
+accounts, so they cannot create files even inside a folder a real person
+explicitly shared with them as Editor (confirmed: sharing worked, the
+service account had real Editor permission, and file creation still failed
+with `storageQuotaExceeded`, with or without `supportsAllDrives=True`).
+Shared Drives / domain-wide delegation, Google's own suggested
+workarounds, both need a paid Workspace plan.
 
-- Google removed personal storage quota for service accounts, so this
-  cannot write to "its own Drive" — it needs one real Drive folder shared
-  with the service account's email as Editor (`AppConfig.drive_folder_id`).
-  Free personal Google accounts can do this; Shared Drives / domain-wide
-  delegation (Google's other suggested workarounds) need a paid Workspace
-  plan.
+`application/cloud_reviews.py` now targets **Firestore** instead — a
+proper database, not a file store, with no such wall for service-account
+access. It calls the Firestore REST API directly via
+`google.auth.transport.requests.AuthorizedSession` + `requests` (both
+already dependencies) rather than adding the `firebase-admin` SDK just for
+this. Verified with unit tests against a fake Firestore session; a live
+smoke test lives in the module's `__main__` for whenever someone re-runs it
+against the real project. Not wired into the UI yet (no review panel/dialog
+on a document).
+
+One-time setup on the Google Cloud project the service account belongs to
+(only the project owner can do this, from the Cloud Console):
+1. Enable Firestore (Native mode) on the project.
+2. Grant the service account the "Cloud Datastore User" IAM role.
+
+Two things anyone deploying this needs to know, both documented in the
+module's docstring:
 - The service account JSON is a live secret. It is never committed and
   never hardcoded — `AppConfig.service_account_path` points at a file on
   disk (default `%APPDATA%/SmartDocLibrary/service_account.json`), and
-  `.gitignore` blocks common credential filenames as defense in depth. The
-  original TDD-016 spec has every install of the app ship pointed at the
+  `.gitignore` blocks common credential filenames as defense in depth.
+- The original design has every install of the app ship pointed at the
   *same* shared credential, which means anyone who extracts it from a
-  build can read/write that Drive space directly — an accepted, documented
-  risk for now, not something this pass tried to redesign.
+  build can read/write the shared review data directly, bypassing the app
+  entirely — an accepted, documented risk for now, not something this pass
+  tried to redesign. A proper fix means a small backend holding the
+  credential server-side instead of handing it to every client.
