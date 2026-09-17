@@ -1,14 +1,17 @@
 """TDD-010 (with the menu bar + toolbar Milestone D upgrades applied).
 
-3-pane layout: sidebar (virtual collections + faceted filters) on the left,
-omnibar + sort/cover-size toolbar + library grid on the right.
+4-pane layout: sidebar (virtual collections + faceted filters) on the left,
+omnibar + sort/cover-size toolbar + library grid in the center, and a
+collapsible document detail panel on the right.
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter, QVBoxLayout, QWidget
 
 from smartdoc.application.calibre_migrator import CalibreImporter
+from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.omnibar import OmnibarSearchBar
@@ -27,7 +30,7 @@ class MainWindow(QMainWindow):
         self.import_manager = import_manager
 
         self.setWindowTitle("SmartDoc Library")
-        self.resize(1200, 800)
+        self.resize(1400, 800)
         icon_path = app_icon_path()
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -50,19 +53,34 @@ class MainWindow(QMainWindow):
         self.library_view = LibraryListWidget(context)
         self.library_view.set_view_mode(context.config.config.view_mode)
 
-        content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(12, 12, 12, 12)
-        content_layout.addWidget(self.omnibar)
-        content_layout.addWidget(self.toolbar)
-        content_layout.addWidget(self.library_view)
+        self.detail_panel = DocumentDetailPanel(context)
 
+        # Inner splitter: library view | detail panel
+        library_container = QWidget()
+        library_layout = QVBoxLayout(library_container)
+        library_layout.setContentsMargins(12, 12, 12, 12)
+        library_layout.addWidget(self.omnibar)
+        library_layout.addWidget(self.toolbar)
+        library_layout.addWidget(self.library_view)
+
+        self._content_splitter = QSplitter(Qt.Horizontal)
+        self._content_splitter.addWidget(library_container)
+        self._content_splitter.addWidget(self.detail_panel)
+        self._content_splitter.setStretchFactor(0, 3)
+        self._content_splitter.setStretchFactor(1, 1)
+        self._content_splitter.setSizes([900, 340])
+
+        # Restore detail panel visibility from config
+        show_panel = context.config.config.show_detail_panel
+        self.detail_panel.setVisible(show_panel)
+
+        # Outer splitter: sidebar | content area
         splitter = QSplitter()
         splitter.addWidget(self.sidebar)
-        splitter.addWidget(content)
+        splitter.addWidget(self._content_splitter)
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 4)
-        splitter.setSizes([240, 960])
+        splitter.setStretchFactor(1, 5)
+        splitter.setSizes([240, 1160])
 
         self.setCentralWidget(splitter)
 
@@ -93,6 +111,11 @@ class MainWindow(QMainWindow):
         sidebar_action.toggled.connect(lambda checked: self.sidebar.setVisible(checked))
         view_menu.addAction(sidebar_action)
 
+        self._detail_panel_action = QAction("Hiện/Ẩn Panel chi tiết", self, checkable=True)
+        self._detail_panel_action.setChecked(self.context.config.config.show_detail_panel)
+        self._detail_panel_action.toggled.connect(self._on_toggle_detail_panel)
+        view_menu.addAction(self._detail_panel_action)
+
         tools_menu = self.menuBar().addMenu("&Tools")
         duplicates_action = QAction("Dọn dẹp trùng lặp...", self)
         duplicates_action.triggered.connect(self._on_open_duplicate_finder)
@@ -101,6 +124,11 @@ class MainWindow(QMainWindow):
         settings_action = QAction("Cài đặt...", self)
         settings_action.triggered.connect(self._on_open_settings)
         tools_menu.addAction(settings_action)
+
+    def _on_toggle_detail_panel(self, checked: bool) -> None:
+        self.detail_panel.setVisible(checked)
+        self.context.config.config.show_detail_panel = checked
+        self.context.config.save()
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()

@@ -74,6 +74,11 @@ class ViewModeChangedEvent(BaseEvent):
     mode: str  # "grid" | "list"
 
 
+@dataclass(frozen=True)
+class DocumentSelectedEvent(BaseEvent):
+    doc: dict | None  # None when nothing is selected or multi-select
+
+
 class EventBus:
     """Thread-safe publish/subscribe hub.
 

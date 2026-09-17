@@ -47,6 +47,7 @@ class AppConfig:
     visible_columns: list[str] = field(default_factory=lambda: ["author", "created_at"])
     font_family: str | None = None  # None = Qt/OS default
     font_size: int = 10
+    show_detail_panel: bool = False
 
 
 class ConfigManager:

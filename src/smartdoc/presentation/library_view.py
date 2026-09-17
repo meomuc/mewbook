@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 from smartdoc.core.event_bus import (
     CollectionSelectedEvent,
     CoverSizeChangedEvent,
+    DocumentSelectedEvent,
     FacetFilterChangedEvent,
     LibraryUpdatedEvent,
     SearchRequestedEvent,
@@ -299,6 +300,15 @@ class LibraryListWidget(QWidget):
         self.view_stack.addWidget(self.list_view)
         self.view_stack.addWidget(self.table_view)
 
+        # Emit DocumentSelectedEvent whenever the user clicks a row in
+        # either view so the detail panel can update.
+        self.list_view.selectionModel().selectionChanged.connect(
+            lambda _sel, _desel: self._on_selection_changed()
+        )
+        self.table_view.selectionModel().selectionChanged.connect(
+            lambda _sel, _desel: self._on_selection_changed()
+        )
+
         self.pagination_bar = self._build_pagination_bar()
 
         layout = QVBoxLayout(self)
@@ -476,6 +486,19 @@ class LibraryListWidget(QWidget):
             self.set_grid_icon_width(event.size)
         elif isinstance(event, ViewModeChangedEvent):
             self.set_view_mode(event.mode)
+
+    def _on_selection_changed(self) -> None:
+        view = self._active_view()
+        model = self._active_model()
+        indexes = view.selectedIndexes()
+        # Unique rows (table view emits one index per column per row).
+        rows = sorted({idx.row() for idx in indexes})
+        if len(rows) == 1:
+            doc = model.document_at(rows[0])
+            self.context.event_bus.publish(DocumentSelectedEvent(doc=doc))
+        else:
+            # Nothing selected, or multi-select → clear the detail panel.
+            self.context.event_bus.publish(DocumentSelectedEvent(doc=None))
 
     def _open_selected(self, index: QModelIndex) -> None:
         doc = self._active_model().document_at(index.row())

@@ -203,6 +203,13 @@ class DatabaseManager:
             self.connection.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             self.connection.commit()
 
+    def get_document(self, doc_id: str) -> dict[str, Any] | None:
+        """Fetch a single document by ID, or None if it no longer exists."""
+        row = self.connection.execute(
+            "SELECT * FROM documents WHERE id = ?", (doc_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
     @staticmethod
     def _sanitize_query(keyword: str) -> str:
         """Strip FTS5 syntax characters and turn each token into a prefix match."""
