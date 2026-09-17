@@ -11,7 +11,7 @@ import math
 from datetime import datetime
 
 from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex, QSize, Qt, QTimer
-from PySide6.QtGui import QColor, QIcon, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -92,9 +92,23 @@ def _truncate(text: str, max_chars: int) -> str:
     return text[: max_chars - 1].rstrip() + "…"
 
 
+def _content_font(config) -> QFont:
+    """The document-content font (library titles/authors, detail panel) --
+    kept separate from the app's own chrome font (see AppConfig's
+    docstring on content_font_family)."""
+    font = QFont(config.content_font_family) if config.content_font_family else QFont()
+    font.setPointSize(config.content_font_size)
+    return font
+
+
+def _content_color(config) -> QColor | None:
+    return QColor(config.content_text_color) if config.content_text_color else None
+
+
 class LibraryModel(QAbstractListModel):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, context=None) -> None:
         super().__init__(parent)
+        self._context = context
         self._documents: list[dict] = []
         self._placeholder = _placeholder_icon()
         self._icon_cache: dict[str, QIcon] = {}
@@ -135,6 +149,12 @@ class LibraryModel(QAbstractListModel):
                 if not icon.isNull():
                     return icon
             return self._placeholder
+        if role == Qt.FontRole and self._context:
+            return _content_font(self._context.config.config)
+        if role == Qt.ForegroundRole and self._context:
+            color = _content_color(self._context.config.config)
+            if color is not None:
+                return color
         if role == DocumentRole:
             return doc
         return None
@@ -191,8 +211,9 @@ class LibraryTableModel(QAbstractTableModel):
     different ways.
     """
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, context=None) -> None:
         super().__init__(parent)
+        self._context = context
         self._documents: list[dict] = []
         self._columns: list[str] = ["title", *OPTIONAL_COLUMN_KEYS]
 
@@ -232,6 +253,12 @@ class LibraryTableModel(QAbstractTableModel):
         column_key = self._columns[index.column()]
         if role == Qt.DisplayRole:
             return _format_cell(doc, column_key)
+        if role == Qt.FontRole and self._context:
+            return _content_font(self._context.config.config)
+        if role == Qt.ForegroundRole and self._context:
+            color = _content_color(self._context.config.config)
+            if color is not None:
+                return color
         if role == DocumentRole:
             return doc
         return None
@@ -259,7 +286,7 @@ class LibraryListWidget(QWidget):
         self._grid_icon_width = DEFAULT_ICON_WIDTH
         self._view_mode = "grid"
 
-        self.model = LibraryModel(self)
+        self.model = LibraryModel(self, context=context)
         self.list_view = QListView(self)
         self.list_view.setModel(self.model)
         self.list_view.setViewMode(QListView.IconMode)
@@ -282,7 +309,7 @@ class LibraryListWidget(QWidget):
         self.list_view.doubleClicked.connect(self._open_selected)
         self._update_grid_size()
 
-        self.table_model = LibraryTableModel(self)
+        self.table_model = LibraryTableModel(self, context=context)
         self.table_model.set_visible_columns(context.config.config.visible_columns)
         self.table_view = QTableView(self)
         self.table_view.setModel(self.table_model)

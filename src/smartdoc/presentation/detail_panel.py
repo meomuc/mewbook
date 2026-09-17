@@ -71,6 +71,19 @@ def _rating_text(doc: dict) -> str:
     return "Chưa có đánh giá"
 
 
+def _content_font_css(config, *, bold: bool = False) -> str:
+    """CSS fragment for the document-content font (title/author/tags here)
+    -- kept separate from the app's own chrome font, see AppConfig's
+    docstring on content_font_family."""
+    family = f'font-family: "{config.content_font_family}";' if config.content_font_family else ""
+    weight = "font-weight: bold;" if bold else ""
+    return f"font-size: {config.content_font_size}px; {family} {weight}"
+
+
+def _content_text_color(config, fallback: str) -> str:
+    return config.content_text_color or fallback
+
+
 class _ClickableLabel(QLabel):
     """A QLabel that emits ``clicked`` on left-click -- used so the detail
     panel's info rows themselves are the controls (click the cover to open,
@@ -96,13 +109,16 @@ class _HashtagLabel(_ClickableLabel):
     meant to be scanned quickly). Clicking it filters the library to every
     document sharing that tag."""
 
-    def __init__(self, tag: str, parent=None) -> None:
+    def __init__(self, tag: str, app_config, parent=None) -> None:
         super().__init__(parent)
         self.tag = tag
         colors = current_colors()
         display_text = tag if tag.startswith("#") else f"#{tag}"
         self.setText(display_text)
-        self.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
+        # Font family/size follow content settings like title/author; color
+        # stays the theme's accent (not content_text_color) so a hashtag
+        # keeps reading as a clickable link rather than as body text.
+        self.setStyleSheet(f"color: {colors.accent}; {_content_font_css(app_config)}")
         self.setToolTip(f"Xem các tài liệu có {display_text}")
 
 
@@ -150,17 +166,23 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self.cover_search_label)
 
         # -- Title / Author: editable directly, no separate "Edit" dialog --
+        # Font family/size/color here follow AppConfig.content_font_* (see
+        # Settings > Font nội dung), kept separate from the app's own
+        # chrome font -- not the theme's fixed 16px/13px from before.
+        app_config = context.config.config
         self.title_edit = QLineEdit(self._content)
         self.title_edit.setPlaceholderText("Tiêu đề...")
         self.title_edit.setStyleSheet(
-            f"font-size: 16px; font-weight: bold; color: {colors.text}; border: none; background: transparent;"
+            f"{_content_font_css(app_config, bold=True)} "
+            f"color: {_content_text_color(app_config, colors.text)}; border: none; background: transparent;"
         )
         self._content_layout.addWidget(self.title_edit)
 
         self.author_edit = QLineEdit(self._content)
         self.author_edit.setPlaceholderText("Tác giả...")
         self.author_edit.setStyleSheet(
-            f"color: {colors.muted_text}; font-size: 13px; border: none; background: transparent;"
+            f"{_content_font_css(app_config)} "
+            f"color: {_content_text_color(app_config, colors.muted_text)}; border: none; background: transparent;"
         )
         self._content_layout.addWidget(self.author_edit)
 
@@ -333,7 +355,7 @@ class DocumentDetailPanel(QWidget):
             for tag in tags_str.split(","):
                 tag = tag.strip()
                 if tag:
-                    hashtag_label = _HashtagLabel(tag, self._tags_container)
+                    hashtag_label = _HashtagLabel(tag, self.context.config.config, self._tags_container)
                     hashtag_label.clicked.connect(lambda _checked=False, t=tag: self._on_tag_clicked(t))
                     self._tags_layout.addWidget(hashtag_label)
             self._tags_container.show()

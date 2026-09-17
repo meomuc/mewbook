@@ -203,6 +203,49 @@ def test_test_connection_failure_updates_status_label(qapp, app_context):
     assert "bad key" in dialog.connection_status_label.text()
 
 
+def test_content_font_tab_defaults_to_no_change(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog._on_save()
+    assert dialog.appearance_changed is False
+    assert app_context.config.config.content_font_family is None
+    assert app_context.config.config.content_text_color is None
+
+
+def test_content_font_size_change_saved_separately_from_app_font(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.content_font_size_spin.setValue(18)
+
+    dialog._on_save()
+
+    assert app_context.config.config.content_font_size == 18
+    assert app_context.config.config.font_size == 10  # app chrome font untouched
+    assert dialog.appearance_changed is True
+
+
+def test_content_text_color_picker_updates_and_saves(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert dialog._content_text_color is None
+
+    from PySide6.QtGui import QColor
+
+    dialog._content_text_color = "#ff0000"
+    dialog._update_color_swatch()
+    dialog._on_save()
+
+    assert app_context.config.config.content_text_color == "#ff0000"
+    assert QColor(dialog.content_color_swatch.styleSheet().split(";")[0].split(":")[1].strip()) == QColor("#ff0000")
+
+
+def test_reset_content_color_clears_it(qapp, app_context):
+    app_context.config.config.content_text_color = "#ff0000"
+    dialog = SettingsDialog(app_context)
+    assert dialog._content_text_color == "#ff0000"
+
+    dialog._on_reset_content_color()
+
+    assert dialog._content_text_color is None
+
+
 def test_performance_tab_shows_active_worker_count(qapp, app_context):
     dialog = SettingsDialog(app_context, import_manager=_FakeImportManager())
     assert "3" in dialog.performance_status_label.text()

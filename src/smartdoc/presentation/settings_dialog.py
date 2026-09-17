@@ -1,10 +1,12 @@
 """TDD-015 (upgrade): Settings Dialog.
 
-Three tabs: File types + watch folders, Theme (+ font), Performance (worker
-count + scan timing). The original spec's Tab 4 (Cloud: Google Drive
-connect/disconnect) is not built here -- it depends on TDD-016/TDD-019
-(Milestone F), which aren't implemented yet, and a tab full of buttons that
-do nothing would be worse than no tab.
+Tabs: File types + watch folders, Giao diện (Theme + the app's own chrome
+font), Font nội dung (the separate content font/size/color -- see
+AppConfig's docstring on why these two are kept apart), Performance
+(worker count + scan timing), AI Tóm tắt. The original spec's Tab 4
+(Cloud: Google Drive connect/disconnect) is not built here -- it depends
+on TDD-016/TDD-019 (Milestone F), which aren't implemented yet, and a tab
+full of buttons that do nothing would be worse than no tab.
 
 Nothing here needs an app restart:
 - Watch folder / allowed-extension changes take effect immediately (the
@@ -24,9 +26,10 @@ import os
 import threading
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -48,6 +51,7 @@ from PySide6.QtWidgets import (
 
 from smartdoc.application.ai_summary import AISummaryError, PROVIDER_GUIDES, test_connection
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
+from smartdoc.presentation.theme import current_colors
 
 _THEME_DISPLAY_NAMES = {"light": "Sáng (Light)", "dark": "Tối (Dark)"}
 
@@ -69,6 +73,7 @@ class SettingsDialog(QDialog):
         tabs = QTabWidget(self)
         tabs.addTab(self._build_file_tab(config), "📁 Quản lý File")
         tabs.addTab(self._build_theme_tab(config), "🎨 Giao diện")
+        tabs.addTab(self._build_content_font_tab(config), "🔤 Font nội dung")
         tabs.addTab(self._build_performance_tab(config), "⚡ Hiệu năng")
         tabs.addTab(self._build_ai_tab(config), "🤖 AI Tóm tắt")
 
@@ -134,6 +139,69 @@ class SettingsDialog(QDialog):
         form.addRow("Cỡ chữ:", self.font_size_spin)
 
         return tab
+
+    def _build_content_font_tab(self, config) -> QWidget:
+        """Separate from "Giao diện" on purpose -- this governs how
+        document text (library titles/authors, the detail panel) is
+        displayed, not the app's own menus/buttons/dialogs."""
+        tab = QWidget(self)
+        layout = QVBoxLayout(tab)
+
+        note = QLabel(
+            "Áp dụng cho phần nội dung tài liệu (tiêu đề/tác giả trong danh sách, "
+            "panel chi tiết) -- tách riêng khỏi font giao diện chung của ứng dụng.",
+            tab,
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        form = QFormLayout()
+
+        self.content_font_combo = QFontComboBox(tab)
+        if config.content_font_family:
+            self.content_font_combo.setCurrentFont(QFont(config.content_font_family))
+        self._initial_content_font_family = self.content_font_combo.currentFont().family()
+        form.addRow("Font chữ:", self.content_font_combo)
+
+        self.content_font_size_spin = QSpinBox(tab)
+        self.content_font_size_spin.setRange(6, 48)
+        self.content_font_size_spin.setValue(config.content_font_size)
+        form.addRow("Cỡ chữ:", self.content_font_size_spin)
+
+        self._content_text_color = config.content_text_color
+        color_row = QHBoxLayout()
+        self.content_color_swatch = QLabel(tab)
+        self.content_color_swatch.setFixedSize(24, 24)
+        self._update_color_swatch()
+        pick_color_button = QPushButton("Chọn màu...", tab)
+        pick_color_button.clicked.connect(self._on_pick_content_color)
+        reset_color_button = QPushButton("Mặc định", tab)
+        reset_color_button.setToolTip("Dùng màu chữ theo giao diện (sáng/tối) hiện tại")
+        reset_color_button.clicked.connect(self._on_reset_content_color)
+        color_row.addWidget(self.content_color_swatch)
+        color_row.addWidget(pick_color_button)
+        color_row.addWidget(reset_color_button)
+        color_row.addStretch(1)
+        form.addRow("Màu chữ:", color_row)
+
+        layout.addLayout(form)
+        layout.addStretch(1)
+        return tab
+
+    def _update_color_swatch(self) -> None:
+        color = self._content_text_color or current_colors().text
+        self.content_color_swatch.setStyleSheet(f"background: {color}; border: 1px solid palette(mid);")
+
+    def _on_pick_content_color(self) -> None:
+        initial = QColor(self._content_text_color or current_colors().text)
+        chosen = QColorDialog.getColor(initial, self, "Chọn màu chữ nội dung")
+        if chosen.isValid():
+            self._content_text_color = chosen.name()
+            self._update_color_swatch()
+
+    def _on_reset_content_color(self) -> None:
+        self._content_text_color = None
+        self._update_color_swatch()
 
     def _build_performance_tab(self, config) -> QWidget:
         tab = QWidget(self)
@@ -295,6 +363,20 @@ class SettingsDialog(QDialog):
         if new_font_size != config.font_size:
             self.appearance_changed = True
             config.font_size = new_font_size
+
+        new_content_font_family = self.content_font_combo.currentFont().family()
+        if new_content_font_family != self._initial_content_font_family:
+            self.appearance_changed = True
+            config.content_font_family = new_content_font_family
+
+        new_content_font_size = self.content_font_size_spin.value()
+        if new_content_font_size != config.content_font_size:
+            self.appearance_changed = True
+            config.content_font_size = new_content_font_size
+
+        if self._content_text_color != config.content_text_color:
+            self.appearance_changed = True
+            config.content_text_color = self._content_text_color
 
         new_worker_count = self.worker_spin.value()
         if new_worker_count != config.worker_thread_count:

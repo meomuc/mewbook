@@ -5,6 +5,36 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Separate "content font" from the app's own font
+
+Settings gained a new "🔤 Font nội dung" tab, deliberately separate from
+"🎨 Giao diện" -- per explicit request to split "cấu hình giao diện font
+chữ, kiểu chữ, cỡ chữ, màu chữ của nội dung" (the content's font/style/
+size/color) from "cấu hình của ứng dụng" (the app's own configuration).
+"Giao diện" keeps Theme + the app's chrome font (menus/buttons/dialogs,
+unchanged from before); the new tab has its own font family (QFontComboBox),
+size, and a text color picker (QColorDialog + swatch, with a "Mặc định"
+button to fall back to the current theme's own text color) -- three new
+`AppConfig` fields: `content_font_family`, `content_font_size` (default
+13), `content_text_color`.
+
+Applied to document-content text specifically, not the whole app:
+- **Library grid/list**: `LibraryModel`/`LibraryTableModel` now take an
+  optional `context` and answer `Qt.FontRole`/`Qt.ForegroundRole` from it
+  for title/author text (grid) and every cell (list) -- the idiomatic Qt
+  way to give a model's items their own font/color without a custom
+  delegate.
+- **Document Detail Panel**: title/author now use the content font/size/
+  color instead of the fixed 16px/13px baked into the old stylesheet.
+  Hashtags follow the content font *size* too but keep the theme's accent
+  *color* -- deliberately not `content_text_color`, so a tag still reads
+  as a clickable link rather than as body text.
+
+Like theme/app-font, these apply after Settings closes via the same
+`appearance_changed` → MainWindow-rebuild path already in place (see the
+"Live-apply Settings" entry above) -- not live mid-session, since the
+values are baked into stylesheet strings at widget-construction time.
+
 ## 2026-09-17 — Collections: dedupe + counts; Faceted filters: click-based + Hashtag category
 
 - **Collections:** creating one with a name that already exists (case/

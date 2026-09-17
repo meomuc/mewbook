@@ -152,6 +152,32 @@ def test_tags_section_header_is_hashtag_not_the_loai(qapp, app_context):
     assert panel.tags_title_label.text() == "Hashtag"
 
 
+def test_title_and_author_use_content_font_settings_not_app_font(qapp, app_context):
+    app_context.config.config.content_font_size = 24
+    app_context.config.config.content_text_color = "#00ff00"
+
+    panel = DocumentDetailPanel(app_context)
+
+    assert "24px" in panel.title_edit.styleSheet()
+    assert "#00ff00" in panel.title_edit.styleSheet()
+    assert "24px" in panel.author_edit.styleSheet()
+    assert "#00ff00" in panel.author_edit.styleSheet()
+
+
+def test_hashtag_labels_use_content_font_size_but_keep_accent_color(qapp, app_context):
+    app_context.config.config.content_font_size = 20
+
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc(tags="Python"))
+
+    from smartdoc.presentation.detail_panel import _HashtagLabel
+
+    hashtag_labels = panel._tags_container.findChildren(_HashtagLabel)
+    assert len(hashtag_labels) == 1
+    assert "20px" in hashtag_labels[0].styleSheet()
+    assert "color:" in hashtag_labels[0].styleSheet()  # still colored (accent), not content_text_color
+
+
 def test_clicking_a_hashtag_resets_collection_and_filters_by_tag(qapp, app_context):
     from smartdoc.core.event_bus import CollectionSelectedEvent, FacetFilterChangedEvent
 

@@ -57,8 +57,21 @@ class AppConfig:
     # Optional list-view columns beyond the mandatory Title -- see
     # presentation/library_view.py's OPTIONAL_COLUMNS for the valid keys.
     visible_columns: list[str] = field(default_factory=lambda: ["author", "created_at"])
+    # Application font -- the app's own chrome (menus, buttons, dialogs,
+    # generic labels). Kept separate from the "content" font below per
+    # explicit request: "tách cấu hình ... của nội dung và cấu hình của
+    # ứng dụng riêng ra" (separate the content styling from the app's own
+    # configuration) -- one governs how the app looks, the other how
+    # documents' text is displayed.
     font_family: str | None = None  # None = Qt/OS default
     font_size: int = 10
+    # Content font -- applied to document-related text specifically: the
+    # library grid/list's title/author, and the Document Detail Panel's
+    # title/author/tags. None family/color = fall back to the app font /
+    # current theme's text color.
+    content_font_family: str | None = None
+    content_font_size: int = 13
+    content_text_color: str | None = None  # hex, e.g. "#1a1a1a"; None = theme default
     show_detail_panel: bool = False
     # Last folder the user picked in any "choose a file/folder" dialog, so
     # the next dialog opens there instead of always starting at the OS

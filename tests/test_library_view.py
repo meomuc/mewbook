@@ -218,3 +218,49 @@ def test_bursts_of_library_updated_events_trigger_one_debounced_reload(qapp, app
     time.sleep(0.2)
     qapp.processEvents()
     assert len(reload_calls) == 1  # the burst collapsed into exactly one reload
+
+
+def test_grid_model_applies_content_font_and_color(qapp, app_context):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor
+
+    app_context.config.config.content_font_family = "Comic Sans MS"
+    app_context.config.config.content_font_size = 22
+    app_context.config.config.content_text_color = "#ff00ff"
+    app_context.db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 1.0})
+    widget = LibraryListWidget(app_context)
+
+    index = widget.model.index(0, 0)
+    font = widget.model.data(index, Qt.FontRole)
+    color = widget.model.data(index, Qt.ForegroundRole)
+
+    assert font.pointSize() == 22
+    assert font.family() == "Comic Sans MS"
+    assert QColor(color) == QColor("#ff00ff")
+
+
+def test_grid_model_falls_back_to_default_color_when_unset(qapp, app_context):
+    from PySide6.QtCore import Qt
+
+    app_context.db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 1.0})
+    widget = LibraryListWidget(app_context)
+
+    index = widget.model.index(0, 0)
+    assert widget.model.data(index, Qt.ForegroundRole) is None  # falls back to the view's own default
+
+
+def test_table_model_applies_content_font_and_color(qapp, app_context):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor
+
+    app_context.config.config.content_font_size = 16
+    app_context.config.config.content_text_color = "#00ff00"
+    app_context.db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 1.0})
+    widget = LibraryListWidget(app_context)
+
+    index = widget.table_model.index(0, 0)
+    font = widget.table_model.data(index, Qt.FontRole)
+    color = widget.table_model.data(index, Qt.ForegroundRole)
+
+    assert font.pointSize() == 16
+    assert QColor(color) == QColor("#00ff00")
