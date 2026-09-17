@@ -43,6 +43,7 @@ from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.reader_window import ReaderWindow
 from smartdoc.presentation.review_dialog import ReviewDialog
 
 DEFAULT_ICON_WIDTH = 120
@@ -593,6 +594,7 @@ class LibraryListWidget(QWidget):
 
     def _show_single_document_menu(self, menu: QMenu, doc: dict, position) -> None:
         open_action = menu.addAction("Mở file")
+        read_action = menu.addAction("Đọc trong ứng dụng")
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
@@ -605,6 +607,9 @@ class LibraryListWidget(QWidget):
         chosen = self._exec_menu(menu, position)
         if chosen == open_action:
             self.file_actions.open_file(doc["file_path"])
+        elif chosen == read_action:
+            self._reader_window = ReaderWindow(self.context, doc, self)
+            self._reader_window.show()
         elif chosen == reveal_action:
             self.file_actions.show_in_file_manager(doc["file_path"])
         elif chosen == edit_action:

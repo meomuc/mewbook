@@ -31,6 +31,7 @@ from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.reader_window import ReaderWindow
 from smartdoc.presentation.review_dialog import ReviewDialog
 from smartdoc.presentation.theme import current_colors
 
@@ -133,7 +134,7 @@ class DocumentDetailPanel(QWidget):
         self.cover_label = _ClickableLabel(self._content)
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setMinimumHeight(int(COVER_WIDTH * 1.33))
-        self.cover_label.setToolTip("Nhấn để mở file")
+        self.cover_label.setToolTip("Nhấn để đọc trong ứng dụng")
         self._content_layout.addWidget(self.cover_label)
 
         self.cover_search_label = _ClickableLabel(self._content)
@@ -182,7 +183,7 @@ class DocumentDetailPanel(QWidget):
         self.path_label.setToolTip("Nhấn để mở vị trí file")
         self._content_layout.addWidget(self.path_label)
 
-        self.cover_label.clicked.connect(self._on_open)
+        self.cover_label.clicked.connect(self._on_read)
         self.cover_search_label.clicked.connect(self._on_search_cover)
         self.rating_label.clicked.connect(self._on_review)
         self.path_label.clicked.connect(self._on_reveal)
@@ -361,9 +362,10 @@ class DocumentDetailPanel(QWidget):
 
     # ── Click / inline-edit handlers ─────────────────────────────────
 
-    def _on_open(self) -> None:
+    def _on_read(self) -> None:
         if self._current_doc:
-            self.file_actions.open_file(self._current_doc["file_path"])
+            self._reader_window = ReaderWindow(self.context, self._current_doc, self)
+            self._reader_window.show()
 
     def _on_reveal(self) -> None:
         if self._current_doc:

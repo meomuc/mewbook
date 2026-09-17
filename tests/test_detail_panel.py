@@ -232,15 +232,24 @@ def test_editing_title_to_unchanged_value_does_not_publish_event(qapp, app_conte
     assert events == []
 
 
-def test_clicking_cover_opens_the_file(qapp, app_context, monkeypatch):
-    opened = []
+def test_clicking_cover_opens_the_reader_window(qapp, app_context, monkeypatch):
+    opened_docs = []
+
+    class _FakeReaderWindow:
+        def __init__(self, context, doc, parent=None):
+            opened_docs.append(doc)
+
+        def show(self):
+            pass
+
+    monkeypatch.setattr("smartdoc.presentation.detail_panel.ReaderWindow", _FakeReaderWindow)
     panel = DocumentDetailPanel(app_context)
-    monkeypatch.setattr(panel.file_actions, "open_file", lambda path: opened.append(path))
     panel.set_document(_sample_doc(file_path="C:/Books/python.pdf"))
 
     panel.cover_label.clicked.emit()
 
-    assert opened == ["C:/Books/python.pdf"]
+    assert len(opened_docs) == 1
+    assert opened_docs[0]["file_path"] == "C:/Books/python.pdf"
 
 
 def test_clicking_path_reveals_in_file_manager(qapp, app_context, monkeypatch):

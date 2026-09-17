@@ -18,6 +18,9 @@ class _FakeDialog:
     def exec(self) -> int:
         return 1
 
+    def show(self) -> None:
+        pass
+
 
 def _pick_action_containing(text_substring: str):
     def fake_exec_menu(self, menu, _position):
@@ -113,6 +116,23 @@ def test_single_selection_delete_cancelled_keeps_document(qapp, app_context, mon
     widget._show_context_menu(position)
 
     assert len(app_context.db.list_all_documents()) == 2
+
+
+def test_single_selection_read_action_opens_reader_window(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    opened_docs = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.ReaderWindow",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Đọc trong ứng dụng"))
+
+    widget._show_context_menu(position)
+
+    assert len(opened_docs) == 1
 
 
 def test_multi_selection_batch_edit_opens_batch_dialog_with_both_ids(qapp, app_context, monkeypatch):

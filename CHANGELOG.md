@@ -5,6 +5,29 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — In-app Document Reader window
+
+- **Reader window (`presentation/reader_window.py`):** a separate,
+  independent top-level window (not modal -- the library stays usable
+  while reading) with the common PDF-viewing controls: previous/next page,
+  a page-number jump box, zoom in/out, fit-width/fit-page, and fullscreen
+  (F11). Built on Qt's own `QtPdf`/`QtPdfWidgets` modules, which ship as
+  part of the existing `pyside6` dependency (no new package needed).
+  EPUB/AZW3/MOBI (and any PDF that fails to load) fall back to a plain
+  message + "Mở bằng ứng dụng khác" button rather than a half-working
+  embedded viewer -- Qt has no first-party EPUB rendering widget, and this
+  app's EPUB extractor only pulls metadata/cover today, not body text (see
+  `import_queue.py`'s known-limitations note), so there is nothing to
+  render for those formats yet regardless. Opened from the Document Detail
+  Panel (click the cover) and the library grid/list's right-click menu
+  ("Đọc trong ứng dụng").
+- Not yet re-verified against a fresh PyInstaller build -- QtPdf is a
+  separate Qt module from the widgets already bundled, and while PyInstaller
+  should pick it up automatically from the plain `import` statements (same
+  mechanism as every other PySide6 submodule this app already uses), that
+  should be confirmed the next time `packaging/SmartDocLibrary.spec` is
+  built.
+
 ## 2026-09-17 — Cover Image Search (Open Library)
 
 - **Cover Image Search:** search Open Library's public search API
