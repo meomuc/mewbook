@@ -14,6 +14,11 @@ uv run pytest
 uv run smartdoc     # launch the app
 ```
 
+Or just double-click `run.bat` in the project root — it sets
+`UV_PROJECT_ENVIRONMENT`/`PYTHONUTF8` and runs `uv run smartdoc` for you,
+and stays open on a crash so you can read the traceback instead of the
+window flashing shut.
+
 **Important if your project folder lives inside OneDrive (as this one does):**
 keep the virtualenv *outside* the synced tree, or `uv sync`/`uv add` will
 intermittently fail with `Access is denied` while OneDrive holds a lock on
