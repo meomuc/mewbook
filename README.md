@@ -106,7 +106,7 @@ antivirus on a fresh machine, and the auto-updater (TDD-024).
 
 ## Status
 
-**Milestones A–D** are done and verified by `uv run pytest` (168 tests) plus
+**Milestones A–D** are done and verified by `uv run pytest` (176 tests) plus
 an end-to-end smoke test that launches the real `MainWindow`, bulk-scans a
 folder, and proves the live file watcher flows through to the UI.
 
@@ -155,11 +155,14 @@ access. It calls the Firestore REST API directly via
 already dependencies) rather than adding the `firebase-admin` SDK just for
 this. Verified with unit tests against a fake Firestore session; a live
 smoke test lives in the module's `__main__` for whenever someone re-runs it
-against the real project. Not wired into the UI yet (no review panel/dialog
-on a document).
+against the real project. Wired into the UI as `presentation/review_dialog.py`
+(a star-rating + comment form, reachable from a document's right-click menu
+→ "Xem / Viết đánh giá"); network calls run on a background thread and
+report back through plain Qt signals, not the EventBus.
 
 One-time setup on the Google Cloud project the service account belongs to
-(only the project owner can do this, from the Cloud Console):
+(only the project owner can do this, from the Cloud Console) — pending
+before the live path can be exercised end to end:
 1. Enable Firestore (Native mode) on the project.
 2. Grant the service account the "Cloud Datastore User" IAM role.
 

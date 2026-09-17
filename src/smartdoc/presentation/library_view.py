@@ -36,6 +36,7 @@ from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.review_dialog import ReviewDialog
 
 DEFAULT_ICON_WIDTH = 120
 ICON_SIZE = QSize(DEFAULT_ICON_WIDTH, int(DEFAULT_ICON_WIDTH * 1.33))
@@ -342,6 +343,7 @@ class LibraryListWidget(QWidget):
         open_action = menu.addAction("Mở file")
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
+        review_action = menu.addAction("Xem / Viết đánh giá")
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
 
@@ -352,6 +354,8 @@ class LibraryListWidget(QWidget):
             self.file_actions.show_in_file_manager(doc["file_path"])
         elif chosen == edit_action:
             MetadataEditorDialog(self.context, doc, self).exec()
+        elif chosen == review_action:
+            ReviewDialog(self.context, doc, self).exec()
         elif chosen == delete_action:
             confirm = QMessageBox.question(
                 self,

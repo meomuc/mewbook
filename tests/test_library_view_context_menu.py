@@ -69,6 +69,24 @@ def test_single_selection_edit_action_opens_metadata_editor(qapp, app_context, m
     assert opened_docs[0]["title"] in ("First", "Second")
 
 
+def test_single_selection_review_action_opens_review_dialog(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    opened_docs = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.ReviewDialog",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xem / Viết đánh giá"))
+
+    widget._show_context_menu(position)
+
+    assert len(opened_docs) == 1
+    assert opened_docs[0]["title"] in ("First", "Second")
+
+
 def test_single_selection_delete_confirmed_removes_document(qapp, app_context, monkeypatch):
     _seed_two_docs(app_context)
     widget = LibraryListWidget(app_context)
