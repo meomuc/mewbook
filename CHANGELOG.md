@@ -5,6 +5,35 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — List View QTableView + Document Detail Side Panel
+
+**Commits:** `f1ee45c` → `db6b48f`
+
+- **List View redesign:** replaced `QListView.ListMode` (still just one
+  column of icon+text) with a proper `QTableView` + `LibraryTableModel`
+  showing real columns: Title, Author, Tags, Average Rating, Review Count,
+  Date Added, Date Modified. Grid and List now live in a `QStackedWidget`
+  so switching mode is instant, with no widget teardown/rebuild. Right-click
+  the table header to toggle which optional columns are visible (persisted
+  in `AppConfig.visible_columns`). Grid alignment fixed: covers now snap to
+  an even grid via `setUniformItemSizes(True)` + explicit `setGridSize()`,
+  and long titles are truncated with "…" so one cell never expands and
+  misaligns its neighbors.
+- **Document Detail Side Panel:** a collapsible panel on the right side of
+  the library showing cover art (280px), title, author, format + file size,
+  dates, rating, file path, action buttons (open / reveal / edit / review),
+  tags as colored badge chips, and AI summary (when available). Panel
+  subscribes to the new `DocumentSelectedEvent` emitted by the library view
+  whenever the user clicks a single document. Multi-select or deselect
+  clears the panel. Toggle visibility via View → "Hiện/Ẩn Panel chi tiết";
+  preference persisted in `AppConfig.show_detail_panel` (default: hidden).
+  Panel also reacts to `LibraryUpdatedEvent` to auto-refresh after metadata
+  edits without requiring a re-click.
+- **Bug fix:** `Ctrl+A` select-all now targets the active view (grid or
+  table) instead of hardcoding `list_view`.
+- **Infrastructure:** added `DatabaseManager.get_document(doc_id)` for
+  single-document lookup by ID.
+
 ## 2026-09-17 — Milestones A–E (Windows Phase 1) + Cloud Review System
 
 **Commits:** `f50c766` → `2b7b51f`
