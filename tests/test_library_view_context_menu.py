@@ -198,3 +198,212 @@ def test_multi_selection_delete_confirmed_removes_all_selected(qapp, app_context
     widget._show_context_menu(position)
 
     assert app_context.db.list_all_documents() == []
+
+
+def test_single_selection_copy_action_puts_file_path_on_clipboard(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    calls = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.set_clipboard_files",
+        lambda paths, cut=False: calls.append((paths, cut)),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Sao chép"))
+
+    widget._show_context_menu(position)
+
+    assert calls[0][1] is False
+    assert calls[0][0][0] in ("a.pdf", "b.pdf")
+
+
+def test_single_selection_cut_action_marks_clipboard_as_move(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    calls = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.set_clipboard_files",
+        lambda paths, cut=False: calls.append((paths, cut)),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Cắt"))
+
+    widget._show_context_menu(position)
+
+    assert calls[0][1] is True
+    assert calls[0][0][0] in ("a.pdf", "b.pdf")
+
+
+def test_multi_selection_copy_action_puts_all_file_paths_on_clipboard(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0, 1)
+
+    calls = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.set_clipboard_files",
+        lambda paths, cut=False: calls.append((paths, cut)),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Sao chép"))
+
+    widget._show_context_menu(position)
+
+    assert calls[0][1] is False
+    assert set(calls[0][0]) == {"a.pdf", "b.pdf"}
+
+
+def test_clear_selection_deselects_everything(qapp, app_context):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+    assert widget.list_view.selectionModel().hasSelection()
+
+    widget.clear_selection()
+
+    assert not widget.list_view.selectionModel().hasSelection()
+
+
+def test_edit_selected_opens_metadata_editor_for_single_selection(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    opened_docs = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.MetadataEditorDialog",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+
+    widget.edit_selected()
+
+    assert len(opened_docs) == 1
+
+
+def test_edit_selected_opens_batch_editor_for_multi_selection(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+
+    captured_ids = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.BatchEditorDialog",
+        lambda context, doc_ids, parent: captured_ids.extend(doc_ids) or _FakeDialog(),
+    )
+
+    widget.edit_selected()
+
+    assert set(captured_ids) == {"d1", "d2"}
+
+
+def test_delete_selected_removes_confirmed_selection(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+
+    widget.delete_selected()
+
+    assert app_context.db.list_all_documents() == []
+
+
+def test_delete_selected_does_nothing_when_nothing_selected(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+
+    asked = []
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: asked.append(1) or QMessageBox.Yes))
+
+    widget.delete_selected()
+
+    assert asked == []
+    assert len(app_context.db.list_all_documents()) == 2
+
+
+def test_copy_selected_puts_selected_paths_on_clipboard(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+
+    calls = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.set_clipboard_files",
+        lambda paths, cut=False: calls.append((paths, cut)),
+    )
+
+    widget.copy_selected()
+
+    assert calls[0][1] is False
+    assert set(calls[0][0]) == {"a.pdf", "b.pdf"}
+
+
+def test_cut_selected_marks_clipboard_as_move(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    calls = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.set_clipboard_files",
+        lambda paths, cut=False: calls.append((paths, cut)),
+    )
+
+    widget.cut_selected()
+
+    assert calls[0][1] is True
+    assert calls[0][0][0] in ("a.pdf", "b.pdf")
+
+
+class _FakeImportManager:
+    def __init__(self) -> None:
+        self.added_files: list[str] = []
+        self.scanned_folders: list[str] = []
+
+    def add_files(self, paths: list[str]) -> int:
+        self.added_files.extend(paths)
+        return len(paths)
+
+    def scan_folder(self, folder_path: str) -> int:
+        self.scanned_folders.append(folder_path)
+        return 0
+
+
+def test_paste_files_imports_files_from_clipboard(qapp, app_context, monkeypatch, tmp_path):
+    file_a = tmp_path / "book.pdf"
+    file_a.write_text("x")
+    import_manager = _FakeImportManager()
+    widget = LibraryListWidget(app_context, import_manager=import_manager)
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.get_clipboard_file_paths", lambda: [str(file_a)]
+    )
+
+    widget.paste_files()
+
+    assert import_manager.added_files == [str(file_a)]
+
+
+def test_paste_files_scans_folders_from_clipboard(qapp, app_context, monkeypatch, tmp_path):
+    folder = tmp_path / "books"
+    folder.mkdir()
+    import_manager = _FakeImportManager()
+    widget = LibraryListWidget(app_context, import_manager=import_manager)
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.get_clipboard_file_paths", lambda: [str(folder)]
+    )
+
+    widget.paste_files()
+
+    assert import_manager.scanned_folders == [str(folder)]
+
+
+def test_paste_files_does_nothing_without_an_import_manager(qapp, app_context, monkeypatch, tmp_path):
+    file_a = tmp_path / "book.pdf"
+    file_a.write_text("x")
+    widget = LibraryListWidget(app_context)
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.get_clipboard_file_paths", lambda: [str(file_a)]
+    )
+
+    widget.paste_files()  # should not raise

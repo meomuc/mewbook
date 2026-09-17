@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
@@ -39,6 +40,7 @@ from smartdoc.core.event_bus import (
     ViewModeChangedEvent,
 )
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
+from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
@@ -304,9 +306,10 @@ class LibraryTableModel(QAbstractTableModel):
 
 
 class LibraryListWidget(QWidget):
-    def __init__(self, context, parent=None) -> None:
+    def __init__(self, context, parent=None, import_manager=None) -> None:
         super().__init__(parent)
         self.context = context
+        self.import_manager = import_manager  # only needed for paste_files()
         self.file_actions = FileActionEngine(context)
         self._current_query = ""
         self._active_extensions: tuple[str, ...] = ()
@@ -664,6 +667,9 @@ class LibraryListWidget(QWidget):
         cover_search_action = menu.addAction("Tìm ảnh bìa...")
         ai_summary_action = menu.addAction("🤖 Tóm tắt AI...")
         menu.addSeparator()
+        copy_action = menu.addAction("📋 Sao chép")
+        cut_action = menu.addAction("✂️ Cắt")
+        menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
@@ -677,28 +683,29 @@ class LibraryListWidget(QWidget):
         elif chosen == reveal_action:
             self.file_actions.show_in_file_manager(doc["file_path"])
         elif chosen == edit_action:
-            MetadataEditorDialog(self.context, doc, self).exec()
+            self._edit_documents([doc])
         elif chosen == review_action:
             ReviewDialog(self.context, doc, self).exec()
         elif chosen == cover_search_action:
             CoverSearchDialog(self.context, doc, self).exec()
         elif chosen == ai_summary_action:
             AISummaryDialog(self.context, doc, self).exec()
+        elif chosen == copy_action:
+            set_clipboard_files([doc["file_path"]] if doc.get("file_path") else [], cut=False)
+        elif chosen == cut_action:
+            set_clipboard_files([doc["file_path"]] if doc.get("file_path") else [], cut=True)
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [doc["id"]])
             self.context.event_bus.publish(LibraryUpdatedEvent())
         elif chosen == delete_action:
-            confirm = QMessageBox.question(
-                self,
-                "Xóa khỏi thư viện",
-                f"Xóa \"{doc.get('title')}\" khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)",
-            )
-            if confirm == QMessageBox.Yes:
-                self.file_actions.delete_document(doc["id"], doc.get("file_path"), delete_physical_file=False)
+            self._delete_documents_with_confirm([doc])
 
     def _show_multi_document_menu(self, menu: QMenu, docs: list[dict], position) -> None:
         count = len(docs)
         batch_edit_action = menu.addAction(f"Chỉnh sửa hàng loạt ({count} tài liệu)")
+        menu.addSeparator()
+        copy_action = menu.addAction("📋 Sao chép")
+        cut_action = menu.addAction("✂️ Cắt")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         menu.addSeparator()
@@ -706,20 +713,85 @@ class LibraryListWidget(QWidget):
 
         chosen = self._exec_menu(menu, position)
         if chosen == batch_edit_action:
-            BatchEditorDialog(self.context, [d["id"] for d in docs], self).exec()
+            self._edit_documents(docs)
+        elif chosen == copy_action:
+            set_clipboard_files([d["file_path"] for d in docs if d.get("file_path")], cut=False)
+        elif chosen == cut_action:
+            set_clipboard_files([d["file_path"] for d in docs if d.get("file_path")], cut=True)
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [d["id"] for d in docs])
             self.context.event_bus.publish(LibraryUpdatedEvent())
         elif chosen == delete_action:
-            confirm = QMessageBox.question(
-                self,
-                "Xóa khỏi thư viện",
-                f"Xóa {count} tài liệu đã chọn khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)",
+            self._delete_documents_with_confirm(docs)
+
+    def _edit_documents(self, docs: list[dict]) -> None:
+        if len(docs) == 1:
+            MetadataEditorDialog(self.context, docs[0], self).exec()
+        else:
+            BatchEditorDialog(self.context, [d["id"] for d in docs], self).exec()
+
+    def _delete_documents_with_confirm(self, docs: list[dict]) -> None:
+        if not docs:
+            return
+        count = len(docs)
+        message = (
+            f"Xóa \"{docs[0].get('title')}\" khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)"
+            if count == 1
+            else f"Xóa {count} tài liệu đã chọn khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)"
+        )
+        confirm = QMessageBox.question(self, "Xóa khỏi thư viện", message)
+        if confirm == QMessageBox.Yes:
+            self.file_actions.delete_documents(
+                [(d["id"], d.get("file_path")) for d in docs], delete_physical_file=False
             )
-            if confirm == QMessageBox.Yes:
-                self.file_actions.delete_documents(
-                    [(d["id"], d.get("file_path")) for d in docs], delete_physical_file=False
-                )
+
+    # ── Edit-menu-facing operations (mirror the context menu -- see
+    # main_window.py's Edit menu) ────────────────────────────────────
+
+    def _selected_documents(self) -> list[dict]:
+        view = self._active_view()
+        model = self._active_model()
+        rows = sorted({idx.row() for idx in view.selectedIndexes()})
+        return [d for d in (model.document_at(row) for row in rows) if d]
+
+    def clear_selection(self) -> None:
+        self._active_view().clearSelection()
+
+    def edit_selected(self) -> None:
+        docs = self._selected_documents()
+        if docs:
+            self._edit_documents(docs)
+
+    def delete_selected(self) -> None:
+        self._delete_documents_with_confirm(self._selected_documents())
+
+    def copy_selected(self) -> None:
+        """Puts the selected documents' file paths on the system
+        clipboard, the same way Explorer's own Ctrl+C does -- lets the
+        user paste file references into Explorer (or anywhere else) that
+        accepts them, not just drag files out."""
+        paths = [d["file_path"] for d in self._selected_documents() if d.get("file_path")]
+        set_clipboard_files(paths, cut=False)
+
+    def cut_selected(self) -> None:
+        paths = [d["file_path"] for d in self._selected_documents() if d.get("file_path")]
+        set_clipboard_files(paths, cut=True)
+
+    def paste_files(self) -> None:
+        """Imports whatever files/folders are currently on the clipboard --
+        works with files copied from Explorer, or cut/copied from this
+        app's own library view."""
+        if not self.import_manager:
+            return
+        paths = get_clipboard_file_paths()
+        if not paths:
+            return
+        file_paths = [p for p in paths if Path(p).is_file()]
+        folder_paths = [p for p in paths if Path(p).is_dir()]
+        if file_paths:
+            self.import_manager.add_files(file_paths)
+        for folder in folder_paths:
+            self.import_manager.scan_folder(folder)
 
 
 if __name__ == "__main__":

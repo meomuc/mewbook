@@ -5,6 +5,32 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Edit menu: clear selection, edit, delete, copy/cut/paste files
+
+The Edit menu only had "Select all" -- everything else (edit, delete,
+copy/cut/paste files) required the right-click context menu, and even
+there, copy/cut/paste of the underlying files wasn't offered at all.
+
+- New `presentation/clipboard_files.py`: `set_clipboard_files(paths,
+  cut=...)` / `get_clipboard_file_paths()` put/read real file references
+  on the OS clipboard, using the same "Preferred DropEffect" marker
+  Windows Explorer itself uses to distinguish copy from cut -- so a
+  library file copied here can be pasted straight into Explorer (or
+  anywhere else that accepts file drops), and files cut/copied in
+  Explorer can be pasted into the library. This app still never
+  copies/moves files on its own storage -- copy/cut only ever place
+  references on the clipboard, paste only ever imports/indexes.
+- `LibraryListWidget` gained `clear_selection()`, `edit_selected()`,
+  `delete_selected()`, `copy_selected()`, `cut_selected()`, and
+  `paste_files()` (the last needs the app's `import_manager`, now passed
+  through from `MainWindow`). `_show_single_document_menu` /
+  `_show_multi_document_menu`'s edit/delete logic was factored into
+  shared `_edit_documents()` / `_delete_documents_with_confirm()` helpers
+  so the Edit menu and the right-click menu can't drift apart.
+- Both context menus gained "📋 Sao chép" / "✂️ Cắt" actions alongside the
+  new Edit menu entries (Ctrl+C/Ctrl+X/Ctrl+V, Del, Ctrl+Shift+A for
+  clear selection).
+
 ## 2026-09-17 — File-type badge, panel refresh button, clearer dividers/action colors
 
 - **Grid view covers gained a file-type badge** ("PDF"/"EPUB") stamped at
