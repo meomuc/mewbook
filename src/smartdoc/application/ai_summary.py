@@ -109,8 +109,17 @@ def test_connection(provider: str, api_key: str) -> None:
         raise AISummaryError(f"{exc}\n\nGợi ý: {guide}" if guide else str(exc)) from exc
 
 
+_GEMINI_MODEL = "gemini-3.8-flash"
+
+
 def _call_gemini(api_key: str, user_prompt: str) -> str:
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    # Google retires/renames Gemini model IDs every few months (2.0-flash
+    # was fully shut down June 2026; even 2.5-flash is on its way out) --
+    # _GEMINI_MODEL is the one place to bump when this one goes stale too.
+    # If summaries start failing with a 404 here again, that's the first
+    # thing to check: https://ai.google.dev/gemini-api/docs/models for the
+    # current GA flash model.
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL}:generateContent"
     # Google's newer API keys (the "AQ." prefix format, now the default when
     # creating a key in AI Studio) are only recognized via the
     # x-goog-api-key header -- sent as a ?key= query param instead, the

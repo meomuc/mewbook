@@ -5,6 +5,20 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Fix Gemini 404, part 2: gemini-2.0-flash was fully retired
+
+The header fix (previous entry) wasn't the whole story -- confirmed live
+against the real API that `gemini-2.0-flash` itself now 404s regardless of
+auth, because Google fully shut it down June 1, 2026 (not a soft
+deprecation). Google's model lineup has moved fast this year
+(2.0 → 2.5 → 3.5 → 3.8 within months), so this will very likely need
+bumping again -- updated `_GEMINI_MODEL` to `gemini-3.8-flash` (the
+current GA flash model) and left a comment pointing at
+ai.google.dev/gemini-api/docs/models as the place to check next time.
+Verified live: a garbage key against this model now gets a proper "API
+key not valid" (400) instead of "Not Found" (404), confirming the model
+itself is routable.
+
 ## 2026-09-17 — Fix Gemini 404 for Google's newer "AQ." API key format
 
 Real bug hit immediately after shipping the connection-test feature: a
