@@ -56,8 +56,6 @@ class MainWindow(QMainWindow):
             f" QMenu::item:selected {{ background: {colors.accent}; color: {colors.accent_text}; }}"
         )
 
-        self._build_menu()
-
         self.sidebar = LibrarySidebar(context)
 
         self.omnibar = OmnibarSearchBar(context)
@@ -66,6 +64,11 @@ class MainWindow(QMainWindow):
         self.library_view.set_view_mode(context.config.config.view_mode)
 
         self.detail_panel = DocumentDetailPanel(context)
+
+        # Must come after self.library_view exists -- several Edit menu
+        # actions connect directly to its bound methods (not lambdas), so
+        # the attribute lookup happens at connect time.
+        self._build_menu()
 
         # Inner splitter: library view | detail panel
         library_container = QWidget()
@@ -113,6 +116,10 @@ class MainWindow(QMainWindow):
         import_calibre_action = QAction("📥 Nhập từ thư viện Calibre...", self)
         import_calibre_action.triggered.connect(self._on_import_from_calibre)
         file_menu.addAction(import_calibre_action)
+        file_menu.addSeparator()
+        send_ereader_action = QAction("📱 Gửi tới máy đọc sách...", self)
+        send_ereader_action.triggered.connect(self._on_send_to_ereader)
+        file_menu.addAction(send_ereader_action)
         file_menu.addSeparator()
         exit_action = QAction("🚪 Thoát", self)
         exit_action.triggered.connect(self.close)
@@ -234,6 +241,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self, "Nhập từ Calibre", f"Đã đưa {count} sách vào hàng đợi xử lý. Thư viện Calibre gốc không bị thay đổi."
         )
+
+    def _on_send_to_ereader(self) -> None:
+        self.library_view.send_selected_to_ereader()
 
     def _on_bridged_event(self, event) -> None:
         if isinstance(event, ImportBatchCompletedEvent):

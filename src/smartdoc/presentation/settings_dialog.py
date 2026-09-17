@@ -113,6 +113,19 @@ class SettingsDialog(QDialog):
         folder_buttons.addWidget(remove_button)
         layout.addLayout(folder_buttons)
 
+        layout.addWidget(QLabel("📱 Thư mục sách trên máy đọc sách (USB):"))
+        self._ereader_folder_path = config.ereader_folder_path
+        ereader_row = QHBoxLayout()
+        self.ereader_folder_edit = QLineEdit(tab)
+        self.ereader_folder_edit.setText(self._ereader_folder_path or "")
+        self.ereader_folder_edit.setReadOnly(True)
+        self.ereader_folder_edit.setPlaceholderText("Chưa thiết lập")
+        choose_ereader_button = QPushButton("Chọn...", tab)
+        choose_ereader_button.clicked.connect(self._on_choose_ereader_folder)
+        ereader_row.addWidget(self.ereader_folder_edit, stretch=1)
+        ereader_row.addWidget(choose_ereader_button)
+        layout.addLayout(ereader_row)
+
         return tab
 
     def _build_theme_tab(self, config) -> QWidget:
@@ -338,6 +351,13 @@ class SettingsDialog(QDialog):
         for item in self.folder_list.selectedItems():
             self.folder_list.takeItem(self.folder_list.row(item))
 
+    def _on_choose_ereader_folder(self) -> None:
+        start_dir = self._ereader_folder_path or self.context.config.config.last_used_directory or ""
+        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục sách trên máy đọc sách", start_dir)
+        if folder:
+            self._ereader_folder_path = folder
+            self.ereader_folder_edit.setText(folder)
+
     def _on_save(self) -> None:
         config = self.context.config.config
 
@@ -348,6 +368,8 @@ class SettingsDialog(QDialog):
         removed_folders = set(config.watch_folders) - set(new_folders)
         added_folders = set(new_folders) - set(config.watch_folders)
         config.watch_folders = new_folders
+
+        config.ereader_folder_path = self._ereader_folder_path or None
 
         new_theme = list(THEME_CHOICES)[self.theme_combo.currentIndex()]
         if new_theme != config.theme:

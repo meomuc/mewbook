@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -84,6 +85,27 @@ class FileActionEngine:
                     logger.exception("Failed to delete physical file: %s", file_path)
         if items:
             self.context.event_bus.publish(LibraryUpdatedEvent())
+
+    def send_to_ereader(self, file_paths: list[str], target_folder: str) -> tuple[list[str], list[str]]:
+        """Copies files into an e-reader's book folder -- once connected
+        over USB an e-reader just mounts as a normal folder on Windows, so
+        this is a real `shutil.copy2`, unlike the library's own "never
+        copy the user's files" storage model: the whole point here is
+        putting a copy on the external device.
+
+        Returns (succeeded, failed) source paths.
+        """
+        target = Path(target_folder)
+        succeeded: list[str] = []
+        failed: list[str] = []
+        for file_path in file_paths:
+            try:
+                shutil.copy2(file_path, target / Path(file_path).name)
+                succeeded.append(file_path)
+            except OSError:
+                logger.exception("Failed to send file to e-reader: %s", file_path)
+                failed.append(file_path)
+        return succeeded, failed
 
 
 if __name__ == "__main__":

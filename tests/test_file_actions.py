@@ -67,6 +67,39 @@ def test_delete_documents_with_empty_list_publishes_nothing(app_context):
     assert events == []
 
 
+def test_send_to_ereader_copies_files_into_target_folder(tmp_path, app_context):
+    source_a = tmp_path / "source" / "book_a.pdf"
+    source_a.parent.mkdir()
+    source_a.write_bytes(b"content a")
+    source_b = tmp_path / "source" / "book_b.epub"
+    source_b.write_bytes(b"content b")
+    target_dir = tmp_path / "ereader"
+    target_dir.mkdir()
+    engine = FileActionEngine(app_context)
+
+    succeeded, failed = engine.send_to_ereader([str(source_a), str(source_b)], str(target_dir))
+
+    assert succeeded == [str(source_a), str(source_b)]
+    assert failed == []
+    assert (target_dir / "book_a.pdf").read_bytes() == b"content a"
+    assert (target_dir / "book_b.epub").read_bytes() == b"content b"
+    # Source files are untouched -- this is a copy, not a move.
+    assert source_a.exists()
+    assert source_b.exists()
+
+
+def test_send_to_ereader_reports_failures_without_raising(tmp_path, app_context):
+    missing_source = tmp_path / "does_not_exist.pdf"
+    target_dir = tmp_path / "ereader"
+    target_dir.mkdir()
+    engine = FileActionEngine(app_context)
+
+    succeeded, failed = engine.send_to_ereader([str(missing_source)], str(target_dir))
+
+    assert succeeded == []
+    assert failed == [str(missing_source)]
+
+
 def test_open_file_never_uses_shell_true(monkeypatch, app_context, tmp_path):
     import sys
 

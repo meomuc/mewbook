@@ -65,6 +65,38 @@ def test_removing_folder_in_dialog_and_saving_updates_config_and_watcher(qapp, a
     assert watcher.added == []
 
 
+def test_ereader_folder_field_starts_populated_from_config(qapp, app_context):
+    app_context.config.config.ereader_folder_path = r"E:\Kindle\documents"
+    dialog = SettingsDialog(app_context)
+    assert dialog.ereader_folder_edit.text() == r"E:\Kindle\documents"
+
+
+def test_choosing_ereader_folder_and_saving_updates_config(qapp, app_context, monkeypatch):
+    dialog = SettingsDialog(app_context)
+    monkeypatch.setattr(
+        "smartdoc.presentation.settings_dialog.QFileDialog.getExistingDirectory",
+        lambda *a, **k: r"E:\Kobo\books",
+    )
+
+    dialog._on_choose_ereader_folder()
+    dialog._on_save()
+
+    assert app_context.config.config.ereader_folder_path == r"E:\Kobo\books"
+
+
+def test_cancelling_ereader_folder_picker_leaves_config_unchanged(qapp, app_context, monkeypatch):
+    app_context.config.config.ereader_folder_path = r"E:\Kindle\documents"
+    dialog = SettingsDialog(app_context)
+    monkeypatch.setattr(
+        "smartdoc.presentation.settings_dialog.QFileDialog.getExistingDirectory", lambda *a, **k: ""
+    )
+
+    dialog._on_choose_ereader_folder()
+    dialog._on_save()
+
+    assert app_context.config.config.ereader_folder_path == r"E:\Kindle\documents"
+
+
 def test_theme_change_sets_appearance_changed_flag_no_restart_needed(qapp, app_context):
     assert app_context.config.config.theme == "light"
     dialog = SettingsDialog(app_context)

@@ -5,6 +5,26 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Send files to a USB-connected e-reader
+
+- New "📱 Gửi tới máy đọc sách..." action in the File menu and both
+  right-click context menus (single/multi-selection), and
+  `FileActionEngine.send_to_ereader()`: copies the selected documents'
+  files into the e-reader's book folder. An e-reader connected over USB
+  just mounts as a normal folder on Windows, so this is a real
+  `shutil.copy2` onto that folder -- unlike the library's own storage,
+  which never copies/moves the user's files, this one's whole point is
+  putting a copy on the external device. Supports selecting and sending
+  many files at once, and can be run repeatedly.
+  - If no folder has been set up yet (or the previously remembered one
+    no longer exists -- e.g. a different device is plugged in now),
+    prompts with a folder picker and remembers the choice
+    (`AppConfig.ereader_folder_path`) for next time, no need to
+    re-select on every send.
+  - The remembered folder can also be reviewed/changed any time from
+    Settings -> "Quản lý File" (previously only watch folders lived
+    there).
+
 ## 2026-09-17 — Edit menu: clear selection, edit, delete, copy/cut/paste files
 
 The Edit menu only had "Select all" -- everything else (edit, delete,

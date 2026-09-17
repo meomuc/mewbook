@@ -15,6 +15,7 @@ from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex,
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -671,6 +672,7 @@ class LibraryListWidget(QWidget):
         cut_action = menu.addAction("✂️ Cắt")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
+        send_ereader_action = menu.addAction("📱 Gửi tới máy đọc sách...")
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
 
@@ -694,6 +696,8 @@ class LibraryListWidget(QWidget):
             set_clipboard_files([doc["file_path"]] if doc.get("file_path") else [], cut=False)
         elif chosen == cut_action:
             set_clipboard_files([doc["file_path"]] if doc.get("file_path") else [], cut=True)
+        elif chosen == send_ereader_action:
+            self.send_selected_to_ereader()
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [doc["id"]])
             self.context.event_bus.publish(LibraryUpdatedEvent())
@@ -708,6 +712,7 @@ class LibraryListWidget(QWidget):
         cut_action = menu.addAction("✂️ Cắt")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
+        send_ereader_action = menu.addAction("📱 Gửi tới máy đọc sách...")
         menu.addSeparator()
         delete_action = menu.addAction(f"Xóa {count} tài liệu khỏi thư viện")
 
@@ -718,6 +723,8 @@ class LibraryListWidget(QWidget):
             set_clipboard_files([d["file_path"] for d in docs if d.get("file_path")], cut=False)
         elif chosen == cut_action:
             set_clipboard_files([d["file_path"] for d in docs if d.get("file_path")], cut=True)
+        elif chosen == send_ereader_action:
+            self.send_selected_to_ereader()
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [d["id"] for d in docs])
             self.context.event_bus.publish(LibraryUpdatedEvent())
@@ -792,6 +799,38 @@ class LibraryListWidget(QWidget):
             self.import_manager.add_files(file_paths)
         for folder in folder_paths:
             self.import_manager.scan_folder(folder)
+
+    def send_selected_to_ereader(self) -> None:
+        """Copies the selected documents' files into the e-reader's book
+        folder (see file_actions.FileActionEngine.send_to_ereader). If no
+        folder has been set up yet -- or the previously remembered one is
+        no longer there, e.g. a different device is connected now -- asks
+        for one and remembers it for next time."""
+        paths = [d["file_path"] for d in self._selected_documents() if d.get("file_path")]
+        if not paths:
+            QMessageBox.information(self, "Gửi tới máy đọc sách", "Chưa chọn tài liệu nào.")
+            return
+
+        target = self.context.config.config.ereader_folder_path
+        if not target or not Path(target).is_dir():
+            target = QFileDialog.getExistingDirectory(self, "Chọn thư mục sách trên máy đọc sách")
+            if not target:
+                return
+            self.context.config.config.ereader_folder_path = target
+            self.context.config.save()
+
+        succeeded, failed = self.file_actions.send_to_ereader(paths, target)
+        if failed:
+            QMessageBox.warning(
+                self,
+                "Gửi tới máy đọc sách",
+                f"Đã gửi {len(succeeded)}/{len(paths)} file tới \"{target}\".\n"
+                f"{len(failed)} file gửi thất bại (xem log để biết chi tiết).",
+            )
+        else:
+            QMessageBox.information(
+                self, "Gửi tới máy đọc sách", f"Đã gửi {len(succeeded)} file tới \"{target}\"."
+            )
 
 
 if __name__ == "__main__":

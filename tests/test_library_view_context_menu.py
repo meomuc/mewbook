@@ -407,3 +407,96 @@ def test_paste_files_does_nothing_without_an_import_manager(qapp, app_context, m
     )
 
     widget.paste_files()  # should not raise
+
+
+def _seed_two_docs_with_real_files(app_context, tmp_path):
+    file_a = tmp_path / "a.pdf"
+    file_a.write_bytes(b"content a")
+    file_b = tmp_path / "b.epub"
+    file_b.write_bytes(b"content b")
+    app_context.db.add_or_update_document(
+        "d1", {"title": "First", "author": "A", "file_path": str(file_a), "created_at": 1.0}
+    )
+    app_context.db.add_or_update_document(
+        "d2", {"title": "Second", "author": "B", "file_path": str(file_b), "created_at": 2.0}
+    )
+    return file_a, file_b
+
+
+def test_send_to_ereader_copies_selected_files_using_the_saved_folder(qapp, app_context, monkeypatch, tmp_path):
+    file_a, _file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
+    target = tmp_path / "ereader"
+    target.mkdir()
+    app_context.config.config.ereader_folder_path = str(target)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    prompted = []
+    monkeypatch.setattr("smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: prompted.append(1) or "")
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    widget.send_selected_to_ereader()
+
+    assert prompted == []  # folder already saved -- no prompt needed
+    copied = list(target.iterdir())
+    assert len(copied) == 1
+
+
+def test_send_to_ereader_prompts_and_saves_folder_when_unset(qapp, app_context, monkeypatch, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    target = tmp_path / "ereader"
+    target.mkdir()
+    assert app_context.config.config.ereader_folder_path is None
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: str(target)
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    widget.send_selected_to_ereader()
+
+    assert app_context.config.config.ereader_folder_path == str(target)
+    assert len(list(target.iterdir())) == 1
+
+
+def test_send_to_ereader_aborts_when_prompt_is_cancelled(qapp, app_context, monkeypatch, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    monkeypatch.setattr("smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: "")
+
+    widget.send_selected_to_ereader()  # should not raise
+
+    assert app_context.config.config.ereader_folder_path is None
+
+
+def test_send_to_ereader_does_nothing_when_no_selection(qapp, app_context, monkeypatch, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+
+    prompted = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: prompted.append(1) or ""
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    widget.send_selected_to_ereader()
+
+    assert prompted == []
+
+
+def test_context_menu_send_to_ereader_action_invokes_send(qapp, app_context, monkeypatch, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    called = []
+    monkeypatch.setattr(LibraryListWidget, "send_selected_to_ereader", lambda self: called.append(1))
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Gửi tới máy đọc sách"))
+
+    widget._show_context_menu(position)
+
+    assert called == [1]

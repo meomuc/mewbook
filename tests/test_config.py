@@ -52,3 +52,14 @@ def test_worker_thread_count_and_theme_round_trip(tmp_path):
     reloaded = ConfigManager(app_data_dir=tmp_path)
     assert reloaded.config.worker_thread_count == 8
     assert reloaded.config.theme == "dark"
+
+
+def test_ereader_folder_path_defaults_to_none_and_round_trips(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.ereader_folder_path is None
+
+    mgr.config.ereader_folder_path = r"E:\Kindle\documents"
+    mgr.save()
+
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.ereader_folder_path == r"E:\Kindle\documents"

@@ -87,6 +87,11 @@ class AppConfig:
     # settings: plain config, no separate secrets vault.
     ai_provider: str | None = None  # one of core.config.AI_PROVIDER_CHOICES
     ai_api_key: str | None = None
+    # Folder to copy files into for "Send to e-reader" -- an e-reader
+    # connected over USB just mounts as a normal folder on Windows, so this
+    # is a plain remembered path, not a device-specific integration. None
+    # until the user picks one (first Send prompts for it, then remembers).
+    ereader_folder_path: str | None = None
 
 
 class ConfigManager:
