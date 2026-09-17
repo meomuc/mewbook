@@ -110,13 +110,20 @@ def test_connection(provider: str, api_key: str) -> None:
 
 
 def _call_gemini(api_key: str, user_prompt: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    # Google's newer API keys (the "AQ." prefix format, now the default when
+    # creating a key in AI Studio) are only recognized via the
+    # x-goog-api-key header -- sent as a ?key= query param instead, the
+    # request 404s ("Not Found") rather than failing auth, which reads like
+    # a broken endpoint/model name instead of what it actually is. The
+    # header works for both the new AQ. keys and the older AIzaSy… ones.
+    headers = {"x-goog-api-key": api_key}
     payload = {
         "contents": [{"parts": [{"text": user_prompt}]}],
         "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
     }
     try:
-        response = requests.post(url, json=payload, timeout=_TIMEOUT_SECONDS)
+        response = requests.post(url, json=payload, headers=headers, timeout=_TIMEOUT_SECONDS)
         response.raise_for_status()
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()

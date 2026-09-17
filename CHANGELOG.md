@@ -5,6 +5,23 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Fix Gemini 404 for Google's newer "AQ." API key format
+
+Real bug hit immediately after shipping the connection-test feature: a
+freshly-created Gemini key produced `404 Not Found` on
+`generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`.
+
+Root cause (confirmed via web search against matching reports from other
+projects hitting the identical error): Google now issues API keys in a
+newer format with an `AQ.` prefix by default (the older `AIzaSy…` format
+still exists for old keys), and `AQ.`-format keys are only recognized via
+the `x-goog-api-key` HTTP header -- sent the old way, as a `?key=` query
+parameter, the request 404s instead of failing auth, which reads like a
+broken endpoint/model name rather than what it actually is. Switched
+`_call_gemini` to send the key via that header (works for both key
+formats). OpenAI and Anthropic were unaffected -- both already used an
+auth header, never a query param.
+
 ## 2026-09-17 — AI Summary follow-ups: setup guide, connection test, uncapped content
 
 - **Settings' "AI Tóm tắt" tab gained a setup guide and a connection

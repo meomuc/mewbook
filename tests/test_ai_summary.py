@@ -42,9 +42,10 @@ def test_generate_summary_rejects_unknown_provider():
 def test_generate_summary_gemini_parses_response_text(monkeypatch):
     captured = {}
 
-    def fake_post(url, json=None, timeout=None, **kwargs):
+    def fake_post(url, json=None, headers=None, timeout=None, **kwargs):
         captured["url"] = url
         captured["json"] = json
+        captured["headers"] = headers
         return _FakeResponse(
             json_data={"candidates": [{"content": {"parts": [{"text": "  A cozy fantasy adventure.  "}]}}]}
         )
@@ -54,7 +55,10 @@ def test_generate_summary_gemini_parses_response_text(monkeypatch):
     result = generate_summary("gemini", "my-key", _doc())
 
     assert result == "A cozy fantasy adventure."
-    assert "my-key" in captured["url"]
+    # The key goes in the x-goog-api-key header, not the URL -- Google's
+    # newer "AQ." key format 404s if it's passed as a ?key= query param.
+    assert "my-key" not in captured["url"]
+    assert captured["headers"]["x-goog-api-key"] == "my-key"
     assert "systemInstruction" in captured["json"]
     assert "Hobbit" in captured["json"]["contents"][0]["parts"][0]["text"]
 
