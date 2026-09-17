@@ -195,6 +195,18 @@ class DatabaseManager:
                 self.connection.execute(f"UPDATE documents SET {set_clause} WHERE id = ?", (*values, doc_id))
             self.connection.commit()
 
+    def update_ai_summary(self, doc_id: str, summary: str) -> None:
+        """Persists a generated AI summary (application/ai_summary.py) --
+        generation and saving are deliberately separate steps (see
+        presentation/ai_summary_dialog.py), so nothing calls this until the
+        user has reviewed the text and chosen to keep it."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET ai_summary = ?, updated_at = ? WHERE id = ?",
+                (summary, time.time(), doc_id),
+            )
+            self.connection.commit()
+
     def update_document_cover(self, doc_id: str, cover_path: str) -> None:
         """Used by the Cover Image Search feature to replace a document's
         cover after the user picks a candidate -- separate from

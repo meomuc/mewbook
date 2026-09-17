@@ -153,11 +153,14 @@ def test_panel_hides_tags_when_none(qapp, app_context):
     assert panel._tags_container.isHidden()
 
 
-def test_panel_hides_ai_summary_when_none(qapp, app_context):
+def test_panel_shows_generate_link_when_no_summary_yet(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(ai_summary=None))
-    assert panel.summary_title_label.isHidden()
+    # The section header + "generate" link stay visible even with no summary
+    # yet -- that link is how the user creates one in the first place.
+    assert not panel.summary_title_label.isHidden()
     assert panel.summary_label.isHidden()
+    assert "Tạo tóm tắt AI" in panel.ai_summary_action_label.text()
 
 
 def test_panel_shows_ai_summary_when_present(qapp, app_context):
@@ -165,6 +168,27 @@ def test_panel_shows_ai_summary_when_present(qapp, app_context):
     panel.set_document(_sample_doc(ai_summary="A great book about Python."))
     assert not panel.summary_title_label.isHidden()
     assert "great book" in panel.summary_label.text()
+    assert "Tạo lại" in panel.ai_summary_action_label.text()
+
+
+def test_clicking_ai_summary_link_opens_ai_summary_dialog(qapp, app_context, monkeypatch):
+    opened_docs = []
+
+    class _FakeDialog:
+        def __init__(self, context, doc, parent=None):
+            opened_docs.append(doc)
+
+        def exec(self):
+            return 1
+
+    monkeypatch.setattr("smartdoc.presentation.detail_panel.AISummaryDialog", _FakeDialog)
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+
+    panel.ai_summary_action_label.clicked.emit()
+
+    assert len(opened_docs) == 1
+    assert opened_docs[0]["id"] == "d1"
 
 
 def test_document_selected_event_updates_panel(qapp, app_context):

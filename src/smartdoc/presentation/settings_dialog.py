@@ -35,15 +35,17 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QPushButton,
     QSpinBox,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from smartdoc.core.config import KNOWN_EXTENSIONS, THEME_CHOICES
+from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 
 _THEME_DISPLAY_NAMES = {"light": "Sáng (Light)", "dark": "Tối (Dark)"}
 
@@ -64,6 +66,7 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_file_tab(config), "📁 Quản lý File")
         tabs.addTab(self._build_theme_tab(config), "🎨 Giao diện")
         tabs.addTab(self._build_performance_tab(config), "⚡ Hiệu năng")
+        tabs.addTab(self._build_ai_tab(config), "🤖 AI Tóm tắt")
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._on_save)
@@ -152,6 +155,50 @@ class SettingsDialog(QDialog):
 
         return tab
 
+    def _build_ai_tab(self, config) -> QWidget:
+        tab = QWidget(self)
+        layout = QVBoxLayout(tab)
+
+        note = QLabel(
+            "AI Tóm tắt đọc phần đầu tài liệu (nếu có) và tạo một đoạn giới thiệu "
+            "chủ đề/thể loại -- không tiết lộ cốt truyện -- bằng API key của chính "
+            "bạn. Ứng dụng không đi kèm hay chuyển tiếp key của ai khác; mọi yêu cầu "
+            "gọi thẳng từ máy bạn đến nhà cung cấp bạn chọn.",
+            tab,
+        )
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        form = QFormLayout()
+        self.ai_provider_combo = QComboBox(tab)
+        self.ai_provider_combo.addItem("(Chưa cấu hình)", None)
+        for provider_id in AI_PROVIDER_CHOICES:
+            self.ai_provider_combo.addItem(AI_PROVIDER_DISPLAY_NAMES[provider_id], provider_id)
+        if config.ai_provider:
+            index = self.ai_provider_combo.findData(config.ai_provider)
+            if index >= 0:
+                self.ai_provider_combo.setCurrentIndex(index)
+        form.addRow("Nhà cung cấp AI:", self.ai_provider_combo)
+
+        key_row = QHBoxLayout()
+        self.ai_api_key_edit = QLineEdit(config.ai_api_key or "", tab)
+        self.ai_api_key_edit.setEchoMode(QLineEdit.Password)
+        self.ai_api_key_edit.setPlaceholderText("Dán API key vào đây...")
+        show_key_button = QToolButton(tab)
+        show_key_button.setText("👁")
+        show_key_button.setCheckable(True)
+        show_key_button.setToolTip("Hiện/ẩn API key")
+        show_key_button.toggled.connect(
+            lambda checked: self.ai_api_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+        )
+        key_row.addWidget(self.ai_api_key_edit)
+        key_row.addWidget(show_key_button)
+        form.addRow("API key:", key_row)
+
+        layout.addLayout(form)
+        layout.addStretch(1)
+        return tab
+
     def _on_add_folder(self) -> None:
         start_dir = self.context.config.config.last_used_directory or ""
         folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi", start_dir)
@@ -201,6 +248,9 @@ class SettingsDialog(QDialog):
             config.watch_debounce_seconds = new_debounce
             if self.watcher:
                 self.watcher.set_debounce_seconds(new_debounce)
+
+        config.ai_provider = self.ai_provider_combo.currentData()
+        config.ai_api_key = self.ai_api_key_edit.text().strip() or None
 
         self.context.config.save()
 

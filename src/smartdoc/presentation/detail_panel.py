@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
@@ -218,8 +219,12 @@ class DocumentDetailPanel(QWidget):
         self.summary_label = QLabel(self._content)
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 12px;")
+        self.ai_summary_action_label = _ClickableLabel(self._content)
+        self.ai_summary_action_label.setStyleSheet(f"color: {colors.accent}; font-size: 11px;")
+        self.ai_summary_action_label.clicked.connect(self._on_ai_summary)
         self._content_layout.addWidget(self.summary_title_label)
         self._content_layout.addWidget(self.summary_label)
+        self._content_layout.addWidget(self.ai_summary_action_label)
 
         # Stretch at the bottom
         self._content_layout.addStretch(1)
@@ -330,14 +335,15 @@ class DocumentDetailPanel(QWidget):
             self._tags_container.hide()
 
         # AI Summary
+        self.summary_title_label.show()
         summary = doc.get("ai_summary")
         if summary:
             self.summary_label.setText(summary)
-            self.summary_title_label.show()
             self.summary_label.show()
+            self.ai_summary_action_label.setText("🔄 Tạo lại tóm tắt AI")
         else:
-            self.summary_title_label.hide()
             self.summary_label.hide()
+            self.ai_summary_action_label.setText("✨ Tạo tóm tắt AI")
 
     def _clear_tags(self) -> None:
         while self._tags_layout.count():
@@ -379,6 +385,10 @@ class DocumentDetailPanel(QWidget):
     def _on_search_cover(self) -> None:
         if self._current_doc:
             CoverSearchDialog(self.context, self._current_doc, self).exec()
+
+    def _on_ai_summary(self) -> None:
+        if self._current_doc:
+            AISummaryDialog(self.context, self._current_doc, self).exec()
 
     def _save_field(self, field: str, value: str) -> None:
         """Inline edit of title/author/tags directly on the panel -- these

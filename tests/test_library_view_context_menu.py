@@ -153,6 +153,23 @@ def test_single_selection_read_action_opens_reader_window(qapp, app_context, mon
     assert len(opened_docs) == 1
 
 
+def test_single_selection_ai_summary_action_opens_ai_summary_dialog(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    opened_docs = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.AISummaryDialog",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Tóm tắt AI"))
+
+    widget._show_context_menu(position)
+
+    assert len(opened_docs) == 1
+
+
 def test_multi_selection_batch_edit_opens_batch_dialog_with_both_ids(qapp, app_context, monkeypatch):
     _seed_two_docs(app_context)
     widget = LibraryListWidget(app_context)

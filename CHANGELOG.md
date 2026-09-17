@@ -5,6 +5,35 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — AI Summary (non-spoiler book overview, user's own API key)
+
+The last item from this round of requests: TDD-016-style AI summaries,
+but never implemented until now.
+
+- **`application/ai_summary.py`**: generates a short (~100-150 word),
+  Vietnamese, *non-spoiler* summary -- genre, tone, themes, who it's for
+  -- explicitly instructed never to reveal plot, twists, or the ending.
+  Calls whichever provider the user configured with their *own* API key
+  (Google Gemini, OpenAI, or Anthropic Claude -- picked as the three most
+  recognizable options rather than a generic "custom endpoint" field this
+  app would have a much harder time getting right/secure). Uses the
+  document's title/author/tags plus up to 6000 characters of extracted
+  text when available (PDFs only today -- EPUB/AZW3/MOBI don't have body
+  text extracted yet, so their summaries lean on title/author/tags alone;
+  the prompt says so explicitly rather than pretending otherwise).
+- **Settings gained an "AI Tóm tắt" tab**: provider dropdown + API key
+  field (password-masked with a show/hide toggle). Applied live like
+  everything else in Settings now -- no restart.
+- **`presentation/ai_summary_dialog.py`**: generating and saving are
+  separate, deliberate steps -- a fresh generation is only a preview
+  (`DatabaseManager.ai_summary` column untouched) until the user reviews
+  it and clicks "Lưu tóm tắt". New `DatabaseManager.update_ai_summary()`.
+  Opened from the Document Detail Panel (a "✨ Tạo tóm tắt AI" / "🔄 Tạo lại
+  tóm tắt AI" link, depending on whether one already exists) and the
+  library view's right-click menu.
+- Status bar's AI connection indicator (added in the previous entry) now
+  reflects real configuration state end to end.
+
 ## 2026-09-17 — New app icon/brand mark, icon pass across the UI
 
 - **Replaced the app icon** with the user-supplied brand mark (a cat

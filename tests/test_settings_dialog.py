@@ -123,6 +123,45 @@ def test_debounce_has_no_meaningfully_low_upper_bound(qapp, app_context):
     assert dialog.debounce_spin.value() == 3600.0
 
 
+def test_ai_tab_starts_unconfigured_by_default(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert dialog.ai_provider_combo.currentData() is None
+    assert dialog.ai_api_key_edit.text() == ""
+
+
+def test_ai_tab_preloads_existing_provider_and_key(qapp, app_context):
+    app_context.config.config.ai_provider = "gemini"
+    app_context.config.config.ai_api_key = "existing-key"
+
+    dialog = SettingsDialog(app_context)
+
+    assert dialog.ai_provider_combo.currentData() == "gemini"
+    assert dialog.ai_api_key_edit.text() == "existing-key"
+
+
+def test_saving_ai_provider_and_key_persists_to_config(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    index = dialog.ai_provider_combo.findData("openai")
+    dialog.ai_provider_combo.setCurrentIndex(index)
+    dialog.ai_api_key_edit.setText("sk-new-key")
+
+    dialog._on_save()
+
+    assert app_context.config.config.ai_provider == "openai"
+    assert app_context.config.config.ai_api_key == "sk-new-key"
+
+
+def test_clearing_ai_key_saves_as_none(qapp, app_context):
+    app_context.config.config.ai_provider = "gemini"
+    app_context.config.config.ai_api_key = "existing-key"
+    dialog = SettingsDialog(app_context)
+    dialog.ai_api_key_edit.setText("   ")
+
+    dialog._on_save()
+
+    assert app_context.config.config.ai_api_key is None
+
+
 def test_performance_tab_shows_active_worker_count(qapp, app_context):
     dialog = SettingsDialog(app_context, import_manager=_FakeImportManager())
     assert "3" in dialog.performance_status_label.text()

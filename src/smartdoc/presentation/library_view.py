@@ -38,6 +38,7 @@ from smartdoc.core.event_bus import (
     SortChangedEvent,
     ViewModeChangedEvent,
 )
+from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
@@ -582,6 +583,7 @@ class LibraryListWidget(QWidget):
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
         cover_search_action = menu.addAction("Tìm ảnh bìa...")
+        ai_summary_action = menu.addAction("🤖 Tóm tắt AI...")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         menu.addSeparator()
@@ -601,6 +603,8 @@ class LibraryListWidget(QWidget):
             ReviewDialog(self.context, doc, self).exec()
         elif chosen == cover_search_action:
             CoverSearchDialog(self.context, doc, self).exec()
+        elif chosen == ai_summary_action:
+            AISummaryDialog(self.context, doc, self).exec()
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [doc["id"]])
             self.context.event_bus.publish(LibraryUpdatedEvent())
