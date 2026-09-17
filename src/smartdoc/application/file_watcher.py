@@ -22,9 +22,10 @@ DEBOUNCE_SECONDS = 1.5
 
 
 class _DebouncedHandler(FileSystemEventHandler):
-    def __init__(self, on_stable, is_extension_allowed) -> None:
+    def __init__(self, on_stable, is_extension_allowed, debounce_seconds: float = DEBOUNCE_SECONDS) -> None:
         self._on_stable = on_stable
         self._is_extension_allowed = is_extension_allowed
+        self._debounce_seconds = debounce_seconds
         self._timers: dict[str, threading.Timer] = {}
         self._lock = threading.Lock()
 
@@ -39,7 +40,7 @@ class _DebouncedHandler(FileSystemEventHandler):
             existing = self._timers.get(path)
             if existing:
                 existing.cancel()
-            timer = threading.Timer(DEBOUNCE_SECONDS, self._fire, args=(path,))
+            timer = threading.Timer(self._debounce_seconds, self._fire, args=(path,))
             timer.daemon = True
             self._timers[path] = timer
             timer.start()
@@ -73,6 +74,7 @@ class LibraryWatcher:
         self._handler = _DebouncedHandler(
             on_stable=self._handle_stable_file,
             is_extension_allowed=self._is_extension_allowed,
+            debounce_seconds=context.config.config.watch_debounce_seconds,
         )
         self._watches: dict[str, object] = {}  # folder_path -> watchdog ObservedWatch
 

@@ -341,3 +341,44 @@ def test_collection_crud(db):
 
     db.delete_collection("c1")
     assert db.get_collection("c1") is None
+
+
+def test_rename_collection(db):
+    db.save_collection("c1", "Old Name", "[]", "AND", 1.0)
+    db.rename_collection("c1", "New Name")
+    assert db.get_collection("c1")["name"] == "New Name"
+
+
+def test_manual_collection_membership(db):
+    _seed(db)
+    db.save_collection("c1", "Yêu thích", "[]", "AND", 1.0)
+
+    db.add_documents_to_collection("c1", ["doc1", "doc2"])
+    assert set(db.list_collection_document_ids("c1")) == {"doc1", "doc2"}
+
+    db.remove_documents_from_collection("c1", ["doc1"])
+    assert db.list_collection_document_ids("c1") == ["doc2"]
+
+
+def test_adding_same_document_to_collection_twice_is_idempotent(db):
+    _seed(db)
+    db.save_collection("c1", "Yêu thích", "[]", "AND", 1.0)
+    db.add_documents_to_collection("c1", ["doc1"])
+    db.add_documents_to_collection("c1", ["doc1"])
+    assert db.list_collection_document_ids("c1") == ["doc1"]
+
+
+def test_deleting_collection_clears_its_membership(db):
+    _seed(db)
+    db.save_collection("c1", "Yêu thích", "[]", "AND", 1.0)
+    db.add_documents_to_collection("c1", ["doc1"])
+    db.delete_collection("c1")
+    assert db.list_collection_document_ids("c1") == []
+
+
+def test_deleting_document_clears_its_collection_membership(db):
+    _seed(db)
+    db.save_collection("c1", "Yêu thích", "[]", "AND", 1.0)
+    db.add_documents_to_collection("c1", ["doc1"])
+    db.delete_document("doc1")
+    assert db.list_collection_document_ids("c1") == []

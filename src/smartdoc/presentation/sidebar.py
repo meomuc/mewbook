@@ -5,9 +5,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
+    QMessageBox,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -45,6 +48,8 @@ class LibrarySidebar(QWidget):
             f" QListWidget::item:selected {{ background: {colors.accent}; color: {colors.accent_text}; }}"
         )
         self.collections_list.itemClicked.connect(self._on_collection_clicked)
+        self.collections_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.collections_list.customContextMenuRequested.connect(self._show_collection_context_menu)
 
         self.facet_panel = FacetedFilterPanel(context, self)
 
@@ -73,6 +78,39 @@ class LibrarySidebar(QWidget):
     def _on_collection_clicked(self, item: QListWidgetItem) -> None:
         collection_id = item.data(_COLLECTION_ID_ROLE)
         self.context.event_bus.publish(CollectionSelectedEvent(collection_id=collection_id))
+
+    def _show_collection_context_menu(self, position) -> None:
+        item = self.collections_list.itemAt(position)
+        if item is None:
+            return
+        collection_id = item.data(_COLLECTION_ID_ROLE)
+        if collection_id is None:
+            return  # "Tất cả tài liệu" is a pseudo-entry, not a real collection.
+
+        menu = QMenu(self)
+        rename_action = menu.addAction("Đổi tên")
+        delete_action = menu.addAction("Xóa bộ sưu tập")
+        chosen = self._exec_menu(menu, position)
+        if chosen == rename_action:
+            new_name, ok = QInputDialog.getText(self, "Đổi tên bộ sưu tập", "Tên mới:", text=item.text())
+            new_name = new_name.strip()
+            if ok and new_name:
+                self.context.db.rename_collection(collection_id, new_name)
+                self.reload_collections()
+        elif chosen == delete_action:
+            confirm = QMessageBox.question(
+                self, "Xóa bộ sưu tập", f"Xóa bộ sưu tập \"{item.text()}\"? (Các tài liệu bên trong không bị xóa.)"
+            )
+            if confirm == QMessageBox.Yes:
+                self.context.db.delete_collection(collection_id)
+                self.reload_collections()
+                self.context.event_bus.publish(CollectionSelectedEvent(collection_id=None))
+
+    def _exec_menu(self, menu: QMenu, position):
+        """Thin seam so tests can patch this instead of QMenu.exec, which
+        opens a real modal loop that hangs forever under an offscreen Qt
+        platform (see library_view.LibraryListWidget._exec_menu)."""
+        return menu.exec(self.collections_list.viewport().mapToGlobal(position))
 
     def _on_add_collection(self) -> None:
         dialog = NewCollectionDialog(self)

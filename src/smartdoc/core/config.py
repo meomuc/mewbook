@@ -48,6 +48,14 @@ class AppConfig:
     font_family: str | None = None  # None = Qt/OS default
     font_size: int = 10
     show_detail_panel: bool = False
+    # Last folder the user picked in any "choose a file/folder" dialog, so
+    # the next dialog opens there instead of always starting at the OS
+    # default location.
+    last_used_directory: str | None = None
+    # Debounce window before the file watcher reacts to a newly
+    # created/modified file (TDD-007) -- lets a still-copying file finish
+    # writing before it's read. Exposed in Settings beyond its default.
+    watch_debounce_seconds: float = 1.5
 
 
 class ConfigManager:

@@ -454,11 +454,28 @@ class LibraryListWidget(QWidget):
 
         if self._active_collection_id:
             row = self.context.db.get_collection(self._active_collection_id)
+            manual_ids = self.context.db.list_collection_document_ids(self._active_collection_id)
+            parts: list[str] = []
+            combined_params: list = []
             if row:
-                collection_sql, collection_params = VirtualCollection.from_row(row).to_sql_where_clause()
-                if collection_sql != "1=1":
-                    fragments.append(f"({collection_sql})")
-                    params.extend(collection_params)
+                collection = VirtualCollection.from_row(row)
+                if collection.rules:
+                    collection_sql, collection_params = collection.to_sql_where_clause()
+                    parts.append(f"({collection_sql})")
+                    combined_params.extend(collection_params)
+            if manual_ids:
+                placeholders = ",".join("?" for _ in manual_ids)
+                parts.append(f"documents.id IN ({placeholders})")
+                combined_params.extend(manual_ids)
+
+            if parts:
+                fragments.append("(" + " OR ".join(parts) + ")")
+                params.extend(combined_params)
+            else:
+                # A collection with neither a rule nor any manually-added
+                # document is empty by definition -- must show zero
+                # documents, not silently fall back to "no filter at all".
+                fragments.append("1=0")
 
         return " AND ".join(fragments), tuple(params)
 
@@ -560,11 +577,26 @@ class LibraryListWidget(QWidget):
         self.context.config.config.visible_columns = ordered
         self.context.config.save()
 
+    def _build_add_to_collection_menu(self, parent_menu: QMenu) -> tuple[QMenu, dict]:
+        submenu = QMenu("Thêm vào bộ sưu tập", parent_menu)
+        actions: dict = {}
+        collections = self.context.db.list_collections()
+        if not collections:
+            empty_action = submenu.addAction("(Chưa có bộ sưu tập nào)")
+            empty_action.setEnabled(False)
+        for row in collections:
+            action = submenu.addAction(row["name"])
+            actions[action] = row["id"]
+        parent_menu.addMenu(submenu)
+        return submenu, actions
+
     def _show_single_document_menu(self, menu: QMenu, doc: dict, position) -> None:
         open_action = menu.addAction("Mở file")
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
+        menu.addSeparator()
+        _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
 
@@ -577,6 +609,9 @@ class LibraryListWidget(QWidget):
             MetadataEditorDialog(self.context, doc, self).exec()
         elif chosen == review_action:
             ReviewDialog(self.context, doc, self).exec()
+        elif chosen in collection_actions:
+            self.context.db.add_documents_to_collection(collection_actions[chosen], [doc["id"]])
+            self.context.event_bus.publish(LibraryUpdatedEvent())
         elif chosen == delete_action:
             confirm = QMessageBox.question(
                 self,
@@ -590,11 +625,16 @@ class LibraryListWidget(QWidget):
         count = len(docs)
         batch_edit_action = menu.addAction(f"Chỉnh sửa hàng loạt ({count} tài liệu)")
         menu.addSeparator()
+        _submenu, collection_actions = self._build_add_to_collection_menu(menu)
+        menu.addSeparator()
         delete_action = menu.addAction(f"Xóa {count} tài liệu khỏi thư viện")
 
         chosen = self._exec_menu(menu, position)
         if chosen == batch_edit_action:
             BatchEditorDialog(self.context, [d["id"] for d in docs], self).exec()
+        elif chosen in collection_actions:
+            self.context.db.add_documents_to_collection(collection_actions[chosen], [d["id"] for d in docs])
+            self.context.event_bus.publish(LibraryUpdatedEvent())
         elif chosen == delete_action:
             confirm = QMessageBox.question(
                 self,

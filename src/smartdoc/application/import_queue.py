@@ -18,9 +18,17 @@ import os
 import queue
 import threading
 import time
+import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
-from smartdoc.core.event_bus import DocumentIndexedEvent, FileDetectedEvent, ImportProgressEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import (
+    DocumentIndexedEvent,
+    FileDetectedEvent,
+    ImportBatchCompletedEvent,
+    ImportProgressEvent,
+    LibraryUpdatedEvent,
+)
 from smartdoc.domain.models import MetadataNormalizer
 from smartdoc.infrastructure.epub_extractor import EpubExtractor
 from smartdoc.infrastructure.file_hash import sha256_file
@@ -32,11 +40,20 @@ _EPUB_LIKE_EXTENSIONS = {"epub", "azw3", "mobi"}
 _SENTINEL = None
 
 
+@dataclass
+class _BatchProgress:
+    total: int
+    done: int = 0
+    success: int = 0
+    duplicate: int = 0
+    failed: int = 0
+
+
 class ImportQueueManager:
     def __init__(self, context, num_workers: int = 4) -> None:
         self.context = context
         self.num_workers = num_workers
-        self._queue: queue.Queue[str | None] = queue.Queue()
+        self._queue: queue.Queue[tuple[str, str | None] | None] = queue.Queue()
         self._threads: list[threading.Thread] = []
         self._stop_event = threading.Event()
 
@@ -47,15 +64,38 @@ class ImportQueueManager:
         self._done = 0
         self._total = 0
 
+        # Tracks user-initiated batches (folder scan, multi-file add, a
+        # drag-and-drop drop) so a single ImportBatchCompletedEvent can be
+        # published once every file in *that* batch has been processed --
+        # files queued individually (add_file with no batch_id, e.g. the
+        # live file watcher) are never batch-tracked or summarized.
+        self._batches: dict[str, _BatchProgress] = {}
+        self._batches_lock = threading.Lock()
+
         context.event_bus.subscribe(FileDetectedEvent, self._on_file_detected)
 
     def _on_file_detected(self, event: FileDetectedEvent) -> None:
         self.add_file(event.file_path)
 
-    def add_file(self, path: str) -> None:
+    def add_file(self, path: str, batch_id: str | None = None) -> None:
         with self._progress_lock:
             self._total += 1
-        self._queue.put(path)
+        self._queue.put((path, batch_id))
+
+    def add_files(self, paths: list[str]) -> int:
+        """Enqueue multiple files as one batch (manual file/folder upload,
+        drag-and-drop). Once every file in the batch has been processed, an
+        ImportBatchCompletedEvent reports how many succeeded, were already
+        in the library (duplicate), or failed. Returns the number enqueued.
+        """
+        if not paths:
+            return 0
+        batch_id = uuid.uuid4().hex
+        with self._batches_lock:
+            self._batches[batch_id] = _BatchProgress(total=len(paths))
+        for path in paths:
+            self.add_file(path, batch_id)
+        return len(paths)
 
     def scan_folder(self, folder_path: str) -> int:
         """Walk a folder recursively and enqueue every allowed file. Used
@@ -65,13 +105,12 @@ class ImportQueueManager:
         the live watcher does.
         """
         allowed = set(self.context.config.config.allowed_extensions)
-        enqueued = 0
+        paths = []
         for root, _dirs, files in os.walk(folder_path):
             for name in files:
                 if name.rsplit(".", 1)[-1].lower() in allowed:
-                    self.add_file(str(Path(root) / name))
-                    enqueued += 1
-        return enqueued
+                    paths.append(str(Path(root) / name))
+        return self.add_files(paths)
 
     def start(self) -> None:
         self._stop_event.clear()
@@ -91,18 +130,23 @@ class ImportQueueManager:
     def _worker_loop(self) -> None:
         while not self._stop_event.is_set():
             try:
-                path = self._queue.get(timeout=0.5)
+                item = self._queue.get(timeout=0.5)
             except queue.Empty:
                 continue
-            if path is _SENTINEL:
+            if item is _SENTINEL:
                 break
+            path, batch_id = item
+            outcome = "failed"
             try:
-                self._process_file(path)
+                outcome = self._process_file(path)
             except Exception:
                 logger.exception("Failed to import file: %s", path)
+                outcome = "failed"
             finally:
                 self._queue.task_done()
                 self._report_progress()
+                if batch_id is not None:
+                    self._report_batch_outcome(batch_id, outcome)
 
     def _report_progress(self) -> None:
         with self._progress_lock:
@@ -110,9 +154,41 @@ class ImportQueueManager:
             done, total = self._done, self._total
         self.context.event_bus.publish(ImportProgressEvent(done=done, total=total))
 
-    def _process_file(self, path: str) -> None:
+    def _report_batch_outcome(self, batch_id: str, outcome: str) -> None:
+        finished: _BatchProgress | None = None
+        with self._batches_lock:
+            batch = self._batches.get(batch_id)
+            if batch is None:
+                return
+            batch.done += 1
+            if outcome == "duplicate":
+                batch.duplicate += 1
+            elif outcome == "failed":
+                batch.failed += 1
+            else:
+                batch.success += 1
+            if batch.done >= batch.total:
+                finished = batch
+                del self._batches[batch_id]
+        if finished is not None:
+            self.context.event_bus.publish(
+                ImportBatchCompletedEvent(
+                    success=finished.success, duplicate=finished.duplicate, failed=finished.failed
+                )
+            )
+
+    def _process_file(self, path: str) -> str:
+        """Returns "success", "duplicate", or "failed" for batch reporting."""
         extension = Path(path).suffix.lower().lstrip(".")
         doc_id = MetadataNormalizer.generate_document_id(path)
+
+        if self.context.db.get_document(doc_id) is not None:
+            # Same file path already indexed (doc_id is derived from the
+            # path) -- re-scanning a watched folder must not silently
+            # re-extract and re-write it every time, and the user wants this
+            # counted separately from a genuinely new import.
+            logger.info("Already in library, skipping: %s", path)
+            return "duplicate"
 
         if extension == "pdf":
             # extract_all opens the PDF once and reuses that handle for
@@ -125,7 +201,7 @@ class ImportQueueManager:
             extracted_text = ""
         else:
             logger.info("Unsupported extension, skipping: %s", path)
-            return
+            return "failed"
 
         raw_metadata["file_path"] = path
         raw_metadata["extension"] = extension
@@ -142,6 +218,7 @@ class ImportQueueManager:
         self.context.db.add_or_update_document(doc_id, clean_metadata, extracted_text)
         self.context.event_bus.publish(DocumentIndexedEvent(doc_id=doc_id))
         self.context.event_bus.publish(LibraryUpdatedEvent())
+        return "success"
 
 
 if __name__ == "__main__":

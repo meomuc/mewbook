@@ -2,7 +2,9 @@
 
 Talks to the OS shell on behalf of the library view (open a document, reveal
 it in Explorer, remove it from the index and optionally delete the file).
-Never uses shell=True — arguments are passed as argument lists so a file
+Never uses shell=True — arguments are passed as argument lists (or, for
+Windows Explorer's `/select,"path"` syntax specifically, a single pre-built
+string handed straight to CreateProcess with no shell involved) so a file
 path containing shell metacharacters cannot inject commands.
 """
 from __future__ import annotations
@@ -38,9 +40,26 @@ class FileActionEngine:
     def show_in_file_manager(self, file_path: str) -> bool:
         try:
             if sys.platform == "win32":
-                # explorer.exe frequently returns a non-zero exit code even
-                # on success, so this isn't run with check=True.
-                subprocess.run(["explorer", f"/select,{file_path}"])
+                path = Path(file_path)
+                if not path.exists():
+                    # explorer /select silently falls back to its default
+                    # folder (Documents/Quick access) when the target is
+                    # missing, which looks like "it opened the wrong
+                    # folder" -- open the parent folder explicitly instead
+                    # so the failure is legible.
+                    parent = path.parent
+                    if parent.exists():
+                        os.startfile(str(parent))  # noqa: S606
+                        return True
+                    return False
+                # Passed as one pre-built string, not a list: subprocess's
+                # automatic list2cmdline quoting would wrap the *whole*
+                # "/select,<path>" token in quotes whenever the path
+                # contains a space, which explorer.exe doesn't parse as a
+                # valid /select argument -- it then silently falls back to
+                # its default folder instead of erroring. Quoting only the
+                # path (explorer's own documented syntax) avoids that.
+                subprocess.run(f'explorer /select,"{path.resolve()}"')
             elif sys.platform == "darwin":
                 subprocess.run(["open", "-R", file_path], check=True)
             else:

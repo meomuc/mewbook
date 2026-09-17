@@ -111,9 +111,12 @@ class SettingsDialog(QDialog):
         return tab
 
     def _on_add_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi")
-        if folder and not self.folder_list.findItems(folder, Qt.MatchExactly):
-            self.folder_list.addItem(folder)
+        start_dir = self.context.config.config.last_used_directory or ""
+        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi", start_dir)
+        if folder:
+            self.context.config.config.last_used_directory = folder
+            if not self.folder_list.findItems(folder, Qt.MatchExactly):
+                self.folder_list.addItem(folder)
 
     def _on_remove_folder(self) -> None:
         for item in self.folder_list.selectedItems():

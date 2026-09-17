@@ -79,6 +79,17 @@ class DocumentSelectedEvent(BaseEvent):
     doc: dict | None  # None when nothing is selected or multi-select
 
 
+@dataclass(frozen=True)
+class ImportBatchCompletedEvent(BaseEvent):
+    """Fired once a user-initiated batch (folder scan, multi-file add, or a
+    drag-and-drop drop) finishes processing every file it enqueued -- lets
+    the UI show one summary instead of one toast per file."""
+
+    success: int
+    duplicate: int
+    failed: int
+
+
 class EventBus:
     """Thread-safe publish/subscribe hub.
 

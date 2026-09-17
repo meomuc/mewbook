@@ -6,15 +6,20 @@ collapsible document detail panel on the right.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter, QVBoxLayout, QWidget
 
 from smartdoc.application.calibre_migrator import CalibreImporter
+from smartdoc.core.config import KNOWN_EXTENSIONS
+from smartdoc.core.event_bus import ImportBatchCompletedEvent
 from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.omnibar import OmnibarSearchBar
+from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.sidebar import LibrarySidebar
@@ -31,6 +36,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("SmartDoc Library")
         self.resize(1400, 800)
+        self.setAcceptDrops(True)
         icon_path = app_icon_path()
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
@@ -84,11 +90,19 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(splitter)
 
+        self._bridge = QtEventBridge(self)
+        self._bridge.event_received.connect(self._on_bridged_event)
+        self._bridge.subscribe(context.event_bus, ImportBatchCompletedEvent)
+
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
+        add_files_action = QAction("Thêm file...", self)
+        add_files_action.triggered.connect(self._on_add_files)
+        file_menu.addAction(add_files_action)
         add_folder_action = QAction("Thêm thư mục...", self)
         add_folder_action.triggered.connect(self._on_add_folder)
         file_menu.addAction(add_folder_action)
+        file_menu.addSeparator()
         import_calibre_action = QAction("Nhập từ thư viện Calibre...", self)
         import_calibre_action.triggered.connect(self._on_import_from_calibre)
         file_menu.addAction(import_calibre_action)
@@ -136,10 +150,31 @@ class MainWindow(QMainWindow):
     def _on_open_settings(self) -> None:
         SettingsDialog(self.context, self, watcher=self.watcher).exec()
 
+    def _start_directory(self) -> str:
+        return self.context.config.config.last_used_directory or ""
+
+    def _remember_directory(self, path: str) -> None:
+        directory = path if Path(path).is_dir() else str(Path(path).parent)
+        self.context.config.config.last_used_directory = directory
+        self.context.config.save()
+
+    def _on_add_files(self) -> None:
+        if not self.import_manager:
+            return
+        filter_str = "Tài liệu (" + " ".join(f"*.{ext}" for ext in KNOWN_EXTENSIONS) + ");;Mọi file (*)"
+        files, _selected_filter = QFileDialog.getOpenFileNames(
+            self, "Chọn file để thêm vào thư viện", self._start_directory(), filter_str
+        )
+        if not files:
+            return
+        self._remember_directory(files[0])
+        self.import_manager.add_files(files)
+
     def _on_add_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi")
+        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi", self._start_directory())
         if not folder:
             return
+        self._remember_directory(folder)
         self.context.config.add_watch_folder(folder)
         if self.watcher:
             self.watcher.add_folder(folder)
@@ -149,9 +184,12 @@ class MainWindow(QMainWindow):
     def _on_import_from_calibre(self) -> None:
         if not self.import_manager:
             return
-        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục thư viện Calibre (chứa metadata.db)")
+        folder = QFileDialog.getExistingDirectory(
+            self, "Chọn thư mục thư viện Calibre (chứa metadata.db)", self._start_directory()
+        )
         if not folder:
             return
+        self._remember_directory(folder)
         importer = CalibreImporter(self.context, self.import_manager)
         try:
             count = importer.import_library(folder)
@@ -161,6 +199,37 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self, "Nhập từ Calibre", f"Đã đưa {count} sách vào hàng đợi xử lý. Thư viện Calibre gốc không bị thay đổi."
         )
+
+    def _on_bridged_event(self, event) -> None:
+        if isinstance(event, ImportBatchCompletedEvent):
+            self._show_import_summary(event)
+
+    def _show_import_summary(self, event: ImportBatchCompletedEvent) -> None:
+        QMessageBox.information(
+            self,
+            "Kết quả thêm file",
+            f"Thêm thành công: {event.success}\n"
+            f"Đã có trong thư viện (bỏ qua): {event.duplicate}\n"
+            f"Thất bại: {event.failed}",
+        )
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        if not self.import_manager:
+            return
+        paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+        if not paths:
+            return
+        event.acceptProposedAction()
+        file_paths = [p for p in paths if Path(p).is_file()]
+        folder_paths = [p for p in paths if Path(p).is_dir()]
+        if file_paths:
+            self.import_manager.add_files(file_paths)
+        for folder in folder_paths:
+            self.import_manager.scan_folder(folder)
 
     def closeEvent(self, event) -> None:
         if self.watcher:

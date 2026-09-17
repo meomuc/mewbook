@@ -1,22 +1,26 @@
 """Document Detail Side Panel.
 
-Shows full metadata, cover art, and quick-action buttons for the currently
-selected document.  Hidden when no document or multiple documents are
-selected.  Subscribes to ``DocumentSelectedEvent`` through the event bus;
-the library view publishes that event whenever the selection changes.
+Shows full metadata and cover art for the currently selected document.
+There are no separate action buttons -- the info rows themselves are the
+controls (click the cover to open the file, the path to reveal it in
+Explorer, the rating to review it), and title/author/tags are edited
+directly in place rather than through a separate dialog. Hidden when no
+document or multiple documents are selected. Subscribes to
+``DocumentSelectedEvent`` through the event bus; the library view publishes
+that event whenever the selection changes.
 """
 from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QCursor, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QPushButton,
+    QLineEdit,
     QScrollArea,
     QSizePolicy,
     QVBoxLayout,
@@ -25,7 +29,6 @@ from PySide6.QtWidgets import (
 
 from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.file_actions import FileActionEngine
-from smartdoc.presentation.metadata_editor import MetadataEditorDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.review_dialog import ReviewDialog
 from smartdoc.presentation.theme import current_colors
@@ -58,6 +61,24 @@ def _rating_text(doc: dict) -> str:
     if avg is not None:
         return f"{avg:.1f} ★  ({count} đánh giá)"
     return "Chưa có đánh giá"
+
+
+class _ClickableLabel(QLabel):
+    """A QLabel that emits ``clicked`` on left-click -- used so the detail
+    panel's info rows themselves are the controls (click the cover to open,
+    the path to reveal, the rating to review) instead of a separate row of
+    buttons underneath."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        if event.button() == Qt.LeftButton and self.rect().contains(event.pos()):
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
 
 class _TagBadge(QFrame):
@@ -107,25 +128,27 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.setContentsMargins(16, 16, 16, 16)
         self._content_layout.setSpacing(12)
 
-        # -- Cover --
-        self.cover_label = QLabel(self._content)
+        # -- Cover (click to open the file) --
+        self.cover_label = _ClickableLabel(self._content)
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setMinimumHeight(int(COVER_WIDTH * 1.33))
+        self.cover_label.setToolTip("Nhấn để mở file")
         self._content_layout.addWidget(self.cover_label)
 
-        # -- Title --
-        self.title_label = QLabel(self._content)
-        self.title_label.setWordWrap(True)
-        self.title_label.setStyleSheet(
-            f"font-size: 16px; font-weight: bold; color: {colors.text};"
+        # -- Title / Author: editable directly, no separate "Edit" dialog --
+        self.title_edit = QLineEdit(self._content)
+        self.title_edit.setPlaceholderText("Tiêu đề...")
+        self.title_edit.setStyleSheet(
+            f"font-size: 16px; font-weight: bold; color: {colors.text}; border: none; background: transparent;"
         )
-        self._content_layout.addWidget(self.title_label)
+        self._content_layout.addWidget(self.title_edit)
 
-        # -- Author --
-        self.author_label = QLabel(self._content)
-        self.author_label.setWordWrap(True)
-        self.author_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 13px;")
-        self._content_layout.addWidget(self.author_label)
+        self.author_edit = QLineEdit(self._content)
+        self.author_edit.setPlaceholderText("Tác giả...")
+        self.author_edit.setStyleSheet(
+            f"color: {colors.muted_text}; font-size: 13px; border: none; background: transparent;"
+        )
+        self._content_layout.addWidget(self.author_edit)
 
         # -- Divider --
         self._content_layout.addWidget(self._divider())
@@ -134,45 +157,34 @@ class DocumentDetailPanel(QWidget):
         self.format_size_label = self._info_label()
         self.date_added_label = self._info_label()
         self.date_modified_label = self._info_label()
-        self.rating_label = self._info_label()
         self._content_layout.addWidget(self.format_size_label)
         self._content_layout.addWidget(self.date_added_label)
         self._content_layout.addWidget(self.date_modified_label)
+
+        # -- Rating (click to open the review dialog) --
+        self.rating_label = _ClickableLabel(self._content)
+        self.rating_label.setWordWrap(True)
+        self.rating_label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
+        self.rating_label.setToolTip("Nhấn để xem / viết đánh giá")
         self._content_layout.addWidget(self.rating_label)
 
-        # -- File path (truncated) --
-        self.path_label = self._info_label()
-        self.path_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.path_label.setCursor(QCursor(Qt.IBeamCursor))
+        # -- File path (click to reveal in Explorer) --
+        self.path_label = _ClickableLabel(self._content)
+        self.path_label.setWordWrap(True)
+        self.path_label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
+        self.path_label.setToolTip("Nhấn để mở vị trí file")
         self._content_layout.addWidget(self.path_label)
 
-        # -- Divider --
-        self._content_layout.addWidget(self._divider())
-
-        # -- Action buttons --
-        btn_row_1 = QHBoxLayout()
-        self.open_btn = self._action_button("Mở file")
-        self.reveal_btn = self._action_button("Mở vị trí")
-        btn_row_1.addWidget(self.open_btn)
-        btn_row_1.addWidget(self.reveal_btn)
-        self._content_layout.addLayout(btn_row_1)
-
-        btn_row_2 = QHBoxLayout()
-        self.edit_btn = self._action_button("Chỉnh sửa")
-        self.review_btn = self._action_button("Đánh giá")
-        btn_row_2.addWidget(self.edit_btn)
-        btn_row_2.addWidget(self.review_btn)
-        self._content_layout.addLayout(btn_row_2)
-
-        self.open_btn.clicked.connect(self._on_open)
-        self.reveal_btn.clicked.connect(self._on_reveal)
-        self.edit_btn.clicked.connect(self._on_edit)
-        self.review_btn.clicked.connect(self._on_review)
+        self.cover_label.clicked.connect(self._on_open)
+        self.rating_label.clicked.connect(self._on_review)
+        self.path_label.clicked.connect(self._on_reveal)
+        self.title_edit.editingFinished.connect(lambda: self._save_field("title", self.title_edit.text()))
+        self.author_edit.editingFinished.connect(lambda: self._save_field("author", self.author_edit.text()))
 
         # -- Divider --
         self._content_layout.addWidget(self._divider())
 
-        # -- Tags --
+        # -- Tags: colored badges for display, one line edit to change them --
         self.tags_title_label = QLabel("Thể loại", self._content)
         self.tags_title_label.setStyleSheet(
             f"font-weight: bold; color: {colors.text}; font-size: 13px;"
@@ -182,6 +194,11 @@ class DocumentDetailPanel(QWidget):
         self._tags_layout = _FlowLayout(self._tags_container)
         self._tags_layout.setContentsMargins(0, 0, 0, 0)
         self._content_layout.addWidget(self._tags_container)
+
+        self.tags_edit = QLineEdit(self._content)
+        self.tags_edit.setPlaceholderText("Thêm thể loại, cách nhau bởi dấu phẩy...")
+        self.tags_edit.editingFinished.connect(lambda: self._save_field("tags", self.tags_edit.text()))
+        self._content_layout.addWidget(self.tags_edit)
 
         # -- AI Summary --
         self.summary_title_label = QLabel("Tóm tắt AI", self._content)
@@ -235,17 +252,6 @@ class DocumentDetailPanel(QWidget):
         label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
         return label
 
-    def _action_button(self, text: str) -> QPushButton:
-        btn = QPushButton(text, self._content)
-        colors = current_colors()
-        btn.setStyleSheet(
-            f"QPushButton {{ background: {colors.accent}; color: {colors.accent_text}; "
-            f"border: none; border-radius: 4px; padding: 6px 12px; font-size: 12px; }}"
-            f" QPushButton:hover {{ background: {colors.border}; color: {colors.text}; }}"
-        )
-        btn.setCursor(QCursor(Qt.PointingHandCursor))
-        return btn
-
     # ── State transitions ────────────────────────────────────────────
 
     def _show_empty(self) -> None:
@@ -280,9 +286,10 @@ class DocumentDetailPanel(QWidget):
             placeholder.fill(_QC("#cfd8dc"))
             self.cover_label.setPixmap(placeholder)
 
-        # Text fields
-        self.title_label.setText(doc.get("title", "Untitled"))
-        self.author_label.setText(doc.get("author", "Unknown"))
+        # Text fields (editable directly -- setText() doesn't fire
+        # editingFinished, so this never re-triggers a save)
+        self.title_edit.setText(doc.get("title") or "")
+        self.author_edit.setText(doc.get("author") or "")
 
         ext = (doc.get("extension") or "").upper()
         size = _human_size(doc.get("file_size", 0))
@@ -301,16 +308,15 @@ class DocumentDetailPanel(QWidget):
 
         # Tags
         self._clear_tags()
-        tags_str = doc.get("tags", "")
+        tags_str = doc.get("tags", "") or ""
+        self.tags_edit.setText(tags_str)
         if tags_str:
             for tag in tags_str.split(","):
                 tag = tag.strip()
                 if tag:
                     self._tags_layout.addWidget(_TagBadge(tag, self._tags_container))
-            self.tags_title_label.show()
             self._tags_container.show()
         else:
-            self.tags_title_label.hide()
             self._tags_container.hide()
 
         # AI Summary
@@ -345,7 +351,7 @@ class DocumentDetailPanel(QWidget):
                     else:
                         self.set_document(None)
 
-    # ── Button handlers ──────────────────────────────────────────────
+    # ── Click / inline-edit handlers ─────────────────────────────────
 
     def _on_open(self) -> None:
         if self._current_doc:
@@ -355,13 +361,26 @@ class DocumentDetailPanel(QWidget):
         if self._current_doc:
             self.file_actions.show_in_file_manager(self._current_doc["file_path"])
 
-    def _on_edit(self) -> None:
-        if self._current_doc:
-            MetadataEditorDialog(self.context, self._current_doc, self).exec()
-
     def _on_review(self) -> None:
         if self._current_doc:
             ReviewDialog(self.context, self._current_doc, self).exec()
+
+    def _save_field(self, field: str, value: str) -> None:
+        """Inline edit of title/author/tags directly on the panel -- these
+        are the only fields the app supports editing at all (see
+        DatabaseManager._EDITABLE_FIELDS), so this fully replaces the old
+        separate "Edit" dialog/button for this panel."""
+        if not self._current_doc:
+            return
+        doc_id = self._current_doc.get("id")
+        if not doc_id:
+            return
+        value = value.strip()
+        if value == (self._current_doc.get(field) or ""):
+            return
+        self.context.db.update_document_fields(doc_id, {field: value})
+        self._current_doc[field] = value
+        self.context.event_bus.publish(LibraryUpdatedEvent())
 
 
 class _FlowLayout(QVBoxLayout):

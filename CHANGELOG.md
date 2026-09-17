@@ -5,6 +5,58 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Import dedup/summary, manual Collections, detail panel inline edit, bug fixes
+
+A review pass against a large user checklist covering the list view,
+file/collection management, and known bugs. This entry covers the first
+batch (bug fixes + the import/collections gap); Duplicate Finder redesign,
+Settings expansion, cover search, and the in-app reader follow in later
+entries the same day.
+
+- **Reveal-in-Explorer bug fixed:** `explorer /select,"path"` was being
+  built as a Python argument *list*, which `subprocess` auto-quotes as
+  `"/select,<path>"` (quoting the whole token, not just the path) whenever
+  the path contains a space -- Explorer doesn't parse that and silently
+  falls back to its default folder (Documents/Quick access), which is
+  exactly the reported symptom. Fixed by passing one pre-built command
+  string with only the path quoted (still no shell involved, so this isn't
+  a `shell=True` injection risk). Also now falls back to opening the
+  file's parent folder if the recorded path no longer exists, instead of
+  Explorer's confusing silent default.
+- **Duplicate-on-import detection + a result summary:** re-scanning a
+  folder (or re-adding a file) no longer silently re-extracts and
+  re-writes a file that's already indexed by path. `ImportQueueManager`
+  now tracks each user-initiated batch (folder scan, multi-file add, a
+  drag-and-drop drop) and publishes one `ImportBatchCompletedEvent` with
+  success/duplicate/failed counts once every file in that batch has been
+  processed; the main window shows this as one summary dialog.
+- **File menu: "Thêm file..." + drag-and-drop:** a multi-file picker
+  action was added alongside the existing "Thêm thư mục...", and the main
+  window now accepts files and folders dropped directly onto it.
+- **Manual Collection membership:** Virtual Collections (TDD-009) were
+  rule-only, so clicking one only ever showed rule matches and there was
+  no way to manually curate one. Added a `collection_documents` table and
+  `DatabaseManager` methods for it; a collection's filter is now
+  `(rule match) OR (manually added)`, and an empty collection (no rule, no
+  manual members) correctly shows zero documents instead of silently
+  falling back to "no filter" (a latent bug that manual-only collections
+  would otherwise have hit immediately). "Add to collection" is available
+  from the library grid/list's right-click menu (single and multi-select).
+  The sidebar's collection list also gained a right-click menu to rename
+  or delete a collection.
+- **Detail panel: inline editing, no button row.** The four action buttons
+  (Open/Reveal/Edit/Review) are gone; the info rows are now the controls
+  themselves -- click the cover to open the file, the file path to reveal
+  it in Explorer, the rating to open the review dialog. Title, author, and
+  tags are directly editable `QLineEdit`s that save on focus-out (these
+  are the only three fields the app supports editing at all, so this
+  fully replaces the old separate metadata-editor button for this panel).
+- **Last-used directory remembered** for file/folder pickers (add file,
+  add folder, Calibre import, Settings' watch-folder picker) via a new
+  `AppConfig.last_used_directory`.
+- **Configurable file-watcher debounce:** `watch_debounce_seconds` moved
+  from a hardcoded constant into `AppConfig` (default unchanged: 1.5s).
+
 ## 2026-09-17 — List View QTableView + Document Detail Side Panel
 
 **Commits:** `f1ee45c` → `db6b48f`

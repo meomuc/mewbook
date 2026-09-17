@@ -76,6 +76,15 @@ CREATE TABLE IF NOT EXISTS collections (
     logic TEXT NOT NULL DEFAULT 'AND',
     created_at REAL NOT NULL
 );
+
+-- Manual collection membership, independent of a collection's Smart Rules
+-- (TDD-009) -- a document can be filtered into a collection by rule, added
+-- to it by hand, or both; see VirtualCollection usage in library_view.py.
+CREATE TABLE IF NOT EXISTS collection_documents (
+    collection_id TEXT NOT NULL,
+    doc_id TEXT NOT NULL,
+    PRIMARY KEY (collection_id, doc_id)
+);
 """
 
 
@@ -201,6 +210,7 @@ class DatabaseManager:
     def delete_document(self, doc_id: str) -> None:
         with self.write_lock:
             self.connection.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+            self.connection.execute("DELETE FROM collection_documents WHERE doc_id = ?", (doc_id,))
             self.connection.commit()
 
     def get_document(self, doc_id: str) -> dict[str, Any] | None:
@@ -388,7 +398,39 @@ class DatabaseManager:
     def delete_collection(self, collection_id: str) -> None:
         with self.write_lock:
             self.connection.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+            self.connection.execute("DELETE FROM collection_documents WHERE collection_id = ?", (collection_id,))
             self.connection.commit()
+
+    def rename_collection(self, collection_id: str, new_name: str) -> None:
+        with self.write_lock:
+            self.connection.execute("UPDATE collections SET name = ? WHERE id = ?", (new_name, collection_id))
+            self.connection.commit()
+
+    def add_documents_to_collection(self, collection_id: str, doc_ids: list[str]) -> None:
+        if not doc_ids:
+            return
+        with self.write_lock:
+            self.connection.executemany(
+                "INSERT OR IGNORE INTO collection_documents (collection_id, doc_id) VALUES (?, ?)",
+                [(collection_id, doc_id) for doc_id in doc_ids],
+            )
+            self.connection.commit()
+
+    def remove_documents_from_collection(self, collection_id: str, doc_ids: list[str]) -> None:
+        if not doc_ids:
+            return
+        with self.write_lock:
+            self.connection.executemany(
+                "DELETE FROM collection_documents WHERE collection_id = ? AND doc_id = ?",
+                [(collection_id, doc_id) for doc_id in doc_ids],
+            )
+            self.connection.commit()
+
+    def list_collection_document_ids(self, collection_id: str) -> list[str]:
+        rows = self.connection.execute(
+            "SELECT doc_id FROM collection_documents WHERE collection_id = ?", (collection_id,)
+        ).fetchall()
+        return [row["doc_id"] for row in rows]
 
     def close(self) -> None:
         self.connection.close()

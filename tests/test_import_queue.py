@@ -5,7 +5,12 @@ import fitz
 import pytest
 
 from smartdoc.application.import_queue import ImportQueueManager
-from smartdoc.core.event_bus import FileDetectedEvent, ImportProgressEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import (
+    FileDetectedEvent,
+    ImportBatchCompletedEvent,
+    ImportProgressEvent,
+    LibraryUpdatedEvent,
+)
 
 
 def _make_pdf(path: Path, title: str, author: str, body_text: str) -> None:
@@ -119,3 +124,41 @@ def test_unsupported_extension_is_skipped_without_crashing(tmp_path, app_context
     manager.add_file(str(txt_path))
     assert _wait_until(lambda: progress == [(1, 1)])
     assert app_context.db.search("notes") == []
+
+
+def test_reimporting_the_same_path_is_skipped_as_a_duplicate(tmp_path, app_context, manager):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, "Once", "Author", "content")
+
+    manager.add_file(str(pdf_path))
+    assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 1)
+    updated_at_first_pass = app_context.db.list_all_documents()[0]["updated_at"]
+
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+    manager.add_files([str(pdf_path)])  # same path, re-scanned
+
+    assert _wait_until(lambda: len(batches) == 1)
+    assert (batches[0].success, batches[0].duplicate, batches[0].failed) == (0, 1, 0)
+    # Not silently re-extracted/re-written either.
+    assert app_context.db.list_all_documents()[0]["updated_at"] == updated_at_first_pass
+
+
+def test_add_files_batch_reports_success_duplicate_and_failed_counts(tmp_path, app_context, manager):
+    already_indexed = tmp_path / "already.pdf"
+    _make_pdf(already_indexed, "Already Indexed", "Author", "content")
+    manager.add_file(str(already_indexed))
+    assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 1)
+
+    new_pdf = tmp_path / "new.pdf"
+    _make_pdf(new_pdf, "Brand New", "Author", "content")
+    unsupported = tmp_path / "notes.txt"
+    unsupported.write_text("not a book")
+
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+
+    enqueued = manager.add_files([str(already_indexed), str(new_pdf), str(unsupported)])
+    assert enqueued == 3
+    assert _wait_until(lambda: len(batches) == 1)
+    assert (batches[0].success, batches[0].duplicate, batches[0].failed) == (1, 1, 1)

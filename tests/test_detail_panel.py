@@ -99,8 +99,8 @@ def test_set_document_shows_content(qapp, app_context):
 
     assert not panel._scroll.isHidden()
     assert panel._empty_label.isHidden()
-    assert "Python Cơ Bản" in panel.title_label.text()
-    assert "Nguyễn Văn A" in panel.author_label.text()
+    assert "Python Cơ Bản" in panel.title_edit.text()
+    assert "Nguyễn Văn A" in panel.author_edit.text()
 
 
 def test_set_document_none_returns_to_empty(qapp, app_context):
@@ -160,7 +160,7 @@ def test_document_selected_event_updates_panel(qapp, app_context):
     doc = _sample_doc()
     app_context.event_bus.publish(DocumentSelectedEvent(doc=doc))
     assert _pump_until(qapp, lambda: not panel._scroll.isHidden(), timeout=3.0)
-    assert "Python Cơ Bản" in panel.title_label.text()
+    assert "Python Cơ Bản" in panel.title_edit.text()
 
 
 def test_document_selected_event_none_clears_panel(qapp, app_context):
@@ -180,13 +180,13 @@ def test_library_updated_event_refreshes_panel(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     doc = app_context.db.get_document("d1")
     panel.set_document(doc)
-    assert "Old Title" in panel.title_label.text()
+    assert "Old Title" in panel.title_edit.text()
 
     # Update the title in the DB, then fire the event
     app_context.db.update_document_fields("d1", {"title": "New Title"})
     app_context.event_bus.publish(LibraryUpdatedEvent())
 
-    assert _pump_until(qapp, lambda: "New Title" in panel.title_label.text(), timeout=3.0)
+    assert _pump_until(qapp, lambda: "New Title" in panel.title_edit.text(), timeout=3.0)
 
 
 def test_truncated_file_path_shows_tooltip(qapp, app_context):
@@ -195,3 +195,60 @@ def test_truncated_file_path_shows_tooltip(qapp, app_context):
     panel.set_document(_sample_doc(file_path=long_path))
     # Tooltip should contain the full path
     assert long_path in panel.path_label.toolTip()
+
+
+# ── Inline editing / click-through actions (replaces the old button row) ──
+
+
+def test_editing_title_inline_saves_to_db_and_publishes_event(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "Old Title", "author": "A", "file_path": "a.pdf", "created_at": 1.0}
+    )
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(app_context.db.get_document("d1"))
+
+    events = []
+    app_context.event_bus.subscribe(LibraryUpdatedEvent, lambda e: events.append(e))
+
+    panel.title_edit.setText("Brand New Title")
+    panel.title_edit.editingFinished.emit()
+
+    assert app_context.db.get_document("d1")["title"] == "Brand New Title"
+    assert len(events) == 1
+
+
+def test_editing_title_to_unchanged_value_does_not_publish_event(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "Same Title", "author": "A", "file_path": "a.pdf", "created_at": 1.0}
+    )
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(app_context.db.get_document("d1"))
+
+    events = []
+    app_context.event_bus.subscribe(LibraryUpdatedEvent, lambda e: events.append(e))
+
+    panel.title_edit.editingFinished.emit()  # no change made
+
+    assert events == []
+
+
+def test_clicking_cover_opens_the_file(qapp, app_context, monkeypatch):
+    opened = []
+    panel = DocumentDetailPanel(app_context)
+    monkeypatch.setattr(panel.file_actions, "open_file", lambda path: opened.append(path))
+    panel.set_document(_sample_doc(file_path="C:/Books/python.pdf"))
+
+    panel.cover_label.clicked.emit()
+
+    assert opened == ["C:/Books/python.pdf"]
+
+
+def test_clicking_path_reveals_in_file_manager(qapp, app_context, monkeypatch):
+    revealed = []
+    panel = DocumentDetailPanel(app_context)
+    monkeypatch.setattr(panel.file_actions, "show_in_file_manager", lambda path: revealed.append(path))
+    panel.set_document(_sample_doc(file_path="C:/Books/python.pdf"))
+
+    panel.path_label.clicked.emit()
+
+    assert revealed == ["C:/Books/python.pdf"]
