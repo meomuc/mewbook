@@ -167,6 +167,41 @@ def test_search_covers_raises_only_when_both_sources_fail(monkeypatch):
         search_covers("Anything")
 
 
+def test_rate_limit_retries_before_giving_up(monkeypatch):
+    """Both Open Library and Google Books are public, unauthenticated
+    endpoints with a fairly low per-IP rate limit -- a transient 429 must
+    be retried, not surfaced as an immediate failure."""
+    monkeypatch.setattr("smartdoc.application.cover_search._RETRY_DELAY_SECONDS", 0)  # don't actually sleep in tests
+    calls = {"n": 0}
+
+    def fake_get(url, *a, **k):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return _FakeResponse(status_code=429)
+        return _FakeResponse(json_data=_open_library_payload(1))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    results = search_covers("Anything", limit=1)
+
+    assert calls["n"] == 3  # two 429s, then success
+    assert len(results) == 1
+
+
+def test_rate_limit_gives_up_after_max_retries(monkeypatch):
+    monkeypatch.setattr("smartdoc.application.cover_search._RETRY_DELAY_SECONDS", 0)
+    calls = {"n": 0}
+
+    def fake_get(url, *a, **k):
+        calls["n"] += 1
+        return _FakeResponse(status_code=429)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    with pytest.raises(CoverSearchError, match="giới hạn tốc độ"):
+        search_covers("Anything")
+
+
 def test_download_cover_image_returns_bytes(monkeypatch):
     monkeypatch.setattr(requests, "get", lambda *a, **k: _FakeResponse(content=b"fake-image-bytes"))
     result = CoverSearchResult(image_url="https://example.com/cover.jpg", title="T", author="A", year=2000, source="Open Library")

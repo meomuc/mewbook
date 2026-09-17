@@ -22,6 +22,7 @@ preview them.
 from __future__ import annotations
 
 import logging
+import time
 
 import requests
 
@@ -31,10 +32,28 @@ _OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
 _OPEN_LIBRARY_COVER_URL_TEMPLATE = "https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
 _GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes"
 _TIMEOUT_SECONDS = 10
+_MAX_RETRIES_ON_RATE_LIMIT = 2
+_RETRY_DELAY_SECONDS = 1.5
 
 
 class CoverSearchError(Exception):
     pass
+
+
+def _get_with_retry(url: str, **kwargs) -> requests.Response:
+    """requests.get with a couple of short retries on 429 -- both Open
+    Library and Google Books are public, unauthenticated endpoints with a
+    fairly low per-IP rate limit, easy to trip with a burst of searches
+    (e.g. refining a title/author a few times in a row). A brief backoff
+    smooths that over instead of surfacing a raw "Too Many Requests" error
+    on the first hiccup."""
+    response = requests.get(url, timeout=_TIMEOUT_SECONDS, **kwargs)
+    attempt = 0
+    while response.status_code == 429 and attempt < _MAX_RETRIES_ON_RATE_LIMIT:
+        time.sleep(_RETRY_DELAY_SECONDS * (attempt + 1))
+        response = requests.get(url, timeout=_TIMEOUT_SECONDS, **kwargs)
+        attempt += 1
+    return response
 
 
 class CoverSearchResult:
@@ -58,7 +77,7 @@ def _search_open_library(title: str, author: str, limit: int) -> list[CoverSearc
     if author:
         params["author"] = author
     try:
-        response = requests.get(_OPEN_LIBRARY_SEARCH_URL, params=params, timeout=_TIMEOUT_SECONDS)
+        response = _get_with_retry(_OPEN_LIBRARY_SEARCH_URL, params=params)
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as exc:
@@ -89,7 +108,7 @@ def _search_google_books(title: str, author: str, limit: int) -> list[CoverSearc
         query += f" inauthor:{author}"
     params = {"q": query, "maxResults": max(1, limit)}
     try:
-        response = requests.get(_GOOGLE_BOOKS_URL, params=params, timeout=_TIMEOUT_SECONDS)
+        response = _get_with_retry(_GOOGLE_BOOKS_URL, params=params)
         response.raise_for_status()
         payload = response.json()
     except (requests.RequestException, ValueError) as exc:
@@ -153,13 +172,16 @@ def search_covers(title: str, author: str = "", limit: int = 6) -> list[CoverSea
             errors.append(str(exc))
 
     if not results and errors:
-        raise CoverSearchError("; ".join(errors))
+        combined = "; ".join(errors)
+        if "429" in combined:
+            combined += " -- đang bị giới hạn tốc độ truy vấn, hãy thử lại sau ít phút."
+        raise CoverSearchError(combined)
     return results[:limit]
 
 
 def download_cover_image(result: CoverSearchResult) -> bytes:
     try:
-        response = requests.get(result.image_url, timeout=_TIMEOUT_SECONDS)
+        response = _get_with_retry(result.image_url)
         response.raise_for_status()
         return response.content
     except requests.RequestException as exc:

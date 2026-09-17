@@ -5,6 +5,21 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Fix cover search rate-limiting
+
+Reproduced live: searching a real Vietnamese title ("Đắc Nhân Tâm") returns
+zero Open Library results (confirmed separately, matches the earlier
+"weak non-English coverage" finding) and hits `429 Too Many Requests` from
+Google Books' public, unauthenticated search endpoint -- both sources are
+free/keyless and rate-limited per IP, and Open Library's poor Vietnamese
+coverage means nearly every search for this app's actual target audience
+falls entirely onto Google Books, which trips that limit faster than an
+English-heavy workload would. Added a short retry-with-backoff (up to 2
+retries) for 429s on every network call in `cover_search.py`, and a
+clearer message ("đang bị giới hạn tốc độ truy vấn, hãy thử lại sau ít
+phút") when retries are exhausted, instead of a raw HTTP error that reads
+as "broken."
+
 ## 2026-09-17 — Fix search, "All" filter priority, and hashtag-click focus jump
 
 Three real bugs from a new report, root-caused by actually reproducing
