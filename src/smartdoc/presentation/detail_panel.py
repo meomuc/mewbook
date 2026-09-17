@@ -84,7 +84,7 @@ class _ClickableLabel(QLabel):
 
 
 class _TagBadge(QFrame):
-    """A single tag rendered as a rounded chip."""
+    """A single tag rendered as a rounded, hashtag-styled chip (#tag)."""
 
     def __init__(self, text: str, parent=None) -> None:
         super().__init__(parent)
@@ -93,7 +93,8 @@ class _TagBadge(QFrame):
             f"background: {colors.accent}; color: {colors.accent_text}; "
             f"border-radius: 10px; padding: 3px 10px;"
         )
-        label = QLabel(text, self)
+        display_text = text if text.startswith("#") else f"#{text}"
+        label = QLabel(display_text, self)
         label.setStyleSheet(f"color: {colors.accent_text}; background: transparent;")
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -205,7 +206,7 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self._tags_container)
 
         self.tags_edit = QLineEdit(self._content)
-        self.tags_edit.setPlaceholderText("Thêm thể loại, cách nhau bởi dấu phẩy...")
+        self.tags_edit.setPlaceholderText("Thêm #tag, cách nhau bởi dấu phẩy (VD: Python, AI)...")
         self.tags_edit.editingFinished.connect(lambda: self._save_field("tags", self.tags_edit.text()))
         self._content_layout.addWidget(self.tags_edit)
 

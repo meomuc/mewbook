@@ -135,6 +135,18 @@ def test_panel_shows_tags_as_badges(qapp, app_context):
     assert panel._tags_layout.count() == 3
 
 
+def test_panel_shows_tags_hashtag_styled(qapp, app_context):
+    from PySide6.QtWidgets import QLabel
+
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc(tags="Python,AI"))
+
+    labels = panel._tags_container.findChildren(QLabel)
+    texts = {label.text() for label in labels}
+    assert "#Python" in texts
+    assert "#AI" in texts
+
+
 def test_panel_hides_tags_when_none(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(tags=""))

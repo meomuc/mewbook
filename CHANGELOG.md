@@ -5,6 +5,55 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Live-apply Settings, bottom status bar, double-click reads, #tag, cover search fix
+
+Second review pass over the same checklist's follow-up requests.
+
+- **Cover Image Search actually finding results:** the earlier version only
+  queried Open Library, whose catalog skews heavily English/Western --
+  a Vietnamese-language book (this app's whole UI is Vietnamese, so
+  presumably its main use case) would very often get zero matches, which
+  looked like "search doesn't work" even though nothing was broken. Now
+  also queries Google Books' public API and tops up the result list
+  whenever Open Library alone comes back with fewer than the requested
+  count (including zero) -- `CoverSearchResult` gained a `source` field so
+  the UI shows which catalog each candidate came from.
+- **Double-click now opens the in-app reader by default**, not the OS's
+  own app -- "Mở bằng ứng dụng khác" (open with another app) moved to the
+  right-click menu instead, next to "Đọc trong ứng dụng".
+- **Detail panel tags are now hashtag-styled** ("#Python" instead of
+  "Python") in both the display badges and the edit field's placeholder.
+- **Settings no longer needs an app restart for anything:**
+  - Worker thread count and the file-watcher debounce now apply live via
+    new `ImportQueueManager.restart()` / `LibraryWatcher.set_debounce_seconds()`
+    methods.
+  - Theme and font can't be live-restyled onto already-built widgets that
+    baked their colors into a stylesheet string at construction time --
+    rather than a sprawling "every widget re-subscribes to a
+    theme-changed event" refactor, `SettingsDialog` now just flags
+    `appearance_changed`, and `MainWindow` rebuilds itself in place (same
+    `AppContext`/watcher/import_manager, so no backend state or queued
+    work is lost) once Settings closes. See `app.py`'s
+    `on_appearance_changed`.
+  - The file-watcher debounce no longer has a meaningfully low cap
+    (0.5s–30s before, now 0.5s–86400s).
+- **Bottom status bar** (`presentation/status_bar_panel.py`, a real
+  `QStatusBar`): total documents + how many have complete vs. incomplete
+  metadata, the current collection's document count (when one is
+  selected), how many folders are being watched, Cloud Review / AI Summary
+  connection status, and an "anhtiensinh" author credit. Refreshes on the
+  same `LibraryUpdatedEvent`/`CollectionSelectedEvent` the library view
+  itself reacts to. New `DatabaseManager.count_metadata_completeness()`
+  and `.count_documents_in_collection()`; the latter's "(rule match) OR
+  (manually added)" logic was factored out of `library_view.py` into
+  `DatabaseManager.collection_where_fragment()` so the status bar's count
+  and the library view's actual filtering can never drift apart.
+- Re-verified (not just re-read) the reveal-in-Explorer fix from the
+  previous entry against a real file on this machine -- the command runs
+  without error and launches Explorer, though without a way to visually
+  confirm the correct item gets highlighted, this is as far as it can be
+  confirmed here.
+
 ## 2026-09-17 — Edit an existing Collection's rule, not just its name
 
 `NewCollectionDialog` now doubles as an edit dialog: passing it an existing

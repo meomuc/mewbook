@@ -117,6 +117,15 @@ class ImportQueueManager:
         alongside the configured/allowed count."""
         return len(self._threads)
 
+    def restart(self, num_workers: int) -> None:
+        """Live-apply a new worker count -- Settings no longer needs an app
+        restart for this. Any in-flight/queued files survive: stop() drains
+        each worker's current item before joining, and the queue itself
+        isn't touched."""
+        self.stop()
+        self.num_workers = num_workers
+        self.start()
+
     def start(self) -> None:
         self._stop_event.clear()
         for _ in range(self.num_workers):

@@ -38,7 +38,6 @@ from smartdoc.core.event_bus import (
     SortChangedEvent,
     ViewModeChangedEvent,
 )
-from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
@@ -455,29 +454,9 @@ class LibraryListWidget(QWidget):
             params.extend(self._active_authors)
 
         if self._active_collection_id:
-            row = self.context.db.get_collection(self._active_collection_id)
-            manual_ids = self.context.db.list_collection_document_ids(self._active_collection_id)
-            parts: list[str] = []
-            combined_params: list = []
-            if row:
-                collection = VirtualCollection.from_row(row)
-                if collection.rules:
-                    collection_sql, collection_params = collection.to_sql_where_clause()
-                    parts.append(f"({collection_sql})")
-                    combined_params.extend(collection_params)
-            if manual_ids:
-                placeholders = ",".join("?" for _ in manual_ids)
-                parts.append(f"documents.id IN ({placeholders})")
-                combined_params.extend(manual_ids)
-
-            if parts:
-                fragments.append("(" + " OR ".join(parts) + ")")
-                params.extend(combined_params)
-            else:
-                # A collection with neither a rule nor any manually-added
-                # document is empty by definition -- must show zero
-                # documents, not silently fall back to "no filter at all".
-                fragments.append("1=0")
+            collection_sql, collection_params = self.context.db.collection_where_fragment(self._active_collection_id)
+            fragments.append(collection_sql)
+            params.extend(collection_params)
 
         return " AND ".join(fragments), tuple(params)
 
@@ -520,9 +499,13 @@ class LibraryListWidget(QWidget):
             self.context.event_bus.publish(DocumentSelectedEvent(doc=None))
 
     def _open_selected(self, index: QModelIndex) -> None:
+        # Double-click's default action is the in-app reader, not opening
+        # externally -- "open with the OS's own app" moved to the
+        # right-click menu ("Mở bằng ứng dụng khác").
         doc = self._active_model().document_at(index.row())
         if doc:
-            self.file_actions.open_file(doc["file_path"])
+            self._reader_window = ReaderWindow(self.context, doc, self)
+            self._reader_window.show()
 
     def _show_context_menu(self, position) -> None:
         view = self._active_view()
@@ -593,8 +576,8 @@ class LibraryListWidget(QWidget):
         return submenu, actions
 
     def _show_single_document_menu(self, menu: QMenu, doc: dict, position) -> None:
-        open_action = menu.addAction("Mở file")
         read_action = menu.addAction("Đọc trong ứng dụng")
+        open_action = menu.addAction("Mở bằng ứng dụng khác")
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")

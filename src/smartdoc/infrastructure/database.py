@@ -22,6 +22,8 @@ import threading
 import time
 from typing import Any
 
+from smartdoc.domain.smart_collections import VirtualCollection
+
 logger = logging.getLogger(__name__)
 
 _SANITIZE_RE = re.compile(r"[^\w\sÀ-ỹ]", re.UNICODE)
@@ -443,6 +445,52 @@ class DatabaseManager:
             "SELECT doc_id FROM collection_documents WHERE collection_id = ?", (collection_id,)
         ).fetchall()
         return [row["doc_id"] for row in rows]
+
+    def collection_where_fragment(self, collection_id: str) -> tuple[str, tuple]:
+        """(sql_fragment, params) for "is this document in this Virtual
+        Collection" -- (rule match) OR (manually added). "1=0" (matches
+        nothing) if the collection has neither a rule nor any manual
+        member -- an empty collection must show zero documents, not
+        silently fall back to "no filter at all". Shared by the library
+        view's filtering (library_view.py) and the status bar's
+        per-collection count (count_documents_in_collection, below) so the
+        two never drift apart on what "in this collection" means.
+        """
+        row = self.get_collection(collection_id)
+        manual_ids = self.list_collection_document_ids(collection_id)
+        parts: list[str] = []
+        params: list = []
+        if row:
+            collection = VirtualCollection.from_row(row)
+            if collection.rules:
+                rule_sql, rule_params = collection.to_sql_where_clause()
+                parts.append(f"({rule_sql})")
+                params.extend(rule_params)
+        if manual_ids:
+            placeholders = ",".join("?" for _ in manual_ids)
+            parts.append(f"documents.id IN ({placeholders})")
+            params.extend(manual_ids)
+        if not parts:
+            return "1=0", ()
+        return "(" + " OR ".join(parts) + ")", tuple(params)
+
+    def count_documents_in_collection(self, collection_id: str) -> int:
+        where_sql, params = self.collection_where_fragment(collection_id)
+        return self.count_documents_matching(where_sql=where_sql, params=params)
+
+    def count_metadata_completeness(self) -> tuple[int, int]:
+        """Returns (complete_count, incomplete_count). "Incomplete" means
+        the extractor couldn't fill in a real title/author, or there's no
+        cover -- tags are deliberately excluded, since nothing in this app
+        ever fills tags in automatically, so an empty tags field isn't a
+        sign anything went wrong.
+        """
+        total = self.count_documents()
+        incomplete = self.connection.execute(
+            "SELECT COUNT(*) FROM documents "
+            "WHERE title = '' OR author = '' OR author = 'Unknown' OR cover_path IS NULL"
+        ).fetchone()[0]
+        return total - incomplete, incomplete
 
     def close(self) -> None:
         self.connection.close()

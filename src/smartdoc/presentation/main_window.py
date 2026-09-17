@@ -23,16 +23,22 @@ from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.sidebar import LibrarySidebar
+from smartdoc.presentation.status_bar_panel import StatusBarPanel
 from smartdoc.presentation.theme import current_colors
 from smartdoc.presentation.toolbar import LibraryToolbar
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, context, watcher=None, import_manager=None, parent=None) -> None:
+    def __init__(self, context, watcher=None, import_manager=None, parent=None, on_appearance_changed=None) -> None:
         super().__init__(parent)
         self.context = context
         self.watcher = watcher
         self.import_manager = import_manager
+        # Called (with this window) after Settings closes if the user
+        # changed theme/font -- see app.py's on_appearance_changed, which
+        # rebuilds the window in place rather than requiring a real app
+        # restart (theme.py can't live-restyle already-built stylesheets).
+        self._on_appearance_changed = on_appearance_changed
 
         self.setWindowTitle("SmartDoc Library")
         self.resize(1400, 800)
@@ -89,6 +95,7 @@ class MainWindow(QMainWindow):
         splitter.setSizes([240, 1160])
 
         self.setCentralWidget(splitter)
+        self.setStatusBar(StatusBarPanel(context, self))
 
         self._bridge = QtEventBridge(self)
         self._bridge.event_received.connect(self._on_bridged_event)
@@ -148,7 +155,10 @@ class MainWindow(QMainWindow):
         DuplicateFinderDialog(self.context, self).exec()
 
     def _on_open_settings(self) -> None:
-        SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager).exec()
+        dialog = SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager)
+        dialog.exec()
+        if dialog.appearance_changed and self._on_appearance_changed:
+            self._on_appearance_changed(self)
 
     def _start_directory(self) -> str:
         return self.context.config.config.last_used_directory or ""

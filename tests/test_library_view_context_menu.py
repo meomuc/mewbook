@@ -118,6 +118,24 @@ def test_single_selection_delete_cancelled_keeps_document(qapp, app_context, mon
     assert len(app_context.db.list_all_documents()) == 2
 
 
+def test_double_click_opens_reader_window_not_external_open(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+
+    opened_docs = []
+    opened_externally = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.ReaderWindow",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+    monkeypatch.setattr(widget.file_actions, "open_file", lambda path: opened_externally.append(path))
+
+    widget._open_selected(widget.model.index(0, 0))
+
+    assert len(opened_docs) == 1
+    assert opened_externally == []
+
+
 def test_single_selection_read_action_opens_reader_window(qapp, app_context, monkeypatch):
     _seed_two_docs(app_context)
     widget = LibraryListWidget(app_context)

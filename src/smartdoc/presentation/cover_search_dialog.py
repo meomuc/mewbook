@@ -137,6 +137,7 @@ class CoverSearchDialog(QDialog):
             label = candidate.title
             if candidate.year:
                 label = f"{label} ({candidate.year})"
+            label = f"{label}\n[{candidate.source}]"
             item = QListWidgetItem(QIcon(pixmap), label)
             item.setData(_RESULT_ROLE, candidate)
             item.setData(_IMAGE_BYTES_ROLE, image_bytes)

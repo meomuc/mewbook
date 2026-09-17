@@ -6,12 +6,17 @@ connect/disconnect) is not built here -- it depends on TDD-016/TDD-019
 (Milestone F), which aren't implemented yet, and a tab full of buttons that
 do nothing would be worse than no tab.
 
-Watch folder / allowed-extension changes take effect immediately (the file
-watcher and scan_folder read config live). Theme, font, worker thread count,
-and the file-watcher debounce require a restart -- Qt widgets already built
-don't retroactively re-theme, and the import queue's worker threads /
-watcher are already running -- so those show a one-time notice instead of
-silently doing nothing.
+Nothing here needs an app restart:
+- Watch folder / allowed-extension changes take effect immediately (the
+  file watcher and scan_folder read config live).
+- Worker thread count and the file-watcher debounce are applied live via
+  ImportQueueManager.restart() / LibraryWatcher.set_debounce_seconds().
+- Theme and font can't be live-restyled onto already-built widgets that
+  baked their colors into a stylesheet string at construction time --
+  instead of a sprawling "every widget re-subscribes to a theme-changed
+  event" refactor, this dialog just flags `appearance_changed`, and
+  MainWindow rebuilds itself (same AppContext/watcher/import_manager, fresh
+  widget tree) after the dialog closes. See app.py's on_appearance_changed.
 """
 from __future__ import annotations
 
@@ -31,7 +36,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTabWidget,
@@ -54,7 +58,7 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(480)
 
         config = context.config.config
-        self._restart_needed = False
+        self.appearance_changed = False  # theme/font: see module docstring
 
         tabs = QTabWidget(self)
         tabs.addTab(self._build_file_tab(config), "Quản lý File")
@@ -120,7 +124,6 @@ class SettingsDialog(QDialog):
         self.font_size_spin.setValue(config.font_size)
         form.addRow("Cỡ chữ:", self.font_size_spin)
 
-        form.addRow(QLabel("(Cần khởi động lại ứng dụng để áp dụng)"))
         return tab
 
     def _build_performance_tab(self, config) -> QWidget:
@@ -138,13 +141,15 @@ class SettingsDialog(QDialog):
         form.addRow("Số luồng nạp file tối đa (Worker Threads):", self.worker_spin)
 
         self.debounce_spin = QDoubleSpinBox(tab)
-        self.debounce_spin.setRange(0.5, 30.0)
+        # No real upper limit -- just a very large ceiling so the widget has
+        # *some* bound (QDoubleSpinBox requires one) without meaningfully
+        # constraining what the user can type.
+        self.debounce_spin.setRange(0.5, 86400.0)
         self.debounce_spin.setSingleStep(0.5)
         self.debounce_spin.setSuffix(" giây")
         self.debounce_spin.setValue(config.watch_debounce_seconds)
         form.addRow("Thời gian chờ trước khi quét file mới:", self.debounce_spin)
 
-        form.addRow(QLabel("(Cần khởi động lại ứng dụng để áp dụng)"))
         return tab
 
     def _on_add_folder(self) -> None:
@@ -172,28 +177,30 @@ class SettingsDialog(QDialog):
 
         new_theme = list(THEME_CHOICES)[self.theme_combo.currentIndex()]
         if new_theme != config.theme:
-            self._restart_needed = True
+            self.appearance_changed = True
             config.theme = new_theme
 
         new_font_family = self.font_combo.currentFont().family()
         if new_font_family != self._initial_font_family:
-            self._restart_needed = True
+            self.appearance_changed = True
             config.font_family = new_font_family
 
         new_font_size = self.font_size_spin.value()
         if new_font_size != config.font_size:
-            self._restart_needed = True
+            self.appearance_changed = True
             config.font_size = new_font_size
 
         new_worker_count = self.worker_spin.value()
         if new_worker_count != config.worker_thread_count:
-            self._restart_needed = True
             config.worker_thread_count = new_worker_count
+            if self.import_manager:
+                self.import_manager.restart(new_worker_count)
 
         new_debounce = self.debounce_spin.value()
         if new_debounce != config.watch_debounce_seconds:
-            self._restart_needed = True
             config.watch_debounce_seconds = new_debounce
+            if self.watcher:
+                self.watcher.set_debounce_seconds(new_debounce)
 
         self.context.config.save()
 
@@ -203,10 +210,6 @@ class SettingsDialog(QDialog):
             for folder in added_folders:
                 self.watcher.add_folder(folder)
 
-        if self._restart_needed:
-            QMessageBox.information(
-                self, "Cần khởi động lại", "Một số thay đổi (giao diện, số luồng) sẽ áp dụng sau khi khởi động lại ứng dụng."
-            )
         self.accept()
 
 

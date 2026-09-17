@@ -30,7 +30,11 @@ def _doc():
 
 
 def test_search_populates_results_with_thumbnails(qapp, app_context, monkeypatch):
-    candidates = [CoverSearchResult(cover_id=1, title="The Hobbit", author="Tolkien", year=1937)]
+    candidates = [
+        CoverSearchResult(
+            image_url="https://example.com/cover.jpg", title="The Hobbit", author="Tolkien", year=1937, source="Open Library"
+        )
+    ]
     monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers", lambda t, a: candidates)
     monkeypatch.setattr(
         "smartdoc.presentation.cover_search_dialog.download_cover_image", lambda result: _fake_png_bytes()
@@ -52,7 +56,11 @@ def test_no_results_shows_status_message(qapp, app_context, monkeypatch):
 
 
 def test_selecting_a_result_enables_use_button(qapp, app_context, monkeypatch):
-    candidates = [CoverSearchResult(cover_id=1, title="The Hobbit", author="Tolkien", year=1937)]
+    candidates = [
+        CoverSearchResult(
+            image_url="https://example.com/cover.jpg", title="The Hobbit", author="Tolkien", year=1937, source="Open Library"
+        )
+    ]
     monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers", lambda t, a: candidates)
     monkeypatch.setattr(
         "smartdoc.presentation.cover_search_dialog.download_cover_image", lambda result: _fake_png_bytes()
@@ -71,7 +79,11 @@ def test_using_selected_cover_saves_it_and_publishes_event(qapp, app_context, mo
     app_context.db.add_or_update_document(
         "d1", {"title": "The Hobbit", "author": "Tolkien", "file_path": "hobbit.pdf", "created_at": 0.0}
     )
-    candidates = [CoverSearchResult(cover_id=1, title="The Hobbit", author="Tolkien", year=1937)]
+    candidates = [
+        CoverSearchResult(
+            image_url="https://example.com/cover.jpg", title="The Hobbit", author="Tolkien", year=1937, source="Open Library"
+        )
+    ]
     monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers", lambda t, a: candidates)
     monkeypatch.setattr(
         "smartdoc.presentation.cover_search_dialog.download_cover_image", lambda result: _fake_png_bytes()

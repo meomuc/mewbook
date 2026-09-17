@@ -78,6 +78,12 @@ class LibraryWatcher:
         )
         self._watches: dict[str, object] = {}  # folder_path -> watchdog ObservedWatch
 
+    def set_debounce_seconds(self, seconds: float) -> None:
+        """Live-apply a new debounce window -- takes effect for the next
+        file change detected; in-flight timers already scheduled keep their
+        original delay rather than being retroactively rescheduled."""
+        self._handler._debounce_seconds = seconds
+
     def _is_extension_allowed(self, extension: str) -> bool:
         # Read live from config (not cached at construction time) so a
         # Settings change takes effect without restarting the app.

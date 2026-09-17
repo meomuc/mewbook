@@ -20,6 +20,18 @@ THEME_CHOICES = ("light", "dark")
 # no checkbox.
 KNOWN_EXTENSIONS = ("pdf", "epub", "mobi", "azw3")
 
+# AI providers with a well-known, well-documented REST API a user can plug
+# their own key into (see application/ai_summary.py). Kept to a fixed,
+# vetted list rather than a free-text "custom endpoint" field -- matches
+# the request for "phổ biến hiện có" (the popular ones that already exist)
+# rather than a generic (and much harder to get right/secure) integration.
+AI_PROVIDER_CHOICES = ("gemini", "openai", "anthropic")
+AI_PROVIDER_DISPLAY_NAMES = {
+    "gemini": "Google Gemini",
+    "openai": "OpenAI (ChatGPT)",
+    "anthropic": "Anthropic Claude",
+}
+
 
 def default_app_data_dir() -> Path:
     appdata = os.environ.get("APPDATA")
@@ -56,6 +68,12 @@ class AppConfig:
     # created/modified file (TDD-007) -- lets a still-copying file finish
     # writing before it's read. Exposed in Settings beyond its default.
     watch_debounce_seconds: float = 1.5
+    # AI-generated non-spoiler summaries (application/ai_summary.py) run
+    # against the *user's own* account/key -- never a key this app ships
+    # with -- so this is stored the same way as the Calibre/Supabase
+    # settings: plain config, no separate secrets vault.
+    ai_provider: str | None = None  # one of core.config.AI_PROVIDER_CHOICES
+    ai_api_key: str | None = None
 
 
 class ConfigManager:

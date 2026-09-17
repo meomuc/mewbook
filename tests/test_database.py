@@ -382,3 +382,47 @@ def test_deleting_document_clears_its_collection_membership(db):
     db.add_documents_to_collection("c1", ["doc1"])
     db.delete_document("doc1")
     assert db.list_collection_document_ids("c1") == []
+
+
+def test_count_documents_in_collection_combines_rule_and_manual_membership(db):
+    _seed_with_extensions(db)  # d1/d3 pdf, d2 epub
+    db.save_collection(
+        "c1",
+        "PDFs plus one epub",
+        '{"rules": [{"field": "extension", "operator": "eq", "value": "pdf"}]}',
+        "AND",
+        1.0,
+    )
+    db.add_documents_to_collection("c1", ["d2"])  # manually add the epub too
+
+    assert db.count_documents_in_collection("c1") == 3
+
+
+def test_count_documents_in_collection_empty_collection_is_zero(db):
+    _seed(db)
+    db.save_collection("c1", "Empty", '{"rules": []}', "AND", 1.0)
+    assert db.count_documents_in_collection("c1") == 0
+
+
+def test_count_metadata_completeness(db):
+    db.add_or_update_document(
+        "complete",
+        {
+            "title": "Full Book",
+            "author": "Real Author",
+            "file_path": "a.pdf",
+            "cover_path": "/covers/a.webp",
+            "created_at": 1.0,
+        },
+    )
+    db.add_or_update_document(
+        "no_author", {"title": "Some Book", "author": "Unknown", "file_path": "b.pdf", "created_at": 1.0}
+    )
+    db.add_or_update_document(
+        "no_cover", {"title": "Another Book", "author": "Real Author", "file_path": "c.pdf", "created_at": 1.0}
+    )
+
+    complete, incomplete = db.count_metadata_completeness()
+
+    assert complete == 1
+    assert incomplete == 2
