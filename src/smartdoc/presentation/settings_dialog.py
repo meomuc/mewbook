@@ -61,9 +61,9 @@ class SettingsDialog(QDialog):
         self.appearance_changed = False  # theme/font: see module docstring
 
         tabs = QTabWidget(self)
-        tabs.addTab(self._build_file_tab(config), "Quản lý File")
-        tabs.addTab(self._build_theme_tab(config), "Giao diện")
-        tabs.addTab(self._build_performance_tab(config), "Hiệu năng")
+        tabs.addTab(self._build_file_tab(config), "📁 Quản lý File")
+        tabs.addTab(self._build_theme_tab(config), "🎨 Giao diện")
+        tabs.addTab(self._build_performance_tab(config), "⚡ Hiệu năng")
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._on_save)

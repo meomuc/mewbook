@@ -20,3 +20,9 @@ def test_app_icon_path_points_at_the_real_shipped_icon():
     path = resources.app_icon_path()
     assert path.name == "app_icon.ico"
     assert path.exists()
+
+
+def test_brand_logo_path_points_at_the_real_shipped_logo():
+    path = resources.brand_logo_path()
+    assert path.name == "brand_logo.png"
+    assert path.exists()

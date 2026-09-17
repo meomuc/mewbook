@@ -5,6 +5,29 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — New app icon/brand mark, icon pass across the UI
+
+- **Replaced the app icon** with the user-supplied brand mark (a cat
+  reading a book) in place of the earlier programmatically-drawn
+  document+magnifying-glass icon. The source export had the squircle
+  centered on a canvas much wider than tall, with the "transparent" area
+  baked in as an opaque checkerboard rather than real alpha, so a plain
+  alpha-bbox crop wouldn't isolate it -- `packaging/process_brand_icon.py`
+  finds the squircle's true bounding square via color saturation (the
+  gradient border/cat are saturated, the checkerboard and white book pages
+  aren't), crops to it, and stamps a clean rounded-rect alpha mask over the
+  result so the corners are properly transparent regardless of whatever
+  was sitting there in the source. Produces `app_icon.ico` (multi-res) and
+  a `brand_logo.png` for in-UI use; both added to the PyInstaller spec's
+  `datas`. `generate_icon.py` is kept as a fallback/reference, not deleted.
+- **Brand header in the sidebar**: the logo + "SmartDoc Library" above the
+  collections list.
+- **Icon pass**: emoji icons added to the main menu bar (File/Edit/View/
+  Tools), Settings' tab titles, and the Duplicate Finder's buttons, for a
+  livelier/friendlier feel per the request -- left the rest of the UI
+  alone rather than a wall-to-wall icon sweep, since it's a lower-priority
+  polish item relative to the rest of this batch.
+
 ## 2026-09-17 — Live-apply Settings, bottom status bar, double-click reads, #tag, cover search fix
 
 Second review pass over the same checklist's follow-up requests.

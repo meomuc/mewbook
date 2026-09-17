@@ -5,7 +5,10 @@ a = Analysis(
     ['../src/smartdoc/app.py'],
     pathex=[],
     binaries=[],
-    datas=[('../src/smartdoc/presentation/assets/app_icon.ico', 'smartdoc/presentation/assets')],
+    datas=[
+        ('../src/smartdoc/presentation/assets/app_icon.ico', 'smartdoc/presentation/assets'),
+        ('../src/smartdoc/presentation/assets/brand_logo.png', 'smartdoc/presentation/assets'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

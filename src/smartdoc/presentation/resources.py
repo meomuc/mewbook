@@ -19,3 +19,10 @@ def assets_dir() -> Path:
 
 def app_icon_path() -> Path:
     return assets_dir() / "app_icon.ico"
+
+
+def brand_logo_path() -> Path:
+    """The same brand mark as app_icon_path(), as a plain PNG -- used where
+    a widget (e.g. the sidebar header) wants to embed it directly rather
+    than set it as a window icon."""
+    return assets_dir() / "brand_logo.png"

@@ -72,13 +72,13 @@ class DuplicateFinderDialog(QDialog):
         self.tabs.addTab(self.exact_table, "Trùng hoàn toàn (nội dung giống hệt)")
         self.tabs.addTab(self.fuzzy_table, "Có thể trùng (tiêu đề/tác giả gần giống)")
 
-        refresh_button = QPushButton("Quét lại")
+        refresh_button = QPushButton("🔄 Quét lại")
         refresh_button.clicked.connect(self.refresh)
 
-        self.select_duplicates_button = QPushButton("Chọn file trùng ▾")
+        self.select_duplicates_button = QPushButton("✅ Chọn file trùng ▾")
         self.select_duplicates_button.clicked.connect(self._on_select_duplicates)
 
-        self.delete_button = QPushButton("Xóa file ▾")
+        self.delete_button = QPushButton("🗑️ Xóa file ▾")
         self.delete_button.clicked.connect(self._on_delete_selected)
 
         action_row = QHBoxLayout()

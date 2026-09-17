@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -20,7 +21,10 @@ from smartdoc.core.event_bus import CollectionSelectedEvent
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.filter_sidebar import FacetedFilterPanel
+from smartdoc.presentation.resources import brand_logo_path
 from smartdoc.presentation.theme import current_colors
+
+_BRAND_LOGO_SIZE = 40
 
 _COLLECTION_ID_ROLE = Qt.UserRole + 1
 
@@ -30,6 +34,19 @@ class LibrarySidebar(QWidget):
         super().__init__(parent)
         self.context = context
         colors = current_colors()
+
+        brand_row = QHBoxLayout()
+        logo_label = QLabel(self)
+        pixmap = QPixmap(str(brand_logo_path()))
+        if not pixmap.isNull():
+            logo_label.setPixmap(
+                pixmap.scaled(_BRAND_LOGO_SIZE, _BRAND_LOGO_SIZE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        title_label = QLabel("SmartDoc Library", self)
+        title_label.setStyleSheet(f"font-weight: 700; font-size: 14px; color: {colors.text};")
+        brand_row.addWidget(logo_label)
+        brand_row.addWidget(title_label)
+        brand_row.addStretch(1)
 
         header_label = QLabel("Bộ sưu tập")
         header_label.setStyleSheet(f"font-weight: 600; color: {colors.text};")
@@ -56,6 +73,7 @@ class LibrarySidebar(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
+        layout.addLayout(brand_row)
         layout.addLayout(header_row)
         layout.addWidget(self.collections_list, stretch=1)
         layout.addWidget(self.facet_panel, stretch=2)

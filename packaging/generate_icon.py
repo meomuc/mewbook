@@ -1,7 +1,13 @@
-"""Generates the SmartDoc Library app icon: a document with a folded corner
-(the "smart doc" part) plus a magnifying glass (the fast full-text search
-that's the app's whole reason for existing), in the same flat, minimal
-palette as the running app (see presentation/theme.py's LIGHT colors).
+"""Original SmartDoc Library app icon generator: a document with a folded
+corner (the "smart doc" part) plus a magnifying glass (the fast full-text
+search that's the app's whole reason for existing), in the same flat,
+minimal palette as the running app (see presentation/theme.py's LIGHT
+colors).
+
+Superseded as the actual app_icon.ico/brand_logo.png source by the
+user-supplied cat-reading-a-book brand mark (see process_brand_icon.py in
+this same folder) -- kept here as a working fallback/reference, not
+because anything currently regenerates icons from it.
 
 Drawn programmatically with Pillow rather than as an SVG asset -- no new
 dependency needed (no SVG rasterizer), and a hand-drawn geometric mark like
