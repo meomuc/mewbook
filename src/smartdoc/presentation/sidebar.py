@@ -17,16 +17,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import CollectionSelectedEvent
+from smartdoc.core.event_bus import CollectionSelectedEvent, LibraryUpdatedEvent
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.filter_sidebar import FacetedFilterPanel
+from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.resources import brand_logo_path
 from smartdoc.presentation.theme import current_colors
 
 _BRAND_LOGO_SIZE = 40
 
 _COLLECTION_ID_ROLE = Qt.UserRole + 1
+_COLLECTION_NAME_ROLE = Qt.UserRole + 2  # raw name, since the item's own text() has " (N)" appended
 
 
 class LibrarySidebar(QWidget):
@@ -78,20 +80,58 @@ class LibrarySidebar(QWidget):
         layout.addWidget(self.collections_list, stretch=1)
         layout.addWidget(self.facet_panel, stretch=2)
 
+        self._bridge = QtEventBridge(self)
+        self._bridge.event_received.connect(self._on_bridged_event)
+        self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
+        self._bridge.subscribe(context.event_bus, CollectionSelectedEvent)
+
         self.reload_collections()
 
+    def _on_bridged_event(self, event) -> None:
+        if isinstance(event, LibraryUpdatedEvent):
+            self.reload_collections()  # document counts may have changed
+        elif isinstance(event, CollectionSelectedEvent):
+            # Keeps this list's highlighted row in sync when the selection
+            # changes from elsewhere (e.g. clicking a hashtag in the
+            # Document Detail Panel resets to "Tất cả tài liệu"). Harmless
+            # no-op when *this* list is what triggered the change --
+            # setCurrentRow() doesn't itself emit itemClicked, so there's no
+            # risk of this looping back into another publish.
+            self._select_collection_row(event.collection_id)
+
     def reload_collections(self) -> None:
+        previously_selected_id = self._current_collection_id()
+
         self.collections_list.clear()
 
-        all_item = QListWidgetItem("Tất cả tài liệu")
+        total = self.context.db.count_documents()
+        all_item = QListWidgetItem(f"Tất cả tài liệu ({total})")
         all_item.setData(_COLLECTION_ID_ROLE, None)
+        all_item.setData(_COLLECTION_NAME_ROLE, "Tất cả tài liệu")
         self.collections_list.addItem(all_item)
 
         for row in self.context.db.list_collections():
-            item = QListWidgetItem(row["name"])
+            count = self.context.db.count_documents_in_collection(row["id"])
+            item = QListWidgetItem(f"{row['name']} ({count})")
             item.setData(_COLLECTION_ID_ROLE, row["id"])
+            item.setData(_COLLECTION_NAME_ROLE, row["name"])
             self.collections_list.addItem(item)
 
+        # Preserve whatever was selected before this refresh (e.g. a
+        # background import bumping counts must not silently snap the
+        # user's current collection back to "Tất cả tài liệu"); falls back
+        # to row 0 if it's gone (e.g. just got deleted) or on first load.
+        self._select_collection_row(previously_selected_id)
+
+    def _current_collection_id(self) -> str | None:
+        item = self.collections_list.currentItem()
+        return item.data(_COLLECTION_ID_ROLE) if item else None
+
+    def _select_collection_row(self, collection_id: str | None) -> None:
+        for i in range(self.collections_list.count()):
+            if self.collections_list.item(i).data(_COLLECTION_ID_ROLE) == collection_id:
+                self.collections_list.setCurrentRow(i)
+                return
         self.collections_list.setCurrentRow(0)
 
     def _on_collection_clicked(self, item: QListWidgetItem) -> None:
@@ -125,14 +165,16 @@ class LibrarySidebar(QWidget):
                     self.reload_collections()
                     self.context.event_bus.publish(CollectionSelectedEvent(collection_id=collection_id))
         elif chosen == rename_action:
-            new_name, ok = QInputDialog.getText(self, "Đổi tên bộ sưu tập", "Tên mới:", text=item.text())
+            raw_name = item.data(_COLLECTION_NAME_ROLE)
+            new_name, ok = QInputDialog.getText(self, "Đổi tên bộ sưu tập", "Tên mới:", text=raw_name)
             new_name = new_name.strip()
             if ok and new_name:
                 self.context.db.rename_collection(collection_id, new_name)
                 self.reload_collections()
         elif chosen == delete_action:
+            raw_name = item.data(_COLLECTION_NAME_ROLE)
             confirm = QMessageBox.question(
-                self, "Xóa bộ sưu tập", f"Xóa bộ sưu tập \"{item.text()}\"? (Các tài liệu bên trong không bị xóa.)"
+                self, "Xóa bộ sưu tập", f"Xóa bộ sưu tập \"{raw_name}\"? (Các tài liệu bên trong không bị xóa.)"
             )
             if confirm == QMessageBox.Yes:
                 self.context.db.delete_collection(collection_id)
@@ -151,6 +193,12 @@ class LibrarySidebar(QWidget):
             return
         collection = dialog.build_collection()
         if collection is None:
+            return
+        existing_names = {row["name"].strip().lower() for row in self.context.db.list_collections()}
+        if collection.name.strip().lower() in existing_names:
+            QMessageBox.warning(
+                self, "Bộ sưu tập đã tồn tại", f"Đã có bộ sưu tập tên \"{collection.name}\". Vui lòng chọn tên khác."
+            )
             return
         self.context.db.save_collection(
             collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at

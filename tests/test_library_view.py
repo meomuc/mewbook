@@ -127,6 +127,24 @@ def test_facet_filter_changed_event_filters_by_extension(qapp, app_context):
     assert _pump_until(qapp, lambda: widget.model.rowCount() == 2, timeout=3.0)
 
 
+def test_facet_filter_changed_event_filters_by_tag(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "AI Book", "author": "A", "file_path": "a.pdf", "tags": "AI,Python", "created_at": 1.0}
+    )
+    app_context.db.add_or_update_document(
+        "d2", {"title": "Cooking Book", "author": "B", "file_path": "b.pdf", "tags": "Cooking", "created_at": 2.0}
+    )
+    widget = LibraryListWidget(app_context)
+    assert widget.model.rowCount() == 2
+
+    app_context.event_bus.publish(FacetFilterChangedEvent(tags=("AI",)))
+    assert _pump_until(qapp, lambda: widget.model.rowCount() == 1, timeout=3.0)
+    assert widget.model.document_at(0)["title"] == "AI Book"
+
+    app_context.event_bus.publish(FacetFilterChangedEvent(tags=()))
+    assert _pump_until(qapp, lambda: widget.model.rowCount() == 2, timeout=3.0)
+
+
 def test_collection_selected_event_filters_by_virtual_collection(qapp, app_context):
     app_context.db.add_or_update_document(
         "d1", {"title": "AI Book", "author": "A", "file_path": "a.pdf", "extension": "pdf", "tags": "AI,ML", "created_at": 1.0}

@@ -401,6 +401,21 @@ class DatabaseManager:
         ).fetchall()
         return {row["author"]: row["n"] for row in rows}
 
+    def count_by_tag(self) -> dict[str, int]:
+        """Distinct hashtags across the library, with live counts. Tags are
+        stored as one comma-joined string per document (see
+        add_or_update_document), so this splits and aggregates in Python --
+        SQLite has no built-in way to explode a delimited column into rows.
+        """
+        counts: dict[str, int] = {}
+        rows = self.connection.execute("SELECT tags FROM documents WHERE tags != ''").fetchall()
+        for row in rows:
+            for tag in row["tags"].split(","):
+                tag = tag.strip()
+                if tag:
+                    counts[tag] = counts.get(tag, 0) + 1
+        return dict(sorted(counts.items(), key=lambda kv: kv[1], reverse=True))
+
     def save_collection(self, collection_id: str, name: str, rules_json: str, logic: str, created_at: float) -> None:
         with self.write_lock:
             self.connection.execute(

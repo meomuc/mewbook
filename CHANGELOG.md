@@ -5,6 +5,47 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Collections: dedupe + counts; Faceted filters: click-based + Hashtag category
+
+- **Collections:** creating one with a name that already exists (case/
+  whitespace-insensitive) is now rejected with a warning instead of
+  silently creating a second entry with the same name. The sidebar list
+  now shows each collection's document count next to its name
+  ("PDFs (12)"), including "Tất cả tài liệu" -- backed by the
+  `count_documents_in_collection()`/`count_documents()` already added
+  earlier. Reloading (e.g. on every `LibraryUpdatedEvent`, now subscribed
+  to for live counts) preserves whichever collection was selected instead
+  of snapping back to "Tất cả tài liệu" every time a document changes --
+  incidentally also fixed that same reset happening after a rename, which
+  was a latent bug from before this entry.
+- **Faceted Filter Panel redesigned**: checkboxes replaced with
+  click-to-select (click an option to filter by just that one; click it
+  again to clear; clicking a different option in the same category
+  switches to it) per explicit request to simplify the interaction. Gained
+  a third category, "Hashtag" -- every distinct tag in the library,
+  auto-populated with live counts via new `DatabaseManager.count_by_tag()`
+  (tags are one comma-joined string per document, so this splits/
+  aggregates in Python; SQLite has no clean way to explode a delimited
+  column). The panel now also *subscribes* to `FacetFilterChangedEvent`
+  (previously only published it), so a tag filter set from elsewhere (the
+  detail panel, below) shows up as selected here too.
+  - Found and fixed a real re-entrancy bug while building this: publishing
+    an event the same panel also subscribes to, then rebuilding the tree
+    (`clear()` + repopulate) from inside that subscription handler, was
+    happening *while still inside the click handler that triggered it* --
+    deleting the very `QTreeWidgetItem` the click handler was still
+    holding a reference to (`RuntimeError: already deleted`). Fixed with a
+    re-entrancy guard so the panel's own publish doesn't also trigger a
+    second, nested rebuild.
+- **Document Detail Panel**: "Thể loại" section renamed to "Hashtag";
+  each tag now renders as plain clickable "#text" (no background/border --
+  explicit request that chip styling was too heavy for quick scanning).
+  Clicking one resets the collection selection to "Tất cả tài liệu" and
+  filters the library to every document sharing that tag -- "equivalent
+  to selecting it on the collection side," per the request -- via the same
+  `FacetFilterChangedEvent(tags=...)` the sidebar's own Hashtag category
+  uses, so both entry points feed the exact same filtering code path.
+
 ## 2026-09-17 — Fix Gemini 404, part 2: gemini-2.0-flash was fully retired
 
 The header fix (previous entry) wasn't the whole story -- confirmed live

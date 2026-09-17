@@ -52,6 +52,7 @@ class SearchRequestedEvent(BaseEvent):
 class FacetFilterChangedEvent(BaseEvent):
     extensions: tuple[str, ...] = ()
     authors: tuple[str, ...] = ()
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

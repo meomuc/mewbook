@@ -27,7 +27,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import (
+    CollectionSelectedEvent,
+    DocumentSelectedEvent,
+    FacetFilterChangedEvent,
+    LibraryUpdatedEvent,
+)
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
@@ -84,22 +89,21 @@ class _ClickableLabel(QLabel):
         super().mouseReleaseEvent(event)
 
 
-class _TagBadge(QFrame):
-    """A single tag rendered as a rounded, hashtag-styled chip (#tag)."""
+class _HashtagLabel(_ClickableLabel):
+    """A single hashtag, rendered as plain clickable text -- no background,
+    no border, just "#tag" in the accent color, for easy reading (per
+    explicit request: chips/badges were judged too heavy for a list that's
+    meant to be scanned quickly). Clicking it filters the library to every
+    document sharing that tag."""
 
-    def __init__(self, text: str, parent=None) -> None:
+    def __init__(self, tag: str, parent=None) -> None:
         super().__init__(parent)
+        self.tag = tag
         colors = current_colors()
-        self.setStyleSheet(
-            f"background: {colors.accent}; color: {colors.accent_text}; "
-            f"border-radius: 10px; padding: 3px 10px;"
-        )
-        display_text = text if text.startswith("#") else f"#{text}"
-        label = QLabel(display_text, self)
-        label.setStyleSheet(f"color: {colors.accent_text}; background: transparent;")
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(label)
+        display_text = tag if tag.startswith("#") else f"#{tag}"
+        self.setText(display_text)
+        self.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
+        self.setToolTip(f"Xem các tài liệu có {display_text}")
 
 
 class DocumentDetailPanel(QWidget):
@@ -195,8 +199,8 @@ class DocumentDetailPanel(QWidget):
         # -- Divider --
         self._content_layout.addWidget(self._divider())
 
-        # -- Tags: colored badges for display, one line edit to change them --
-        self.tags_title_label = QLabel("Thể loại", self._content)
+        # -- Tags: plain clickable hashtags for display, one line edit to change them --
+        self.tags_title_label = QLabel("Hashtag", self._content)
         self.tags_title_label.setStyleSheet(
             f"font-weight: bold; color: {colors.text}; font-size: 13px;"
         )
@@ -329,7 +333,9 @@ class DocumentDetailPanel(QWidget):
             for tag in tags_str.split(","):
                 tag = tag.strip()
                 if tag:
-                    self._tags_layout.addWidget(_TagBadge(tag, self._tags_container))
+                    hashtag_label = _HashtagLabel(tag, self._tags_container)
+                    hashtag_label.clicked.connect(lambda _checked=False, t=tag: self._on_tag_clicked(t))
+                    self._tags_layout.addWidget(hashtag_label)
             self._tags_container.show()
         else:
             self._tags_container.hide()
@@ -389,6 +395,13 @@ class DocumentDetailPanel(QWidget):
     def _on_ai_summary(self) -> None:
         if self._current_doc:
             AISummaryDialog(self.context, self._current_doc, self).exec()
+
+    def _on_tag_clicked(self, tag: str) -> None:
+        """Clicking a hashtag here is equivalent to selecting it on the
+        collection side: show every document with this tag, not just
+        whatever collection/facet filters happened to be active before."""
+        self.context.event_bus.publish(CollectionSelectedEvent(collection_id=None))
+        self.context.event_bus.publish(FacetFilterChangedEvent(tags=(tag,)))
 
     def _save_field(self, field: str, value: str) -> None:
         """Inline edit of title/author/tags directly on the panel -- these

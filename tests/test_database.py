@@ -163,6 +163,25 @@ def test_count_by_author(db):
     assert db.count_by_author() == {"A": 2, "B": 1}
 
 
+def test_count_by_tag_splits_comma_joined_tags(db):
+    db.add_or_update_document(
+        "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "tags": "Python,AI", "created_at": 1.0}
+    )
+    db.add_or_update_document(
+        "d2", {"title": "B", "author": "Y", "file_path": "b.pdf", "tags": "Python", "created_at": 2.0}
+    )
+    db.add_or_update_document("d3", {"title": "C", "author": "Z", "file_path": "c.pdf", "created_at": 3.0})
+
+    assert db.count_by_tag() == {"Python": 2, "AI": 1}
+
+
+def test_count_by_tag_ignores_whitespace_around_tags(db):
+    db.add_or_update_document(
+        "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "tags": " Python , AI ", "created_at": 1.0}
+    )
+    assert db.count_by_tag() == {"Python": 1, "AI": 1}
+
+
 def test_query_documents_with_where_only(db):
     _seed_with_extensions(db)
     results = db.query_documents(where_sql="extension = ?", params=("epub",))

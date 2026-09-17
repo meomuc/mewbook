@@ -147,6 +147,28 @@ def test_panel_shows_tags_hashtag_styled(qapp, app_context):
     assert "#AI" in texts
 
 
+def test_tags_section_header_is_hashtag_not_the_loai(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    assert panel.tags_title_label.text() == "Hashtag"
+
+
+def test_clicking_a_hashtag_resets_collection_and_filters_by_tag(qapp, app_context):
+    from smartdoc.core.event_bus import CollectionSelectedEvent, FacetFilterChangedEvent
+
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc(tags="Python,AI"))
+
+    collection_events = []
+    facet_events = []
+    app_context.event_bus.subscribe(CollectionSelectedEvent, lambda e: collection_events.append(e))
+    app_context.event_bus.subscribe(FacetFilterChangedEvent, lambda e: facet_events.append(e))
+
+    panel._on_tag_clicked("Python")
+
+    assert collection_events[-1].collection_id is None
+    assert facet_events[-1].tags == ("Python",)
+
+
 def test_panel_hides_tags_when_none(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(tags=""))

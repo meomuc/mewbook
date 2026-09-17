@@ -245,6 +245,7 @@ class LibraryListWidget(QWidget):
         self._current_query = ""
         self._active_extensions: tuple[str, ...] = ()
         self._active_authors: tuple[str, ...] = ()
+        self._active_tags: tuple[str, ...] = ()
         self._active_collection_id: str | None = None
         self._current_page = 0
         self._total_pages = 1
@@ -454,6 +455,17 @@ class LibraryListWidget(QWidget):
             fragments.append(f"documents.author IN ({placeholders})")
             params.extend(self._active_authors)
 
+        if self._active_tags:
+            # Tags are stored as one comma-joined string per document (see
+            # DatabaseManager.add_or_update_document), so "has this tag" is a
+            # LIKE match -- same approach SmartRule's "contains" operator
+            # already uses, not a literal set-membership query.
+            tag_fragments = []
+            for tag in self._active_tags:
+                tag_fragments.append("documents.tags LIKE ?")
+                params.append(f"%{tag}%")
+            fragments.append("(" + " OR ".join(tag_fragments) + ")")
+
         if self._active_collection_id:
             collection_sql, collection_params = self.context.db.collection_where_fragment(self._active_collection_id)
             fragments.append(collection_sql)
@@ -471,6 +483,7 @@ class LibraryListWidget(QWidget):
         elif isinstance(event, FacetFilterChangedEvent):
             self._active_extensions = event.extensions
             self._active_authors = event.authors
+            self._active_tags = event.tags
             self._current_page = 0
             self.reload()
         elif isinstance(event, CollectionSelectedEvent):
