@@ -81,3 +81,36 @@ def test_worker_thread_count_saved(qapp, app_context, monkeypatch):
     dialog.worker_spin.setValue(8)
     dialog._on_save()
     assert app_context.config.config.worker_thread_count == 8
+
+
+def test_font_size_change_saved_and_sets_restart_flag(qapp, app_context, monkeypatch):
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    dialog = SettingsDialog(app_context)
+    dialog.font_size_spin.setValue(14)
+    dialog._on_save()
+    assert app_context.config.config.font_size == 14
+    assert dialog._restart_needed is True
+
+
+def test_debounce_seconds_change_saved(qapp, app_context, monkeypatch):
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    dialog = SettingsDialog(app_context)
+    dialog.debounce_spin.setValue(5.0)
+    dialog._on_save()
+    assert app_context.config.config.watch_debounce_seconds == 5.0
+    assert dialog._restart_needed is True
+
+
+class _FakeImportManager:
+    def active_worker_count(self) -> int:
+        return 3
+
+
+def test_performance_tab_shows_active_worker_count(qapp, app_context):
+    dialog = SettingsDialog(app_context, import_manager=_FakeImportManager())
+    assert "3" in dialog.performance_status_label.text()
+
+
+def test_performance_tab_shows_zero_active_when_no_import_manager(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert "0" in dialog.performance_status_label.text()

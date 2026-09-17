@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import QApplication
 
 from smartdoc.application.file_watcher import LibraryWatcher
@@ -28,6 +28,12 @@ def main() -> None:
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
     apply_theme(app, context.config.config.theme)
+
+    font_family = context.config.config.font_family
+    font = QFont(font_family) if font_family else app.font()
+    font.setPointSize(context.config.config.font_size)
+    app.setFont(font)
+
     window = MainWindow(context, watcher=watcher, import_manager=import_manager)
     window.show()
 

@@ -112,6 +112,11 @@ class ImportQueueManager:
                     paths.append(str(Path(root) / name))
         return self.add_files(paths)
 
+    def active_worker_count(self) -> int:
+        """Number of worker threads currently running -- shown in Settings
+        alongside the configured/allowed count."""
+        return len(self._threads)
+
     def start(self) -> None:
         self._stop_event.clear()
         for _ in range(self.num_workers):

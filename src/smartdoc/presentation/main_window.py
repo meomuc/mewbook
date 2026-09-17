@@ -148,7 +148,7 @@ class MainWindow(QMainWindow):
         DuplicateFinderDialog(self.context, self).exec()
 
     def _on_open_settings(self) -> None:
-        SettingsDialog(self.context, self, watcher=self.watcher).exec()
+        SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager).exec()
 
     def _start_directory(self) -> str:
         return self.context.config.config.last_used_directory or ""

@@ -5,6 +5,29 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Duplicate Finder redesign + Settings expansion (font/threads/scan timing)
+
+- **Duplicate Finder:** both tabs (exact/fuzzy) gained a "Ngày thêm" (date
+  added) column; all columns are now clickable-header-sortable
+  (`QTableWidget` native sorting, with a small custom item so the date
+  column sorts by timestamp rather than as text), defaulting to sorted by
+  the first column. A new "Chọn file trùng ▾" button auto-checks every
+  document in each duplicate group except the one to keep -- newest-added
+  by default, or oldest-added -- and colors the rows marked for deletion so
+  they're visually distinct from the kept one. The old single-purpose
+  "Xóa các mục đã chọn khỏi thư viện" button became "Xóa file ▾" with an
+  explicit 3-way choice (library only / library + original file on disk /
+  cancel) instead of always doing the same thing.
+- **Settings — Giao diện tab:** added font family (`QFontComboBox`) and
+  size pickers, applied at startup via `QApplication.setFont()`
+  (`AppConfig.font_family`/`font_size` already existed but nothing read
+  them until now).
+- **Settings — Hiệu năng tab:** now shows currently-running worker threads
+  alongside available CPU cores, and a new field for the file-watcher's
+  scan debounce (`AppConfig.watch_debounce_seconds`) -- the first
+  "configure a max/timing parameter beyond the shipped default" control,
+  per the request to allow this generally.
+
 ## 2026-09-17 — Import dedup/summary, manual Collections, detail panel inline edit, bug fixes
 
 A review pass against a large user checklist covering the list view,
