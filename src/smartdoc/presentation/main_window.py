@@ -5,13 +5,14 @@ omnibar + sort/cover-size toolbar + library grid on the right.
 """
 from __future__ import annotations
 
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter, QVBoxLayout, QWidget
 
 from smartdoc.application.calibre_migrator import CalibreImporter
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.omnibar import OmnibarSearchBar
+from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.sidebar import LibrarySidebar
 from smartdoc.presentation.theme import current_colors
@@ -27,6 +28,9 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("SmartDoc Library")
         self.resize(1200, 800)
+        icon_path = app_icon_path()
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
         colors = current_colors()
         self.setStyleSheet(
             f"QMainWindow {{ background: {colors.background}; color: {colors.text}; }}"

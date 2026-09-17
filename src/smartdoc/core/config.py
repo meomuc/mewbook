@@ -36,6 +36,16 @@ class AppConfig:
     cover_cache_dir: str | None = None
     worker_thread_count: int = 4
     allowed_extensions: list[str] = field(default_factory=lambda: list(KNOWN_EXTENSIONS))
+    reviewer_nickname: str = ""
+    # Never a value baked into source -- always a path to a JSON file the
+    # user (or the app installer) drops onto disk. Defaults to where
+    # ConfigManager keeps everything else app-specific; see
+    # application/cloud_reviews.py for why this file must never be committed.
+    service_account_path: str | None = None
+    # A real Google Drive folder shared with the service account's email as
+    # Editor -- required because service accounts have no storage quota of
+    # their own (see cloud_reviews.py's module docstring).
+    drive_folder_id: str | None = None
 
 
 class ConfigManager:
@@ -50,6 +60,7 @@ class ConfigManager:
             config = AppConfig(
                 db_path=str(self.app_data_dir / "library.db"),
                 cover_cache_dir=str(self.app_data_dir / "covers"),
+                service_account_path=str(self.app_data_dir / "service_account.json"),
             )
             self._write(config)
             return config

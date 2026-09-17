@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['src/smartdoc/app.py'],
+    ['../src/smartdoc/app.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('../src/smartdoc/presentation/assets/app_icon.ico', 'smartdoc/presentation/assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='../src/smartdoc/presentation/assets/app_icon.ico',
 )
 coll = COLLECT(
     exe,

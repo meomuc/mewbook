@@ -81,23 +81,32 @@ query is also present (see the method's docstring).
 
 ```
 uv sync --group dev   # pulls in pyinstaller
-uv run pyinstaller --noconfirm --windowed --name SmartDocLibrary --distpath dist --workpath build_pyinstaller packaging/SmartDocLibrary.spec
+cd packaging
+uv run pyinstaller --noconfirm --distpath ../dist --workpath ../build_pyinstaller SmartDocLibrary.spec
 ```
+
+Run it from `packaging/` (not the repo root) -- when PyInstaller is given a
+`.spec` file directly (as opposed to generating one from a script path), it
+resolves that spec's relative paths against the spec file's own directory,
+not the current working directory. `--name`/`--windowed`/etc. are makespec
+options and are rejected once you're building from an existing `.spec`;
+those choices are already baked into it.
 
 Produces `dist/SmartDocLibrary/SmartDocLibrary.exe`, a standalone build that
 runs without the dev venv or a system Python install (verified: launched
-the built exe directly and it started and stayed responsive on its own).
-`packaging/SmartDocLibrary.spec` is checked in so the build is reproducible
-and a place to add an icon/version resource/extra data files later.
-`dist/` and `build_pyinstaller/` are build output, not committed.
+the built exe directly, with the real app icon on both the window and the
+.exe file, and it started and stayed responsive on its own).
+`packaging/SmartDocLibrary.spec` is checked in so the build is reproducible;
+`packaging/generate_icon.py` regenerates the icon if it ever needs a
+redesign. `dist/` and `build_pyinstaller/` are build output, not committed.
 
-Not done yet: a real app icon (uses PyInstaller's default), a signed
+Not done yet: a signed
 installer (Inno Setup or similar) so it doesn't trip Windows SmartScreen /
 antivirus on a fresh machine, and the auto-updater (TDD-024).
 
 ## Status
 
-**Milestones A–D** are done and verified by `uv run pytest` (153 tests) plus
+**Milestones A–D** are done and verified by `uv run pytest` (167 tests) plus
 an end-to-end smoke test that launches the real `MainWindow`, bulk-scans a
 folder, and proves the live file watcher flows through to the UI.
 
@@ -124,6 +133,28 @@ fall back to filename-as-title for real AZW3/MOBI files), multi-rule
 collection editing (the creation dialog only supports one condition — the
 domain layer supports AND/OR multi-rule collections already, just no UI for
 it yet), grouped list view (TDD-013's "group by year/author" header rows),
-Calibre tag/rating carryover (see calibre_migrator.py's docstring), a Cloud
-settings tab (depends on Milestone F), packaging (Milestone E, in
-progress), and everything in the AI/Cloud milestone (F).
+Calibre tag/rating carryover (see calibre_migrator.py's docstring), an
+installed app icon (done) but no signed installer yet, and most of
+Milestone F (AI review, semantic search, personal cloud export).
+
+**Milestone F, Cloud Review System (TDD-016):** `application/cloud_reviews.py`
+is built and verified against the real Google Drive API (unit tests against
+a fake Drive service, plus a live smoke test in
+`cloud_reviews.py`'s `__main__`). It is not wired into the UI yet (no
+review panel/dialog on a document). Two things anyone deploying this needs
+to know, both documented in that module's docstring:
+
+- Google removed personal storage quota for service accounts, so this
+  cannot write to "its own Drive" — it needs one real Drive folder shared
+  with the service account's email as Editor (`AppConfig.drive_folder_id`).
+  Free personal Google accounts can do this; Shared Drives / domain-wide
+  delegation (Google's other suggested workarounds) need a paid Workspace
+  plan.
+- The service account JSON is a live secret. It is never committed and
+  never hardcoded — `AppConfig.service_account_path` points at a file on
+  disk (default `%APPDATA%/SmartDocLibrary/service_account.json`), and
+  `.gitignore` blocks common credential filenames as defense in depth. The
+  original TDD-016 spec has every install of the app ship pointed at the
+  *same* shared credential, which means anyone who extracts it from a
+  build can read/write that Drive space directly — an accepted, documented
+  risk for now, not something this pass tried to redesign.
