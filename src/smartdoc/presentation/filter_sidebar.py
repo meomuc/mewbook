@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from smartdoc.core.event_bus import FacetFilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
@@ -52,6 +52,19 @@ class FacetedFilterPanel(QWidget):
         self.tree = QTreeWidget(self)
         self.tree.setHeaderHidden(True)
         self.tree.setStyleSheet(f"QTreeWidget {{ border: none; background: {colors.sidebar}; color: {colors.text}; }}")
+        # No native selection -- items are plain clickable rows, and "which
+        # one is active" is shown purely by this panel's own background/
+        # foreground coloring (see _add_category), not Qt's selection
+        # model. Every click rebuilds the tree (see refresh()), which
+        # destroys and recreates every item; if items were natively
+        # selectable, Qt would auto-focus *something* after that rebuild
+        # (typically the first selectable leaf, in the Định dạng or Tác
+        # giả category) with its own focus/selection highlight, which is
+        # exactly what made clicking a hashtag look like it "jumped" to a
+        # different category -- the real (color-based) selection was
+        # correct the whole time, but a second, native highlight was
+        # showing up elsewhere.
+        self.tree.setSelectionMode(QAbstractItemView.NoSelection)
         self.tree.itemClicked.connect(self._on_item_clicked)
 
         layout = QVBoxLayout(self)
@@ -87,7 +100,9 @@ class FacetedFilterPanel(QWidget):
         for raw_value, count in counts.items():
             display_value = raw_value or "(không rõ)"
             item = QTreeWidgetItem(root, [f"{display_value} ({count})"])
-            item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            # Deliberately not Qt.ItemIsSelectable -- see the NoSelection
+            # comment above. itemClicked still fires on click regardless.
+            item.setFlags(Qt.ItemIsEnabled)
             item.setData(0, _RAW_VALUE_ROLE, raw_value)
             if raw_value == selected_value:
                 item.setBackground(0, QColor(self._selected_bg))

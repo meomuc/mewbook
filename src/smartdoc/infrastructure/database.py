@@ -27,6 +27,15 @@ from smartdoc.domain.smart_collections import VirtualCollection
 logger = logging.getLogger(__name__)
 
 _SANITIZE_RE = re.compile(r"[^\w\sÀ-ỹ]", re.UNICODE)
+# The omnibar's own placeholder text advertises "author:nam python" as valid
+# search syntax -- this is real FTS5 syntax (a column-filtered MATCH term)
+# and SQLite genuinely supports it natively, but _sanitize_query used to
+# strip the ':' as an unsafe character before the query ever reached FTS5,
+# silently turning it into a query that could never match anything. Only a
+# fixed whitelist of real documents_fts column names is accepted as a
+# prefix -- anything else falls back to being sanitized as a plain term,
+# so this can't be used to smuggle arbitrary syntax into the MATCH expression.
+_SEARCH_FIELD_RE = re.compile(r"^(title|author|tags|content):(.+)$", re.IGNORECASE | re.UNICODE)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
@@ -248,10 +257,28 @@ class DatabaseManager:
 
     @staticmethod
     def _sanitize_query(keyword: str) -> str:
-        """Strip FTS5 syntax characters and turn each token into a prefix match."""
-        cleaned = _SANITIZE_RE.sub(" ", keyword)
-        tokens = [t for t in cleaned.split() if t]
-        return " ".join(f"{t}*" for t in tokens)
+        """Strip FTS5 syntax characters and turn each token into a prefix
+        match -- except a "field:term" token (field one of
+        title/author/tags/content), which becomes a column-filtered prefix
+        match instead of a plain keyword search across every column."""
+        tokens: list[str] = []
+        for raw_token in keyword.split():
+            field_match = _SEARCH_FIELD_RE.match(raw_token)
+            if field_match:
+                field = field_match.group(1).lower()
+                words = _SANITIZE_RE.sub(" ", field_match.group(2)).split()
+                if words:
+                    # Only the first word is column-filtered -- "author:jane
+                    # doe" typed with a space is two separate raw tokens
+                    # already, so this only affects "author:jane" glued
+                    # to extra text with no space, which is an edge case
+                    # either way.
+                    tokens.append(f"{field}:{words[0]}*")
+                    tokens.extend(f"{w}*" for w in words[1:])
+                continue
+            words = _SANITIZE_RE.sub(" ", raw_token).split()
+            tokens.extend(f"{w}*" for w in words)
+        return " ".join(tokens)
 
     def search(self, query_string: str) -> list[dict[str, Any]]:
         match_expr = self._sanitize_query(query_string)

@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import CollectionSelectedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import CollectionSelectedEvent, FacetFilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.filter_sidebar import FacetedFilterPanel
@@ -136,6 +136,14 @@ class LibrarySidebar(QWidget):
 
     def _on_collection_clicked(self, item: QListWidgetItem) -> None:
         collection_id = item.data(_COLLECTION_ID_ROLE)
+        if collection_id is None:
+            # "Tất cả tài liệu" must mean *all* documents. Previously this
+            # only cleared the collection while any active format/author/
+            # hashtag facet filter stayed combined in via AND, so clicking
+            # "All" silently kept showing a filtered view instead of taking
+            # priority over whatever was selected before -- explicitly
+            # clearing the facets here is what actually makes "All" win.
+            self.context.event_bus.publish(FacetFilterChangedEvent())
         self.context.event_bus.publish(CollectionSelectedEvent(collection_id=collection_id))
 
     def _show_collection_context_menu(self, position) -> None:

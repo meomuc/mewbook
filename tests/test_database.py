@@ -121,6 +121,34 @@ def test_search_empty_query_returns_empty_list(db):
     assert db.search("   ") == []
 
 
+def test_search_supports_field_prefixed_syntax(db):
+    """The omnibar's own placeholder text advertises "author:nam python" as
+    valid search syntax -- this is real, native FTS5 syntax, and the query
+    sanitizer must preserve it instead of stripping the ':' as an unsafe
+    character (which used to make this exact advertised example return
+    nothing)."""
+    db.add_or_update_document(
+        "doc1", {"title": "Python Co Ban", "author": "Nguyen Van Nam", "file_path": "a.pdf", "created_at": 0.0}
+    )
+    db.add_or_update_document(
+        "doc2", {"title": "Nam Story", "author": "Someone Else", "file_path": "b.pdf", "created_at": 0.0}
+    )
+
+    assert [r["id"] for r in db.search("author:nam")] == ["doc1"]
+    assert [r["id"] for r in db.search("title:nam")] == ["doc2"]
+    assert [r["id"] for r in db.search("author:nam python")] == ["doc1"]
+
+
+def test_search_field_prefix_only_accepts_known_columns(db):
+    _seed(db)
+    # "notacolumn:" isn't a real documents_fts column -- must fall back to
+    # being sanitized as an ordinary term (and safely find nothing) rather
+    # than being passed through to FTS5 as a column filter, which would
+    # raise a syntax error from SQLite.
+    results = db.search("notacolumn:python")
+    assert isinstance(results, list)
+
+
 def test_list_all_documents_returns_everything_newest_first(db):
     db.add_or_update_document(
         "doc1", {"title": "First", "author": "A", "file_path": "a.pdf", "created_at": 1.0}

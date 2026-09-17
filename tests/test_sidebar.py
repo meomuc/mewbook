@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
-from smartdoc.core.event_bus import CollectionSelectedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import CollectionSelectedEvent, FacetFilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
 from smartdoc.presentation import collection_dialog as cd_module
 from smartdoc.presentation.sidebar import LibrarySidebar
@@ -221,3 +221,35 @@ def test_edit_collection_rule_via_context_menu(qapp, app_context, monkeypatch):
     updated = app_context.db.get_collection(collection.id)
     assert updated is not None
     assert VirtualCollection.from_row(updated).rules[0].value == "AI"
+
+
+def test_clicking_all_documents_clears_active_facet_filters(qapp, app_context):
+    """"Tất cả tài liệu" must take priority over whatever facet filters
+    were active -- previously it only cleared the collection while format/
+    author/hashtag facets stayed combined in via AND, so "All" silently
+    kept showing a filtered view."""
+    sidebar = LibrarySidebar(app_context)
+
+    facet_events = []
+    app_context.event_bus.subscribe(FacetFilterChangedEvent, lambda e: facet_events.append(e))
+
+    sidebar._on_collection_clicked(sidebar.collections_list.item(0))  # "Tất cả tài liệu"
+
+    assert len(facet_events) == 1
+    assert facet_events[0].extensions == ()
+    assert facet_events[0].authors == ()
+    assert facet_events[0].tags == ()
+
+
+def test_clicking_a_real_collection_does_not_clear_facet_filters(qapp, app_context):
+    """Only "All" resets facets -- selecting an actual collection still
+    narrows further with whatever facet filters are already active."""
+    collection = _seed_collection(app_context)
+    sidebar = LibrarySidebar(app_context)
+
+    facet_events = []
+    app_context.event_bus.subscribe(FacetFilterChangedEvent, lambda e: facet_events.append(e))
+
+    sidebar._on_collection_clicked(sidebar.collections_list.item(1))  # the real collection
+
+    assert facet_events == []

@@ -5,6 +5,43 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Fix search, "All" filter priority, and hashtag-click focus jump
+
+Three real bugs from a new report, root-caused by actually reproducing
+each one (live scripted Qt interaction, not just re-reading the code):
+
+- **Search "didn't work"**: reproduced by literally trying the omnibar's
+  own placeholder text, "author:nam python". `DatabaseManager._sanitize_query`
+  was stripping the `:` as an "unsafe" character before the query ever
+  reached FTS5 -- but `field:term` is real, native FTS5 syntax (confirmed
+  directly against SQLite) and the omnibar was advertising it as valid
+  input the whole time. Fixed by recognizing a token shaped like
+  `title:`/`author:`/`tags:`/`content:` + a term (a fixed whitelist, so
+  nothing else can smuggle syntax into the MATCH expression) and preserving
+  it as a column-filtered prefix match instead of sanitizing it into
+  garbage.
+- **"Tất cả tài liệu" not taking priority**: clicking it only cleared the
+  selected collection while any active format/author/hashtag facet filter
+  stayed combined in via AND, so "All" could still show a filtered view.
+  Sidebar now also publishes an empty `FacetFilterChangedEvent()` when
+  "Tất cả tài liệu" is clicked (selecting a *real* collection still
+  correctly leaves facets combined in, per a new regression test for that
+  case specifically).
+- **Hashtag click visually "jumping" to Tác giả**: reproduced with a real
+  simulated `QTest.mouseClick` on a hashtag item. The Faceted Filter
+  Panel's tree items were natively selectable, and since every click
+  rebuilds the whole tree (destroying and recreating every item to
+  refresh counts/highlighting), Qt had nothing to keep as its own
+  "current item" afterward and would auto-focus something -- typically
+  the first selectable leaf, in Định dạng or Tác giả -- which is what
+  looked like the click "jumping" there, even though the panel's own
+  color-based selection state was correct the whole time. Fixed by
+  turning off native selection entirely (`NoSelection` + non-selectable
+  items) -- `itemClicked` still fires on click regardless of
+  selectability, confirmed via the same live click simulation
+  (`tree.currentItem()` is now `None` after a click, nothing left for Qt
+  to auto-focus).
+
 ## 2026-09-17 — Separate "content font" from the app's own font
 
 Settings gained a new "🔤 Font nội dung" tab, deliberately separate from
