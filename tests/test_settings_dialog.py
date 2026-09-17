@@ -162,6 +162,47 @@ def test_clearing_ai_key_saves_as_none(qapp, app_context):
     assert app_context.config.config.ai_api_key is None
 
 
+def test_ai_provider_guide_updates_when_provider_changes(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert dialog.ai_provider_guide_label.text() == ""  # "(Chưa cấu hình)" has no guide
+
+    index = dialog.ai_provider_combo.findData("gemini")
+    dialog.ai_provider_combo.setCurrentIndex(index)
+    assert "aistudio.google.com" in dialog.ai_provider_guide_label.text()
+
+    index = dialog.ai_provider_combo.findData("openai")
+    dialog.ai_provider_combo.setCurrentIndex(index)
+    assert "platform.openai.com" in dialog.ai_provider_guide_label.text()
+
+
+def test_test_connection_without_provider_shows_message(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog._on_test_connection()
+    assert "chọn" in dialog.connection_status_label.text().lower()
+
+
+def test_test_connection_success_updates_status_label(qapp, app_context, monkeypatch):
+    monkeypatch.setattr("smartdoc.presentation.settings_dialog.test_connection", lambda provider, key: None)
+    dialog = SettingsDialog(app_context)
+    index = dialog.ai_provider_combo.findData("gemini")
+    dialog.ai_provider_combo.setCurrentIndex(index)
+    dialog.ai_api_key_edit.setText("fake-key")
+
+    dialog._on_connection_test_finished(True, "✅ Kết nối thành công!")
+
+    assert "thành công" in dialog.connection_status_label.text()
+    assert dialog.test_connection_button.isEnabled()
+
+
+def test_test_connection_failure_updates_status_label(qapp, app_context):
+    from smartdoc.application.ai_summary import AISummaryError
+
+    dialog = SettingsDialog(app_context)
+    dialog._on_connection_test_finished(False, f"❌ {AISummaryError('bad key')}")
+
+    assert "bad key" in dialog.connection_status_label.text()
+
+
 def test_performance_tab_shows_active_worker_count(qapp, app_context):
     dialog = SettingsDialog(app_context, import_manager=_FakeImportManager())
     assert "3" in dialog.performance_status_label.text()

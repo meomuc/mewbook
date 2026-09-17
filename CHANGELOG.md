@@ -5,6 +5,30 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — AI Summary follow-ups: setup guide, connection test, uncapped content
+
+- **Settings' "AI Tóm tắt" tab gained a setup guide and a connection
+  test.** Each provider now shows where to get a key (Google AI Studio /
+  OpenAI platform / Anthropic console -- `application/ai_summary.PROVIDER_GUIDES`),
+  updated live as the dropdown changes. A new "🔌 Kiểm tra kết nối" button
+  makes a real minimal request with the entered key on a background
+  thread and reports success/failure in place -- on failure, that
+  provider's setup guide is appended to the error so a bad/missing key
+  comes with a way to actually fix it, not just an error string.
+- **AI Summary dialog now shows the request content, uncapped.** An
+  earlier version capped extracted text at 6000 characters before sending
+  it to the model; removed entirely per explicit request -- a partial
+  excerpt cut off mid-paragraph produced less natural summaries. The full
+  request text (title/author/tags + whatever was extracted) is now shown
+  in its own editable box above the summary, so what's being sent is
+  visible rather than a hidden implementation detail, and can be edited
+  before generating. `generate_summary()` split into
+  `build_request_content()` (exposed for the UI) and
+  `generate_summary_from_content()` (takes the, possibly user-edited,
+  text directly); `generate_summary()` itself is now a thin convenience
+  wrapper over both. Already-saved summaries still display immediately on
+  open, unchanged from before.
+
 ## 2026-09-17 — AI Summary (non-spoiler book overview, user's own API key)
 
 The last item from this round of requests: TDD-016-style AI summaries,

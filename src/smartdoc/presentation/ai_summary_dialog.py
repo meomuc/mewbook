@@ -4,6 +4,11 @@ AI provider/key (Settings -> AI Tóm tắt). Generating and saving are
 separate, deliberate steps -- a fresh generation is only a preview until
 the user clicks "Lưu tóm tắt".
 
+The request content (title/author/tags + extracted text, uncapped -- see
+application/ai_summary.py) is shown in its own editable box so the user can
+see exactly what's being sent and adjust it before generating, rather than
+it being a hidden implementation detail.
+
 Network call runs on a background thread and reports back through a Qt
 signal, same pattern as ReviewDialog/CoverSearchDialog.
 """
@@ -14,7 +19,7 @@ import threading
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout
 
-from smartdoc.application.ai_summary import AISummaryError, generate_summary
+from smartdoc.application.ai_summary import AISummaryError, build_request_content, generate_summary_from_content
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 
 
@@ -31,11 +36,18 @@ class AISummaryDialog(QDialog):
         self._configured = bool(self._provider and self._api_key)
 
         self.setWindowTitle(f"Tóm tắt AI: {doc.get('title', '')}")
-        self.resize(480, 420)
-        self.setMinimumWidth(420)
+        self.resize(560, 620)
+        self.setMinimumWidth(460)
 
         self.status_label = QLabel(self)
         self.status_label.setWordWrap(True)
+
+        self.request_content_edit = QTextEdit(self)
+        self.request_content_edit.setPlainText(build_request_content(doc))
+        self.request_content_edit.setToolTip(
+            "Đây là toàn bộ nội dung sẽ gửi cho AI -- không giới hạn độ dài. "
+            "Bạn có thể chỉnh sửa trước khi tạo tóm tắt."
+        )
 
         self.summary_edit = QTextEdit(self)
         self.summary_edit.setReadOnly(True)
@@ -58,9 +70,9 @@ class AISummaryDialog(QDialog):
         button_row.addWidget(self.save_button)
 
         layout = QVBoxLayout(self)
-        layout.addWidget(
-            QLabel("Tóm tắt chủ đề/thể loại (không tiết lộ nội dung/cốt truyện):", self)
-        )
+        layout.addWidget(QLabel("Nội dung yêu cầu AI tóm tắt (có thể chỉnh sửa):", self))
+        layout.addWidget(self.request_content_edit, stretch=2)
+        layout.addWidget(QLabel("Tóm tắt chủ đề/thể loại (không tiết lộ nội dung/cốt truyện):", self))
         layout.addWidget(self.summary_edit, stretch=1)
         layout.addWidget(self.status_label)
         layout.addLayout(button_row)
@@ -80,11 +92,12 @@ class AISummaryDialog(QDialog):
         self.generate_button.setText("Đang tạo...")
         self.status_label.setText("Đang gọi AI, vui lòng đợi...")
 
-        provider, api_key, doc = self._provider, self._api_key, self.doc
+        provider, api_key = self._provider, self._api_key
+        request_content = self.request_content_edit.toPlainText()
 
         def worker() -> None:
             try:
-                summary = generate_summary(provider, api_key, doc)
+                summary = generate_summary_from_content(provider, api_key, request_content)
                 self.generation_finished.emit(summary, "")
             except AISummaryError as exc:
                 self.generation_finished.emit("", str(exc))

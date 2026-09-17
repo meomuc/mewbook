@@ -10,6 +10,11 @@ summary -- the point is to help someone decide whether to *start* reading,
 not to read the book for them. Generation and saving are separate steps
 (see presentation/ai_summary_dialog.py): this module only ever returns
 text, it never writes to the database itself.
+
+The request content sent to the model is NOT truncated -- an earlier
+version capped it at a few thousand characters, but a partial excerpt cut
+off mid-paragraph made summaries read less naturally, and the request was
+explicitly to let the model work from the whole thing instead.
 """
 from __future__ import annotations
 
@@ -19,11 +24,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT_SECONDS = 60
-# Enough characters for a preface/intro's worth of context -- not the whole
-# book, both to keep the request fast/cheap and because more text raises
-# the odds a model recaps something plot-relevant despite being told not to.
-_MAX_CONTENT_CHARS = 6000
+_TIMEOUT_SECONDS = 90
 
 _SYSTEM_PROMPT = (
     "Bạn là một biên tập viên sách chuyên nghiệp. Dựa trên tiêu đề, tác giả, và đoạn trích (nếu có), "
@@ -34,19 +35,39 @@ _SYSTEM_PROMPT = (
     "đầu đọc cuốn sách hay không, không phải kể lại nội dung."
 )
 
+# Where to get a key for each provider -- shown in Settings' "AI Tóm tắt"
+# tab and appended to connection-test failures, so a wrong/missing key
+# comes with a way to actually fix it rather than just an error string.
+PROVIDER_GUIDES = {
+    "gemini": (
+        "Lấy API key miễn phí tại aistudio.google.com/apikey (đăng nhập bằng tài khoản Google, "
+        "bấm \"Create API key\")."
+    ),
+    "openai": (
+        "Lấy API key tại platform.openai.com/api-keys (cần thêm phương thức thanh toán trong tài khoản "
+        "OpenAI trước, ở phần Billing)."
+    ),
+    "anthropic": (
+        "Lấy API key tại console.anthropic.com/settings/keys (cần nạp credit trong tài khoản Anthropic trước)."
+    ),
+}
+
 
 class AISummaryError(Exception):
     pass
 
 
-def _build_user_prompt(doc: dict) -> str:
+def build_request_content(doc: dict) -> str:
+    """The full text that will be sent as the summarization request --
+    exposed (not just used internally) so the UI can show it to the user
+    before generating, and let them edit it first."""
     parts = [f"Tiêu đề: {doc.get('title') or 'Không rõ'}", f"Tác giả: {doc.get('author') or 'Không rõ'}"]
     tags = doc.get("tags")
     if tags:
         parts.append(f"Thể loại/Tag: {tags}")
     content = (doc.get("content") or "").strip()
     if content:
-        parts.append(f"Trích đoạn đầu sách:\n{content[:_MAX_CONTENT_CHARS]}")
+        parts.append(f"Trích đoạn nội dung sách:\n{content}")
     else:
         parts.append(
             "(Không có trích đoạn nội dung -- định dạng file này chưa được trích xuất văn bản. "
@@ -55,17 +76,37 @@ def _build_user_prompt(doc: dict) -> str:
     return "\n\n".join(parts)
 
 
-def generate_summary(provider: str, api_key: str, doc: dict) -> str:
+def generate_summary_from_content(provider: str, api_key: str, request_content: str) -> str:
+    """Generates from already-built request text (see build_request_content
+    -- the dialog may have let the user edit it first)."""
     if not api_key:
         raise AISummaryError("Chưa cấu hình API key cho AI Tóm tắt (xem Cài đặt).")
-    user_prompt = _build_user_prompt(doc)
     if provider == "gemini":
-        return _call_gemini(api_key, user_prompt)
+        return _call_gemini(api_key, request_content)
     if provider == "openai":
-        return _call_openai(api_key, user_prompt)
+        return _call_openai(api_key, request_content)
     if provider == "anthropic":
-        return _call_anthropic(api_key, user_prompt)
+        return _call_anthropic(api_key, request_content)
     raise AISummaryError(f"Nhà cung cấp AI không được hỗ trợ: {provider!r}")
+
+
+def generate_summary(provider: str, api_key: str, doc: dict) -> str:
+    """Convenience wrapper: builds the request content from a document dict
+    and generates in one call."""
+    return generate_summary_from_content(provider, api_key, build_request_content(doc))
+
+
+def test_connection(provider: str, api_key: str) -> None:
+    """Makes a minimal real request to verify the provider/key actually
+    work together. Raises AISummaryError (with that provider's setup guide
+    appended) on any failure; returns normally on success."""
+    if not api_key:
+        raise AISummaryError("Vui lòng nhập API key trước khi kiểm tra kết nối.")
+    try:
+        generate_summary_from_content(provider, api_key, "Trả lời đúng một từ: OK")
+    except AISummaryError as exc:
+        guide = PROVIDER_GUIDES.get(provider, "")
+        raise AISummaryError(f"{exc}\n\nGợi ý: {guide}" if guide else str(exc)) from exc
 
 
 def _call_gemini(api_key: str, user_prompt: str) -> str:

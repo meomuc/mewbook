@@ -21,8 +21,9 @@ Nothing here needs an app restart:
 from __future__ import annotations
 
 import os
+import threading
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -45,12 +46,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc.application.ai_summary import AISummaryError, PROVIDER_GUIDES, test_connection
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 
 _THEME_DISPLAY_NAMES = {"light": "Sáng (Light)", "dark": "Tối (Dark)"}
 
 
 class SettingsDialog(QDialog):
+    connection_test_finished = Signal(bool, str)  # (success, message)
+
     def __init__(self, context, parent=None, watcher=None, import_manager=None) -> None:
         super().__init__(parent)
         self.context = context
@@ -67,6 +71,8 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_theme_tab(config), "🎨 Giao diện")
         tabs.addTab(self._build_performance_tab(config), "⚡ Hiệu năng")
         tabs.addTab(self._build_ai_tab(config), "🤖 AI Tóm tắt")
+
+        self.connection_test_finished.connect(self._on_connection_test_finished)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._on_save)
@@ -178,6 +184,7 @@ class SettingsDialog(QDialog):
             index = self.ai_provider_combo.findData(config.ai_provider)
             if index >= 0:
                 self.ai_provider_combo.setCurrentIndex(index)
+        self.ai_provider_combo.currentIndexChanged.connect(self._update_ai_provider_guide)
         form.addRow("Nhà cung cấp AI:", self.ai_provider_combo)
 
         key_row = QHBoxLayout()
@@ -196,8 +203,60 @@ class SettingsDialog(QDialog):
         form.addRow("API key:", key_row)
 
         layout.addLayout(form)
+
+        # Mẫu hướng dẫn: where to get a key for whichever provider is
+        # currently selected, updated live as the dropdown changes.
+        self.ai_provider_guide_label = QLabel(tab)
+        self.ai_provider_guide_label.setWordWrap(True)
+        self.ai_provider_guide_label.setOpenExternalLinks(True)
+        self.ai_provider_guide_label.setStyleSheet("color: palette(mid);")
+        layout.addWidget(self.ai_provider_guide_label)
+        self._update_ai_provider_guide()
+
+        test_row = QHBoxLayout()
+        self.test_connection_button = QPushButton("🔌 Kiểm tra kết nối", tab)
+        self.test_connection_button.clicked.connect(self._on_test_connection)
+        test_row.addWidget(self.test_connection_button)
+        test_row.addStretch(1)
+        layout.addLayout(test_row)
+
+        self.connection_status_label = QLabel(tab)
+        self.connection_status_label.setWordWrap(True)
+        layout.addWidget(self.connection_status_label)
+
         layout.addStretch(1)
         return tab
+
+    def _update_ai_provider_guide(self) -> None:
+        provider_id = self.ai_provider_combo.currentData()
+        guide = PROVIDER_GUIDES.get(provider_id, "")
+        self.ai_provider_guide_label.setText(f"💡 {guide}" if guide else "")
+
+    def _on_test_connection(self) -> None:
+        provider = self.ai_provider_combo.currentData()
+        api_key = self.ai_api_key_edit.text().strip()
+        if not provider:
+            self.connection_status_label.setText("Vui lòng chọn một nhà cung cấp AI trước.")
+            return
+
+        self.test_connection_button.setEnabled(False)
+        self.test_connection_button.setText("Đang kiểm tra...")
+        self.connection_status_label.setText("Đang kết nối, vui lòng đợi...")
+
+        def worker() -> None:
+            try:
+                test_connection(provider, api_key)
+                self.connection_test_finished.emit(True, "✅ Kết nối thành công!")
+            except AISummaryError as exc:
+                self.connection_test_finished.emit(False, f"❌ {exc}")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_connection_test_finished(self, success: bool, message: str) -> None:
+        self.test_connection_button.setEnabled(True)
+        self.test_connection_button.setText("🔌 Kiểm tra kết nối")
+        self.connection_status_label.setText(message)
+        self.connection_status_label.setStyleSheet(f"color: {'green' if success else 'crimson'};")
 
     def _on_add_folder(self) -> None:
         start_dir = self.context.config.config.last_used_directory or ""

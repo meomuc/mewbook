@@ -1,7 +1,13 @@
 import pytest
 import requests
 
-from smartdoc.application.ai_summary import AISummaryError, generate_summary
+from smartdoc.application.ai_summary import (
+    AISummaryError,
+    build_request_content,
+    generate_summary,
+    generate_summary_from_content,
+)
+from smartdoc.application.ai_summary import test_connection as ai_test_connection  # avoid pytest collecting this as a test
 
 
 class _FakeResponse:
@@ -94,7 +100,10 @@ def test_generate_summary_raises_on_malformed_response(monkeypatch):
         generate_summary("gemini", "key", _doc())
 
 
-def test_prompt_includes_truncated_content_when_available(monkeypatch):
+def test_prompt_sends_full_content_uncapped(monkeypatch):
+    """No artificial truncation -- the model gets the whole extracted text,
+    not a cut-off excerpt (an earlier cap made summaries read less
+    naturally when they were cut off mid-paragraph)."""
     captured = {}
 
     def fake_post(url, json=None, timeout=None, **kwargs):
@@ -103,11 +112,53 @@ def test_prompt_includes_truncated_content_when_available(monkeypatch):
 
     monkeypatch.setattr(requests, "post", fake_post)
 
-    long_content = "x" * 10_000
+    long_content = "x" * 50_000
     generate_summary("gemini", "key", _doc(content=long_content))
 
     sent_text = captured["json"]["contents"][0]["parts"][0]["text"]
-    assert len(sent_text) < len(long_content) + 500  # content was truncated, not sent whole
+    assert long_content in sent_text
+
+
+def test_build_request_content_includes_full_content():
+    long_content = "word " * 5000
+    result = build_request_content(_doc(content=long_content))
+    assert long_content.strip() in result
+
+
+def test_generate_summary_from_content_uses_given_text_verbatim(monkeypatch):
+    captured = {}
+
+    def fake_post(url, json=None, timeout=None, **kwargs):
+        captured["json"] = json
+        return _FakeResponse(json_data={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    generate_summary_from_content("gemini", "key", "My custom edited request text")
+
+    sent_text = captured["json"]["contents"][0]["parts"][0]["text"]
+    assert sent_text == "My custom edited request text"
+
+
+def test_connection_success_does_not_raise(monkeypatch):
+    monkeypatch.setattr(
+        requests, "post", lambda *a, **k: _FakeResponse(json_data={"candidates": [{"content": {"parts": [{"text": "OK"}]}}]})
+    )
+    ai_test_connection("gemini", "good-key")  # must not raise
+
+
+def test_connection_requires_a_key():
+    with pytest.raises(AISummaryError, match="API key"):
+        ai_test_connection("gemini", "")
+
+
+def test_connection_failure_includes_provider_guide(monkeypatch):
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResponse(status_code=401))
+
+    with pytest.raises(AISummaryError) as exc_info:
+        ai_test_connection("gemini", "bad-key")
+
+    assert "aistudio.google.com" in str(exc_info.value)
 
 
 def test_prompt_notes_missing_content_when_absent(monkeypatch):

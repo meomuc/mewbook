@@ -43,12 +43,25 @@ def test_no_existing_summary_disables_save_initially(qapp, app_context):
     assert not dialog.save_button.isEnabled()
 
 
+def test_request_content_is_prefilled_with_title_and_author(qapp, app_context):
+    dialog = AISummaryDialog(app_context, _doc(title="The Hobbit", author="Tolkien"))
+    text = dialog.request_content_edit.toPlainText()
+    assert "The Hobbit" in text
+    assert "Tolkien" in text
+
+
+def test_request_content_includes_full_extracted_text_uncapped(qapp, app_context):
+    long_content = "word " * 5000
+    dialog = AISummaryDialog(app_context, _doc(content=long_content))
+    assert long_content.strip() in dialog.request_content_edit.toPlainText()
+
+
 def test_generate_success_populates_text_and_enables_save(qapp, app_context, monkeypatch):
     app_context.config.config.ai_provider = "gemini"
     app_context.config.config.ai_api_key = "fake-key"
     monkeypatch.setattr(
-        "smartdoc.presentation.ai_summary_dialog.generate_summary",
-        lambda provider, key, doc: "A cozy fantasy adventure.",
+        "smartdoc.presentation.ai_summary_dialog.generate_summary_from_content",
+        lambda provider, key, content: "A cozy fantasy adventure.",
     )
 
     dialog = AISummaryDialog(app_context, _doc())
@@ -60,14 +73,33 @@ def test_generate_success_populates_text_and_enables_save(qapp, app_context, mon
     assert dialog.generate_button.isEnabled()
 
 
+def test_generate_sends_the_edited_request_content(qapp, app_context, monkeypatch):
+    app_context.config.config.ai_provider = "gemini"
+    app_context.config.config.ai_api_key = "fake-key"
+    captured = {}
+
+    def fake_generate(provider, key, content):
+        captured["content"] = content
+        return "summary"
+
+    monkeypatch.setattr("smartdoc.presentation.ai_summary_dialog.generate_summary_from_content", fake_generate)
+
+    dialog = AISummaryDialog(app_context, _doc())
+    dialog.request_content_edit.setPlainText("My custom edited request")
+    dialog._on_generate()
+
+    assert _pump_until(qapp, lambda: "content" in captured)
+    assert captured["content"] == "My custom edited request"
+
+
 def test_generate_error_shown_in_status_label(qapp, app_context, monkeypatch):
     app_context.config.config.ai_provider = "gemini"
     app_context.config.config.ai_api_key = "fake-key"
 
-    def raise_error(provider, key, doc):
+    def raise_error(provider, key, content):
         raise AISummaryError("boom")
 
-    monkeypatch.setattr("smartdoc.presentation.ai_summary_dialog.generate_summary", raise_error)
+    monkeypatch.setattr("smartdoc.presentation.ai_summary_dialog.generate_summary_from_content", raise_error)
 
     dialog = AISummaryDialog(app_context, _doc())
     dialog._on_generate()
