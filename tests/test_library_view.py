@@ -122,6 +122,18 @@ def test_cover_size_changed_event_updates_grid_icon_size(qapp, app_context):
     assert _pump_until(qapp, lambda: widget.list_view.iconSize() == QSize(250, int(250 * 1.33)), timeout=3.0)
 
 
+def test_view_mode_changed_event_switches_to_list_mode(qapp, app_context):
+    from PySide6.QtWidgets import QListView
+
+    from smartdoc.core.event_bus import ViewModeChangedEvent
+
+    widget = LibraryListWidget(app_context)
+    assert widget.list_view.viewMode() == QListView.IconMode
+
+    app_context.event_bus.publish(ViewModeChangedEvent(mode="list"))
+    assert _pump_until(qapp, lambda: widget.list_view.viewMode() == QListView.ListMode, timeout=3.0)
+
+
 def test_bursts_of_library_updated_events_trigger_one_debounced_reload(qapp, app_context):
     widget = LibraryListWidget(app_context)
 

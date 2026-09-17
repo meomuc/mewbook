@@ -43,13 +43,25 @@ def table():
     return _FakeTable()
 
 
+def _fake_stats_rows(table: "_FakeTable") -> list[dict]:
+    by_doc: dict[str, list[int]] = {}
+    for row in table.rows:
+        by_doc.setdefault(row["doc_id"], []).append(row["rating"])
+    return [
+        {"doc_id": doc_id, "avg_rating": sum(ratings) / len(ratings), "review_count": len(ratings)}
+        for doc_id, ratings in by_doc.items()
+    ]
+
+
 @pytest.fixture
 def sync(table, monkeypatch):
     instance = SupabaseReviewSync("https://fake.supabase.co", "fake-anon-key")
 
     def fake_get(url, headers, params, timeout):
-        doc_id = params["doc_id"].removeprefix("eq.")
-        return _FakeResponse(200, table.select(doc_id))
+        if "doc_id" in params:
+            doc_id = params["doc_id"].removeprefix("eq.")
+            return _FakeResponse(200, table.select(doc_id))
+        return _FakeResponse(200, _fake_stats_rows(table))  # review_stats view query
 
     def fake_post(url, headers, json, timeout):
         table.insert(json)
@@ -107,6 +119,21 @@ def test_reviews_for_different_documents_are_isolated(sync):
 
     assert len(sync.fetch_reviews("doc1")) == 1
     assert len(sync.fetch_reviews("doc2")) == 1
+
+
+def test_fetch_all_rating_stats_aggregates_per_document(sync):
+    sync.submit_review("doc1", "A", 5, "x")
+    sync.submit_review("doc1", "B", 3, "y")
+    sync.submit_review("doc2", "C", 4, "z")
+
+    stats = sync.fetch_all_rating_stats()
+
+    assert stats["doc1"] == (4.0, 2)
+    assert stats["doc2"] == (4.0, 1)
+
+
+def test_fetch_all_rating_stats_empty_when_no_reviews(sync):
+    assert sync.fetch_all_rating_stats() == {}
 
 
 def test_delete_reviews_removes_all_rows_for_a_document(sync):

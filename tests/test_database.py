@@ -220,6 +220,59 @@ def test_count_documents_matching_fts_and_where_combined(db):
     assert db.count_documents_matching(fts_query="pdf", where_sql="documents.author = ?", params=("A",)) == 2
 
 
+def test_add_or_update_document_sets_updated_at_equal_to_created_at_on_insert(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 100.0})
+    doc = db.list_all_documents()[0]
+    assert doc["updated_at"] is not None
+    assert doc["updated_at"] >= doc["created_at"]  # written "now", not backdated
+
+
+def test_add_or_update_document_on_reindex_advances_updated_at_but_not_created_at(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 100.0})
+    first = db.list_all_documents()[0]
+
+    db.add_or_update_document("d1", {"title": "A v2", "author": "X", "file_path": "a.pdf", "created_at": 999.0})
+    second = db.list_all_documents()[0]
+
+    assert second["created_at"] == 100.0  # original "date added" preserved
+    assert second["updated_at"] >= first["updated_at"]
+
+
+def test_bulk_update_documents_bumps_updated_at(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 0.0})
+    before = db.list_all_documents()[0]["updated_at"]
+
+    db.bulk_update_documents(["d1"], {"author": "New Author"})
+
+    after = db.list_all_documents()[0]["updated_at"]
+    assert after >= before
+
+
+def test_update_rating_stats_does_not_touch_updated_at(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 0.0})
+    before = db.list_all_documents()[0]["updated_at"]
+
+    db.update_rating_stats("d1", 4.5, 10)
+
+    doc = db.list_all_documents()[0]
+    assert doc["avg_rating"] == 4.5
+    assert doc["review_count"] == 10
+    assert doc["updated_at"] == before
+
+
+def test_new_documents_have_null_rating_and_zero_review_count(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 0.0})
+    doc = db.list_all_documents()[0]
+    assert doc["avg_rating"] is None
+    assert doc["review_count"] == 0
+
+
+def test_list_document_ids(db):
+    db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 0.0})
+    db.add_or_update_document("d2", {"title": "B", "author": "Y", "file_path": "b.pdf", "created_at": 0.0})
+    assert set(db.list_document_ids()) == {"d1", "d2"}
+
+
 def test_migration_adds_content_hash_column_to_pre_existing_db(tmp_path):
     db_path = str(tmp_path / "old.db")
     old_db = DatabaseManager(db_path)

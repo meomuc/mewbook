@@ -85,16 +85,9 @@ class MainWindow(QMainWindow):
         select_all_action.triggered.connect(lambda: self.library_view.list_view.selectAll())
         edit_menu.addAction(select_all_action)
 
+        # Grid/List is now the icon toggle at the start of LibraryToolbar
+        # (same row as sort), not here -- one control for it, not two.
         view_menu = self.menuBar().addMenu("&View")
-        grid_action = QAction("Dạng lưới (Grid)", self, checkable=True)
-        list_action = QAction("Dạng danh sách (List)", self, checkable=True)
-        grid_action.setChecked(self.context.config.config.view_mode != "list")
-        list_action.setChecked(self.context.config.config.view_mode == "list")
-        grid_action.triggered.connect(lambda: self._set_view_mode("grid"))
-        list_action.triggered.connect(lambda: self._set_view_mode("list"))
-        for action in (grid_action, list_action):
-            view_menu.addAction(action)
-        view_menu.addSeparator()
         sidebar_action = QAction("Hiện/Ẩn Sidebar", self, checkable=True)
         sidebar_action.setChecked(True)
         sidebar_action.toggled.connect(lambda checked: self.sidebar.setVisible(checked))
@@ -111,11 +104,6 @@ class MainWindow(QMainWindow):
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
-
-    def _set_view_mode(self, mode: str) -> None:
-        self.context.config.config.view_mode = mode
-        self.context.config.save()
-        self.library_view.set_view_mode(mode)
 
     def _on_open_settings(self) -> None:
         SettingsDialog(self.context, self, watcher=self.watcher).exec()

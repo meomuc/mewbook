@@ -1,24 +1,64 @@
-"""TDD-010 upgrade: sort dropdown + cover-size slider, placed just below the
-Omnibar inside the content area (not a native QMainWindow toolbar docked at
-the very top -- the spec's "ngay dưới Omnibar" placement only makes sense as
-a row inside the content layout).
+"""TDD-010 upgrade: view-mode toggle + sort dropdown + cover-size slider,
+placed just below the Omnibar inside the content area (not a native
+QMainWindow toolbar docked at the very top -- the spec's "ngay dưới
+Omnibar" placement only makes sense as a row inside the content layout).
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSlider, QWidget
+import threading
 
-from smartdoc.core.event_bus import CoverSizeChangedEvent, SortChangedEvent
-from smartdoc.presentation.library_view import DEFAULT_ICON_WIDTH, SORT_OPTIONS
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QSlider,
+    QStyle,
+    QToolButton,
+    QWidget,
+)
+
+from smartdoc.application.cloud_reviews import CloudReviewError
+from smartdoc.application.rating_sync import sync_all_rating_stats
+from smartdoc.core.event_bus import CoverSizeChangedEvent, SortChangedEvent, ViewModeChangedEvent
+from smartdoc.presentation.library_view import DEFAULT_ICON_WIDTH, HIGHEST_RATED_SORT_LABEL, SORT_OPTIONS
 
 COVER_SIZE_MIN = 100
 COVER_SIZE_MAX = 300
 
 
 class LibraryToolbar(QWidget):
+    _rating_sync_finished = Signal(str, str)  # (order_by, error_message)
+
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
         self.context = context
+        self._rating_sync_finished.connect(self._on_rating_sync_finished)
+
+        self.grid_view_button = QToolButton(self)
+        self.grid_view_button.setCheckable(True)
+        self.grid_view_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogListView))
+        self.grid_view_button.setIconSize(QSize(18, 18))
+        self.grid_view_button.setToolTip("Dạng lưới (Grid)")
+
+        self.list_view_button = QToolButton(self)
+        self.list_view_button.setCheckable(True)
+        self.list_view_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
+        self.list_view_button.setIconSize(QSize(18, 18))
+        self.list_view_button.setToolTip("Dạng danh sách (List)")
+
+        self._view_mode_group = QButtonGroup(self)
+        self._view_mode_group.setExclusive(True)
+        self._view_mode_group.addButton(self.grid_view_button)
+        self._view_mode_group.addButton(self.list_view_button)
+
+        is_list_mode = context.config.config.view_mode == "list"
+        self.grid_view_button.setChecked(not is_list_mode)
+        self.list_view_button.setChecked(is_list_mode)
+        self.grid_view_button.clicked.connect(lambda: self._on_view_mode_clicked("grid"))
+        self.list_view_button.clicked.connect(lambda: self._on_view_mode_clicked("list"))
 
         self.sort_combo = QComboBox(self)
         self.sort_combo.addItems(list(SORT_OPTIONS.keys()))
@@ -36,15 +76,48 @@ class LibraryToolbar(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 8)
+        layout.addWidget(self.grid_view_button)
+        layout.addWidget(self.list_view_button)
+        layout.addSpacing(12)
         layout.addWidget(QLabel("Sắp xếp:"))
         layout.addWidget(self.sort_combo)
         layout.addStretch(1)
         layout.addWidget(QLabel("Cỡ bìa:"))
         layout.addWidget(self.size_slider)
 
+    def _on_view_mode_clicked(self, mode: str) -> None:
+        self.context.config.config.view_mode = mode
+        self.context.config.save()
+        self.context.event_bus.publish(ViewModeChangedEvent(mode=mode))
+
     def _on_sort_activated(self, index: int) -> None:
         key = list(SORT_OPTIONS.keys())[index]
-        self.context.event_bus.publish(SortChangedEvent(order_by=SORT_OPTIONS[key]))
+        order_by = SORT_OPTIONS[key]
+        if key != HIGHEST_RATED_SORT_LABEL:
+            self.context.event_bus.publish(SortChangedEvent(order_by=order_by))
+            return
+
+        # Only this one sort option ever touches the network -- every other
+        # sort works purely off the local index (see rating_sync.py).
+        self.sort_combo.setEnabled(False)
+        self.setToolTip("Đang đồng bộ đánh giá từ Supabase...")
+
+        def worker() -> None:
+            try:
+                sync_all_rating_stats(self.context)
+                self._rating_sync_finished.emit(order_by, "")
+            except CloudReviewError as exc:
+                self._rating_sync_finished.emit(order_by, str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_rating_sync_finished(self, order_by: str, error: str) -> None:
+        self.sort_combo.setEnabled(True)
+        self.setToolTip("")
+        if error:
+            QMessageBox.warning(self, "Đồng bộ đánh giá thất bại", error)
+            return
+        self.context.event_bus.publish(SortChangedEvent(order_by=order_by))
 
     def _on_size_changed(self, value: int) -> None:
         self.context.event_bus.publish(CoverSizeChangedEvent(size=value))

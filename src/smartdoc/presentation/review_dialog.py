@@ -30,6 +30,8 @@ from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewS
 
 _FULL_STAR = "★"
 _EMPTY_STAR = "☆"
+_STAR_GOLD = "#f5b301"
+_STAR_EMPTY_COLOR = "#b0b0b0"
 
 
 class ReviewDialog(QDialog):
@@ -60,7 +62,7 @@ class ReviewDialog(QDialog):
         for i in range(1, 6):
             button = QToolButton(self)
             button.setText(_EMPTY_STAR)
-            button.setStyleSheet("QToolButton { font-size: 20px; border: none; }")
+            button.setStyleSheet(f"QToolButton {{ font-size: 22px; border: none; color: {_STAR_EMPTY_COLOR}; }}")
             button.clicked.connect(lambda _checked=False, n=i: self._set_rating(n))
             self._star_buttons.append(button)
             star_row.addWidget(button)
@@ -90,7 +92,10 @@ class ReviewDialog(QDialog):
     def _set_rating(self, n: int) -> None:
         self._rating = n
         for i, button in enumerate(self._star_buttons, start=1):
-            button.setText(_FULL_STAR if i <= n else _EMPTY_STAR)
+            filled = i <= n
+            button.setText(_FULL_STAR if filled else _EMPTY_STAR)
+            color = _STAR_GOLD if filled else _STAR_EMPTY_COLOR
+            button.setStyleSheet(f"QToolButton {{ font-size: 22px; border: none; color: {color}; }}")
 
     def _load_reviews_async(self) -> None:
         if not self._configured:
@@ -153,6 +158,15 @@ class ReviewDialog(QDialog):
         if error:
             QMessageBox.warning(self, "Lỗi", f"Không gửi được đánh giá: {error}")
             return
+
+        # Opportunistic freshness: we already have the full review list from
+        # the submit response, so update this one document's cached rating
+        # locally now instead of waiting for the next "Được đánh giá cao
+        # nhất" sync (rating_sync.py) to pick it up.
+        if reviews:
+            avg_rating = sum(r["rating"] for r in reviews) / len(reviews)
+            self.context.db.update_rating_stats(self.doc["id"], avg_rating, len(reviews))
+
         self.comment_edit.clear()
         self._set_rating(0)
         self._on_reviews_loaded(reviews, "")

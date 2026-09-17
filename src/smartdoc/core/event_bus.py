@@ -69,6 +69,11 @@ class CoverSizeChangedEvent(BaseEvent):
     size: int  # grid cover width in px
 
 
+@dataclass(frozen=True)
+class ViewModeChangedEvent(BaseEvent):
+    mode: str  # "grid" | "list"
+
+
 class EventBus:
     """Thread-safe publish/subscribe hub.
 

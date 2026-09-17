@@ -54,6 +54,21 @@ AppConfig.supabase_url (the project's API URL, e.g.
 https://xxxx.supabase.co) and .supabase_anon_key (Project Settings -> API
 Keys -> the "anon" / "public" key -- never the "service_role" one, which
 bypasses RLS entirely).
+
+For the "highest rated" sort (library_view.py's rating_sync path), also
+run:
+
+    create view review_stats as
+      select doc_id, avg(rating)::float8 as avg_rating, count(*) as review_count
+      from reviews
+      group by doc_id;
+
+    grant select on review_stats to anon, authenticated;
+
+Postgres views run with their owner's privileges against the underlying
+table by default (unlike RLS-checked tables), so this view doesn't need
+its own RLS policy -- the explicit grant is what lets the `anon` role
+query it at all.
 """
 from __future__ import annotations
 
@@ -64,6 +79,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 _TABLE = "reviews"
+_STATS_VIEW = "review_stats"
 _TIMEOUT_SECONDS = 10
 
 
@@ -113,6 +129,23 @@ class SupabaseReviewSync:
             raise CloudReviewError(f"Không gửi được đánh giá lên Supabase ({response.status_code}): {response.text}")
 
         return self.fetch_reviews(doc_id)
+
+    def fetch_all_rating_stats(self) -> dict[str, tuple[float, int]]:
+        """One batch query for every document's (avg_rating, review_count)
+        via the `review_stats` view -- used only when the user explicitly
+        picks "Được đánh giá cao nhất" in the sort dropdown (see
+        application/rating_sync.py), not on every render, so browsing the
+        library normally never depends on network access.
+        """
+        url = f"{self.supabase_url}/rest/v1/{_STATS_VIEW}"
+        params = {"select": "doc_id,avg_rating,review_count"}
+        try:
+            response = requests.get(url, headers=self._headers(), params=params, timeout=_TIMEOUT_SECONDS)
+        except requests.RequestException as exc:
+            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
+        if not response.ok:
+            raise CloudReviewError(f"Lỗi Supabase ({response.status_code}): {response.text}")
+        return {row["doc_id"]: (row["avg_rating"], row["review_count"]) for row in response.json()}
 
     def delete_reviews(self, doc_id: str) -> None:
         """Removes all review rows for one document. The app itself never

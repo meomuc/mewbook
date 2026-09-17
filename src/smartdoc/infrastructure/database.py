@@ -19,6 +19,7 @@ import logging
 import re
 import sqlite3
 import threading
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,10 @@ CREATE TABLE IF NOT EXISTS documents (
     cover_path TEXT,
     ai_summary TEXT,
     content_hash TEXT,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    updated_at REAL,
+    avg_rating REAL,
+    review_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
@@ -93,17 +97,31 @@ class DatabaseManager:
     def _migrate_add_missing_columns(self) -> None:
         """`CREATE TABLE IF NOT EXISTS` does nothing for a table that
         already exists under an older schema version -- a library.db from
-        before content_hash was added won't have that column until this
-        runs once."""
+        before a column was added won't have it until this runs once."""
         existing_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(documents)")}
-        if "content_hash" not in existing_columns:
-            self.connection.execute("ALTER TABLE documents ADD COLUMN content_hash TEXT")
+        migrations = {
+            "content_hash": "ALTER TABLE documents ADD COLUMN content_hash TEXT",
+            "updated_at": "ALTER TABLE documents ADD COLUMN updated_at REAL",
+            "avg_rating": "ALTER TABLE documents ADD COLUMN avg_rating REAL",
+            "review_count": "ALTER TABLE documents ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0",
+        }
+        ran_any = False
+        for column, statement in migrations.items():
+            if column not in existing_columns:
+                self.connection.execute(statement)
+                ran_any = True
+        if ran_any:
             self.connection.commit()
 
     def add_or_update_document(self, doc_id: str, metadata: dict[str, Any], extracted_text: str = "") -> None:
         tags = metadata.get("tags", "")
         if isinstance(tags, (list, tuple)):
             tags = ",".join(tags)
+        # updated_at is always "now" at write time -- on a first insert
+        # that makes it equal to created_at (both "now"), which is exactly
+        # right; on a re-index of an existing file it advances while
+        # created_at (not in the UPDATE SET list below) stays put.
+        now = time.time()
         params = (
             doc_id,
             metadata.get("title", ""),
@@ -116,14 +134,15 @@ class DatabaseManager:
             metadata.get("cover_path"),
             metadata.get("content_hash"),
             metadata.get("created_at", 0.0),
+            now,
         )
         with self.write_lock:
             try:
                 self.connection.execute(
                     """
                     INSERT INTO documents
-                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title=excluded.title,
                         author=excluded.author,
@@ -133,7 +152,8 @@ class DatabaseManager:
                         tags=excluded.tags,
                         content=excluded.content,
                         cover_path=excluded.cover_path,
-                        content_hash=excluded.content_hash
+                        content_hash=excluded.content_hash,
+                        updated_at=excluded.updated_at
                     """,
                     params,
                 )
@@ -156,11 +176,26 @@ class DatabaseManager:
         set_fields = {k: v for k, v in fields.items() if k in self._EDITABLE_FIELDS}
         if not set_fields or not doc_ids:
             return
+        set_fields["updated_at"] = time.time()  # this is a genuine user edit, unlike update_rating_stats
         set_clause = ", ".join(f"{col} = ?" for col in set_fields)
         values = tuple(set_fields.values())
         with self.write_lock:
             for doc_id in doc_ids:
                 self.connection.execute(f"UPDATE documents SET {set_clause} WHERE id = ?", (*values, doc_id))
+            self.connection.commit()
+
+    def update_rating_stats(self, doc_id: str, avg_rating: float | None, review_count: int) -> None:
+        """Caches Supabase-side review aggregates locally so the list view's
+        rating/review-count columns and the "highest rated" sort can read
+        them instantly without a network round trip on every render. Does
+        NOT touch updated_at -- refreshing cached community rating stats
+        isn't a user edit to the document's own metadata.
+        """
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET avg_rating = ?, review_count = ? WHERE id = ?",
+                (avg_rating, review_count, doc_id),
+            )
             self.connection.commit()
 
     def delete_document(self, doc_id: str) -> None:
@@ -203,6 +238,9 @@ class DatabaseManager:
 
     def count_documents(self) -> int:
         return self.connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+
+    def list_document_ids(self) -> list[str]:
+        return [row["id"] for row in self.connection.execute("SELECT id FROM documents")]
 
     def find_duplicate_groups_by_content_hash(self) -> list[list[dict[str, Any]]]:
         """TDD-021 exact-duplicate detection: documents whose file bytes hash

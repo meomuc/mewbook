@@ -31,6 +31,7 @@ from smartdoc.core.event_bus import (
     LibraryUpdatedEvent,
     SearchRequestedEvent,
     SortChangedEvent,
+    ViewModeChangedEvent,
 )
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.file_actions import FileActionEngine
@@ -52,7 +53,13 @@ SORT_OPTIONS: dict[str, str] = {
     "Tiêu đề (A-Z)": "documents.title ASC",
     "Tác giả (A-Z)": "documents.author ASC",
     "Kích thước file (lớn nhất)": "documents.file_size DESC",
+    "Được đánh giá cao nhất": "documents.avg_rating DESC",
 }
+
+# Selecting this one specifically triggers a background Supabase sync of
+# cached rating stats first (see toolbar.py) -- every other sort option
+# only ever touches the local SQLite index.
+HIGHEST_RATED_SORT_LABEL = "Được đánh giá cao nhất"
 
 
 def _placeholder_icon() -> QIcon:
@@ -166,6 +173,7 @@ class LibraryListWidget(QWidget):
         self._bridge.subscribe(context.event_bus, CollectionSelectedEvent)
         self._bridge.subscribe(context.event_bus, SortChangedEvent)
         self._bridge.subscribe(context.event_bus, CoverSizeChangedEvent)
+        self._bridge.subscribe(context.event_bus, ViewModeChangedEvent)
 
         self.reload()
 
@@ -302,6 +310,8 @@ class LibraryListWidget(QWidget):
             self.reload()
         elif isinstance(event, CoverSizeChangedEvent):
             self.set_grid_icon_width(event.size)
+        elif isinstance(event, ViewModeChangedEvent):
+            self.set_view_mode(event.mode)
 
     def _open_selected(self, index: QModelIndex) -> None:
         doc = self.model.document_at(index.row())
