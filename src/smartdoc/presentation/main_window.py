@@ -82,7 +82,7 @@ class MainWindow(QMainWindow):
         edit_menu = self.menuBar().addMenu("&Edit")
         select_all_action = QAction("Chọn tất cả", self)
         select_all_action.setShortcut("Ctrl+A")
-        select_all_action.triggered.connect(lambda: self.library_view.list_view.selectAll())
+        select_all_action.triggered.connect(lambda: self.library_view._active_view().selectAll())
         edit_menu.addAction(select_all_action)
 
         # Grid/List is now the icon toggle at the start of LibraryToolbar
