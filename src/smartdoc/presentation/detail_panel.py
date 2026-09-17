@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.review_dialog import ReviewDialog
@@ -135,6 +136,12 @@ class DocumentDetailPanel(QWidget):
         self.cover_label.setToolTip("Nhấn để mở file")
         self._content_layout.addWidget(self.cover_label)
 
+        self.cover_search_label = _ClickableLabel(self._content)
+        self.cover_search_label.setText("🔍 Tìm ảnh bìa...")
+        self.cover_search_label.setAlignment(Qt.AlignCenter)
+        self.cover_search_label.setStyleSheet(f"color: {colors.accent}; font-size: 11px;")
+        self._content_layout.addWidget(self.cover_search_label)
+
         # -- Title / Author: editable directly, no separate "Edit" dialog --
         self.title_edit = QLineEdit(self._content)
         self.title_edit.setPlaceholderText("Tiêu đề...")
@@ -176,6 +183,7 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self.path_label)
 
         self.cover_label.clicked.connect(self._on_open)
+        self.cover_search_label.clicked.connect(self._on_search_cover)
         self.rating_label.clicked.connect(self._on_review)
         self.path_label.clicked.connect(self._on_reveal)
         self.title_edit.editingFinished.connect(lambda: self._save_field("title", self.title_edit.text()))
@@ -364,6 +372,10 @@ class DocumentDetailPanel(QWidget):
     def _on_review(self) -> None:
         if self._current_doc:
             ReviewDialog(self.context, self._current_doc, self).exec()
+
+    def _on_search_cover(self) -> None:
+        if self._current_doc:
+            CoverSearchDialog(self.context, self._current_doc, self).exec()
 
     def _save_field(self, field: str, value: str) -> None:
         """Inline edit of title/author/tags directly on the panel -- these

@@ -39,6 +39,7 @@ from smartdoc.core.event_bus import (
     ViewModeChangedEvent,
 )
 from smartdoc.domain.smart_collections import VirtualCollection
+from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
@@ -595,6 +596,7 @@ class LibraryListWidget(QWidget):
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
+        cover_search_action = menu.addAction("Tìm ảnh bìa...")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         menu.addSeparator()
@@ -609,6 +611,8 @@ class LibraryListWidget(QWidget):
             MetadataEditorDialog(self.context, doc, self).exec()
         elif chosen == review_action:
             ReviewDialog(self.context, doc, self).exec()
+        elif chosen == cover_search_action:
+            CoverSearchDialog(self.context, doc, self).exec()
         elif chosen in collection_actions:
             self.context.db.add_documents_to_collection(collection_actions[chosen], [doc["id"]])
             self.context.event_bus.publish(LibraryUpdatedEvent())

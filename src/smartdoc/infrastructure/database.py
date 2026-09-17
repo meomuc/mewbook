@@ -193,6 +193,18 @@ class DatabaseManager:
                 self.connection.execute(f"UPDATE documents SET {set_clause} WHERE id = ?", (*values, doc_id))
             self.connection.commit()
 
+    def update_document_cover(self, doc_id: str, cover_path: str) -> None:
+        """Used by the Cover Image Search feature to replace a document's
+        cover after the user picks a candidate -- separate from
+        update_document_fields since cover_path isn't a user-editable text
+        field (see _EDITABLE_FIELDS) and this is not a metadata edit."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET cover_path = ?, updated_at = ? WHERE id = ?",
+                (cover_path, time.time(), doc_id),
+            )
+            self.connection.commit()
+
     def update_rating_stats(self, doc_id: str, avg_rating: float | None, review_count: int) -> None:
         """Caches Supabase-side review aggregates locally so the list view's
         rating/review-count columns and the "highest rated" sort can read

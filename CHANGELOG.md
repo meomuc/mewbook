@@ -5,6 +5,20 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Cover Image Search (Open Library)
+
+- **Cover Image Search:** search Open Library's public search API
+  (`openlibrary.org/search.json`, no API key needed) by title + author,
+  preview thumbnail candidates (with publish year), and pick one to replace
+  a document's cover. Reuses the existing `CoverCacheManager` to save the
+  picked image, so it's automatically resized to the library's standard
+  300px width and re-encoded as WEBP -- "quality phù hợp, tối ưu dung
+  lượng" (appropriate quality, optimized storage) came for free instead of
+  needing its own resize/compress logic. Available from the Document Detail
+  Panel ("🔍 Tìm ảnh bìa..." under the cover) and the library grid/list's
+  right-click menu. New `DatabaseManager.update_document_cover()` for
+  replacing just the cover path without touching other metadata.
+
 ## 2026-09-17 — Duplicate Finder redesign + Settings expansion (font/threads/scan timing)
 
 - **Duplicate Finder:** both tabs (exact/fuzzy) gained a "Ngày thêm" (date

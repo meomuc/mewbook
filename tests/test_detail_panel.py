@@ -252,3 +252,23 @@ def test_clicking_path_reveals_in_file_manager(qapp, app_context, monkeypatch):
     panel.path_label.clicked.emit()
 
     assert revealed == ["C:/Books/python.pdf"]
+
+
+def test_clicking_cover_search_link_opens_cover_search_dialog(qapp, app_context, monkeypatch):
+    opened_docs = []
+
+    class _FakeDialog:
+        def __init__(self, context, doc, parent=None):
+            opened_docs.append(doc)
+
+        def exec(self):
+            return 1
+
+    monkeypatch.setattr("smartdoc.presentation.detail_panel.CoverSearchDialog", _FakeDialog)
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+
+    panel.cover_search_label.clicked.emit()
+
+    assert len(opened_docs) == 1
+    assert opened_docs[0]["id"] == "d1"
