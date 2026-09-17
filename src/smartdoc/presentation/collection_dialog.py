@@ -21,14 +21,26 @@ FIELD_CHOICES: list[tuple[str, str, str]] = [
 
 
 class NewCollectionDialog(QDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, collection: VirtualCollection | None = None) -> None:
+        """`collection` set = editing that existing collection's rule/name
+        in place (its id/created_at are preserved so saving is an upsert,
+        not a new row); left as None = creating a new one, as before."""
         super().__init__(parent)
-        self.setWindowTitle("Tạo bộ sưu tập ảo mới")
+        self._editing = collection
+        self.setWindowTitle("Sửa bộ sưu tập" if collection else "Tạo bộ sưu tập ảo mới")
 
-        self.name_edit = QLineEdit(self)
+        self.name_edit = QLineEdit(collection.name if collection else "", self)
         self.field_combo = QComboBox(self)
         self.field_combo.addItems([label for label, _field, _op in FIELD_CHOICES])
         self.value_edit = QLineEdit(self)
+
+        if collection and collection.rules:
+            rule = collection.rules[0]
+            for index, (_label, field_name, operator) in enumerate(FIELD_CHOICES):
+                if field_name == rule.field and operator == rule.operator:
+                    self.field_combo.setCurrentIndex(index)
+                    break
+            self.value_edit.setText(rule.value)
 
         form = QFormLayout()
         form.addRow("Tên bộ sưu tập:", self.name_edit)
@@ -49,7 +61,12 @@ class NewCollectionDialog(QDialog):
         if not name or not value:
             return None
         _label, field_name, operator = FIELD_CHOICES[self.field_combo.currentIndex()]
-        return VirtualCollection(name=name, rules=[SmartRule(field=field_name, operator=operator, value=value)])
+        rules = [SmartRule(field=field_name, operator=operator, value=value)]
+        if self._editing:
+            return VirtualCollection(
+                name=name, rules=rules, id=self._editing.id, created_at=self._editing.created_at
+            )
+        return VirtualCollection(name=name, rules=rules)
 
 
 if __name__ == "__main__":

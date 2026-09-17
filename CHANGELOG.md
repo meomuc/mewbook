@@ -5,6 +5,16 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — Edit an existing Collection's rule, not just its name
+
+`NewCollectionDialog` now doubles as an edit dialog: passing it an existing
+`VirtualCollection` pre-fills the name/field/value and saving upserts the
+same collection id instead of creating a new one. Wired into the sidebar's
+right-click menu as "Chỉnh sửa điều kiện", alongside the rename/delete
+added earlier today -- closes the gap between "đổi tên" (rename, already
+covered) and "chỉnh sửa" (edit the actual rule), which the request listed
+as two separate asks.
+
 ## 2026-09-17 — In-app Document Reader window
 
 - **Reader window (`presentation/reader_window.py`):** a separate,

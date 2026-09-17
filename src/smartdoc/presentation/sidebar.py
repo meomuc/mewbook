@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.core.event_bus import CollectionSelectedEvent
+from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.filter_sidebar import FacetedFilterPanel
 from smartdoc.presentation.theme import current_colors
@@ -88,10 +89,24 @@ class LibrarySidebar(QWidget):
             return  # "Tất cả tài liệu" is a pseudo-entry, not a real collection.
 
         menu = QMenu(self)
+        edit_action = menu.addAction("Chỉnh sửa điều kiện")
         rename_action = menu.addAction("Đổi tên")
         delete_action = menu.addAction("Xóa bộ sưu tập")
         chosen = self._exec_menu(menu, position)
-        if chosen == rename_action:
+        if chosen == edit_action:
+            row = self.context.db.get_collection(collection_id)
+            if row is None:
+                return
+            dialog = NewCollectionDialog(self, collection=VirtualCollection.from_row(row))
+            if dialog.exec() == QDialog.Accepted:
+                updated = dialog.build_collection()
+                if updated:
+                    self.context.db.save_collection(
+                        updated.id, updated.name, updated.to_json(), updated.logic, updated.created_at
+                    )
+                    self.reload_collections()
+                    self.context.event_bus.publish(CollectionSelectedEvent(collection_id=collection_id))
+        elif chosen == rename_action:
             new_name, ok = QInputDialog.getText(self, "Đổi tên bộ sưu tập", "Tên mới:", text=item.text())
             new_name = new_name.strip()
             if ok and new_name:
