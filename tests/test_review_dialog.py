@@ -20,10 +20,11 @@ def _doc():
 
 
 def test_missing_service_account_shows_message_and_does_not_hit_network(qapp, app_context, monkeypatch):
-    app_context.config.config.service_account_path = None
+    app_context.config.config.supabase_url = None
+    app_context.config.config.supabase_anon_key = None
     called = []
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews",
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews",
         lambda self, doc_id: called.append(doc_id) or [],
     )
 
@@ -34,10 +35,11 @@ def test_missing_service_account_shows_message_and_does_not_hit_network(qapp, ap
 
 
 def test_loads_existing_reviews_on_open(qapp, app_context, monkeypatch):
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
     fake_reviews = [{"nickname": "Kevin", "rating": 5, "comment": "Sach hay", "timestamp": 2.0}]
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews",
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews",
         lambda self, doc_id: fake_reviews,
     )
 
@@ -49,9 +51,10 @@ def test_loads_existing_reviews_on_open(qapp, app_context, monkeypatch):
 
 
 def test_no_reviews_shows_placeholder_message(qapp, app_context, monkeypatch):
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews",
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews",
         lambda self, doc_id: [],
     )
 
@@ -61,12 +64,13 @@ def test_no_reviews_shows_placeholder_message(qapp, app_context, monkeypatch):
 
 
 def test_fetch_error_shown_in_status_label(qapp, app_context, monkeypatch):
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
 
     def raise_error(self, doc_id):
         raise CloudReviewError("boom")
 
-    monkeypatch.setattr("smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews", raise_error)
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", raise_error)
 
     dialog = ReviewDialog(app_context, _doc())
     assert _pump_until(qapp, lambda: "boom" in dialog.status_label.text(), timeout=3.0)
@@ -75,13 +79,14 @@ def test_fetch_error_shown_in_status_label(qapp, app_context, monkeypatch):
 def test_submit_without_rating_shows_warning_and_does_not_submit(qapp, app_context, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews", lambda self, doc_id: []
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", lambda self, doc_id: []
     )
     submit_called = []
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.submit_review",
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.submit_review",
         lambda self, *a, **k: submit_called.append(1),
     )
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: QMessageBox.Ok))
@@ -93,9 +98,10 @@ def test_submit_without_rating_shows_warning_and_does_not_submit(qapp, app_conte
 
 
 def test_submit_with_rating_calls_sync_and_refreshes_list(qapp, app_context, monkeypatch):
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews", lambda self, doc_id: []
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", lambda self, doc_id: []
     )
 
     submitted = []
@@ -104,7 +110,7 @@ def test_submit_with_rating_calls_sync_and_refreshes_list(qapp, app_context, mon
         submitted.append((doc_id, nickname, rating, comment))
         return [{"nickname": nickname, "rating": rating, "comment": comment, "timestamp": 5.0}]
 
-    monkeypatch.setattr("smartdoc.presentation.review_dialog.FirestoreReviewSync.submit_review", fake_submit)
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.submit_review", fake_submit)
 
     dialog = ReviewDialog(app_context, _doc())
     assert _pump_until(qapp, lambda: dialog.reviews_list.count() > 0, timeout=3.0)
@@ -124,15 +130,16 @@ def test_submit_with_rating_calls_sync_and_refreshes_list(qapp, app_context, mon
 def test_submit_error_shows_warning_and_reenables_button(qapp, app_context, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
-    app_context.config.config.service_account_path = "fake.json"
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
     monkeypatch.setattr(
-        "smartdoc.presentation.review_dialog.FirestoreReviewSync.fetch_reviews", lambda self, doc_id: []
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", lambda self, doc_id: []
     )
 
     def raise_error(self, doc_id, nickname, rating, comment):
         raise CloudReviewError("network down")
 
-    monkeypatch.setattr("smartdoc.presentation.review_dialog.FirestoreReviewSync.submit_review", raise_error)
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.submit_review", raise_error)
     warnings = []
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warnings.append(a) or QMessageBox.Ok))
 

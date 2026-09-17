@@ -16,6 +16,7 @@ temp_covers/
 .uv/
 dist/
 build_pyinstaller/
+.claude/
 
 # Never commit credentials. The app reads these from %APPDATA%/SmartDocLibrary
 # by default, never from inside the repo, but this is defense in depth in

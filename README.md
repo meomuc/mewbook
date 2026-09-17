@@ -106,7 +106,7 @@ antivirus on a fresh machine, and the auto-updater (TDD-024).
 
 ## Status
 
-**Milestones A–D** are done and verified by `uv run pytest` (176 tests) plus
+**Milestones A–D** are done and verified by `uv run pytest` (175 tests) plus
 an end-to-end smoke test that launches the real `MainWindow`, bulk-scans a
 folder, and proves the live file watcher flows through to the UI.
 
@@ -137,44 +137,54 @@ Calibre tag/rating carryover (see calibre_migrator.py's docstring), an
 installed app icon (done) but no signed installer yet, and most of
 Milestone F (AI review, semantic search, personal cloud export).
 
-**Milestone F, Cloud Review System (TDD-016), redesigned from Drive to
-Firestore:** the original spec (a shared service account writing review
-JSON files to Google Drive) turned out not to work at all: verified against
+**Milestone F, Cloud Review System (TDD-016), redesigned twice: Drive →
+Firestore → Supabase.** The original spec (a shared service account writing
+review JSON files to Google Drive) doesn't work at all: verified against
 the real API that Google has removed personal storage quota for service
 accounts, so they cannot create files even inside a folder a real person
-explicitly shared with them as Editor (confirmed: sharing worked, the
-service account had real Editor permission, and file creation still failed
-with `storageQuotaExceeded`, with or without `supportsAllDrives=True`).
-Shared Drives / domain-wide delegation, Google's own suggested
-workarounds, both need a paid Workspace plan.
+explicitly shared with them as Editor (sharing worked, the service account
+had real Editor permission, and file creation still failed with
+`storageQuotaExceeded`, with or without `supportsAllDrives=True`; Shared
+Drives / domain-wide delegation, Google's own suggested workarounds, both
+need a paid Workspace plan). Pivoted to Firestore, which should have had no
+such wall — but every attempt (hand-rolled REST calls, the official
+`google-cloud-firestore` Admin client library, an Editor-level IAM role, the
+full `cloud-platform` OAuth scope, a Standard-edition Native-mode database
+created specifically for this, several minutes of wait for propagation) hit
+an identical, unexplained `403 Missing or insufficient permissions`,
+pointing at something at the Google Cloud organization/project-policy level
+neither of us could see or fix from the outside.
 
-`application/cloud_reviews.py` now targets **Firestore** instead — a
-proper database, not a file store, with no such wall for service-account
-access. It calls the Firestore REST API directly via
-`google.auth.transport.requests.AuthorizedSession` + `requests` (both
-already dependencies) rather than adding the `firebase-admin` SDK just for
-this. Verified with unit tests against a fake Firestore session; a live
-smoke test lives in the module's `__main__` for whenever someone re-runs it
-against the real project. Wired into the UI as `presentation/review_dialog.py`
-(a star-rating + comment form, reachable from a document's right-click menu
-→ "Xem / Viết đánh giá"); network calls run on a background thread and
-report back through plain Qt signals, not the EventBus.
+`application/cloud_reviews.py` now targets **Supabase** instead (a
+`reviews` table via its auto-generated PostgREST API, called with plain
+`requests` — no SDK). This turned out to be a better fit, not just a
+workaround: Supabase's "anon" API key is *designed* to be public and
+embedded in client apps, with access control enforced by Postgres Row
+Level Security policies on the table, not by keeping the key secret. That
+is a sounder security model for this feature than the original spec (a
+single powerful Google credential shipped inside every install, usable for
+far more than posting reviews) — no secret file to protect, no
+`.gitignore` special-casing needed, `AppConfig.supabase_url` /
+`.supabase_anon_key` are plain config values. **Verified working against a
+real Supabase project end to end** (submit → fetch round-tripped real data
+correctly, ordered newest-first). Wired into the UI as
+`presentation/review_dialog.py` (a star-rating + comment form, reachable
+from a document's right-click menu → "Xem / Viết đánh giá"); network calls
+run on a background thread and report back through plain Qt signals, not
+the EventBus.
 
-One-time setup on the Google Cloud project the service account belongs to
-(only the project owner can do this, from the Cloud Console) — pending
-before the live path can be exercised end to end:
-1. Enable Firestore (Native mode) on the project.
-2. Grant the service account the "Cloud Datastore User" IAM role.
+One-time setup (exact SQL in `cloud_reviews.py`'s module docstring): create
+a Supabase project, create the `reviews` table with `select`/`insert` RLS
+policies open to `anon`, and set `AppConfig.supabase_url` /
+`.supabase_anon_key`. There is deliberately no `delete` policy — the app
+has no delete-review feature, so `SupabaseReviewSync.delete_reviews()` (a
+test/cleanup helper) silently affects zero rows against a table set up
+this way; that's correct RLS behavior, not a bug.
 
-Two things anyone deploying this needs to know, both documented in the
-module's docstring:
-- The service account JSON is a live secret. It is never committed and
-  never hardcoded — `AppConfig.service_account_path` points at a file on
-  disk (default `%APPDATA%/SmartDocLibrary/service_account.json`), and
-  `.gitignore` blocks common credential filenames as defense in depth.
-- The original design has every install of the app ship pointed at the
-  *same* shared credential, which means anyone who extracts it from a
-  build can read/write the shared review data directly, bypassing the app
-  entirely — an accepted, documented risk for now, not something this pass
-  tried to redesign. A proper fix means a small backend holding the
-  credential server-side instead of handing it to every client.
+Known, accepted risk (carried over from the original design): every
+install of the app ships pointed at the *same* Supabase project, so all
+reviews across all users are visible to everyone and anyone can post as
+any nickname — this is the intended "anonymous community reviews"
+behavior, not a flaw, but it does mean there's no per-user moderation or
+abuse prevention beyond what the RLS policies and Supabase's own rate
+limiting provide.

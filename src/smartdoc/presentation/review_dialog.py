@@ -1,5 +1,5 @@
 """TDD-016 UI: star-rating + comment reviews for one document, backed by
-Firestore (application/cloud_reviews.py).
+Supabase (application/cloud_reviews.py).
 
 Network calls (fetch on open, submit on click) run on a plain background
 thread and report back through Qt signals -- not the EventBus/QtEventBridge
@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from smartdoc.application.cloud_reviews import CloudReviewError, FirestoreReviewSync
+from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync
 
 _FULL_STAR = "★"
 _EMPTY_STAR = "☆"
@@ -41,7 +41,9 @@ class ReviewDialog(QDialog):
         self.context = context
         self.doc = doc
         self._rating = 0
-        self._sync = FirestoreReviewSync(context.config.config.service_account_path or "")
+        config = context.config.config
+        self._configured = bool(config.supabase_url and config.supabase_anon_key)
+        self._sync = SupabaseReviewSync(config.supabase_url or "", config.supabase_anon_key or "")
 
         self.setWindowTitle(f"Đánh giá: {doc.get('title', '')}")
         self.resize(480, 560)
@@ -91,8 +93,8 @@ class ReviewDialog(QDialog):
             button.setText(_FULL_STAR if i <= n else _EMPTY_STAR)
 
     def _load_reviews_async(self) -> None:
-        if not self.context.config.config.service_account_path:
-            self.status_label.setText("Chưa cấu hình đánh giá cộng đồng (thiếu service account).")
+        if not self._configured:
+            self.status_label.setText("Chưa cấu hình đánh giá cộng đồng (thiếu Supabase URL/key).")
             return
 
         def worker() -> None:
@@ -114,12 +116,14 @@ class ReviewDialog(QDialog):
         if not reviews:
             self.reviews_list.addItem(QListWidgetItem("Chưa có đánh giá nào. Hãy là người đầu tiên!"))
             return
-        for review in sorted(reviews, key=lambda r: r["timestamp"], reverse=True):
+        # Supabase already returns rows ordered by created_at desc (see
+        # SupabaseReviewSync.fetch_reviews's query params).
+        for review in reviews:
             stars = _FULL_STAR * review["rating"] + _EMPTY_STAR * (5 - review["rating"])
             self.reviews_list.addItem(QListWidgetItem(f"{stars}  {review['nickname']}\n{review['comment']}"))
 
     def _on_submit(self) -> None:
-        if not self.context.config.config.service_account_path:
+        if not self._configured:
             return
         if self._rating == 0:
             QMessageBox.warning(self, "Thiếu số sao", "Vui lòng chọn số sao đánh giá.")

@@ -1,167 +1,153 @@
-"""TDD-016: Cloud Review System, on Firestore (redesigned from the original
-Google Drive spec).
+"""TDD-016: Cloud Review System, on Supabase (redesigned twice: originally
+spec'd against Google Drive, then Firestore, now Supabase).
 
-Anonymous (nickname-only) star ratings + comments, one Firestore document
-per app document (`document_reviews/<document_id>`), read/written directly
-via the Firestore REST API using the service account's own OAuth2 token
-(google.auth.transport.requests.AuthorizedSession + requests -- both
-already dependencies, so this doesn't add firebase-admin just for this).
+Anonymous (nickname-only) star ratings + comments, one row per review in a
+`reviews` table, read/written via Supabase's auto-generated REST API
+(PostgREST) using plain `requests` calls -- no SDK, no service-account
+JSON, no IAM.
 
-Why not Google Drive (the original spec): verified against the real API
-while building this that Google removed personal storage quota for service
-accounts, so a service account cannot create files at all outside a Shared
-Drive (a paid Google Workspace feature) -- not even inside a folder a real
-person has explicitly shared with it as Editor (confirmed: sharing works,
-the service account has real Editor permission on the folder, and file
-creation still fails with `storageQuotaExceeded`, with or without
-`supportsAllDrives=True`). Firestore has no such wall; it's a proper
-multi-tenant database built for exactly this kind of server-side,
-credential-authenticated access.
+Why not Google (tried twice): Drive service accounts have no storage quota
+of their own -- confirmed against the real API that they can't create
+files even inside a folder a real person explicitly shared with them as
+Editor. Pivoted to Firestore, which should have avoided that wall, but hit
+a persistent, unexplained 403 "Missing or insufficient permissions" that
+survived granting the broad Editor IAM role, using the full
+cloud-platform OAuth scope, waiting for propagation, and switching from
+hand-rolled REST calls to the official google-cloud-firestore Admin
+client library -- all identical failures, pointing at something at the
+Google Cloud organization/project-policy level neither of us could see
+or fix from the outside.
 
-One-time setup required on the Google Cloud project the service account
-belongs to (see README) -- this module can't do either step itself:
-1. Enable Firestore (Native mode) on that project.
-2. Grant the service account the "Cloud Datastore User" IAM role.
+Why Supabase is a better fit, not just a workaround: its "anon" API key is
+*designed* to be public and embedded in client apps -- access control is
+enforced by Postgres Row Level Security policies on the `reviews` table,
+not by keeping the key secret. That is a fundamentally sounder security
+model for this feature than the original spec (a single powerful Google
+credential shipped inside every install, which anyone extracting it from
+the app could use for far more than posting reviews). No secret file to
+protect, no .gitignore special-casing, no accepted-risk footnote needed
+for the credential itself; AppConfig.supabase_url and
+.supabase_anon_key can be committed as plain config values.
 
-Known, accepted risk (carried over from the original design, see project
-README/session notes): every install of this app ships pointed at the
-*same* service account credential, so anyone who extracts it from a build
-can read and write the shared review data directly, bypassing the app
-entirely. A proper fix means a small backend that holds the credential
-server-side instead of handing it to every client -- out of scope for this
-pass; the user asked to accept that risk for now.
+One-time setup: create a Supabase project (supabase.com), then in its SQL
+Editor run:
 
-The service account JSON itself must never be committed to source control
-or hardcoded -- ConfigManager.config.service_account_path points at a file
-on disk (default: %APPDATA%/SmartDocLibrary/service_account.json), which is
-also .gitignore'd as defense in depth. This module also reads project_id
-out of that same file rather than needing it configured separately.
+    create table reviews (
+      id bigint generated always as identity primary key,
+      doc_id text not null,
+      nickname text not null default 'Ẩn danh',
+      rating int2 not null check (rating between 1 and 5),
+      comment text not null default '',
+      created_at timestamptz not null default now()
+    );
+
+    alter table reviews enable row level security;
+
+    create policy "Allow public read" on reviews for select using (true);
+    create policy "Allow public insert" on reviews for insert with check (true);
+
+No delete policy is created on purpose: the app has no delete-review
+feature, so delete_reviews() below (a test/cleanup helper, not something
+the app itself calls) will silently affect zero rows against a table set
+up this way -- that's correct RLS behavior, not a bug. Then set
+AppConfig.supabase_url (the project's API URL, e.g.
+https://xxxx.supabase.co) and .supabase_anon_key (Project Settings -> API
+Keys -> the "anon" / "public" key -- never the "service_role" one, which
+bypasses RLS entirely).
 """
 from __future__ import annotations
 
-import json
 import logging
-import time
+
+import requests
 
 logger = logging.getLogger(__name__)
 
-_SCOPES = ["https://www.googleapis.com/auth/datastore"]
-_COLLECTION = "document_reviews"
+_TABLE = "reviews"
+_TIMEOUT_SECONDS = 10
 
 
 class CloudReviewError(RuntimeError):
-    """Raised for any Firestore/auth failure -- callers show this to the user."""
+    """Raised for any Supabase/network failure -- callers show this to the user."""
 
 
-def _encode_review(review: dict) -> dict:
-    return {
-        "mapValue": {
-            "fields": {
-                "nickname": {"stringValue": review["nickname"]},
-                "rating": {"integerValue": str(int(review["rating"]))},
-                "comment": {"stringValue": review["comment"]},
-                "timestamp": {"doubleValue": review["timestamp"]},
-            }
+class SupabaseReviewSync:
+    def __init__(self, supabase_url: str, anon_key: str) -> None:
+        self.supabase_url = supabase_url.rstrip("/")
+        self.anon_key = anon_key
+
+    def _headers(self, *, for_insert: bool = False) -> dict[str, str]:
+        headers = {
+            "apikey": self.anon_key,
+            "Authorization": f"Bearer {self.anon_key}",
         }
-    }
-
-
-def _decode_review(fields: dict) -> dict:
-    return {
-        "nickname": fields.get("nickname", {}).get("stringValue", ""),
-        "rating": int(fields.get("rating", {}).get("integerValue", 0)),
-        "comment": fields.get("comment", {}).get("stringValue", ""),
-        "timestamp": float(fields.get("timestamp", {}).get("doubleValue", 0.0)),
-    }
-
-
-class FirestoreReviewSync:
-    def __init__(self, service_account_path: str) -> None:
-        self.service_account_path = service_account_path
-        self._session = None
-        self._project_id: str | None = None
-
-    def _get_session(self):
-        if self._session is not None:
-            return self._session
-        try:
-            from google.auth.transport.requests import AuthorizedSession
-            from google.oauth2 import service_account
-        except ImportError as exc:
-            raise CloudReviewError("Thiếu thư viện google-auth. Chạy: uv add google-auth") from exc
-
-        try:
-            with open(self.service_account_path, encoding="utf-8") as f:
-                self._project_id = json.load(f)["project_id"]
-            credentials = service_account.Credentials.from_service_account_file(
-                self.service_account_path, scopes=_SCOPES
-            )
-            self._session = AuthorizedSession(credentials)
-            return self._session
-        except FileNotFoundError as exc:
-            raise CloudReviewError(f"Không tìm thấy file service account: {self.service_account_path}") from exc
-        except (KeyError, json.JSONDecodeError) as exc:
-            raise CloudReviewError(f"File service account không hợp lệ: {exc}") from exc
-        except Exception as exc:  # noqa: BLE001 - surfaced to the user as one message
-            raise CloudReviewError(f"Xác thực Google thất bại: {exc}") from exc
-
-    def _doc_url(self, doc_id: str) -> str:
-        self._get_session()  # ensures self._project_id is populated
-        return f"https://firestore.googleapis.com/v1/projects/{self._project_id}/databases/(default)/documents/{_COLLECTION}/{doc_id}"
+        if for_insert:
+            headers["Content-Type"] = "application/json"
+            headers["Prefer"] = "return=representation"
+        return headers
 
     def fetch_reviews(self, doc_id: str) -> list[dict]:
-        session = self._get_session()
-        response = session.get(self._doc_url(doc_id))
-        if response.status_code == 404:
-            return []
+        url = f"{self.supabase_url}/rest/v1/{_TABLE}"
+        params = {"doc_id": f"eq.{doc_id}", "select": "*", "order": "created_at.desc"}
+        try:
+            response = requests.get(url, headers=self._headers(), params=params, timeout=_TIMEOUT_SECONDS)
+        except requests.RequestException as exc:
+            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
         if not response.ok:
-            raise CloudReviewError(f"Lỗi Firestore ({response.status_code}): {response.text}")
-        fields = response.json().get("fields", {})
-        values = fields.get("reviews", {}).get("arrayValue", {}).get("values", [])
-        return [_decode_review(v["mapValue"]["fields"]) for v in values]
+            raise CloudReviewError(f"Lỗi Supabase ({response.status_code}): {response.text}")
+        return response.json()
 
     def submit_review(self, doc_id: str, nickname: str, rating: int, comment: str) -> list[dict]:
-        """Downloads existing reviews, appends the new one, re-uploads (full
-        document replace -- Firestore PATCH with no updateMask both creates
-        the document if missing and overwrites it if present)."""
         if not (1 <= rating <= 5):
             raise ValueError("rating must be between 1 and 5")
 
-        reviews = self.fetch_reviews(doc_id)
-        reviews.append(
-            {"nickname": nickname or "Ẩn danh", "rating": rating, "comment": comment, "timestamp": time.time()}
-        )
-
-        session = self._get_session()
-        body = {"fields": {"reviews": {"arrayValue": {"values": [_encode_review(r) for r in reviews]}}}}
-        response = session.patch(self._doc_url(doc_id), json=body)
+        url = f"{self.supabase_url}/rest/v1/{_TABLE}"
+        payload = {"doc_id": doc_id, "nickname": nickname or "Ẩn danh", "rating": rating, "comment": comment}
+        try:
+            response = requests.post(
+                url, headers=self._headers(for_insert=True), json=payload, timeout=_TIMEOUT_SECONDS
+            )
+        except requests.RequestException as exc:
+            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
         if not response.ok:
-            raise CloudReviewError(f"Không gửi được đánh giá lên Firestore ({response.status_code}): {response.text}")
-        return reviews
+            raise CloudReviewError(f"Không gửi được đánh giá lên Supabase ({response.status_code}): {response.text}")
+
+        return self.fetch_reviews(doc_id)
 
     def delete_reviews(self, doc_id: str) -> None:
-        """Test/cleanup helper: removes a document's review entry entirely."""
-        session = self._get_session()
-        session.delete(self._doc_url(doc_id))
+        """Removes all review rows for one document. The app itself never
+        calls this -- there is no "delete a review" feature -- so the
+        `reviews` table's RLS policies intentionally have no delete grant.
+        Calling this against a table set up per the README will silently
+        affect zero rows (Postgres RLS filters them out rather than
+        erroring), which is correct, not a bug: don't rely on this to
+        clean up test data unless a delete policy is added first.
+        """
+        url = f"{self.supabase_url}/rest/v1/{_TABLE}"
+        params = {"doc_id": f"eq.{doc_id}"}
+        try:
+            requests.delete(url, headers=self._headers(), params=params, timeout=_TIMEOUT_SECONDS)
+        except requests.RequestException as exc:
+            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
 
 
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) < 2:
-        print("Usage: python cloud_reviews.py <path-to-service_account.json>")
+    if len(sys.argv) < 3:
+        print("Usage: python cloud_reviews.py <supabase-url> <anon-key>")
         sys.exit(0)
 
-    sync = FirestoreReviewSync(sys.argv[1])
+    sync = SupabaseReviewSync(sys.argv[1], sys.argv[2])
     test_doc_id = "smoke-test-doc"
     print("Submitting a test review...")
-    reviews = sync.submit_review(test_doc_id, "SmokeTester", 5, "This is a live end-to-end test.")
-    print("Reviews after submit:", reviews)
+    sync.submit_review(test_doc_id, "SmokeTester", 5, "This is a live end-to-end test.")
 
     fetched = sync.fetch_reviews(test_doc_id)
     print("Reviews fetched back:", fetched)
-    assert fetched == reviews
-
-    print("Cleaning up test document from Firestore...")
-    sync.delete_reviews(test_doc_id)
-    print("Cleaned up. Live smoke test passed.")
+    assert len(fetched) >= 1  # re-running this demo accumulates rows -- see the note below on why
+    assert fetched[0]["nickname"] == "SmokeTester"
+    print("Live smoke test passed. (Rows under doc_id='smoke-test-doc' accumulate across"
+          " re-runs -- harmless test data; delete them from the Supabase Table Editor if you want a"
+          " clean table. The app has no delete-review feature, so there's no delete RLS policy for"
+          " delete_reviews() to actually take effect through.)")
