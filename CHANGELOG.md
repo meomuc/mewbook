@@ -5,6 +5,29 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-17 — File-type badge, panel refresh button, clearer dividers/action colors
+
+- **Grid view covers gained a file-type badge** ("PDF"/"EPUB") stamped at
+  the bottom-right corner -- small, semi-transparent dark background so it
+  reads over any cover art without dominating it. Composed directly onto
+  the cached icon (`LibraryModel._icon_cache` is now keyed by
+  `(cover_path, extension)`, not just `cover_path`, since the badge is
+  part of the pixmap itself). List view is untouched -- it already shows
+  format as its own column, not an icon.
+- **Detail panel gained a 🔄 refresh button** in a new header row, to
+  manually re-fetch the current document (same logic the panel already
+  used automatically on `LibraryUpdatedEvent`, now factored into one
+  shared `_refresh_current_document()` both paths call).
+- **More divider lines**: one between the cover/read/cover-search group
+  and the editable title/author group, one between the tags group and AI
+  Summary -- the panel previously had gaps between some sections but not
+  others.
+- **Action vs. status color distinction**: `rating_label` and `path_label`
+  (both clickable) now use the theme's accent color, matching the
+  already-accent-colored cover-search and AI-summary links -- previously
+  they were plain text, indistinguishable from the genuinely read-only
+  `format_size_label`/`date_added_label`/`date_modified_label`.
+
 ## 2026-09-17 — In-app EPUB reading (not just PDF)
 
 The reader window's non-PDF fallback ("open with the OS's own app") was

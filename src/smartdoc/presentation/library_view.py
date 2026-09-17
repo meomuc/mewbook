@@ -11,7 +11,7 @@ import math
 from datetime import datetime
 
 from PySide6.QtCore import QAbstractListModel, QAbstractTableModel, QModelIndex, QSize, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QIcon, QPixmap
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -75,6 +75,41 @@ def _placeholder_icon() -> QIcon:
     return QIcon(pixmap)
 
 
+_BADGE_FONT_PX = 9
+_BADGE_PADDING = 4
+_BADGE_MARGIN = 4
+_BADGE_BG = QColor(0, 0, 0, 175)  # semi-transparent dark -- readable over any cover color
+_BADGE_FG = QColor(255, 255, 255)
+
+
+def _with_format_badge(pixmap: QPixmap, extension: str) -> QPixmap:
+    """Stamps a small "PDF"/"EPUB" badge at the bottom-right corner of a
+    grid cover thumbnail: small and unobtrusive, but enough to tell formats
+    apart without opening anything."""
+    if not extension:
+        return pixmap
+    label = extension.upper()
+    badged = QPixmap(pixmap)
+    painter = QPainter(badged)
+    painter.setRenderHint(QPainter.Antialiasing)
+    font = QFont()
+    font.setPixelSize(_BADGE_FONT_PX)
+    font.setBold(True)
+    painter.setFont(font)
+    metrics = painter.fontMetrics()
+    badge_width = metrics.horizontalAdvance(label) + _BADGE_PADDING * 2
+    badge_height = metrics.height() + _BADGE_PADDING
+    x = badged.width() - badge_width - _BADGE_MARGIN
+    y = badged.height() - badge_height - _BADGE_MARGIN
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(_BADGE_BG)
+    painter.drawRoundedRect(x, y, badge_width, badge_height, 4, 4)
+    painter.setPen(_BADGE_FG)
+    painter.drawText(x, y, badge_width, badge_height, Qt.AlignCenter, label)
+    painter.end()
+    return badged
+
+
 # Character-based, not pixel-based (that would need a QFontMetrics call
 # inside the model, awkward to keep in sync with the current font/DPI) --
 # a conservative cap that keeps a two-line title+author label from
@@ -111,7 +146,7 @@ class LibraryModel(QAbstractListModel):
         self._context = context
         self._documents: list[dict] = []
         self._placeholder = _placeholder_icon()
-        self._icon_cache: dict[str, QIcon] = {}
+        self._icon_cache: dict[tuple[str | None, str], QIcon] = {}
 
     def set_documents(self, documents: list[dict]) -> None:
         self.beginResetModel()
@@ -136,19 +171,23 @@ class LibraryModel(QAbstractListModel):
             return f"{title}\n{author}"
         if role == Qt.DecorationRole:
             cover_path = doc.get("cover_path")
-            if cover_path:
-                # QListView re-queries data() for every visible row on each
-                # model reset, and a bulk import can trigger many resets in
-                # a burst -- decoding the same cover file from disk every
-                # single time made large imports visibly sluggish, so cache
-                # the decoded QIcon per cover path instead.
-                icon = self._icon_cache.get(cover_path)
-                if icon is None:
-                    icon = QIcon(cover_path)
-                    self._icon_cache[cover_path] = icon
-                if not icon.isNull():
-                    return icon
-            return self._placeholder
+            extension = doc.get("extension", "")
+            # QListView re-queries data() for every visible row on each
+            # model reset, and a bulk import can trigger many resets in a
+            # burst -- decoding+badging the same cover from disk every
+            # single time made large imports visibly sluggish, so cache the
+            # composed QIcon per (cover, extension) pair instead. Extension
+            # is part of the key since the badge is stamped onto the
+            # pixmap itself, not drawn separately by the view.
+            cache_key = (cover_path, extension)
+            icon = self._icon_cache.get(cache_key)
+            if icon is None:
+                pixmap = QPixmap(cover_path) if cover_path else None
+                if pixmap is None or pixmap.isNull():
+                    pixmap = self._placeholder.pixmap(ICON_SIZE)
+                icon = QIcon(_with_format_badge(pixmap, extension))
+                self._icon_cache[cache_key] = icon
+            return icon
         if role == Qt.FontRole and self._context:
             return _content_font(self._context.config.config)
         if role == Qt.ForegroundRole and self._context:

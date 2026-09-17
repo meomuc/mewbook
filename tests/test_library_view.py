@@ -220,6 +220,27 @@ def test_bursts_of_library_updated_events_trigger_one_debounced_reload(qapp, app
     assert len(reload_calls) == 1  # the burst collapsed into exactly one reload
 
 
+def test_grid_icon_gets_a_format_badge_and_caches_by_extension(qapp, app_context):
+    from PySide6.QtCore import Qt
+
+    app_context.db.add_or_update_document(
+        "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "extension": "pdf", "created_at": 1.0}
+    )
+    app_context.db.add_or_update_document(
+        "d2", {"title": "B", "author": "Y", "file_path": "b.epub", "extension": "epub", "created_at": 2.0}
+    )
+    widget = LibraryListWidget(app_context)
+
+    icon_pdf = widget.model.data(widget.model.index(0, 0), Qt.DecorationRole)
+    icon_epub = widget.model.data(widget.model.index(1, 0), Qt.DecorationRole)
+
+    assert icon_pdf is not None
+    assert icon_epub is not None
+    # Different extensions must not share a cached, identically-badged icon.
+    assert icon_pdf.cacheKey() != icon_epub.cacheKey()
+    assert len(widget.model._icon_cache) == 2
+
+
 def test_grid_model_applies_content_font_and_color(qapp, app_context):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QColor

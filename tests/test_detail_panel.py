@@ -273,6 +273,45 @@ def test_library_updated_event_refreshes_panel(qapp, app_context):
     assert _pump_until(qapp, lambda: "New Title" in panel.title_edit.text(), timeout=3.0)
 
 
+def test_refresh_button_reloads_current_document(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "Old Title", "author": "A", "file_path": "a.pdf", "created_at": 1.0}
+    )
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(app_context.db.get_document("d1"))
+    assert "Old Title" in panel.title_edit.text()
+
+    # Change the DB directly (no event published) -- only the refresh
+    # button, not automatic sync, should pick this up.
+    app_context.db.update_document_fields("d1", {"title": "Manually Refreshed"})
+    panel.refresh_label.clicked.emit()
+
+    assert "Manually Refreshed" in panel.title_edit.text()
+
+
+def test_refresh_button_does_nothing_without_a_selected_document(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    panel.refresh_label.clicked.emit()  # must not raise
+    assert panel._empty_label.isHidden() is False
+
+
+def test_clickable_action_labels_are_visually_distinct_from_status_labels(qapp, app_context):
+    """rating_label/path_label are clickable actions; format_size_label/
+    date_added_label/date_modified_label are plain read-only status --
+    they must not share the same text color, or there's no visual way to
+    tell which is which."""
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+
+    action_colors = {panel.rating_label.styleSheet(), panel.path_label.styleSheet()}
+    status_colors = {
+        panel.format_size_label.styleSheet(),
+        panel.date_added_label.styleSheet(),
+        panel.date_modified_label.styleSheet(),
+    }
+    assert action_colors.isdisjoint(status_colors)
+
+
 def test_truncated_file_path_shows_tooltip(qapp, app_context):
     long_path = "C:/Users/someone/Documents/Very/Long/Path/To/A/Book/" + "a" * 50 + ".pdf"
     panel = DocumentDetailPanel(app_context)

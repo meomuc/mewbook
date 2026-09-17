@@ -152,6 +152,22 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.setContentsMargins(16, 16, 16, 16)
         self._content_layout.setSpacing(12)
 
+        # -- Header: panel title + refresh (re-fetch this document in case
+        # something changed it outside a click this panel itself made) --
+        header_row = QHBoxLayout()
+        header_label = QLabel("📋 Chi tiết", self._content)
+        header_label.setStyleSheet(f"font-weight: 700; color: {colors.text}; font-size: 13px;")
+        self.refresh_label = _ClickableLabel(self._content)
+        self.refresh_label.setText("🔄")
+        self.refresh_label.setStyleSheet(f"color: {colors.accent}; font-size: 14px;")
+        self.refresh_label.setToolTip("Làm mới thông tin")
+        self.refresh_label.clicked.connect(self._on_refresh)
+        header_row.addWidget(header_label)
+        header_row.addStretch(1)
+        header_row.addWidget(self.refresh_label)
+        self._content_layout.addLayout(header_row)
+        self._content_layout.addWidget(self._divider())
+
         # -- Cover (click to open the file) --
         self.cover_label = _ClickableLabel(self._content)
         self.cover_label.setAlignment(Qt.AlignCenter)
@@ -164,6 +180,10 @@ class DocumentDetailPanel(QWidget):
         self.cover_search_label.setAlignment(Qt.AlignCenter)
         self.cover_search_label.setStyleSheet(f"color: {colors.accent}; font-size: 11px;")
         self._content_layout.addWidget(self.cover_search_label)
+
+        # -- Divider: separates the cover/read/cover-search group above
+        # from the editable title/author group below --
+        self._content_layout.addWidget(self._divider())
 
         # -- Title / Author: editable directly, no separate "Edit" dialog --
         # Font family/size/color here follow AppConfig.content_font_* (see
@@ -197,17 +217,19 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self.date_added_label)
         self._content_layout.addWidget(self.date_modified_label)
 
-        # -- Rating (click to open the review dialog) --
+        # -- Rating (click to open the review dialog) -- accent-colored,
+        # like every other clickable action in this panel, so it visually
+        # reads as "do something" rather than as plain status text.
         self.rating_label = _ClickableLabel(self._content)
         self.rating_label.setWordWrap(True)
-        self.rating_label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
+        self.rating_label.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
         self.rating_label.setToolTip("Nhấn để xem / viết đánh giá")
         self._content_layout.addWidget(self.rating_label)
 
-        # -- File path (click to reveal in Explorer) --
+        # -- File path (click to reveal in Explorer) -- accent-colored too --
         self.path_label = _ClickableLabel(self._content)
         self.path_label.setWordWrap(True)
-        self.path_label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
+        self.path_label.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
         self.path_label.setToolTip("Nhấn để mở vị trí file")
         self._content_layout.addWidget(self.path_label)
 
@@ -236,6 +258,9 @@ class DocumentDetailPanel(QWidget):
         self.tags_edit.setPlaceholderText("Thêm #tag, cách nhau bởi dấu phẩy (VD: Python, AI)...")
         self.tags_edit.editingFinished.connect(lambda: self._save_field("tags", self.tags_edit.text()))
         self._content_layout.addWidget(self.tags_edit)
+
+        # -- Divider: separates the tags group above from AI Summary below --
+        self._content_layout.addWidget(self._divider())
 
         # -- AI Summary --
         self.summary_title_label = QLabel("Tóm tắt AI", self._content)
@@ -385,17 +410,26 @@ class DocumentDetailPanel(QWidget):
         if isinstance(event, DocumentSelectedEvent):
             self.set_document(event.doc)
         elif isinstance(event, LibraryUpdatedEvent):
-            # Re-fetch the document in case metadata changed
-            if self._current_doc:
-                doc_id = self._current_doc.get("id")
-                if doc_id:
-                    fresh = self.context.db.get_document(doc_id)
-                    if fresh:
-                        self.set_document(dict(fresh))
-                    else:
-                        self.set_document(None)
+            self._refresh_current_document()
+
+    def _refresh_current_document(self) -> None:
+        """Re-fetches the current document from the database and
+        repopulates the panel -- used both automatically (on
+        LibraryUpdatedEvent, in case something changed the metadata) and
+        manually via the 🔄 header button, for whenever the user wants to
+        be sure they're looking at the latest information."""
+        if not self._current_doc:
+            return
+        doc_id = self._current_doc.get("id")
+        if not doc_id:
+            return
+        fresh = self.context.db.get_document(doc_id)
+        self.set_document(dict(fresh) if fresh else None)
 
     # ── Click / inline-edit handlers ─────────────────────────────────
+
+    def _on_refresh(self) -> None:
+        self._refresh_current_document()
 
     def _on_read(self) -> None:
         if self._current_doc:
