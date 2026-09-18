@@ -48,6 +48,25 @@ def test_ai_label_reflects_ai_configuration(qapp, app_context):
     assert "✓" in panel.ai_label.text()
 
 
+def test_cloud_label_colors_function_name_and_status_differently(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+
+    not_connected_html = panel.cloud_label.text()
+    assert "color:crimson" in not_connected_html
+    assert "Review" in not_connected_html  # the function name, styled separately
+
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
+    panel.refresh()
+
+    assert "color:green" in panel.cloud_label.text()
+
+
+def test_status_bar_has_a_top_border_separating_it_from_the_panel_above(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    assert "border-top" in panel.styleSheet()
+
+
 def test_author_credit_is_always_shown(qapp, app_context):
     panel = StatusBarPanel(app_context)
     assert panel.author_label.text() == "anhtiensinh"

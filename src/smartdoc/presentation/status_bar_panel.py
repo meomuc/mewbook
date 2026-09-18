@@ -8,10 +8,18 @@ reacts to, so the counts here never lag behind what's on screen.
 """
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QStatusBar
 
 from smartdoc.core.event_bus import CollectionSelectedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.theme import current_colors
+
+# Same green/crimson pair settings_dialog.py's connection test uses -- one
+# consistent "connected vs. not" color language across the app instead of
+# each status indicator inventing its own.
+_STATUS_OK_COLOR = "green"
+_STATUS_MISSING_COLOR = "crimson"
 
 
 class StatusBarPanel(QStatusBar):
@@ -19,6 +27,12 @@ class StatusBarPanel(QStatusBar):
         super().__init__(parent)
         self.context = context
         self._active_collection_id: str | None = None
+
+        colors = current_colors()
+        # A top border so the bar reads as its own strip, separated from
+        # whatever's directly above it (library view or detail panel) --
+        # QStatusBar spans the full window width, under both.
+        self.setStyleSheet(f"QStatusBar {{ border-top: 1px solid {colors.border}; }}")
 
         self.files_label = QLabel(self)
         self.collection_label = QLabel(self)
@@ -35,6 +49,9 @@ class StatusBarPanel(QStatusBar):
             self.cloud_label,
             self.ai_label,
         ):
+            # Rich text so the function-name vs. status-value color split
+            # below actually renders instead of showing raw HTML tags.
+            label.setTextFormat(Qt.RichText)
             self.addWidget(label)
         self.addPermanentWidget(self.author_label)
 
@@ -68,10 +85,22 @@ class StatusBarPanel(QStatusBar):
 
         config = self.context.config.config
         cloud_ok = bool(config.supabase_url and config.supabase_anon_key)
-        self.cloud_label.setText("☁️ Review: ✓ Đã kết nối" if cloud_ok else "☁️ Review: ✗ Chưa cấu hình")
+        self.cloud_label.setText(self._status_html("☁️", "Review", cloud_ok))
 
         ai_ok = bool(config.ai_provider and config.ai_api_key)
-        self.ai_label.setText("🤖 AI Tóm tắt: ✓ Đã kết nối" if ai_ok else "🤖 AI Tóm tắt: ✗ Chưa cấu hình")
+        self.ai_label.setText(self._status_html("🤖", "AI Tóm tắt", ai_ok))
+
+    def _status_html(self, icon: str, function_name: str, connected: bool) -> str:
+        """Icon, then the feature name (muted -- what it is), then the
+        status (colored/bold -- whether it's on) -- so the two don't read
+        as one flat run of text."""
+        colors = current_colors()
+        status_color = _STATUS_OK_COLOR if connected else _STATUS_MISSING_COLOR
+        status_text = "✓ Đã kết nối" if connected else "✗ Chưa cấu hình"
+        return (
+            f'{icon} <span style="color:{colors.muted_text};">{function_name}</span>'
+            f'  <span style="color:{status_color}; font-weight:600;">{status_text}</span>'
+        )
 
 
 if __name__ == "__main__":

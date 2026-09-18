@@ -5,6 +5,18 @@ the whole project can be understood as one coherent story, not just a pile
 of commits. Newest entries at the top. Each entry links the commit(s) it
 corresponds to.
 
+## 2026-09-18 — Status bar: divider from the panel above, function vs. status colors
+
+- The status bar now has a top border, separating it visually from
+  whatever's directly above it (it spans the full window width, under
+  both the library view and the detail panel).
+- The "☁️ Review" / "🤖 AI Tóm tắt" connection indicators previously read
+  as one flat run of text ("Review: ✓ Đã kết nối"). The feature name is
+  now muted/secondary text and the status is colored (green when
+  connected, crimson when not) and bold -- same green/crimson language
+  Settings' own connection-test button already uses, so "connected" means
+  the same color everywhere in the app.
+
 ## 2026-09-17 — Send files to a USB-connected e-reader
 
 - New "📱 Gửi tới máy đọc sách..." action in the File menu and both
