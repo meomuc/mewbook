@@ -203,6 +203,14 @@ uv sync --group dev   # pulls in pyinstaller
 powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 ```
 
+`build.ps1 -Release` produces a publishable set in `dist/release/`: the installer, the AGPL source package
+(`git archive` of the tag `vX.Y.Z`, or of HEAD with a warning if the tag does not exist yet) and `SHA256SUMS.txt`
+computed after signing. It refuses to run with `-SkipTests`, with uncommitted changes, or without Inno Setup.
+Signing is optional: set `MEWBOOK_SIGN_PFX` and `MEWBOOK_SIGN_PFX_PASSWORD` (a certificate file), or
+`MEWBOOK_SIGN_THUMBPRINT` (a certificate in the Windows store), in your own session; `signtool.exe` from the
+Windows SDK is needed. Without them the exe and installer stay unsigned and the script says so. Tagging, pushing
+and publishing are manual: `docs/RELEASE_CHECKLIST.md`.
+
 This runs the test suite, builds
 `dist/MewBook/MewBook.exe` (with `LICENSE` and `THIRD_PARTY_NOTICES.md` bundled) (whose Properties → Details show the version,
 publisher and copyright), and, if [Inno Setup 6](https://jrsoftware.org/isdl.php)
