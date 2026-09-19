@@ -18,7 +18,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 | PyMuPDF: dùng nhánh AGPL, xác nhận phiên bản | **Xong** (1.28.2). Metadata ghi "GNU AFFERO GPL 3.0" không nói "only/or later": **chờ luật sư** (câu 3b) |
 | `mobi`: đúng phiên bản GPL | **Xong**: 0.4.1 `GPL-3.0-only`; theo văn bản, GPLv3 và AGPLv3 cho phép kết hợp (điều 13). **Chờ luật sư** xác nhận (câu 4) |
 | PySide6/Qt: module có nằm ngoài LGPL không | Dùng theo LGPL-3.0 (thư mục, thư viện thay thế được). QtPdf/QtPdfWidgets chưa đối chiếu với trang chính thức của Qt: **chờ luật sư** (câu 1) |
-| Tài nguyên đóng gói (model, `taxonomy.json`, icon, ảnh) | Model: đã kiểm toán (`MODEL_VOCAB_AUDIT.md`), **chờ chủ dự án** quyết định huấn luyện lại (S0-04b) và **luật sư** (câu 11). `taxonomy.json` có sao chép từ hệ phân loại ngoài không: **chờ chủ dự án**. Icon/logo/tranh: nguồn gốc **chờ chủ dự án** (O12) |
+| Tài nguyên đóng gói (model, `taxonomy.json`, icon, ảnh) | Model: đã kiểm toán (`MODEL_VOCAB_AUDIT.md`) và **đã huấn luyện lại** theo quyết định 2026-09-19 (S0-04b, mục 7 của báo cáo kiểm toán: 51.046 từ, không còn token chân trang, accuracy 70,3%, precision 85,5%); nguồn dữ liệu huấn luyện vẫn **chờ luật sư** (câu 11). `taxonomy.json` có sao chép từ hệ phân loại ngoài không: **chờ chủ dự án**. Icon/logo/tranh: nguồn gốc **chờ chủ dự án** (O12) |
 | `THIRD_PARTY_NOTICES.md` khớp kiểm kê; giấy phép của phụ thuộc đi kèm bản dựng | **Xong**. Bản dựng có 32 `dist-info` (chỉ `loguru` và `sklearn_crfsuite` không có tệp giấy phép, lấy từ kho tác giả nếu cần) |
 
 ### 2.2 Bí mật và dữ liệu cá nhân (S0-02, S0-03)
@@ -28,7 +28,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 | Quét cây làm việc và toàn bộ lịch sử git | **Xong** (`SECRET_SCAN_REPORT.md`): không có bí mật hoạt động |
 | Dọn đường dẫn/tên cá nhân trong tài liệu và mã | **Xong** (S0-03) |
 | Thu hồi khóa đã lộ | Không có khóa lộ. Còn `service_account.json` cũ **ngoài kho** (F-08): **chờ chủ dự án** xóa và thu hồi trên Google Cloud |
-| Dữ liệu cá nhân trong lịch sử (email F-04, QR F-05, tài liệu cá nhân F-06, mô hình F-07) | **Chờ chủ dự án**: đề xuất phương án A (kho công khai mới, sạch). Claude Code không tự viết lại lịch sử |
+| Dữ liệu cá nhân trong lịch sử (email F-04, QR F-05, tài liệu cá nhân F-06, mô hình F-07) | **Chủ dự án chọn phương án A (2026-09-19): kho công khai mới, sạch.** Đã dựng cây sạch bằng `C:uild\make_public_tree.py` (không lịch sử; loại 5 tệp ghi chú riêng; quét sạch dấu vết cá nhân; 1019 test đạt trên chính cây đó). **Còn chờ chủ dự án**: chọn danh tính tác giả cho commit đầu, tạo kho, và ra lệnh push |
 | `.gitignore` không bị suy yếu | **Xong**: chỉ thêm mẫu (dữ liệu ứng dụng, QR, tài liệu cá nhân, tranh mẫu) |
 
 ### 2.3 Thông báo và tuân thủ AGPL (S0-05, S0-06)
@@ -75,11 +75,11 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 
 ## 3. Việc cần chủ dự án quyết định hoặc làm
 
-1. **Lịch sử git** (F-04, F-05, F-06, F-07): phương án A (kho công khai mới, sạch) được đề xuất; hoặc B (`git filter-repo`), hoặc C (giữ nguyên, không khuyến nghị).
-2. **QR ngân hàng**: có sửa commit `80f3439` để bỏ QR không (chỉ cần nếu chọn B hay C).
+1. ~~Lịch sử git~~: **đã chọn A** (kho công khai mới). Việc còn lại: danh tính tác giả cho commit đầu (tên và email công khai, ví dụ địa chỉ noreply của nền tảng lưu mã), tạo kho, commit, push.
+2. ~~QR ngân hàng~~: không cần sửa commit `80f3439` vì kho cũ không công khai. **Giữ kho cũ ở chế độ riêng tư, không đẩy nó lên đâu cả.**
 3. **Xóa và thu hồi** `%APPDATA%\SmartDocLibrary\service_account.json` cũ (F-08).
 4. **Nguồn gốc tranh/logo** (O12) và giấy phép tranh (O11); nhãn hiệu có đăng ký không.
-5. **Mô hình phân loại** (S0-04b): huấn luyện lại (df theo sách, danh sách loại từ chân trang) hay giữ; ngưỡng chất lượng đề xuất là giảm không quá 1 điểm phần trăm, precision ≥ 85%.
+5. ~~Mô hình phân loại~~: **đã huấn luyện lại** (S0-04b), đạt ngưỡng.
 6. **Điền**: kênh liên hệ (`TRADEMARK.md`, `PARTNERS.md`, `User-Agent` của Open Library), URL kho mã (`APP_SOURCE_URL_TEMPLATE`).
 7. ~~Nguồn dữ liệu~~: **đã quyết định** 2026-09-19 (Apple Books và Tiki tắt mặc định, giữ cả nhánh Atom cũ của Google Books).
 8. `taxonomy.json`: có sao chép nguyên văn từ hệ phân loại ngoài không.
