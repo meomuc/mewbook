@@ -48,9 +48,15 @@ Thêm một dòng vào mục 4 (Guardrails), ngay sau dòng "Don't move or delet
 
 Ghi chú tương tác với A1 (gửi thiết bị): A1 cho phép **chép** file lên thiết bị theo lệnh người dùng; A2 không mâu thuẫn, vì chép không sửa file gốc và không đụng DRM. Một file có DRM vẫn có thể được **chép nguyên trạng** lên thiết bị nếu người dùng yêu cầu (đó là chép, không chuyển đổi); nếu bạn muốn chặn cả việc đó, cần nói rõ.
 
-## 5. Việc cần chủ dự án quyết định
+## 5. Quyết định của chủ dự án và việc còn lại
 
-a. Duyệt chính sách ở mục 1 và dòng A2 ở mục 4 (hay sửa lời).
-b. PDF có mật khẩu: giữ nguyên "bỏ qua", hay cho nhập mật khẩu của chính người dùng (đề xuất: chưa làm ở 1.x).
-c. File có DRM: có cho phép **gửi nguyên trạng** lên thiết bị (S3) không? Đề xuất: cho phép, kèm ghi chú "không chuyển đổi được".
-d. Luật sư xem câu 12 trong `LAWYER_QUESTIONS.md` trước khi công khai.
+Quyết định ngày 2026-09-19:
+
+- **b. PDF có mật khẩu: giữ nguyên là bỏ qua.** Chưa cho nhập mật khẩu ở 1.x. Ứng dụng không gọi `authenticate` và không thử mật khẩu.
+- **c. File có DRM: cho gửi nguyên trạng lên thiết bị (S3).** Đây là *chép*, không chuyển đổi và không sửa file. Giao diện gửi thiết bị nên ghi chú "sách có DRM, không chuyển đổi được" (nội dung do S3b-06 chốt). Câu 12(c) trong `LAWYER_QUESTIONS.md` hỏi luật sư về điểm này.
+
+Còn mở:
+
+- a. Chủ dự án duyệt chính sách ở mục 1 và dòng A2 ở mục 4 (hoặc sửa lời). A2 chưa được áp dụng vào `CLAUDE.md`.
+- d. Luật sư xem câu 12 trong `LAWYER_QUESTIONS.md` trước khi công khai.
+- Cải thiện nhỏ (đề xuất, chưa làm): thông báo cho người dùng phân biệt "PDF có mật khẩu" với "sách có DRM".

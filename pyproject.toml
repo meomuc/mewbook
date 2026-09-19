@@ -3,6 +3,9 @@ name = "smartdoc-library"
 # Single source of truth: smartdoc/__init__.py's __version__ (SemVer 2.0.0).
 dynamic = ["version"]
 description = "MewBook (Meo Muc) - metadata-first ebook/document manager"
+# SPDX expression (PEP 639); owner decision O4, 2026-09-19. New files follow docs/legal/SPDX_POLICY.md.
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pymupdf>=1.24",

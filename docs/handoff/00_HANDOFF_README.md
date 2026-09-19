@@ -94,7 +94,7 @@ Sau đó đọc lại `CLAUDE.md` của repo. **`CLAUDE.md` vẫn là nguồn qu
 | O1 | Go 6 là bản 2024 hay Gen II? Note Air 4 có đúng là Note Air4 C? | Kết quả spike S3a | Ghi nhận cả hai, không giả định khác biệt |
 | O2 | Người dùng của đối tác đưa sách lên máy bằng cách nào là chính (cáp, thẻ nhớ, Wi-Fi)? | Độ ưu tiên MTP (S3c) | Thẻ nhớ/ổ đĩa trước, MTP theo kết quả spike |
 | O3 | Các chuyển đổi cần nhất là gì? | Phạm vi S4-03 | MOBI/AZW3/FB2 → EPUB làm trước; PDF → EPUB có cảnh báo |
-| O4 | SPDX: `AGPL-3.0-only` hay `AGPL-3.0-or-later`? | Metadata, header file | Đề xuất `or-later`; chờ chủ dự án |
+| O4 | SPDX: `AGPL-3.0-only` hay `AGPL-3.0-or-later`? | Metadata, header file | **ĐÃ CHỐT 2026-09-19: `AGPL-3.0-or-later`** (xem `docs/legal/SPDX_POLICY.md`) |
 | O5 | DCO hay CLA khi nhận đóng góp? | S1-07 | DCO |
 | O6 | Nơi lưu mã nguồn và nhà cung cấp CI? | S1-01 | Giả định GitHub, chờ xác nhận |
 | O7 | Đổi tên gói `smartdoc`? | Ổn định dữ liệu cài đặt cũ | Không đổi; ghi vào `docs/NAMING.md` |
