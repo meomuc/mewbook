@@ -28,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # tests + exe + i
 - **Threading:** a widget reacting to an event must subscribe through `QtEventBridge`, never directly. DB writes go through `DatabaseManager` (holds `write_lock`).
 - **Errors:** define a specific exception per module (`CoverSearchError`, `AISummaryError`, `CloudReviewError` → `NicknameTakenError`, `EpubReadError`, `TaxonomyError`…), raise with `from exc`, catch the specific type. A broad `except Exception` is allowed only to isolate one independent source/worker, with `# noqa: BLE001 -- reason` and `logger.exception(...)`. Log with `logging.getLogger(__name__)`; uncaught errors are captured by `core/diagnostics.py` into `%APPDATA%/SmartDocLibrary/logs/mewbook.log` (read it first when debugging a user-reported crash).
 - **Shutdown order:** `MainWindow.closeEvent` stops workers but must **not** close the DB; `app.py` calls `context.shutdown()` after `app.exec()` returns (queued events still query the DB).
-- Tests: `tests/test_<module>.py`, use the `app_context` / `qapp` fixtures (in-memory DB); bug fixes get a regression test that fails before the fix.
+- Tests: `tests/test_<module>.py`, use the `app_context` / `qapp` fixtures (in-memory DB); bug fixes get a regression test that fails before the fix. A test that needs a real device or other hardware must be skippable (`pytest.mark.skipif` / a marker) and is never required in CI (`.github/workflows/ci.yml`).
 - Every user-visible change → entry under `## [Unreleased]` in `CHANGELOG.md`. The version's single source is `__version__` in `src/smartdoc/__init__.py`; never edit it elsewhere.
 
 ## 4. Guardrails (do NOT)

@@ -1,0 +1,89 @@
+# Continuous integration (S1-01). Windows, because MewBook is a Windows application and the exe is built there.
+# Qt runs offscreen (no display needed). The workflow never signs or publishes anything.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install (locked)
+        run: uv sync --group dev --locked
+      - name: Tests
+        run: uv run pytest -q
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install (locked)
+        run: uv sync --group dev --locked
+      - name: Build the exe (PyInstaller, one folder)
+        run: uv run pyinstaller --noconfirm --distpath dist --workpath build_pyinstaller packaging/MewBook.spec
+      - name: Check the bundle
+        shell: pwsh
+        run: |
+          $bundle = 'dist\MewBook'
+          foreach ($needed in 'MewBook.exe', '_internal\LICENSE', '_internal\THIRD_PARTY_NOTICES.md') {
+            if (-not (Test-Path (Join-Path $bundle $needed))) { throw "Missing from the bundle: $needed" }
+          }
+          # Nothing personal or secret may ride along (docs/RELEASE_CHECKLIST.md section 7). certifi's cacert.pem is the public CA list.
+          $forbidden = Get-ChildItem $bundle -Recurse -File | Where-Object {
+            $_.Name -match '^(settings\.json|identity\.dat|\.secret\.key|\.env|credentials.*|token\.json|service_account.*|donate_qr\.png)$' -or
+            $_.Extension -in '.db', '.key' -or $_.Name -like '*.db-*'
+          }
+          if ($forbidden) { $forbidden | ForEach-Object { Write-Error "Forbidden file in the bundle: $($_.FullName)" }; exit 1 }
+          Write-Host "Bundle looks right: $((Get-ChildItem $bundle -Recurse -File | Measure-Object).Count) files"
+      # Starts the real exe with an empty, throw-away profile and checks it is still running 20 seconds later.
+      # continue-on-error: a GUI start-up on a hosted runner has failed for reasons unrelated to the code before.
+      - name: Smoke test (the exe starts and stays up)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $profileDir = Join-Path $env:RUNNER_TEMP 'mewbook-appdata'
+          New-Item -ItemType Directory -Force "$profileDir\SmartDocLibrary" | Out-Null
+          [IO.File]::WriteAllText("$profileDir\SmartDocLibrary\settings.json", '{"eula_accepted": true}', (New-Object Text.UTF8Encoding($false)))
+          $env:APPDATA = $profileDir
+          $process = Start-Process 'dist\MewBook\MewBook.exe' -PassThru
+          Start-Sleep -Seconds 20
+          $alive = -not $process.HasExited
+          if ($alive) { Stop-Process -Id $process.Id -Force }
+          $log = "$profileDir\SmartDocLibrary\logs\mewbook.log"
+          if (Test-Path $log) { Get-Content $log -Tail 20 }
+          if (-not $alive) { throw "MewBook.exe exited early with code $($process.ExitCode)" }
+
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every commit is signed off (see CONTRIBUTING.md)
+        run: python .github/scripts/check_dco.py "origin/${{ github.base_ref }}" HEAD

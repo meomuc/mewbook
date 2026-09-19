@@ -7,7 +7,7 @@
 | A1 | Làm rõ "không di chuyển/xóa file gốc": chép lên thiết bị theo lệnh người dùng được phép | **Chờ** | S3b-07 (gửi tới thiết bị) |
 | A2 | Không hỗ trợ DRM; chuyển đổi không ghi đè file gốc | **Đã áp dụng** 2026-09-19 | (`docs/legal/DRM_POLICY.md`) |
 | A3 | Mọi nguồn dữ liệu phải có dòng trong `DATA_SOURCES.md`; nguồn không rõ điều khoản thì tắt mặc định | **Đã áp dụng** 2026-09-19 | (`docs/legal/DATA_SOURCES.md`) |
-| A4 | Test cần thiết bị thật phải bỏ qua được, không bắt buộc trong CI | **Chờ** | S3b (test thiết bị) và S1-01 (CI) |
+| A4 | Test cần thiết bị thật phải bỏ qua được, không bắt buộc trong CI | **Đã áp dụng** 2026-09-19 | (S1-01, `.github/workflows/ci.yml`) |
 | A5 | Khung migration `user_version` là phần bổ sung; `_migrate_add_missing_columns` giữ quy tắc chỉ append | **Đã áp dụng** 2026-09-19 | (S1-02, `infrastructure/schema_migrations.py`) |
 | A6 | Chính sách SPDX cho tệp mới | **Đã áp dụng** 2026-09-19 | (`docs/legal/SPDX_POLICY.md`) |
 
