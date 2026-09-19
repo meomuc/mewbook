@@ -2,8 +2,8 @@
 ;
 ; Normally built by packaging\build.ps1, which passes the version from
 ; src\smartdoc\__init__.py:   ISCC.exe /DMyAppVersion=1.0.0 packaging\MewBook.iss
-; Expects the PyInstaller output in dist\MewBook\ and packaging\EULA.txt
-; (both produced by build.ps1).
+; Expects the PyInstaller output in dist\MewBook\ (produced by build.ps1). The
+; licence page shows the repository's LICENSE (AGPL-3.0-or-later) verbatim.
 
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
@@ -34,7 +34,7 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-LicenseFile=EULA.txt
+LicenseFile=..\LICENSE
 OutputDir=..\dist\installer
 OutputBaseFilename=MewBook-Setup-{#MyAppVersion}
 SetupIconFile=..\src\smartdoc\presentation\assets\app_icon.ico

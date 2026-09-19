@@ -198,11 +198,11 @@ uv sync --group dev   # pulls in pyinstaller
 powershell -ExecutionPolicy Bypass -File packaging\build.ps1
 ```
 
-This runs the test suite, writes `packaging/EULA.txt`, builds
-`dist/MewBook/MewBook.exe` (whose Properties → Details show the version,
+This runs the test suite, builds
+`dist/MewBook/MewBook.exe` (with `LICENSE` and `THIRD_PARTY_NOTICES.md` bundled) (whose Properties → Details show the version,
 publisher and copyright), and, if [Inno Setup 6](https://jrsoftware.org/isdl.php)
 is installed, builds `dist/installer/MewBook-Setup-X.Y.Z.exe` from
-`packaging/MewBook.iss`. The installer runs per-user (no admin prompt), adds
+`packaging/MewBook.iss` (its licence page shows `LICENSE`, AGPL-3.0-or-later). The installer runs per-user (no admin prompt), adds
 Start menu and optional desktop shortcuts, and upgrades in place (fixed
 `AppId`). On uninstall it deletes the anonymous identity (`identity.dat`), so
 a reinstall gets a new one, and it asks whether to delete the library data

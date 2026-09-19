@@ -55,6 +55,9 @@ _datas = [
     ('../src/smartdoc/presentation/assets/brand_logo.png', 'smartdoc/presentation/assets'),
     # Supabase upgrade SQL, served by Settings -> "Sao chép SQL nâng cấp".
     ('../src/smartdoc/application/sql/*.sql', 'smartdoc/application/sql'),
+    # AGPL-3.0-or-later text and the third-party notices travel with every build.
+    ('../LICENSE', '.'),
+    ('../THIRD_PARTY_NOTICES.md', '.'),
 ]
 # Smart classification: the category list and the trained model (train.py
 # regenerates classifier_model.json.gz), plus the Vietnamese word segmenter's

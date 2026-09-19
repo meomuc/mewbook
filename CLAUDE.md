@@ -38,4 +38,4 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # tests + exe + i
 - Don't scrape google.com or add sources that violate a service's terms; use official/keyless public APIs (see `cover_search.py`).
 - Don't add a dependency without checking licence impact (`THIRD_PARTY_NOTICES.md`: PyMuPDF is AGPL, mobi is GPL) or importing `pyvi`/numpy outside the classification worker process (keeps the GUI process light).
 - Don't run destructive git commands (`stash`, `reset --hard`, `checkout --`) on the working tree without asking — it holds many uncommitted changes.
-- Don't commit `dist/`, `build_pyinstaller/`, generated `packaging/EULA.txt`; don't push or tag releases unless asked (release steps: `README.md` → Versioning & releases).
+- Don't commit `dist/`, `build_pyinstaller/`; don't push or tag releases unless asked (release steps: `README.md` → Versioning & releases).

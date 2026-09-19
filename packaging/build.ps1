@@ -21,9 +21,6 @@ if (-not $SkipTests) {
     Remove-Item Env:QT_QPA_PLATFORM
 }
 
-# The installer's license page shows the same EULA the app shows on first run.
-uv run --no-sync python -c "from smartdoc.presentation.eula_dialog import EULA_TEXT; open(r'$PSScriptRoot\EULA.txt','w',encoding='utf-8-sig').write(EULA_TEXT)"
-
 uv run --no-sync pyinstaller --noconfirm --distpath "$root\dist" --workpath "$root\build_pyinstaller" "$PSScriptRoot\MewBook.spec"
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
 
