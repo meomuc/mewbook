@@ -165,3 +165,12 @@ Danh sách kiểm phát hành mới được đưa vào `docs/RELEASE_CHECKLIST.
 - `tests/test_models.py`: tên tài khoản trong đường dẫn thử → `someone`.
 - `docs/handoff/00`, `06`: che tên tài khoản.
 - Còn lại (cố ý giữ): tên tác giả công khai "Anhtiensinh" ở thanh trạng thái/Giới thiệu/`CHANGELOG.md` (thuộc S0-06); mọi lần xuất hiện cũ vẫn nằm trong lịch sử git (xem `SECRET_SCAN_REPORT.md` F-03).
+
+## Bổ sung: S0-04 (kiểm toán mô hình phân loại, giả định 10)
+
+Báo cáo đầy đủ: `docs/legal/MODEL_VOCAB_AUDIT.md`. Tóm tắt:
+- Từ vựng 60.000 đặc trưng chủ yếu là từ thông dụng; chỉ 323 đặc trưng (0,54%, ~1,1% trọng số) có df ≤ 5. Không có token chứa chữ số, đường dẫn, email, URL. **Rủi ro nhận diện thư viện: thấp.**
+- **Lệch so với giả định của `04`:** `min_df = 2` trong trainer đếm theo **dòng huấn luyện** (mỗi sách được dùng 2 lần: 9.451 sách → 14.774 dòng), nên một token chỉ có trong **một** cuốn sách vẫn lọt vào từ vựng. Đề xuất df theo sách và ngưỡng ≥ 5 sách.
+- **Phát hiện phụ:** từ vựng có token chân trang/nguồn phát hành ebook (tên trang, mạng xã hội, "copyright"…), là tín hiệu giả và là câu hỏi nguồn gốc dữ liệu huấn luyện (đã thêm vào `LAWYER_QUESTIONS.md`, câu 11).
+- Chưa đổi mô hình hay `train.py`; chờ quyết định (mục 6 của báo cáo). Đo tác động thật cần huấn luyện lại với `--dry-run`.
+

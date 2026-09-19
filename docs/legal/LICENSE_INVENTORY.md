@@ -59,7 +59,7 @@ Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (khôn
 
 | Tài nguyên | Đường dẫn | Nguồn gốc/giấy phép | Trạng thái |
 |---|---|---|---|
-| Mô hình phân loại | `src/smartdoc/data/classifier_model.json.gz` (+ `.meta.json`) | Do dự án tự huấn luyện (`train.py`) từ **thư viện của tác giả** (9.451 tài liệu) và `taxonomy.json` | Quyền sở hữu: chủ dự án. **Kiểm toán từ vựng thuộc S0-04**, chưa kết luận |
+| Mô hình phân loại | `src/smartdoc/data/classifier_model.json.gz` (+ `.meta.json`) | Do dự án tự huấn luyện (`train.py`) từ **thư viện của tác giả** (9.451 tài liệu) và `taxonomy.json` | Quyền sở hữu: chủ dự án. Kiểm toán từ vựng xong ở S0-04 (`MODEL_VOCAB_AUDIT.md`): rủi ro nhận diện thấp; có đề xuất siết ngưỡng và stoplist chờ duyệt; nguồn dữ liệu huấn luyện thành câu hỏi luật sư |
 | Phân loại (taxonomy) | `src/smartdoc/data/taxonomy.json` | Do dự án soạn | Chủ dự án là tác giả. Xác nhận không sao chép nguyên văn từ nguồn ngoài (mục 5, câu 4) |
 | Mô hình tách từ | `collect_data_files('pyvi')` | Gói `pyvi` (MIT) | Nguồn dữ liệu huấn luyện của mô hình CRF **chưa rõ** (mục 5, câu 2) |
 | Biểu tượng ứng dụng | `presentation/assets/app_icon.ico` | Sinh từ `brand_logo.png` bằng `packaging/process_brand_icon.py` | **Nguồn gốc ảnh chưa xác nhận (O12)** |

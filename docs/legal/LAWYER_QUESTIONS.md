@@ -29,3 +29,7 @@ Danh sách này gộp 9 câu chuẩn ở `docs/handoff/05_LEGAL_OPEN_SOURCE_CHEC
 7. Nếu bí mật/dữ liệu cá nhân nằm trong lịch sử git: rủi ro và cách xử lý.
 8. Rủi ro dùng dữ liệu từ Tiki, Apple Books, Google Books trong ứng dụng miễn phí phân phối rộng.
 9. CLA hay DCO khi nhận đóng góp cộng đồng mà chủ dự án muốn giữ quyền quản trị giấy phép.
+
+## D. Từ kiểm toán mô hình phân loại (S0-04)
+
+11. **Nguồn gốc kho huấn luyện của mô hình đi kèm.** Mô hình chỉ chứa thống kê từ (không có văn bản sách) nhưng được huấn luyện từ thư viện cá nhân của chủ dự án, và từ vựng có dấu vết chân trang/nguồn phát hành của các trang ebook (xem `MODEL_VOCAB_AUDIT.md` mục 2.3), tức một phần sách huấn luyện có thể đến từ nguồn không rõ giấy phép. Việc phân phối một mô hình học từ đó có rủi ro bản quyền không? Có nên chuyển sang mô hình huấn luyện từ bộ mẫu công khai/phạm vi công cộng trước khi phát hành?
