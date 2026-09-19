@@ -9,7 +9,9 @@
 import re
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files
+from importlib.metadata import PackageNotFoundError
+
+from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 from PyInstaller.utils.win32.versioninfo import (
     FixedFileInfo,
     StringFileInfo,
@@ -67,6 +69,17 @@ _datas += [
     ('../src/smartdoc/data/*.json.gz', 'smartdoc/data'),
 ]
 _datas += collect_data_files('pyvi')
+# Every redistributed dependency's dist-info (METADATA + licence files), so its licence text ships
+# with the exe as THIRD_PARTY_NOTICES.md promises. Names as in THIRD_PARTY_NOTICES.md.
+for _dist in ('PySide6', 'PySide6_Essentials', 'PySide6_Addons', 'shiboken6', 'pymupdf', 'mobi', 'pillow',
+              'watchdog', 'requests', 'urllib3', 'certifi', 'idna', 'charset-normalizer', 'cryptography',
+              'cffi', 'pycparser', 'loguru', 'colorama', 'win32-setctime', 'standard-imghdr', 'pyvi',
+              'scikit-learn', 'numpy', 'scipy', 'joblib', 'cloudpickle', 'narwhals', 'threadpoolctl',
+              'python-crfsuite', 'sklearn-crfsuite', 'tabulate', 'tqdm'):
+    try:
+        _datas += copy_metadata(_dist)
+    except PackageNotFoundError:
+        pass  # an optional/transitive package that this environment does not have
 # The donate QR is the author's personal bank code and is not committed
 # (.gitignore). Official builds have it on disk and bundle it; a build from a
 # clean checkout skips it and the popup shows a text fallback instead.

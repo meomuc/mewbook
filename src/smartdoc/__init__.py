@@ -14,4 +14,11 @@ APP_NAME = "MewBook"
 APP_DISPLAY_NAME = "Mèo Mực"
 APP_DESCRIPTION = "Trình quản lý tài liệu/ebook theo metadata"
 APP_PUBLISHER = "Anhtiensinh"
-APP_COPYRIGHT = "© 2026 Anhtiensinh. Bảo lưu mọi quyền."
+APP_COPYRIGHT = "© 2026 Anhtiensinh. Phần mềm tự do theo giấy phép AGPL-3.0-or-later."
+# Licence shown in Help -> About and in the installer (see LICENSE, docs/legal/SPDX_POLICY.md).
+APP_LICENSE_ID = "AGPL-3.0-or-later"
+APP_LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html"
+# Where the exact source of *this* version lives, with "{version}" filled from __version__
+# (e.g. "https://<host>/<owner>/<repo>/tree/v{version}"). Empty until the public repository
+# exists: About then shows a text fallback instead of a link. Set before the first release.
+APP_SOURCE_URL_TEMPLATE = ""

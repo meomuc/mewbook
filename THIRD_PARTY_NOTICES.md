@@ -5,11 +5,12 @@ Windows build (PyInstaller) redistributes them; their license texts are
 included in each package's `*.dist-info` folder inside the installed app's
 `_internal` directory.
 
-MewBook itself is being prepared for release under the **GNU Affero General
-Public License v3.0** (project decision D1). The `LICENSE` file and the
-per-file SPDX policy are added in task S0-05; until then this file only
-records the third-party side. The full audit, with the reasoning and the open
-questions, is in `docs/legal/LICENSE_INVENTORY.md`.
+MewBook itself is released under the **GNU Affero General Public License,
+version 3 or (at your option) any later version** (`AGPL-3.0-or-later`; see
+`LICENSE`, project decisions D1 and O4). New source files carry an SPDX header
+(`docs/legal/SPDX_POLICY.md`). This file records the third-party side. The full
+audit, with the reasoning and the open questions, is in
+`docs/legal/LICENSE_INVENTORY.md`.
 
 | Component | Version | License |
 |---|---|---|
@@ -55,7 +56,7 @@ before the first public release.
    code** of that exact version under the AGPL-3.0, and keeping their
    copyright and license notices. Both licenses allow being combined with
    each other (GPLv3 §13, AGPLv3 §13). The source link and license text are
-   shown in Help → About (task S0-06).
+   shown in Help → About.
 2. **PySide6 (LGPL-3.0).** Qt is linked dynamically (PyInstaller's one-folder
    build), so users can replace the Qt libraries; the LGPL notice and license
    text ship with the app.

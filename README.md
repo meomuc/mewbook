@@ -156,7 +156,7 @@ fiction and non-fiction), so retrain on yours for best results.
 ## Versioning & releases
 
 MewBook follows [Semantic Versioning 2.0.0](https://semver.org). **1.0.0
-(2026-09-19) is the first commercial release.** The version is
+(2026-09-19) is the first release.** The version is
 `MAJOR.MINOR.PATCH`:
 
 | Bump | When | Examples |
@@ -177,7 +177,8 @@ Pre-releases add a suffix, e.g. `1.1.0-beta.1`, and rank below `1.1.0`.
 - **Release checklist:** the full per-release checklist (gates, clean-machine
   tests, signing, AGPL source package, tag) is `docs/RELEASE_CHECKLIST.md`. In short:
   1. Move the `[Unreleased]` entries under a new `## [X.Y.Z] - YYYY-MM-DD` heading.
-  2. Set `__version__ = "X.Y.Z"`.
+  2. Set `__version__ = "X.Y.Z"`, and make sure `APP_SOURCE_URL_TEMPLATE` (same file) points at the
+     public repository so Help → About links to the source of exactly this version.
   3. `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` (runs the tests, then builds the exe and installer).
   4. Commit, then tag: `git tag -a vX.Y.Z -m "MewBook X.Y.Z"` and `git push --tags`.
   4a. `dist/` and `build_pyinstaller/` are build output (they also contain
@@ -186,6 +187,9 @@ Pre-releases add a suffix, e.g. `1.1.0-beta.1`, and rank below `1.1.0`.
      (`git archive --format=zip -o MewBook-X.Y.Z-src.zip vX.Y.Z`), never by
      zipping the working folder. Only the installer/exe built from them is
      distributed.
+  4b. Attach the installer and the source archive to the release and publish their SHA-256
+     checksums (`Get-FileHash <file> -Algorithm SHA256`, collected in `SHA256SUMS.txt`); the
+     AGPL requires the corresponding source to be offered with every binary.
   5. If the release needs a Supabase change, say so under **Security** or
      **Changed** in the changelog and ship the SQL in `src/smartdoc/application/sql/`.
 
@@ -326,3 +330,11 @@ server-side, so a nickname belongs to the first installation that used it,
 only a review's author can update it, and authorship can't be forged. There
 is still no moderation beyond that and Supabase's own rate limiting:
 reviews stay public and anonymous.
+
+## License
+
+MewBook is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General
+Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`, see `LICENSE`). It is
+distributed in the hope that it will be useful, but **without any warranty**. Third-party components and their
+licences are listed in `THIRD_PARTY_NOTICES.md`; the audit is in `docs/legal/LICENSE_INVENTORY.md`. New source
+files follow `docs/legal/SPDX_POLICY.md`.

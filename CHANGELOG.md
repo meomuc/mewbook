@@ -128,6 +128,18 @@ New features, so the next release is a MINOR bump (1.1.0).
   exactly, and every theme is validated automatically, including WCAG
   contrast and readable text on placeholder covers.
 
+### Changed
+- **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
+  (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is
+  no warranty, links to the source of the running version (once the public repository is set in
+  `APP_SOURCE_URL_TEMPLATE`), and its legal page has three tabs: **Quyền riêng tư**,
+  **AGPL-3.0-or-later** (the full text) and **Bên thứ ba** (third-party notices). The copyright
+  line no longer says "Bảo lưu mọi quyền".
+- **Installer and exe carry the licence.** The installer's licence page shows `LICENSE` instead
+  of a generated EULA; `LICENSE`, `THIRD_PARTY_NOTICES.md` and every dependency's licence files
+  (`*.dist-info`) are bundled with the app.
+- **Chính sách DRM** (`docs/legal/DRM_POLICY.md`): DRM is only ever detected to refuse a file, never removed.
+
 ### Fixed
 - **Freeze after selecting a book in the List view.** Painting a selected row raised an
   error on every repaint (`QPalette.Text` was read from an instance, where PySide6 has no

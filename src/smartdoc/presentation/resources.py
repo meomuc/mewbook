@@ -28,6 +28,16 @@ def brand_logo_path() -> Path:
     return assets_dir() / "brand_logo.png"
 
 
+def legal_file_path(name: str) -> Path:
+    """LICENSE / THIRD_PARTY_NOTICES.md. Frozen: at the root of the bundle (packaging/MewBook.spec
+    datas '.'); from source: the repository root. May not exist (e.g. an installed wheel), so
+    callers must cope with a missing file."""
+    frozen_base = getattr(sys, "_MEIPASS", None)
+    if frozen_base:
+        return Path(frozen_base) / name
+    return Path(__file__).resolve().parents[3] / name
+
+
 def donate_qr_path() -> Path:
     """The author's VietQR donation code, shown by presentation/donate_dialog.py.
     May not exist (donate_dialog.py falls back to a text placeholder) --
