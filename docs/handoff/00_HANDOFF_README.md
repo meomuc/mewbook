@@ -33,6 +33,8 @@ Công việc gồm sáu chặng (S0–S5), nêu trong `04_IMPLEMENTATION_PLAN.md
 | 7 | `06_DELTA_REVIEW_AND_PATCHES.md` | **Điểm mới** từ bản cập nhật của Claude Code, quyết định mới, bản vá cho `00`–`05`, lộ trình cập nhật |
 | 8 | `07_SYNC_SPEC.md` | Đồng bộ với máy đọc sách, hiển thị file đã có trên máy tính/máy đọc (Epic H) |
 | 9 | `08_BRAND_MASCOT_SPEC.md` | Nhận diện thương hiệu, linh vật Mèo Mực, bản đồ áp dụng hình ảnh (Epic I) |
+| 9b | `09_ERROR_REPORTING_SPEC.md` | **Báo cáo lỗi tự nguyện**, máy chủ ghi nhận và tác tử phân loại hàng ngày bằng Claude Code (Epic J, chặng S1e, gói trong 1.1.0) |
+| 10 | `docs/RELEASE_CHECKLIST.md` (đặt vào repo, không nằm trong `docs/handoff/`) | Danh sách kiểm cho **mỗi lần phát hành**: cổng điều kiện, dựng, kiểm thử máy sạch, ký mã, gói AGPL, tag |
 
 **Ưu tiên khi mâu thuẫn:** nếu `06`, `07`, `08` khác `00`–`05` thì **`06`–`08` thắng** (`06` mục 7 liệt kê từng chỗ đổi).
 
@@ -57,6 +59,9 @@ Sau đó đọc lại `CLAUDE.md` của repo. **`CLAUDE.md` vẫn là nguồn qu
 | D13 | Tranh và logo có giấy phép riêng, không thuộc AGPL (`08` mục 8) | ĐỀ XUẤT, chờ luật sư |
 | D14 | Chuỗi phát hành: 1.1.0 (nội dung hiện có + S0 + S1 + BR-A), 1.2.0 (S2 + S3 + S3d), 1.3.0 (S3e + S4) | ĐỀ XUẤT, chờ duyệt |
 | D15 | Mọi thao tác ghi ra ngoài thư viện (gửi, lấy về, chuyển đổi) đều có hộp thoại xem trước | ĐỀ XUẤT, chờ duyệt |
+| D16 | Báo lỗi **tự nguyện, ẩn danh, xem trước**; mặc định "Hỏi mỗi lần"; là ngoại lệ duy nhất của NFR-04 (không telemetry) | ĐỀ XUẤT, chờ duyệt |
+| D17 | Dữ liệu báo lỗi là **dữ liệu không đáng tin**: tác tử AI chỉ nhận kênh dữ liệu hẹp (loại lỗi, khung ngăn xếp, phiên bản, số đếm); không đưa văn bản tự do vào prompt | ĐỀ XUẤT, chờ duyệt |
+| D18 | Claude Code **chẩn đoán và đề xuất**; không tự merge/push/tag/phát hành. Mức tự động L0 ở 1.1.0; L1, L2 sau; L3 cấm | ĐỀ XUẤT, chờ duyệt |
 
 ## 4. Quy tắc làm việc cho Claude Code (bắt buộc)
 
@@ -104,6 +109,7 @@ Sau đó đọc lại `CLAUDE.md` của repo. **`CLAUDE.md` vẫn là nguồn qu
 | O16 | Cho phép gửi bản sao có metadata đã chỉnh (A7) | S6-02 | Chưa |
 | O17 | Biểu tượng `.ico`: giữ khung bo góc hiện có hay dùng hình mèo cắt rời | BR-04 | Giữ khung cho `.ico` |
 | O18 | Dải chữ chạy "donate" ở thanh trạng thái | BR-07 | Chữ tĩnh, tắt được |
+| O19–O24 | Ngưỡng ưu tiên/số nhóm mỗi ngày; nơi chạy tác tử; mức tự động ban đầu; thời gian lưu; chế độ mặc định hộp thoại lỗi; nơi ghi nhận lỗi | S1e | Xem `09` mục 13 |
 
 ## 7. Giả định cần kiểm chứng trong mã (ghi kết quả vào `DISCREPANCIES.md`)
 
@@ -124,6 +130,7 @@ Sau đó đọc lại `CLAUDE.md` của repo. **`CLAUDE.md` vẫn là nguồn qu
 15. Nguồn gốc, kích thước, biểu tượng ứng dụng hiện tại (`packaging/generate_icon.py`, `packaging/process_brand_icon.py`, `app_icon.ico`, `brand_logo.png`) so với logo chính thức mới.
 16. Nội dung văn bản EULA/Quyền riêng tư hiện có (`presentation/eula_dialog.py`, `packaging/EULA.txt` do `build.ps1` sinh): điều khoản nào trái với AGPL-3.0.
 17. `presentation/donate_dialog.py` và dải chữ chạy "donate" ở thanh trạng thái: hành vi, tần suất chuyển động, có tắt được không.
+19. `core/diagnostics.py`: cách bắt lỗi chưa xử lý (luồng giao diện, luồng nền, tiến trình phân loại), hộp thoại lỗi hiện có, và nơi ghi `mewbook.log`.
 18. Cách lưu bộ sưu tập "★ Sẽ đọc" (mã cố định) và trình đọc riêng có lưu tiến độ/dấu trang không.
 
 ## 8. Prompt khởi động gợi ý cho Claude Code

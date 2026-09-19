@@ -148,3 +148,10 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 - [ ] **S0-06 (sửa thêm):** thống nhất dòng ghi tác giả ở thanh trạng thái với thông báo bản quyền trong Giới thiệu.
 - [ ] **BR-00 [R]:** đọc đường ống thương hiệu hiện có trước khi làm BR-02 (`08` mục 12).
 - [ ] **S3d (bổ sung):** FR-SYN-19, gửi nhanh danh sách "★ Sẽ đọc" và chỉ báo ở thanh bên (`07` mục 3, SYN-A16).
+- [ ] **S1-10 (mới):** đặt `docs/RELEASE_CHECKLIST.md` vào repo và dùng nó cho mọi lần phát hành; làm `packaging/build.ps1` phù hợp với mục 7 và 10 của danh sách (bỏ EULA thương mại, thêm bước ký tùy chọn theo biến môi trường, tạo gói mã nguồn và `SHA256SUMS.txt`). Việc tag, push và đăng bản phát hành thuộc chủ dự án.
+
+### S1e — Báo lỗi và ghi nhận lỗi (gói trong 1.1.0; chi tiết `09` mục 12)
+- [ ] **E-01 đến E-06:** ứng dụng (đọc hiện trạng, bộ che dữ liệu, hàng đợi, hộp thoại và cài đặt, uploader, cập nhật văn bản riêng tư).
+- [ ] **E-07 đến E-09:** máy chủ (migration mới, vai trò `triage_*`, sổ tay vận hành, thử tấn công) — các bước **[H]** do chủ dự án làm.
+- [ ] **E-10 đến E-13:** tác tử `tools/triage/` ở mức **L0** (chỉ báo cáo), bộ test chống prompt injection, chạy thử vài ngày trước khi tin cậy.
+- [ ] **E-14, E-15 (sau phát hành):** L1 (ghi nhận issue) và L2 (nhánh vá cục bộ) sau 2–4 tuần ổn định. **L3 (tự merge/phát hành) bị cấm.**

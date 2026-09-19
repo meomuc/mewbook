@@ -1,0 +1,88 @@
+# ==========================================
+# 1. MÔI TRƯỜNG ẢO & THƯ MỤC PHỤ THUỘC (QUAN TRỌNG NHẤT)
+# Chặn các thư mục này giúp giảm đến 95% token thừa
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+pyenv/
+.python-version
+pip-log.txt
+pip-delete-this-directory.txt
+.poetry/
+.pdm/
+.pdm-plugins/
+__pypackages__/
+
+# ==========================================
+# 2. BỘ NHỚ ĐỆM & MÃ ĐÃ BIÊN DỊCH (BYTECODE)
+# Tránh các tệp tự động sinh ra khi chạy ứng dụng
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+htmlcov/
+.cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+
+# ==========================================
+# 3. FILE ĐẦU RA KHI ĐÓNG GÓI (BUILD/DIST)
+# ==========================================
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==========================================
+# 4. TỆP MÔI TRƯỜNG & KHÓA BÍ MẬT (BẢO MẬT & TỐI ƯU)
+# ==========================================
+.env
+.env.*
+.secrets
+*.pem
+*.key
+# Cho phép Claude xem cấu hình mẫu nếu có
+!.env.example
+
+# ==========================================
+# 5. DỮ LIỆU LỚN & ĐA PHƯƠNG TIỆN (DATABASE, JUPYTER)
+# ==========================================
+*.db
+*.sqlite3
+# Chặn checkpoints của Jupyter Notebook vì rất nặng token
+.ipynb_checkpoints/
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.csv
+*.xlsx
+
+# ==========================================
+# 6. IDE & HỆ ĐIỀU HÀNH
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

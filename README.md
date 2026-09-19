@@ -172,7 +172,8 @@ Pre-releases add a suffix, e.g. `1.1.0-beta.1`, and rank below `1.1.0`.
 - **Changelog:** every user-visible change goes under `## [Unreleased]` in
   `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com) format:
   Added / Changed / Deprecated / Removed / Fixed / Security).
-- **Release checklist:**
+- **Release checklist:** the full per-release checklist (gates, clean-machine
+  tests, signing, AGPL source package, tag) is `docs/RELEASE_CHECKLIST.md`. In short:
   1. Move the `[Unreleased]` entries under a new `## [X.Y.Z] - YYYY-MM-DD` heading.
   2. Set `__version__ = "X.Y.Z"`.
   3. `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` (runs the tests, then builds the exe and installer).

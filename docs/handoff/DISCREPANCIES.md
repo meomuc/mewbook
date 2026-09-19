@@ -118,3 +118,41 @@ Khớp `THIRD_PARTY_NOTICES.md`. Việc tương thích GPLv3–AGPLv3 vẫn cầ
 ### 18. "★ Sẽ đọc" và trình đọc — ✅ / ❓
 - `infrastructure/database.py`: `READING_LIST_ID = "reading-list"`, `READING_LIST_NAME = "Sẽ đọc"`; `ensure_reading_list()`, `toggle_reading_list()`, `reading_list_ids()`. Là bộ sưu tập thường (`VirtualCollection`) với id cố định, nên tự hoạt động với `collection_documents`.
 - Trình đọc (`reader_window.py`, `reader_manager.py`) và `config`/`database`: tìm `progress|bookmark|last_page|last_position` **không có kết quả**, tức trình đọc hiện **không lưu tiến độ hay dấu trang**. (Chỉ kiểm bằng tìm chuỗi, chưa đọc từng dòng của trình đọc.)
+
+## Bổ sung: đối chiếu `docs/RELEASE_CHECKLIST.md` với repo hiện tại (2026-09-19)
+
+Danh sách kiểm phát hành mới được đưa vào `docs/RELEASE_CHECKLIST.md` (task S1-10). Các chỗ repo **chưa đáp ứng**, để làm trong các task tương ứng, không phải lỗi của danh sách:
+
+| Mục checklist | Hiện trạng | Task |
+|---|---|---|
+| 2a: `LICENSE`, giấy phép trong `pyproject.toml` | Chưa có | S0-05 |
+| 2a, 7: `build.ps1` bỏ EULA kiểu thương mại; bước ký tùy chọn; gói mã nguồn; `SHA256SUMS.txt` | `build.ps1` vẫn sinh `EULA.txt` từ `EULA_TEXT`; chưa có 3 bước còn lại | S0-05, S1-06, S1-10 |
+| 4: README không còn đường dẫn cá nhân, "bản thương mại", số test cũ | Còn cả ba (README dòng ~26-30, ~156, ~235) | S0-03, S0-11 |
+| 4: Giới thiệu có giấy phép AGPL, liên kết mã nguồn đúng phiên bản | Chưa | S0-06 |
+| 3, 6: khung `user_version`, sao lưu trước migration, test nâng cấp từ 1.0.0 | Chưa | S1-02, S1-03 |
+| 6: test tài nguyên thương hiệu | Chưa (BR-A) | BR-02 |
+| 8 M3: tìm không dấu | **Không đạt** (mục 7 ở trên) | S4-02 |
+| 8 M18: gỡ cài đặt xóa `identity.dat` | README nói đã làm; chưa kiểm trên máy sạch | [H] |
+| `docs/releases/` | Thư mục chưa tồn tại (tạo khi có bản ghi đầu tiên) | S1-10 |
+| Bước 6: "đặt `UV_PROJECT_ENVIRONMENT` như trong README" | README đang dùng đường dẫn cá nhân; S0-03 phải thay bằng hướng dẫn chung mà vẫn giữ ý "venv ngoài OneDrive" | S0-03 |
+
+## Bổ sung: giả định 19 (`core/diagnostics.py`) và đối chiếu `09_ERROR_REPORTING_SPEC.md`
+
+### 19. Bắt lỗi chưa xử lý — ✅ khớp mô tả của `09`, kèm 4 khoảng trống cần biết cho E-01
+- `install_exception_hooks(show_dialog)` (`diagnostics.py`) đặt `sys.excepthook` (luồng giao diện) và `threading.excepthook` (luồng nền), ghi `logger.critical(..., exc_info=...)` vào `mewbook.log` (xoay vòng 1 MB × 5, `setup_logging`). `KeyboardInterrupt` (luồng chính) và `SystemExit` (luồng nền) được bỏ qua.
+- Hộp thoại lỗi: `app.py` `_show_crash_dialog` → hoãn qua `QTimer.singleShot(0, …)`, cờ `_crash_dialog_open` bảo đảm **tối đa một hộp thoại**, đúng điều `09` mục 4.1 muốn giữ; có 3 test hồi quy trong `tests/test_app_crash_dialog.py`. Ngoại lệ đã xử lý (`except Exception  # noqa: BLE001` + `logger.exception`) chỉ ghi nhật ký, không gửi, khớp `09`.
+- **Khoảng trống 1:** chỉ luồng giao diện gọi `show_dialog`; lỗi ở luồng nền chỉ vào nhật ký, không có hộp thoại. Kênh "hỏi mỗi lần" của `09` cần quyết định xử lý luồng nền ra sao (đề xuất: xếp hàng rồi hỏi ở luồng giao diện).
+- **Khoảng trống 2:** `show_dialog` chỉ nhận chuỗi `"Loại: thông điệp"`, **không có khung ngăn xếp** cho reporter; hook cần truyền cả `exc_info` để lấy `stack_frames`/`fingerprint`. Thông điệp này hiện **chưa được che** và hiển thị nguyên văn cho người dùng tại máy (chấp nhận được cục bộ, nhưng không được gửi đi khi chưa qua `error_scrubber`).
+- **Khoảng trống 3:** tiến trình phân loại là **tiến trình con `spawn`** (`ProcessPoolExecutor`, `smart_classifier.py:104`). Khi nó chết, tiến trình mẹ chỉ biết `CRASH_ERROR = "worker crashed"` và đếm `crashes` tới `MAX_WORKER_CRASHES = 6`; **không có khung ngăn xếp** của tiến trình con. Lỗi bắt được trong worker chỉ `logger.debug`/`logger.exception` (worker `classify_worker.py:100,148`), không chắc có handler ghi file. Vì vậy `process_kind = classify_worker` (`09` mục 3) sẽ thiếu `stack_frames` nếu không thêm cơ chế truyền lỗi từ worker về.
+- **Khoảng trống 4:** `support_info()` (Giới thiệu → "Sao chép thông tin hỗ trợ") chèn dòng `Log: <đường dẫn tuyệt đối>` của file nhật ký, tức **tên tài khoản Windows** của người dùng. Câu hứa "không chứa tên người dùng Windows" của `09` mục 3 và 10 sẽ sai nếu tái dùng hàm này nguyên trạng; cần bộ che hoặc bỏ dòng đó.
+- `build_id` (`09` mục 4.6): hiện **không có** cơ chế nào ghi mã commit lúc dựng; `build.ps1` chỉ đọc `__version__` (đã nêu ở bảng đối chiếu checklist).
+
+### Đối chiếu khác của `09`
+| Nội dung `09` | Hiện trạng | Task |
+|---|---|---|
+| NFR-04 sửa: báo lỗi tự nguyện là ngoại lệ | Chưa có văn bản/hộp thoại nào | E-06, S0-05 |
+| Cột `error_report_mode` v.v. trong `AppConfig` | Chưa có | E-04 |
+| Bảng cờ từ xa dùng chung với S2 (`error_reports_enabled`) | Bảng cờ S2 chưa tồn tại | S2-02 |
+| Migration máy chủ mới số tiếp theo | Mới có `001_*.sql`; `002` dành cho S2 | E-07 (đánh số sau S2) |
+| `tools/triage/`, `docs/triage/`, `docs/ERROR_OPS_RUNBOOK.md` | Chưa tồn tại | E-08, E-10 |
+| Mục 6.3: đọc tài liệu chạy không tương tác của Claude Code | Chưa làm (thuộc E-10; sẽ đọc tài liệu chính thức khi tới lượt) | E-10 |
