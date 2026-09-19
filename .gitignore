@@ -41,3 +41,16 @@ docs/ebook manager*.md
 # docs/handoff/DISCREPANCIES.md, item 15); packaged copies come later.
 Sample theme/
 REQ/
+
+# The app's own per-user data files. They live in %APPDATA%/SmartDocLibrary,
+# outside this repo, so these are defense in depth against a copy landing here.
+identity.dat
+.supabase_url
+.supabase_anon_key
+settings.json
+*.log
+
+# The author's personal bank QR for the donate popup. Deliberately not in the
+# repo: packaging/MewBook.spec bundles it only if the file exists, and the
+# popup falls back to plain text without it (see donate_dialog.py).
+src/smartdoc/presentation/assets/donate_qr.png

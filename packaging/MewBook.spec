@@ -64,6 +64,9 @@ _datas += [
     ('../src/smartdoc/data/*.json.gz', 'smartdoc/data'),
 ]
 _datas += collect_data_files('pyvi')
+# The donate QR is the author's personal bank code and is not committed
+# (.gitignore). Official builds have it on disk and bundle it; a build from a
+# clean checkout skips it and the popup shows a text fallback instead.
 if (_ROOT / 'src/smartdoc/presentation/assets/donate_qr.png').exists():
     _datas.append(('../src/smartdoc/presentation/assets/donate_qr.png', 'smartdoc/presentation/assets'))
 

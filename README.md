@@ -177,6 +177,12 @@ Pre-releases add a suffix, e.g. `1.1.0-beta.1`, and rank below `1.1.0`.
   2. Set `__version__ = "X.Y.Z"`.
   3. `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` (runs the tests, then builds the exe and installer).
   4. Commit, then tag: `git tag -a vX.Y.Z -m "MewBook X.Y.Z"` and `git push --tags`.
+  4a. `dist/` and `build_pyinstaller/` are build output (they also contain
+     local build paths): never commit them and never ship them as the source
+     release. Make the source archive from tracked files only
+     (`git archive --format=zip -o MewBook-X.Y.Z-src.zip vX.Y.Z`), never by
+     zipping the working folder. Only the installer/exe built from them is
+     distributed.
   5. If the release needs a Supabase change, say so under **Security** or
      **Changed** in the changelog and ship the SQL in `src/smartdoc/application/sql/`.
 
