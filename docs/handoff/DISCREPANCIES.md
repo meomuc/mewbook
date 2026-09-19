@@ -156,3 +156,12 @@ Danh sách kiểm phát hành mới được đưa vào `docs/RELEASE_CHECKLIST.
 | Migration máy chủ mới số tiếp theo | Mới có `001_*.sql`; `002` dành cho S2 | E-07 (đánh số sau S2) |
 | `tools/triage/`, `docs/triage/`, `docs/ERROR_OPS_RUNBOOK.md` | Chưa tồn tại | E-08, E-10 |
 | Mục 6.3: đọc tài liệu chạy không tương tác của Claude Code | Chưa làm (thuộc E-10; sẽ đọc tài liệu chính thức khi tới lượt) | E-10 |
+
+## Bổ sung: S0-03 (dọn dữ liệu cá nhân trong tài liệu và mã)
+
+Đã thay đường dẫn cá nhân bằng hướng dẫn chung, **không đổi hành vi với chủ dự án**:
+- `README.md`: bỏ tên tài khoản và câu "as this one does"; venv ngoài thư mục đồng bộ nay là `%USERPROFILE%\.venvs\ebook-manager` (`$HOME/.venvs/ebook-manager` trong bash), giữ lời khuyên về OneDrive.
+- `run.bat`: dùng `%USERPROFILE%\.venvs\ebook-manager` và **giữ giá trị `UV_PROJECT_ENVIRONMENT` đã đặt sẵn** (`if not defined`). Với chủ dự án đường dẫn này trùng với venv hiện có, nên không phải dựng lại. Người khác chạy lần đầu sẽ được `uv run` tự tạo venv.
+- `tests/test_models.py`: tên tài khoản trong đường dẫn thử → `someone`.
+- `docs/handoff/00`, `06`: che tên tài khoản.
+- Còn lại (cố ý giữ): tên tác giả công khai "Anhtiensinh" ở thanh trạng thái/Giới thiệu/`CHANGELOG.md` (thuộc S0-06); mọi lần xuất hiện cũ vẫn nằm trong lịch sử git (xem `SECRET_SCAN_REPORT.md` F-03).

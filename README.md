@@ -14,25 +14,27 @@ uv run pytest
 uv run smartdoc     # launch the app
 ```
 
-Or just double-click `run.bat` in the project root — it sets
-`UV_PROJECT_ENVIRONMENT`/`PYTHONUTF8` and runs `uv run smartdoc` for you,
-and stays open on a crash so you can read the traceback instead of the
-window flashing shut.
+Or just double-click `run.bat` in the project root — it points
+`UV_PROJECT_ENVIRONMENT` at a virtualenv outside the project folder (see below),
+sets `PYTHONUTF8` and runs `uv run smartdoc` for you, and stays open on a crash so
+you can read the traceback instead of the window flashing shut.
 
-**Important if your project folder lives inside OneDrive (as this one does):**
-keep the virtualenv *outside* the synced tree, or `uv sync`/`uv add` will
-intermittently fail with `Access is denied` while OneDrive holds a lock on
-files inside `.venv`. This repo's venv lives at
-`C:/Users/slook/.venvs/ebook-manager`; point uv at it in every session with:
+**Important if your project folder lives inside OneDrive (or any other
+sync tool):** keep the virtualenv *outside* the synced tree, or
+`uv sync`/`uv add` will intermittently fail with `Access is denied` while the
+sync client holds a lock on files inside `.venv`. `run.bat` uses
+`%USERPROFILE%\.venvs\ebook-manager`; to use the same location from your own
+shell, point uv at it in every session with:
 
 ```
-export UV_PROJECT_ENVIRONMENT="C:/Users/slook/.venvs/ebook-manager"   # bash
-$env:UV_PROJECT_ENVIRONMENT = "C:/Users/slook/.venvs/ebook-manager"   # PowerShell
+export UV_PROJECT_ENVIRONMENT="$HOME/.venvs/ebook-manager"       # bash
+$env:UV_PROJECT_ENVIRONMENT = "$env:USERPROFILE\.venvs\ebook-manager"   # PowerShell
 ```
 
 (or set it once as a permanent user environment variable so you don't have
 to repeat it — not done automatically here, since that's a persistent
-system change).
+system change). `run.bat` keeps a value you have already set, so a different
+location works too.
 
 On Windows, if you run a module's demo (`uv run python -m smartdoc.domain.models`)
 from a raw console and see `UnicodeEncodeError` on Vietnamese text, the console is

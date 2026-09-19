@@ -2,7 +2,7 @@ from smartdoc.domain.models import Document, MetadataNormalizer
 
 
 def test_clean_metadata_falls_back_to_filename_stem_not_full_path():
-    raw = {"file_path": r"C:\Users\slook\AppData\Local\Temp\Some Weird Book.pdf"}
+    raw = {"file_path": r"C:\Users\someone\AppData\Local\Temp\Some Weird Book.pdf"}
     cleaned = MetadataNormalizer.clean_metadata(raw)
     assert cleaned["title"] == "Some Weird Book"
 

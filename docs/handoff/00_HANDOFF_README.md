@@ -115,7 +115,7 @@ Sau đó đọc lại `CLAUDE.md` của repo. **`CLAUDE.md` vẫn là nguồn qu
 
 1. Cách `SecretStore` mã hóa và sinh khóa (có khóa cứng trong mã không; có dựa vào cơ chế chỉ có trên Windows không).
 2. Chính sách RLS hiện tại của bảng `reviews`: quyền `insert` trực tiếp cho `anon` còn mở hay không.
-3. Lịch sử git có từng chứa `library.db`, ảnh bìa cache, đường dẫn cá nhân (`slook`), khóa API, file `service_account*.json` không (changelog cho biết từng có lần ghi nhầm cache và cơ sở dữ liệu vào cây mã nguồn).
+3. Lịch sử git có từng chứa `library.db`, ảnh bìa cache, đường dẫn cá nhân (tên tài khoản Windows của chủ dự án), khóa API, file `service_account*.json` không (changelog cho biết từng có lần ghi nhầm cache và cơ sở dữ liệu vào cây mã nguồn).
 4. Phiên bản giấy phép chính xác của `mobi` (GPL-3.0-only, or-later, hay GPLv2) và các phụ thuộc còn lại.
 5. Trạng thái thực tế của hỗ trợ MOBI/AZW3 (README mục Status lệch với changelog).
 6. Số lượng test hiện tại (README ghi 175, có thể đã cũ).
