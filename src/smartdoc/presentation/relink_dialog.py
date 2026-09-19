@@ -1,0 +1,237 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Tools -> "Tìm lại file thiếu...": point books whose file has moved at its new location (S1-04).
+
+The user picks the folder where the files are now; the app lists what it found (matched by content, else by
+name and size) and **changes nothing until the user confirms**. Only the library's stored paths are updated; the
+book files themselves are never touched (application/relink_service.py).
+"""
+from __future__ import annotations
+
+import logging
+import threading
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
+
+from smartdoc.application.relink_service import METHOD_FINGERPRINT, METHOD_HASH, METHOD_NAME_SIZE, RelinkProposal
+
+logger = logging.getLogger(__name__)
+
+_METHOD_LABELS = {
+    METHOD_HASH: "Trùng nội dung",
+    METHOD_NAME_SIZE: "Trùng tên và dung lượng",
+    METHOD_FINGERPRINT: "Trùng dấu vân tay (file đã đổi metadata)",
+}
+_COLUMNS = ("", "Sách", "Đường dẫn cũ", "Đường dẫn mới", "Cách khớp")
+
+
+def method_label(method: str) -> str:
+    return _METHOD_LABELS.get(method, method)
+
+
+class RelinkDialog(QDialog):
+    _progress = Signal(str)
+    _found = Signal(object)  # list[RelinkProposal] | Exception
+    _checked = Signal(object)  # int | Exception
+
+    def __init__(self, context, parent=None) -> None:
+        super().__init__(parent)
+        self.context = context
+        self._service = context.relink
+        self._proposals: list[RelinkProposal] = []
+        self._busy = False
+        self._cancel = threading.Event()
+        self.setWindowTitle("Tìm lại file thiếu")
+        self.setMinimumSize(760, 480)
+
+        layout = QVBoxLayout(self)
+        self.summary_label = QLabel(self)
+        self.summary_label.setWordWrap(True)
+        layout.addWidget(self.summary_label)
+
+        row = QHBoxLayout()
+        self.folder_button = QPushButton("📂 Chọn thư mục gốc mới...", self)
+        self.folder_button.clicked.connect(self._on_choose_folder)
+        self.recheck_button = QPushButton("🔄 Kiểm tra lại file", self)
+        self.recheck_button.clicked.connect(self._on_recheck)
+        row.addWidget(self.folder_button)
+        row.addWidget(self.recheck_button)
+        row.addStretch(1)
+        layout.addLayout(row)
+
+        self.table = QTableWidget(0, len(_COLUMNS), self)
+        self.table.setHorizontalHeaderLabels(list(_COLUMNS))
+        self.table.verticalHeader().setVisible(False)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setTextElideMode(Qt.ElideMiddle)  # a path is only readable with both its drive and its file name
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        for column in (1, 2, 3):
+            header.setSectionResizeMode(column, QHeaderView.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        layout.addWidget(self.table, stretch=1)
+
+        self.status_label = QLabel(self)
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        self.apply_button = QPushButton("✅ Cập nhật đường dẫn đã chọn", self)
+        self.apply_button.clicked.connect(self._on_apply)
+        self.close_button = QPushButton("Đóng", self)
+        self.close_button.clicked.connect(self.reject)
+        buttons.addWidget(self.apply_button)
+        buttons.addWidget(self.close_button)
+        layout.addLayout(buttons)
+
+        self._progress.connect(self.status_label.setText)
+        self._found.connect(self._on_found)
+        self._checked.connect(self._on_checked)
+        self.table.itemChanged.connect(lambda _item: self._update_buttons())
+        self._refresh_summary()
+        self._update_buttons()
+
+    # -- state -----------------------------------------------------------------------------------------------
+
+    def _refresh_summary(self) -> None:
+        missing = self.context.db.count_missing()
+        if missing:
+            self.summary_label.setText(
+                f"{missing} sách không tìm thấy file. Chọn thư mục nơi các file đang nằm; MewBook sẽ tìm và đề xuất, "
+                "bạn xem lại rồi mới xác nhận. File sách không bị di chuyển hay sửa."
+            )
+        else:
+            self.summary_label.setText("Không có sách nào bị mất file. Bấm \"Kiểm tra lại file\" nếu bạn vừa di chuyển sách.")
+
+    def _update_buttons(self) -> None:
+        self.folder_button.setEnabled(not self._busy and self.context.db.count_missing() > 0)
+        self.recheck_button.setEnabled(not self._busy)
+        self.apply_button.setEnabled(not self._busy and bool(self.selected_proposals()))
+
+    def selected_proposals(self) -> list[RelinkProposal]:
+        selected = []
+        for row, proposal in enumerate(self._proposals):
+            item = self.table.item(row, 0)
+            if item is not None and item.checkState() == Qt.Checked:
+                selected.append(proposal)
+        return selected
+
+    def _fill_table(self) -> None:
+        self.table.blockSignals(True)
+        self.table.setRowCount(len(self._proposals))
+        for row, proposal in enumerate(self._proposals):
+            check = QTableWidgetItem()
+            check.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+            check.setCheckState(Qt.Checked if proposal.selected else Qt.Unchecked)
+            if proposal.note:
+                check.setToolTip(proposal.note)
+            self.table.setItem(row, 0, check)
+            method = method_label(proposal.method) + (f" · {proposal.note}" if proposal.note else "")
+            for column, text in ((1, proposal.title), (2, proposal.old_path), (3, proposal.new_path), (4, method)):
+                item = QTableWidgetItem(text)
+                item.setToolTip(text)
+                self.table.setItem(row, column, item)
+        self.table.blockSignals(False)
+
+    # -- background work --------------------------------------------------------------------------------------
+
+    def _run(self, work, done_signal) -> None:
+        self._busy = True
+        self._update_buttons()
+
+        def target() -> None:
+            try:
+                result = work()
+            except Exception as exc:  # noqa: BLE001 -- the worker must always report back, or the buttons stay disabled
+                logger.exception("Relink task failed")
+                result = exc
+            done_signal.emit(result)
+
+        threading.Thread(target=target, name="relink", daemon=True).start()
+
+    def _on_recheck(self) -> None:
+        self.status_label.setText("Đang kiểm tra file của thư viện...")
+        self._run(lambda: self._service.check_files(), self._checked)
+
+    def _on_checked(self, result) -> None:
+        self._busy = False
+        if isinstance(result, Exception):
+            self.status_label.setText(f"⚠️ Không kiểm tra được: {result}")
+        else:
+            self.status_label.setText(f"Đã kiểm tra: {result} sách không tìm thấy file.")
+        self._refresh_summary()
+        self._update_buttons()
+
+    def _on_choose_folder(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục gốc mới chứa các file sách", "")
+        if folder:
+            self.start_search(folder)
+
+    def start_search(self, folder: str) -> None:
+        self.status_label.setText("Đang tìm file trong thư mục...")
+        self._proposals = []
+        self._fill_table()
+
+        def progress(stage: str, done: int, total: int) -> None:
+            text = f"Đang duyệt thư mục: {done} file..." if stage == "scan" else f"Đang đối chiếu: {done}/{total} sách..."
+            self._progress.emit(text)
+
+        self._run(lambda: self._service.propose(folder, progress=progress), self._found)
+
+    def _on_found(self, result) -> None:
+        self._busy = False
+        if isinstance(result, Exception):
+            self.status_label.setText(f"⚠️ Không tìm được: {result}")
+            self._update_buttons()
+            return
+        self._proposals = result
+        self._fill_table()
+        missing = self.context.db.count_missing()
+        if result:
+            self.status_label.setText(
+                f"Tìm thấy {len(result)} trong {missing} sách thiếu. Bỏ chọn dòng nào bạn không muốn, rồi bấm \"Cập nhật\"."
+            )
+        else:
+            self.status_label.setText("Không tìm thấy sách nào trong thư mục này. Thử một thư mục gốc rộng hơn.")
+        self._update_buttons()
+
+    # -- apply -----------------------------------------------------------------------------------------------
+
+    def _confirm(self, count: int) -> bool:
+        answer = QMessageBox.question(
+            self,
+            "Cập nhật đường dẫn",
+            f"Cập nhật đường dẫn của {count} sách sang vị trí mới?\nChỉ thư viện MewBook thay đổi; file sách không bị đụng tới.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes,
+        )
+        return answer == QMessageBox.Yes
+
+    def _on_apply(self) -> None:
+        chosen = self.selected_proposals()
+        if not chosen or not self._confirm(len(chosen)):
+            return
+        for proposal in self._proposals:
+            proposal.selected = proposal in chosen
+        result = self._service.apply(self._proposals)
+        text = f"✅ Đã cập nhật đường dẫn của {result.updated} sách."
+        if result.skipped:
+            text += f" Bỏ qua {len(result.skipped)}: {result.skipped[0][1]}."
+        self.status_label.setText(text)
+        self._proposals = [p for p in self._proposals if p not in chosen]
+        self._fill_table()
+        self._refresh_summary()
+        self._update_buttons()

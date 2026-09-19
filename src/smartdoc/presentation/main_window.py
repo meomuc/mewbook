@@ -41,6 +41,7 @@ from smartdoc.presentation.omnibar import OmnibarSearchBar
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.resources import app_icon_path, brand_logo_path
 from smartdoc.presentation.selection_action_bar import SelectionActionBar
+from smartdoc.presentation.relink_dialog import RelinkDialog
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.smart_classify_bar import SmartClassifyBar
 from smartdoc.presentation.smart_classify_dialogs import SmartClassifyOfferDialog
@@ -193,7 +194,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         # Film grain over everything (mouse-transparent), for themes that want it.
         self.grain_overlay = GrainOverlay(central) if colors.grain_overlay else None
-        self.setStatusBar(StatusBarPanel(context, self))
+        status_bar = StatusBarPanel(context, self)
+        status_bar.relink_requested.connect(self._on_open_relink)
+        self.setStatusBar(status_bar)
 
         self._bridge = QtEventBridge(self)
         self._bridge.event_received.connect(self._on_bridged_event)
@@ -343,6 +346,9 @@ class MainWindow(QMainWindow):
         smart_classify_action = QAction("✨ Phân loại thông minh danh sách đang xem...", self)
         smart_classify_action.triggered.connect(lambda: self.smart_bar.ask_and_start(self.library_view.classification_scope()))
         tools_menu.addAction(smart_classify_action)
+        relink_action = QAction("🔎 Tìm lại file thiếu...", self)
+        relink_action.triggered.connect(self._on_open_relink)
+        tools_menu.addAction(relink_action)
         backup_action = QAction("💾 Sao lưu thư viện...", self)
         backup_action.triggered.connect(lambda: self._on_open_settings(initial_tab="backup"))
         tools_menu.addAction(backup_action)
@@ -404,6 +410,11 @@ class MainWindow(QMainWindow):
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
+
+    def _on_open_relink(self) -> None:
+        dialog = RelinkDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_open_about(self) -> None:
         AboutDialog(self, identity=self.context.identity).exec()

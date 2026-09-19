@@ -135,6 +135,13 @@ New features, so the next release is a MINOR bump (1.1.0).
   written by a newer MewBook is refused with a clear message instead of being opened half-understood. Your book
   files are never touched.
 
+- **Missing files and "Tìm lại file thiếu".** MewBook now notices books whose file has moved, been deleted or sits
+  on an unplugged drive: the check runs in the background at startup and the status bar shows "N sách không tìm
+  thấy file. Tìm lại?". Tools → **Tìm lại file thiếu...** opens a dialog: choose the folder where the files are
+  now, review the list MewBook proposes (matched by file content, else by name and size, else by the file's
+  fingerprint), untick what you don't want, and confirm. Only the library's stored paths change; your book files
+  are never moved or edited, and a relinked book is not imported a second time.
+
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is

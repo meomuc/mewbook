@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import multiprocessing
 import sys
+import threading
 
 from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtGui import QFont, QIcon
@@ -211,6 +212,10 @@ def main() -> None:
     # Books imported before fingerprints existed get theirs in the background.
     fingerprint_backfill = FingerprintBackfill(context)
     fingerprint_backfill.start()
+
+    # Which books have lost their file (moved, deleted, drive unplugged)? Checked in the background so a big or
+    # networked library never delays the window; the status bar shows the answer (S1-04).
+    threading.Thread(target=context.relink.check_files, name="missing-files-check", daemon=True).start()
 
     exit_code = app.exec()
     fingerprint_backfill.stop()

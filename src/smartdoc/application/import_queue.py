@@ -233,6 +233,12 @@ class ImportQueueManager:
             logger.info("Already in library, skipping: %s", path)
             return "duplicate"
 
+        if self.context.db.find_id_by_path(path) is not None:
+            # A book that was relinked to this path keeps its old id (an md5 of its old path), so the id check
+            # above cannot see it; importing it again would duplicate it (S1-04).
+            logger.info("Path already filed under another id, skipping: %s", path)
+            return "duplicate"
+
         if extension == "pdf":
             # extract_all opens the PDF once and reuses that handle for
             # metadata + cover + text, instead of parsing the file three

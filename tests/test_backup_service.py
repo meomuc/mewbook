@@ -22,6 +22,12 @@ def _library(tmp_path: Path, books: int = 3) -> DatabaseManager:
     return db
 
 
+def _next_migration(db_version_sql: str = "ALTER TABLE documents ADD COLUMN note TEXT") -> tuple[sm.Migration, ...]:
+    """The shipped migrations plus one more, so a library created by the current code has something pending."""
+    shipped = sm.MIGRATIONS
+    return shipped + (sm.Migration(len(shipped) + 1, "add note", lambda c: c.execute(db_version_sql)),)
+
+
 def _titles(db: DatabaseManager) -> set[str]:
     return {r["title"] for r in db.connection.execute("SELECT title FROM documents")}
 
@@ -31,7 +37,7 @@ def test_a_backup_is_a_verified_copy_next_to_the_library(tmp_path):
     info = BackupService(db).create_backup()
 
     assert info.path.parent == tmp_path / "backups" and info.path.suffix == ".db"
-    assert info.reason == "manual" and info.schema_version == 0 and info.size > 0
+    assert info.reason == "manual" and info.schema_version == sm.latest_version() and info.size > 0
     copy = sqlite3.connect(info.path)
     assert copy.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 3
     assert copy.execute("PRAGMA quick_check").fetchone()[0] == "ok"
@@ -108,14 +114,16 @@ def test_restore_refuses_a_backup_from_a_newer_release(tmp_path):
 
 def test_a_migration_of_an_existing_library_is_preceded_by_a_backup(tmp_path, monkeypatch):
     path = tmp_path / "library.db"
-    _library(tmp_path)  # a 1.0.0-style library with data
-    monkeypatch.setattr(sm, "MIGRATIONS", (sm.Migration(1, "add note", lambda c: c.execute("ALTER TABLE documents ADD COLUMN note TEXT")),))
+    _library(tmp_path)  # a library with data, at the current schema
+    plan = _next_migration()
+    monkeypatch.setattr(sm, "MIGRATIONS", plan)
 
     context = AppContext(config=ConfigManager(app_data_dir=tmp_path / "appdata"), db=DatabaseManager(str(path)))
 
     backups = context.backups.list_backups()
-    assert len(backups) == 1 and backups[0].reason == "pre-upgrade-v0-to-v1" and backups[0].schema_version == 0
-    assert context.db.schema_version() == 1
+    old, new = plan[-1].version - 1, plan[-1].version
+    assert len(backups) == 1 and backups[0].reason == f"pre-upgrade-v{old}-to-v{new}" and backups[0].schema_version == old
+    assert context.db.schema_version() == new
     context.shutdown()
 
 
@@ -127,27 +135,29 @@ def test_a_migration_that_fails_midway_loses_nothing_and_leaves_the_backup(tmp_p
         connection.execute("DELETE FROM documents")  # destructive, then...
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(sm, "MIGRATIONS", (sm.Migration(1, "explodes", explode),))
+    monkeypatch.setattr(sm, "MIGRATIONS", sm.MIGRATIONS + (sm.Migration(len(sm.MIGRATIONS) + 1, "explodes", explode),))
+    before = sm.latest_version() - 1
     db = DatabaseManager(str(path))
     service = BackupService(db)
     with pytest.raises(sm.MigrationError):
         db.initialize_tables(before_migrate=service.before_migration)
 
-    assert len(_titles(db)) == 3 and db.schema_version() == 0  # rolled back
+    assert len(_titles(db)) == 3 and db.schema_version() == before  # rolled back
     assert len(service.list_backups()) == 1  # and the pre-upgrade backup is there for good measure
 
 
 def test_no_backup_no_migration(tmp_path, monkeypatch):
     path = tmp_path / "library.db"
     _library(tmp_path)
-    monkeypatch.setattr(sm, "MIGRATIONS", (sm.Migration(1, "add note", lambda c: c.execute("ALTER TABLE documents ADD COLUMN note TEXT")),))
+    monkeypatch.setattr(sm, "MIGRATIONS", _next_migration())
     db = DatabaseManager(str(path))
+    current = db.schema_version()
     (tmp_path / "backups").write_text("a file where the folder must go")  # the backup cannot be written
 
     with pytest.raises(BackupError):
         db.initialize_tables(before_migrate=BackupService(db).before_migration)
 
-    assert db.schema_version() == 0
+    assert db.schema_version() == current
 
 
 def test_snapshot_reports_a_failure_in_plain_words(tmp_path):

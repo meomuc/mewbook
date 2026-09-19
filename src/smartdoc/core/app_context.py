@@ -11,6 +11,7 @@ from pathlib import Path
 
 from smartdoc.application.backup_service import BackupService
 from smartdoc.application.facet_counter import FacetCounter
+from smartdoc.application.relink_service import RelinkService
 from smartdoc.core.config import ConfigManager
 from smartdoc.core.event_bus import EventBus
 from smartdoc.core.filter_service import FilterService
@@ -28,6 +29,8 @@ class AppContext:
         # An existing library is backed up before its schema is upgraded (S1-03); a failing backup stops the upgrade.
         self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_retention)
         self.db.initialize_tables(before_migrate=None if self.db.db_path == ":memory:" else self.backups.before_migration)
+        # Missing-file detection and relinking (S1-04).
+        self.relink = RelinkService(self.db, self.event_bus)
         # What the library is filtered by (search text + sidebar selection) --
         # one owner, one event; see core/filter_service.py.
         self.filters = FilterService(self.event_bus)

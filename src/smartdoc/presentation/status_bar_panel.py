@@ -12,7 +12,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel, QStatusBar
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
-from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import FilterChangedEvent, LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.theme import current_colors
@@ -22,6 +22,18 @@ from smartdoc.presentation.theme import current_colors
 # each status indicator inventing its own.
 _STATUS_OK_COLOR = "green"
 _STATUS_MISSING_COLOR = "crimson"
+
+
+class _MissingFilesLabel(QLabel):
+    """"N sách không tìm thấy file. Tìm lại?" -- shown only while some books have lost their file; a click asks
+    the main window to open the relink dialog."""
+
+    clicked = Signal()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class _DonateTicker(QLabel):
@@ -65,6 +77,8 @@ class _DonateTicker(QLabel):
 
 
 class StatusBarPanel(QStatusBar):
+    relink_requested = Signal()  # the "N sách không tìm thấy file. Tìm lại?" label was clicked
+
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
         self.context = context
@@ -83,6 +97,10 @@ class StatusBarPanel(QStatusBar):
         self.ai_label = QLabel(self)
         self.author_label = QLabel("Dev:AnhTienSinh", self)
         self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- phát triển bởi {APP_PUBLISHER}")
+        self.missing_label = _MissingFilesLabel(self)
+        self.missing_label.setCursor(Qt.PointingHandCursor)
+        self.missing_label.setVisible(False)
+        self.missing_label.clicked.connect(self.relink_requested)
         self.donate_ticker = _DonateTicker(self)
         self.donate_ticker.clicked.connect(self._on_donate_clicked)
 
@@ -97,6 +115,7 @@ class StatusBarPanel(QStatusBar):
             # below actually renders instead of showing raw HTML tags.
             label.setTextFormat(Qt.RichText)
             self.addWidget(label)
+        self.addWidget(self.missing_label)
         self.addPermanentWidget(self.donate_ticker)
         self.addPermanentWidget(self.author_label)
 
@@ -105,6 +124,7 @@ class StatusBarPanel(QStatusBar):
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
         self._bridge.subscribe(context.event_bus, FilterChangedEvent)
+        self._bridge.subscribe(context.event_bus, LibraryFilesMissingEvent)
 
         self.refresh()
 
@@ -115,10 +135,19 @@ class StatusBarPanel(QStatusBar):
         if isinstance(event, FilterChangedEvent):
             self._active_collection_ids = event.filter.collections
             self.refresh()
+        elif isinstance(event, LibraryFilesMissingEvent):
+            self._show_missing(event.count)
         else:
             self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
 
+    def _show_missing(self, count: int) -> None:
+        self.missing_label.setVisible(count > 0)
+        if count > 0:
+            self.missing_label.setText(f"<span style='color:{_STATUS_MISSING_COLOR}; font-weight:600;'>⚠️ {count} sách không tìm thấy file. Tìm lại?</span>")
+            self.missing_label.setTextFormat(Qt.RichText)
+
     def refresh(self) -> None:
+        self._show_missing(self.context.db.count_missing())
         total = self.context.db.count_documents()
         complete, incomplete = self.context.db.count_metadata_completeness()
         self.files_label.setText(f"📚 {total} tài liệu  ·  ✅ {complete} đủ thông tin  ·  ⚠️ {incomplete} thiếu thông tin")

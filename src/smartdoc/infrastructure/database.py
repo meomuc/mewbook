@@ -308,10 +308,62 @@ class DatabaseManager:
                     """,
                     params,
                 )
+                # Just read from disk, so it is there (a returning file must stop counting as missing).
+                self.connection.execute(
+                    "UPDATE documents SET file_status = 'present', file_checked_at = ? WHERE id = ?", (now, doc_id)
+                )
                 self.connection.commit()
             except sqlite3.OperationalError:
                 logger.exception("Failed to write document %s (db locked?)", doc_id)
                 raise
+
+    # -- Missing files and relinking (S1-04) ------------------------------------------------------------------
+
+    def files_to_check(self) -> list[tuple[str, str]]:
+        """(id, file_path) of every book, for the existence check."""
+        return [(r["id"], r["file_path"]) for r in self.connection.execute("SELECT id, file_path FROM documents")]
+
+    def record_file_status(self, present_ids: list[str], missing_ids: list[str]) -> None:
+        """Store the result of a check. Deliberately leaves updated_at alone: checking is not an edit."""
+        now = time.time()
+        with self.write_lock:
+            for status, ids in (("present", present_ids), ("missing", missing_ids)):
+                for start in range(0, len(ids), 500):  # stay under SQLite's bound-variable limit
+                    chunk = ids[start : start + 500]
+                    self.connection.execute(
+                        f"UPDATE documents SET file_status = ?, file_checked_at = ? WHERE id IN ({','.join('?' * len(chunk))})",
+                        (status, now, *chunk),
+                    )
+            self.connection.commit()
+
+    def count_missing(self) -> int:
+        return int(self.connection.execute("SELECT COUNT(*) FROM documents WHERE file_status = 'missing'").fetchone()[0])
+
+    def missing_documents(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT id, title, author, file_path, file_size, extension, content_hash, fingerprint FROM documents "
+            "WHERE file_status = 'missing' ORDER BY title COLLATE NOCASE"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def find_id_by_path(self, file_path: str) -> str | None:
+        """The book already filed under this path (Windows paths compare case-insensitively), or None."""
+        row = self.connection.execute(
+            "SELECT id FROM documents WHERE file_path = ? COLLATE NOCASE LIMIT 1", (file_path,)
+        ).fetchone()
+        return row["id"] if row else None
+
+    def relocate_document(self, doc_id: str, new_path: str, file_size: int | None = None) -> bool:
+        """Point an existing book at a new file location. The id (an md5 of the OLD path) stays: collections,
+        reviews and tags refer to it. Only the database changes; no file is touched."""
+        with self.write_lock:
+            cursor = self.connection.execute(
+                "UPDATE documents SET file_path = ?, file_size = COALESCE(?, file_size), file_status = 'present', "
+                "file_checked_at = ? WHERE id = ?",
+                (new_path, file_size, time.time(), doc_id),
+            )
+            self.connection.commit()
+            return cursor.rowcount > 0
 
     def set_page_count(self, doc_id: str, page_count: int) -> None:
         """Stores a counted page total (0 = looked at, unknown). Deliberately leaves

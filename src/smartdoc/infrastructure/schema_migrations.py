@@ -58,9 +58,20 @@ class Migration:
     """Runs inside a transaction opened by `migrate`; must not commit or roll back itself."""
 
 
-# No migration yet: 1.0.0 is the baseline (version 0). The first ones arrive with the file-status columns
-# (S1-04) and the device tables (S3).
-MIGRATIONS: tuple[Migration, ...] = ()
+def _add_file_status_columns(connection: sqlite3.Connection) -> None:
+    """Missing-file detection (S1-04): whether the book's file was found the last time it was checked."""
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+    if "file_status" not in existing:
+        connection.execute("ALTER TABLE documents ADD COLUMN file_status TEXT")  # NULL = never checked, 'present', 'missing'
+    if "file_checked_at" not in existing:
+        connection.execute("ALTER TABLE documents ADD COLUMN file_checked_at REAL")
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_status ON documents(file_status)")
+
+
+# 1.0.0 is the baseline (version 0). The device tables (S3) will be the next entries.
+MIGRATIONS: tuple[Migration, ...] = (
+    Migration(1, "documents.file_status / file_checked_at (missing-file detection)", _add_file_status_columns),
+)
 
 
 def _resolve(migrations: Sequence[Migration] | None) -> Sequence[Migration]:

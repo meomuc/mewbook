@@ -53,6 +53,13 @@ class LibraryUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class LibraryFilesMissingEvent(BaseEvent):
+    """A check of the library's files found `count` books whose file is gone (0 = all present)."""
+
+    count: int = 0
+
+
+@dataclass(frozen=True)
 class FilterChangedEvent(BaseEvent):
     """The one event for "what the library is filtered by" -- search text,
     collections, hashtags, authors and formats together (see FilterService)."""
