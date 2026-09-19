@@ -73,6 +73,7 @@ from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES,
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
 from smartdoc.presentation.backup_panel import BackupPanel
 from smartdoc.presentation.theme import THEMES, current_colors, resolve_font_family
+from smartdoc.presentation.update_panel import UpdatePanel
 from smartdoc.presentation.theme_effects import theme_preview_pixmap
 
 # Written out step by step rather than as a one-line "get a key here"
@@ -186,6 +187,8 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_cloud_review_tab(config), "☁️ Đánh giá cộng đồng")
         self.backup_panel = BackupPanel(context, self)
         tabs.addTab(self.backup_panel, "💾 Sao lưu")
+        self.update_panel = UpdatePanel(context, self)
+        tabs.addTab(self.update_panel, "⬆️ Cập nhật")
         if initial_tab == "backup":
             tabs.setCurrentWidget(self.backup_panel)
 
@@ -859,6 +862,7 @@ class SettingsDialog(QDialog):
         config.watch_folders = new_folders
 
         config.backup_retention = self.backup_panel.retention()
+        config.update_check_enabled = self.update_panel.is_enabled()
         config.ereader_folder_path = self._ereader_folder_path or None
         config.metadata_write_to_file_default = self.metadata_write_check.isChecked()
         config.metadata_backup_keep = self.metadata_backup_spin.value()

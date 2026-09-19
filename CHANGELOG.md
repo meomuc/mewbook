@@ -142,6 +142,11 @@ New features, so the next release is a MINOR bump (1.1.0).
   fingerprint), untick what you don't want, and confirm. Only the library's stored paths change; your book files
   are never moved or edited, and a relinked book is not imported a second time.
 
+- **Optional "newer version?" notice.** Settings → **Cập nhật** can check a public release page for a newer MewBook, at
+  most once a day at startup or on demand. It is **off by default**, only tells you and links to the release page
+  (nothing is downloaded or installed), and sends no install id or library data. (The release page address is set
+  when the project's public repository exists; until then the tab says it is not configured.)
+
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is

@@ -8,11 +8,12 @@ reacts to, so the counts here never lag behind what's on screen.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QLabel, QStatusBar
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
-from smartdoc.core.event_bus import FilterChangedEvent, LibraryFilesMissingEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import FilterChangedEvent, LibraryFilesMissingEvent, LibraryUpdatedEvent, UpdateAvailableEvent
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.theme import current_colors
@@ -24,9 +25,8 @@ _STATUS_OK_COLOR = "green"
 _STATUS_MISSING_COLOR = "crimson"
 
 
-class _MissingFilesLabel(QLabel):
-    """"N sách không tìm thấy file. Tìm lại?" -- shown only while some books have lost their file; a click asks
-    the main window to open the relink dialog."""
+class _ClickableStatusLabel(QLabel):
+    """A status-bar notice that can be clicked: "N sách không tìm thấy file. Tìm lại?", "Có bản mới"..."""
 
     clicked = Signal()
 
@@ -97,10 +97,15 @@ class StatusBarPanel(QStatusBar):
         self.ai_label = QLabel(self)
         self.author_label = QLabel("Dev:AnhTienSinh", self)
         self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- phát triển bởi {APP_PUBLISHER}")
-        self.missing_label = _MissingFilesLabel(self)
+        self.missing_label = _ClickableStatusLabel(self)
         self.missing_label.setCursor(Qt.PointingHandCursor)
         self.missing_label.setVisible(False)
         self.missing_label.clicked.connect(self.relink_requested)
+        self.update_label = _ClickableStatusLabel(self)
+        self.update_label.setCursor(Qt.PointingHandCursor)
+        self.update_label.setVisible(False)
+        self._update_url = ""
+        self.update_label.clicked.connect(self._on_update_clicked)
         self.donate_ticker = _DonateTicker(self)
         self.donate_ticker.clicked.connect(self._on_donate_clicked)
 
@@ -116,6 +121,7 @@ class StatusBarPanel(QStatusBar):
             label.setTextFormat(Qt.RichText)
             self.addWidget(label)
         self.addWidget(self.missing_label)
+        self.addWidget(self.update_label)
         self.addPermanentWidget(self.donate_ticker)
         self.addPermanentWidget(self.author_label)
 
@@ -125,6 +131,7 @@ class StatusBarPanel(QStatusBar):
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
         self._bridge.subscribe(context.event_bus, FilterChangedEvent)
         self._bridge.subscribe(context.event_bus, LibraryFilesMissingEvent)
+        self._bridge.subscribe(context.event_bus, UpdateAvailableEvent)
 
         self.refresh()
 
@@ -137,8 +144,20 @@ class StatusBarPanel(QStatusBar):
             self.refresh()
         elif isinstance(event, LibraryFilesMissingEvent):
             self._show_missing(event.count)
+        elif isinstance(event, UpdateAvailableEvent):
+            self._show_update(event.version, event.url)
         else:
             self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
+
+    def _show_update(self, version: str, url: str) -> None:
+        self._update_url = url
+        self.update_label.setTextFormat(Qt.RichText)
+        self.update_label.setText(f"<span style='color:{_STATUS_OK_COLOR}; font-weight:600;'>⬆️ Có bản mới {version}. Xem?</span>")
+        self.update_label.setVisible(True)
+
+    def _on_update_clicked(self) -> None:
+        if self._update_url.startswith("https://"):
+            QDesktopServices.openUrl(QUrl(self._update_url))
 
     def _show_missing(self, count: int) -> None:
         self.missing_label.setVisible(count > 0)

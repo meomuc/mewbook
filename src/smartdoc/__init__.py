@@ -24,3 +24,7 @@ APP_LICENSE_URL = "https://www.gnu.org/licenses/agpl-3.0.html"
 # (e.g. "https://<host>/<owner>/<repo>/tree/v{version}"). Empty until the public repository
 # exists: About then shows a text fallback instead of a link. Set before the first release.
 APP_SOURCE_URL_TEMPLATE = ""
+# A GitHub-style "latest release" JSON (tag_name, html_url) for the optional, off-by-default update check
+# (application/update_checker.py). Empty until the public repository exists; set it together with the URL above.
+# Example: "https://api.github.com/repos/<owner>/<repo>/releases/latest"
+APP_UPDATE_FEED_URL = ""

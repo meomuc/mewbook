@@ -53,6 +53,14 @@ class LibraryUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class UpdateAvailableEvent(BaseEvent):
+    """The update check found a newer MewBook (`version`, and `url` of its release page)."""
+
+    version: str = ""
+    url: str = ""
+
+
+@dataclass(frozen=True)
 class LibraryFilesMissingEvent(BaseEvent):
     """A check of the library's files found `count` books whose file is gone (0 = all present)."""
 

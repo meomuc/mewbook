@@ -16,6 +16,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Google Custom Search JSON API | ảnh bìa từ toàn web | khóa + cx của người dùng | Được phép cho khách hàng **hiện có**; **đã đóng với khách hàng mới** | Tắt (cần khóa) |
 | Nhà cung cấp AI (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, OpenRouter, Ollama) | tóm tắt sách | khóa của người dùng | Theo điều khoản từng nhà cung cấp; **nội dung sách rời khỏi máy** | Tắt (cần khóa) |
 | Supabase (dịch vụ đánh giá) | đánh giá cộng đồng | khóa anon (công khai theo thiết kế) | Do chủ dự án vận hành; xem S2 | Tắt (cần cấu hình) |
+| Nguồn thông tin bản phát hành (kiểm tra cập nhật) | báo có bản mới | không | Trang phát hành của chính dự án; chỉ đọc số phiên bản | **Tắt** (người dùng bật; cần `APP_UPDATE_FEED_URL`) |
 
 ## 2. Chi tiết từng nguồn
 
@@ -79,6 +80,13 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 - **Dữ liệu gửi đi:** mã tài liệu (`doc_id`), biệt danh, điểm, nhận xét, và mã định danh ẩn danh (băm ở máy chủ). Tệp sách không được gửi. Đặc tả: `docs/handoff/09_ERROR_REPORTING_SPEC.md` và S2.
 - **Việc cần làm:** bản nháp Privacy/Terms (S2-06); phần này không thuộc S0-08.
 
+### 2.9 Kiểm tra bản mới (tùy chọn, S1-05)
+
+- **Điểm cuối:** `APP_UPDATE_FEED_URL` trong `smartdoc/__init__.py`, một JSON "bản phát hành mới nhất" kiểu GitHub (`tag_name`, `html_url`). **Đang để trống** cho tới khi kho công khai tồn tại; khi trống, giao diện nói chưa cấu hình và không làm gì.
+- **Khi nào:** chỉ khi người dùng bật ở Cài đặt → Cập nhật (mặc định tắt), tối đa mỗi ngày một lần khi khởi động, hoặc bấm "Kiểm tra ngay".
+- **Gửi gì:** một yêu cầu GET với `User-Agent: MewBook/<phiên bản>`. **Không** gửi mã cài đặt ẩn danh, thông tin thư viện hay cookie (có test kiểm tra). Máy chủ thấy địa chỉ IP và số phiên bản.
+- **Làm gì với kết quả:** chỉ báo "Có bản mới X" và mở trang phát hành (chỉ liên kết `https://`) khi người dùng bấm. Không tải, không cài.
+
 ## 3. Dữ liệu nào rời khỏi máy, theo nguồn
 
 | Nguồn | Gửi đi |
@@ -87,6 +95,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Google Custom Search | Tên sách, tác giả, khóa API và cx của người dùng |
 | Nhà cung cấp AI | Nội dung yêu cầu người dùng đã duyệt (có thể chứa trích đoạn sách), khóa API |
 | Supabase | Mã tài liệu, biệt danh, điểm, nhận xét, mã ẩn danh |
+| Kiểm tra bản mới (nếu bật) | Chỉ địa chỉ IP và số phiên bản MewBook |
 
 Không nguồn nào nhận tệp sách nguyên vẹn.
 

@@ -134,6 +134,9 @@ class AppConfig:
     disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
     # How many backups of library.db to keep in the "backups" folder next to it (application/backup_service.py).
     backup_retention: int = 5
+    # Optional "newer version?" check (application/update_checker.py): off unless the user turns it on; notify-only.
+    update_check_enabled: bool = False
+    update_last_checked: float = 0.0
     # Whether the user has accepted the EULA/Privacy notice shown on first
     # launch (see presentation/eula_dialog.py). False on every fresh
     # install; never reset automatically once True.
