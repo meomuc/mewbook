@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import zipfile
 
 from smartdoc.infrastructure.file_hash import sha256_file
@@ -54,6 +55,11 @@ def fingerprint_file(path: str, extension: str | None = None) -> str | None:
     """The fingerprint of the file at `path`, or None if it can't be read
     (missing, corrupt, encrypted)."""
     extension = (extension or path.rsplit(".", 1)[-1]).lower().lstrip(".")
+    if not os.path.isfile(path):
+        # A book whose file has moved or gone is routine now that files can be relinked (S1-04); one plain line,
+        # not a traceback per book at every start of the background backfill.
+        logger.info("No fingerprint for %s: the file is not there", path)
+        return None
     try:
         if extension == "epub":
             return _epub_fingerprint(path)

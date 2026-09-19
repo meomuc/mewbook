@@ -11,20 +11,22 @@
 
 ## S0 — Chuẩn bị mở mã nguồn an toàn
 
+> **Trạng thái 2026-09-19:** S0-01 đến S0-12 và S1-01 đến S1-10 đã làm xong về kỹ thuật (đánh dấu [x]); phần còn chờ chủ dự án và luật sư nằm ở `docs/legal/LEGAL_STATUS.md`. Còn chưa làm: S1e (báo lỗi), S2, S3, S4, S5.
+
 Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật hay dữ liệu cá nhân. **Chưa công khai gì khi chưa xong S0 và chưa có chữ ký duyệt của chủ dự án.**
 
-- [ ] **S0-01 [R]** Kiểm kê giấy phép: mọi phụ thuộc (trực tiếp và gián tiếp), tài nguyên đóng gói (model phân loại, `taxonomy.json`, icon, font, ảnh xem trước theme, dữ liệu khác). Ghi `docs/legal/LICENSE_INVENTORY.md` (tên, phiên bản, giấy phép, tương thích AGPL-3.0 có/không/chưa rõ). Xác minh cụ thể: phiên bản giấy phép của `mobi`; các module Qt/PySide6 đang dùng có nằm ngoài LGPL không. Cập nhật `THIRD_PARTY_NOTICES.md`. *Hoàn thành khi:* không còn mục "chưa rõ" hoặc mục đó được nêu thành câu hỏi cho chủ dự án/luật sư.
-- [ ] **S0-02 [R][H]** Quét bí mật và dữ liệu cá nhân trong cây làm việc **và toàn bộ lịch sử git** (các mẫu: khóa API, khóa Supabase, `service_account*.json`, `credentials.json`, `token.json`, `.env`, `*.pem`, `*.key`, `identity.dat`, `*.db`, ảnh bìa cache, đường dẫn cá nhân như `C:/Users/...`). Ghi `docs/legal/SECRET_SCAN_REPORT.md` với vị trí (commit/đường dẫn) và loại phát hiện, **che mọi giá trị bí mật**. Đề xuất hành động (thu hồi khóa, xử lý lịch sử) nhưng **không thực hiện**. *Hoàn thành khi:* báo cáo đầy đủ; chủ dự án đã đọc và quyết định.
-- [ ] **S0-03 [R]** Dọn dữ liệu cá nhân trong tài liệu và mã (README có đường dẫn cá nhân và ghi chú về OneDrive riêng của chủ dự án): thay bằng hướng dẫn chung. Không đổi hành vi.
-- [ ] **S0-04 [R]** Kiểm toán mô hình phân loại: từ vựng có cụm từ hiếm/tên riêng nhận diện được thư viện của tác giả không; đề xuất ngưỡng tần suất tối thiểu khi huấn luyện (`train.py`); chờ chủ dự án quyết định trước khi đổi model.
-- [ ] **S0-05 [O4]** Thêm `LICENSE` (văn bản AGPL-3.0), metadata giấy phép trong `pyproject.toml`, chính sách SPDX cho tệp mới; thay cơ chế sinh `packaging/EULA.txt` bằng văn bản giấy phép AGPL kèm tuyên bố miễn trừ bảo hành; cập nhật trình cài đặt để hiển thị giấy phép.
-- [ ] **S0-06** Hộp thoại Giới thiệu: hiển thị giấy phép AGPL-3.0, liên kết tới mã nguồn đúng phiên bản (gắn với `__version__`), thông báo bên thứ ba. Cập nhật quy trình phát hành trong README: đính kèm gói mã nguồn, tag, checksum.
-- [ ] **S0-07** `TRADEMARK.md` (tên/logo, điều kiện dùng, bản sửa đổi phải đổi tên), `PARTNERS.md` (một trang: được gì, phải giữ gì, không cam kết hỗ trợ, liên hệ). Gom tên hiển thị/logo/biểu tượng về một điểm cấu hình duy nhất trong mã (chuẩn bị đồng thương hiệu tương lai, không làm tính năng đồng thương hiệu).
-- [ ] **S0-08 [R]** `docs/legal/DATA_SOURCES.md`: mỗi nguồn (Open Library, Google Books + Atom feed, Apple Books, Tiki, Google Custom Search, nhà cung cấp AI…) với endpoint, xác thực, liên kết điều khoản, giới hạn, tình trạng "được phép/chưa rõ". Xác minh Tiki. Thêm công tắc bật/tắt từng nguồn ảnh bìa trong Cài đặt (`disabled_cover_sources`).
-- [ ] **S0-09 [R]** Chính sách DRM: viết vào `docs/legal/DRM_POLICY.md`; đưa bản diff đề xuất A2 cho `CLAUDE.md` (không tự sửa).
-- [ ] **S0-10 [R]** Đưa ra bản diff đề xuất các sửa đổi A1, A3–A6 của `CLAUDE.md` (`01_PRD.md` mục 7).
-- [ ] **S0-11** Dọn tài liệu: làm mới README mục Status theo thực tế (số test, MOBI/AZW3, chức năng đã có); chuyển câu chuyện Drive → Firestore → Supabase sang `docs/adr/0001-cloud-review-backend.md`; ghi `docs/NAMING.md` (giữ tên gói `smartdoc`, tên hiển thị MewBook — **[O7]**).
-- [ ] **S0-12 [H]** Tổng kết checklist pháp lý cho chủ dự án và luật sư (`05_LEGAL_OPEN_SOURCE_CHECKLIST.md`), điền kết quả.
+- [x] **S0-01 [R]** Kiểm kê giấy phép: mọi phụ thuộc (trực tiếp và gián tiếp), tài nguyên đóng gói (model phân loại, `taxonomy.json`, icon, font, ảnh xem trước theme, dữ liệu khác). Ghi `docs/legal/LICENSE_INVENTORY.md` (tên, phiên bản, giấy phép, tương thích AGPL-3.0 có/không/chưa rõ). Xác minh cụ thể: phiên bản giấy phép của `mobi`; các module Qt/PySide6 đang dùng có nằm ngoài LGPL không. Cập nhật `THIRD_PARTY_NOTICES.md`. *Hoàn thành khi:* không còn mục "chưa rõ" hoặc mục đó được nêu thành câu hỏi cho chủ dự án/luật sư.
+- [x] **S0-02 [R][H]** Quét bí mật và dữ liệu cá nhân trong cây làm việc **và toàn bộ lịch sử git** (các mẫu: khóa API, khóa Supabase, `service_account*.json`, `credentials.json`, `token.json`, `.env`, `*.pem`, `*.key`, `identity.dat`, `*.db`, ảnh bìa cache, đường dẫn cá nhân như `C:/Users/...`). Ghi `docs/legal/SECRET_SCAN_REPORT.md` với vị trí (commit/đường dẫn) và loại phát hiện, **che mọi giá trị bí mật**. Đề xuất hành động (thu hồi khóa, xử lý lịch sử) nhưng **không thực hiện**. *Hoàn thành khi:* báo cáo đầy đủ; chủ dự án đã đọc và quyết định.
+- [x] **S0-03 [R]** Dọn dữ liệu cá nhân trong tài liệu và mã (README có đường dẫn cá nhân và ghi chú về OneDrive riêng của chủ dự án): thay bằng hướng dẫn chung. Không đổi hành vi.
+- [x] **S0-04 [R]** Kiểm toán mô hình phân loại: từ vựng có cụm từ hiếm/tên riêng nhận diện được thư viện của tác giả không; đề xuất ngưỡng tần suất tối thiểu khi huấn luyện (`train.py`); chờ chủ dự án quyết định trước khi đổi model.
+- [x] **S0-05 [O4]** Thêm `LICENSE` (văn bản AGPL-3.0), metadata giấy phép trong `pyproject.toml`, chính sách SPDX cho tệp mới; thay cơ chế sinh `packaging/EULA.txt` bằng văn bản giấy phép AGPL kèm tuyên bố miễn trừ bảo hành; cập nhật trình cài đặt để hiển thị giấy phép.
+- [x] **S0-06** Hộp thoại Giới thiệu: hiển thị giấy phép AGPL-3.0, liên kết tới mã nguồn đúng phiên bản (gắn với `__version__`), thông báo bên thứ ba. Cập nhật quy trình phát hành trong README: đính kèm gói mã nguồn, tag, checksum.
+- [x] **S0-07** `TRADEMARK.md` (tên/logo, điều kiện dùng, bản sửa đổi phải đổi tên), `PARTNERS.md` (một trang: được gì, phải giữ gì, không cam kết hỗ trợ, liên hệ). Gom tên hiển thị/logo/biểu tượng về một điểm cấu hình duy nhất trong mã (chuẩn bị đồng thương hiệu tương lai, không làm tính năng đồng thương hiệu).
+- [x] **S0-08 [R]** `docs/legal/DATA_SOURCES.md`: mỗi nguồn (Open Library, Google Books + Atom feed, Apple Books, Tiki, Google Custom Search, nhà cung cấp AI…) với endpoint, xác thực, liên kết điều khoản, giới hạn, tình trạng "được phép/chưa rõ". Xác minh Tiki. Thêm công tắc bật/tắt từng nguồn ảnh bìa trong Cài đặt (`disabled_cover_sources`).
+- [x] **S0-09 [R]** Chính sách DRM: viết vào `docs/legal/DRM_POLICY.md`; đưa bản diff đề xuất A2 cho `CLAUDE.md` (không tự sửa).
+- [x] **S0-10 [R]** Đưa ra bản diff đề xuất các sửa đổi A1, A3–A6 của `CLAUDE.md` (`01_PRD.md` mục 7).
+- [x] **S0-11** Dọn tài liệu: làm mới README mục Status theo thực tế (số test, MOBI/AZW3, chức năng đã có); chuyển câu chuyện Drive → Firestore → Supabase sang `docs/adr/0001-cloud-review-backend.md`; ghi `docs/NAMING.md` (giữ tên gói `smartdoc`, tên hiển thị MewBook — **[O7]**).
+- [x] **S0-12 [H]** Tổng kết checklist pháp lý cho chủ dự án và luật sư (`05_LEGAL_OPEN_SOURCE_CHECKLIST.md`), điền kết quả.
 
 **Thoát S0:** báo cáo quét đã được chủ dự án xử lý; giấy phép và thông báo hoàn chỉnh; luật sư đã xác nhận (hoặc chủ dự án chấp nhận rủi ro bằng văn bản); README/tài liệu sạch dữ liệu cá nhân.
 
@@ -32,15 +34,15 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 
 ## S1 — Nền tảng vận hành
 
-- [ ] **S1-01 [O6]** CI trên Windows: chạy `uv sync --group dev` và `uv run pytest -q` (offscreen), và bước kiểm tra dựng exe. Cache uv. Test timing-based (S1-08) phải ổn định trước.
-- [ ] **S1-02** Schema versioning: khung migration `user_version` (mục 3 của `02`); test nâng cấp từ `library.db` mẫu 1.0.0.
-- [ ] **S1-03** `backup_service`: sao lưu tự động trước migration; giữ `backup_retention` bản; Cài đặt có Sao lưu ngay/Khôi phục (có xác nhận và sao lưu trước khi khôi phục). Test: migration lỗi giữa chừng không mất dữ liệu.
-- [ ] **S1-04** `relink_service` và hộp thoại: đánh dấu file mất khi quét; khớp `content_hash` rồi tên + kích thước; xem trước rồi mới cập nhật. Không chạm file gốc.
-- [ ] **S1-05 [O8]** Kiểm tra cập nhật chỉ thông báo, tùy chọn bật, không gửi định danh.
-- [ ] **S1-06 [O9][H]** Móc ký mã trong `packaging/build.ps1` (bước tùy chọn theo biến môi trường; không có chứng chỉ thì bỏ qua và ghi chú). Danh sách việc của chủ dự án về chứng chỉ/chương trình ký mã.
-- [ ] **S1-07 [O5]** `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, mẫu issue/PR, hướng dẫn DCO.
-- [ ] **S1-08** Ổn định `test_file_watcher`, `test_import_queue` (không dựa vào thời gian cứng); đánh dấu test SVM cần numpy hợp lý.
-- [ ] **S1-09 [R]** Kiểm kê mã riêng của Windows (`docs/handoff/PLATFORM_AUDIT.md`), cùng phương án cho `SecretStore` trên hệ khác. Không tái cấu trúc trừ khi rất nhỏ.
+- [x] **S1-01 [O6]** CI trên Windows: chạy `uv sync --group dev` và `uv run pytest -q` (offscreen), và bước kiểm tra dựng exe. Cache uv. Test timing-based (S1-08) phải ổn định trước.
+- [x] **S1-02** Schema versioning: khung migration `user_version` (mục 3 của `02`); test nâng cấp từ `library.db` mẫu 1.0.0.
+- [x] **S1-03** `backup_service`: sao lưu tự động trước migration; giữ `backup_retention` bản; Cài đặt có Sao lưu ngay/Khôi phục (có xác nhận và sao lưu trước khi khôi phục). Test: migration lỗi giữa chừng không mất dữ liệu.
+- [x] **S1-04** `relink_service` và hộp thoại: đánh dấu file mất khi quét; khớp `content_hash` rồi tên + kích thước; xem trước rồi mới cập nhật. Không chạm file gốc.
+- [x] **S1-05 [O8]** Kiểm tra cập nhật chỉ thông báo, tùy chọn bật, không gửi định danh.
+- [x] **S1-06 [O9][H]** Móc ký mã trong `packaging/build.ps1` (bước tùy chọn theo biến môi trường; không có chứng chỉ thì bỏ qua và ghi chú). Danh sách việc của chủ dự án về chứng chỉ/chương trình ký mã.
+- [x] **S1-07 [O5]** `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, mẫu issue/PR, hướng dẫn DCO.
+- [x] **S1-08** Ổn định `test_file_watcher`, `test_import_queue` (không dựa vào thời gian cứng); đánh dấu test SVM cần numpy hợp lý.
+- [x] **S1-09 [R]** Kiểm kê mã riêng của Windows (`docs/handoff/PLATFORM_AUDIT.md`), cùng phương án cho `SecretStore` trên hệ khác. Không tái cấu trúc trừ khi rất nhỏ.
 
 **Thoát S1:** CI xanh; nâng cấp từ 1.0.0 không mất dữ liệu (test tự động); có sao lưu và relink; tài liệu cộng đồng đầy đủ.
 
@@ -148,7 +150,7 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 - [ ] **S0-06 (sửa thêm):** thống nhất dòng ghi tác giả ở thanh trạng thái với thông báo bản quyền trong Giới thiệu.
 - [ ] **BR-00 [R]:** đọc đường ống thương hiệu hiện có trước khi làm BR-02 (`08` mục 12).
 - [ ] **S3d (bổ sung):** FR-SYN-19, gửi nhanh danh sách "★ Sẽ đọc" và chỉ báo ở thanh bên (`07` mục 3, SYN-A16).
-- [ ] **S1-10 (mới):** đặt `docs/RELEASE_CHECKLIST.md` vào repo và dùng nó cho mọi lần phát hành; làm `packaging/build.ps1` phù hợp với mục 7 và 10 của danh sách (bỏ EULA thương mại, thêm bước ký tùy chọn theo biến môi trường, tạo gói mã nguồn và `SHA256SUMS.txt`). Việc tag, push và đăng bản phát hành thuộc chủ dự án.
+- [x] **S1-10 (mới):** đặt `docs/RELEASE_CHECKLIST.md` vào repo và dùng nó cho mọi lần phát hành; làm `packaging/build.ps1` phù hợp với mục 7 và 10 của danh sách (bỏ EULA thương mại, thêm bước ký tùy chọn theo biến môi trường, tạo gói mã nguồn và `SHA256SUMS.txt`). Việc tag, push và đăng bản phát hành thuộc chủ dự án.
 
 ### S1e — Báo lỗi và ghi nhận lỗi (gói trong 1.1.0; chi tiết `09` mục 12)
 - [ ] **E-01 đến E-06:** ứng dụng (đọc hiện trạng, bộ che dữ liệu, hàng đợi, hộp thoại và cài đặt, uploader, cập nhật văn bản riêng tư).

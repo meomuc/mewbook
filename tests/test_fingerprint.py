@@ -64,3 +64,14 @@ def test_unreadable_files_have_no_fingerprint(tmp_path):
     broken.write_bytes(b"this is not a zip")
     assert fingerprint_file(str(broken)) is None
     assert fingerprint_file(str(tmp_path / "missing.pdf")) is None
+
+
+def test_a_missing_file_has_no_fingerprint_and_no_traceback_in_the_log(tmp_path, caplog):
+    import logging
+
+    from smartdoc.infrastructure.fingerprint import fingerprint_file
+
+    with caplog.at_level(logging.INFO, logger="smartdoc.infrastructure.fingerprint"):
+        assert fingerprint_file(str(tmp_path / "gone.pdf")) is None
+    assert any("the file is not there" in r.getMessage() for r in caplog.records)
+    assert all(r.exc_info is None for r in caplog.records)  # one line, not a traceback per missing book
