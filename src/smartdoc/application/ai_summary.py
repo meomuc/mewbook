@@ -23,6 +23,8 @@ import time
 
 import requests
 
+from smartdoc import APP_NAME
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 90
@@ -331,7 +333,7 @@ def _call_openai_compatible(
 ) -> str:
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     if "openrouter.ai" in url:
-        headers["X-Title"] = "MewBook"  # OpenRouter's optional app attribution header
+        headers["X-Title"] = APP_NAME  # OpenRouter's optional app attribution header
     payload = {
         "model": model,
         "max_tokens": max_tokens,

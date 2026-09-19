@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc import APP_DISPLAY_NAME
 from smartdoc.application.calibre_migrator import CalibreImporter
 from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
 from smartdoc.core.config import THEME_CHOICES
@@ -79,7 +80,7 @@ class MainWindow(QMainWindow):
         # restart (theme.py can't live-restyle already-built stylesheets).
         self._on_appearance_changed = on_appearance_changed
 
-        self.setWindowTitle("Mèo Mực")
+        self.setWindowTitle(APP_DISPLAY_NAME)
         self.resize(1400, 800)
         self.setAcceptDrops(True)
         icon_path = app_icon_path()
@@ -223,7 +224,7 @@ class MainWindow(QMainWindow):
         row.addWidget(logo)
         if colors.icon_rail_sidebar:
             row.addSpacing(8)
-        brand_name = "MÈO MỰC" if colors.brand_caps else "Mèo Mực"
+        brand_name = APP_DISPLAY_NAME.upper() if colors.brand_caps else APP_DISPLAY_NAME
         brand = QLabel(f"{colors.brand_prefix}{brand_name}", header)
         brand.setObjectName("BrandLabel")
         if colors.brand_caps:

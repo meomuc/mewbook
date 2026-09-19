@@ -60,6 +60,8 @@ from urllib.parse import urlsplit
 
 import requests
 
+from smartdoc import APP_NAME, __version__
+
 logger = logging.getLogger(__name__)
 
 _OPEN_LIBRARY_SEARCH_URL = "https://openlibrary.org/search.json"
@@ -78,7 +80,7 @@ _RETRY_DELAY_SECONDS = 1.5
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 # Open Library asks API clients to identify themselves; a descriptive UA
 # also gets treated better than python-requests' default by most CDNs.
-_HEADERS = {"User-Agent": "MewBook/1.0 (ebook manager; cover lookup)"}
+_HEADERS = {"User-Agent": f"{APP_NAME}/{__version__} (ebook manager; cover lookup)"}
 
 _CACHE_TTL_SECONDS = 30 * 60
 _CACHE_MAX_ENTRIES = 64

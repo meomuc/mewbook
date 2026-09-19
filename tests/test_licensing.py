@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The licence declared in the code, in pyproject.toml and in LICENSE must agree (docs/legal/SPDX_POLICY.md)."""
 from __future__ import annotations
 

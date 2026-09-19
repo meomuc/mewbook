@@ -11,6 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel, QStatusBar
 
+from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
@@ -81,7 +82,7 @@ class StatusBarPanel(QStatusBar):
         self.cloud_label = QLabel(self)
         self.ai_label = QLabel(self)
         self.author_label = QLabel("Dev:AnhTienSinh", self)
-        self.author_label.setToolTip("Mèo Mực (MewBook) -- phát triển bởi AnhTienSinh")
+        self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- phát triển bởi {APP_PUBLISHER}")
         self.donate_ticker = _DonateTicker(self)
         self.donate_ticker.clicked.connect(self._on_donate_clicked)
 

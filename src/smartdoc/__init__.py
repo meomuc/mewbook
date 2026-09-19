@@ -10,6 +10,8 @@ it from here. Versioning follows Semantic Versioning 2.0.0 -- see
 
 __version__ = "1.0.0"
 
+# Names and publisher: the single place the UI, log header, exe metadata and HTTP User-Agent read them from
+# (a partner's co-branding, decision D9, is deferred; the logo/icon files are resolved in presentation/resources.py).
 APP_NAME = "MewBook"
 APP_DISPLAY_NAME = "Mèo Mực"
 APP_DESCRIPTION = "Trình quản lý tài liệu/ebook theo metadata"

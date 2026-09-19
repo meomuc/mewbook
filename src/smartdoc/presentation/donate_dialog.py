@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
+from smartdoc import APP_DISPLAY_NAME
 from smartdoc.presentation.resources import donate_qr_path
 from smartdoc.presentation.theme import current_colors
 
@@ -33,7 +34,7 @@ class DonateDialog(QDialog):
         self.setStyleSheet(f"QDialog {{ background: {colors.surface}; color: {colors.sidebar_text}; }}")
 
         message = QLabel(
-            "☕ Cảm ơn bạn đã dùng Mèo Mực!\n\nNếu ứng dụng làm bạn vui, mời tác giả một ly cà phê nhé 😽",
+            f"☕ Cảm ơn bạn đã dùng {APP_DISPLAY_NAME}!\n\nNếu ứng dụng làm bạn vui, mời tác giả một ly cà phê nhé 😽",
             self,
         )
         message.setWordWrap(True)

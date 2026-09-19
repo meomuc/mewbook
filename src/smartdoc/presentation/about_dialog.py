@@ -30,6 +30,7 @@ from smartdoc import (
     APP_LICENSE_ID,
     APP_LICENSE_URL,
     APP_NAME,
+    APP_PUBLISHER,
     APP_SOURCE_URL_TEMPLATE,
     __version__,
 )
@@ -104,7 +105,7 @@ class AboutDialog(QDialog):
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
-        author = QLabel("Phát triển bởi Anhtiensinh", page)
+        author = QLabel(f"Phát triển bởi {APP_PUBLISHER}", page)
         author.setAlignment(Qt.AlignCenter)
         layout.addWidget(author)
 
