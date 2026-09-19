@@ -33,3 +33,7 @@ Danh sách này gộp 9 câu chuẩn ở `docs/handoff/05_LEGAL_OPEN_SOURCE_CHEC
 ## D. Từ kiểm toán mô hình phân loại (S0-04)
 
 11. **Nguồn gốc kho huấn luyện của mô hình đi kèm.** Mô hình chỉ chứa thống kê từ (không có văn bản sách) nhưng được huấn luyện từ thư viện cá nhân của chủ dự án, và từ vựng có dấu vết chân trang/nguồn phát hành của các trang ebook (xem `MODEL_VOCAB_AUDIT.md` mục 2.3), tức một phần sách huấn luyện có thể đến từ nguồn không rõ giấy phép. Việc phân phối một mô hình học từ đó có rủi ro bản quyền không? Có nên chuyển sang mô hình huấn luyện từ bộ mẫu công khai/phạm vi công cộng trước khi phát hành?
+
+## E. Từ chính sách DRM (S0-09)
+
+12. **Chính sách "không hỗ trợ DRM" và rủi ro pháp lý khi công khai.** `DRM_POLICY.md` chỉ cho phép *phát hiện để từ chối*, không gỡ hay vượt DRM, và không nhúng, đóng gói hay liên kết tới công cụ gỡ DRM. Câu hỏi: (a) chính sách này có đủ để tránh trách nhiệm theo luật Việt Nam và theo các quy định chống vượt biện pháp bảo vệ kỹ thuật (ví dụ DMCA §1201 khi kho mã nằm trên nền tảng của Mỹ) không; (b) việc gọi `ebook-convert` của Calibre như tiến trình riêng, không cài plugin nào, có thể bị coi là hỗ trợ vượt DRM khi người dùng tự cài plugin bên ngoài không; (c) chép nguyên trạng một file có DRM lên thiết bị của chính người dùng có vấn đề gì không.
