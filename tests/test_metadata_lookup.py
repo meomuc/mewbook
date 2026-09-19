@@ -167,6 +167,7 @@ def test_the_internet_is_searched_when_the_library_has_nothing(app_context):
 
 
 def test_a_failing_source_is_reported_while_the_others_still_answer(app_context):
+    app_context.config.config.disabled_cover_sources = []  # Apple Books is off by default
     good = ("Gia Định thành thông chí", "Trịnh Hoài Đức", {"title": "Gia Định thành thông chí", "publisher": "NXB Ok"})
 
     def broken(*args):
@@ -193,6 +194,7 @@ def test_an_isbn_match_scores_high_even_when_the_title_reads_differently(app_con
 
 
 def test_google_and_apple_data_is_marked_as_not_shareable(app_context):
+    app_context.config.config.disabled_cover_sources = []  # Apple Books is off by default
     row = ("Gia Định thành thông chí", "Trịnh Hoài Đức", {"title": "Gia Định thành thông chí", "publisher": "NXB Z"})
 
     result = _service(app_context, **{ml.SOURCE_GOOGLE_BOOKS: _source(row), ml.SOURCE_APPLE_BOOKS: _source(row)}).lookup(WANTED)

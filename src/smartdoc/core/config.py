@@ -129,8 +129,9 @@ class AppConfig:
     google_image_api_key: str | None = None
     google_image_search_cx: str | None = None  # the search engine's "cx" id
     # Cover/metadata sources switched off, by their display names (application/cover_search.SOURCE_*).
-    # Tiki is off by default: an undocumented shop API with no published terms (docs/legal/DATA_SOURCES.md).
-    disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki"])
+    # Off by default (docs/legal/DATA_SOURCES.md): Tiki, an undocumented shop API with no published terms, and
+    # Apple Books, whose terms only allow its artwork to promote the store. Users can switch either on.
+    disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
     # Whether the user has accepted the EULA/Privacy notice shown on first
     # launch (see presentation/eula_dialog.py). False on every fresh
     # install; never reset automatically once True.

@@ -66,7 +66,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 | Bảng nguồn dữ liệu | **Xong** (`DATA_SOURCES.md`, xác minh 2026-09-19) |
 | Xác minh điều khoản Tiki | Không tìm thấy điều khoản cho phép dùng: **tắt mặc định**; **chờ chủ dự án/luật sư** quyết định gỡ hẳn hay giữ |
 | Người dùng bật/tắt từng nguồn | **Xong** (Cài đặt → Ảnh bìa; có test) |
-| Không scrape trang trái điều khoản | Đạt với các nguồn đang dùng. Nhánh Atom cũ của Google Books (`google.com/books/feeds`) và điều khoản ảnh của Apple Books: **chờ luật sư** (câu 13) |
+| Không scrape trang trái điều khoản | Đạt với các nguồn đang dùng. Nhánh Atom cũ của Google Books (`google.com/books/feeds`, giữ theo quyết định của chủ dự án) và điều khoản ảnh của Apple Books (tắt mặc định theo quyết định của chủ dự án): **chờ luật sư** (câu 13) |
 | Yêu cầu của nguồn | Open Library muốn `User-Agent` có email và lời ghi công: **chờ chủ dự án** cung cấp liên hệ |
 
 ### 2.7 Dịch vụ review (S2)
@@ -81,7 +81,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 4. **Nguồn gốc tranh/logo** (O12) và giấy phép tranh (O11); nhãn hiệu có đăng ký không.
 5. **Mô hình phân loại** (S0-04b): huấn luyện lại (df theo sách, danh sách loại từ chân trang) hay giữ; ngưỡng chất lượng đề xuất là giảm không quá 1 điểm phần trăm, precision ≥ 85%.
 6. **Điền**: kênh liên hệ (`TRADEMARK.md`, `PARTNERS.md`, `User-Agent` của Open Library), URL kho mã (`APP_SOURCE_URL_TEMPLATE`).
-7. **Nguồn dữ liệu**: Apple Books giữ bật hay tắt mặc định; giữ hay gỡ nhánh Atom cũ của Google Books; Tiki giữ (tắt) hay gỡ.
+7. ~~Nguồn dữ liệu~~: **đã quyết định** 2026-09-19 (Apple Books và Tiki tắt mặc định, giữ cả nhánh Atom cũ của Google Books).
 8. `taxonomy.json`: có sao chép nguyên văn từ hệ phân loại ngoài không.
 9. **Cài Inno Setup 6** (hoặc chỉ máy dựng bản phát hành) để dựng và thử bộ cài; **chứng chỉ ký mã** (O9).
 10. Cách thêm SPDX cho tệp cũ (khi sửa tệp, hay một commit riêng).

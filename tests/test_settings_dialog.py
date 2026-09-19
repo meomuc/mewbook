@@ -434,11 +434,11 @@ def test_metadata_write_options_default_off_and_are_saved(qapp, app_context):
 
 
 
-def test_cover_source_checkboxes_reflect_config_and_tiki_starts_off(qapp, app_context):
+def test_cover_source_checkboxes_reflect_config_and_unclear_sources_start_off(qapp, app_context):
     dialog = SettingsDialog(app_context)
     boxes = dialog._cover_source_checkboxes
-    assert not boxes["Tiki"].isChecked()
-    assert boxes["Open Library"].isChecked() and boxes["Google Books"].isChecked() and boxes["Apple Books"].isChecked()
+    assert not boxes["Tiki"].isChecked() and not boxes["Apple Books"].isChecked()
+    assert boxes["Open Library"].isChecked() and boxes["Google Books"].isChecked()
 
 
 def test_saving_source_choices_updates_disabled_cover_sources(qapp, app_context):

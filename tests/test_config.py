@@ -155,10 +155,10 @@ def test_a_settings_file_without_db_path_gets_the_default_location(tmp_path):
     assert mgr.config.db_path == str(tmp_path / "library.db")
 
 
-def test_tiki_is_disabled_by_default_and_the_choice_persists(tmp_path):
+def test_sources_with_unclear_terms_are_disabled_by_default_and_the_choice_persists(tmp_path):
     mgr = ConfigManager(app_data_dir=tmp_path)
-    assert mgr.config.disabled_cover_sources == ["Tiki"]
+    assert mgr.config.disabled_cover_sources == ["Tiki", "Apple Books"]
 
-    mgr.config.disabled_cover_sources = ["Tiki", "Apple Books"]
+    mgr.config.disabled_cover_sources = ["Tiki"]
     mgr.save()
-    assert ConfigManager(app_data_dir=tmp_path).config.disabled_cover_sources == ["Tiki", "Apple Books"]
+    assert ConfigManager(app_data_dir=tmp_path).config.disabled_cover_sources == ["Tiki"]

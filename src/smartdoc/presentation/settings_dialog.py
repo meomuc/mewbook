@@ -571,7 +571,7 @@ class SettingsDialog(QDialog):
         for name, hint in (
             (SOURCE_OPEN_LIBRARY, ""),
             (SOURCE_GOOGLE_BOOKS, ""),
-            (SOURCE_APPLE_BOOKS, ""),
+            (SOURCE_APPLE_BOOKS, " -- tắt sẵn: điều khoản của Apple chỉ cho dùng ảnh để quảng bá cửa hàng"),
             (SOURCE_TIKI, " -- tắt sẵn: API nội bộ của cửa hàng, chưa có điều khoản cho phép dùng"),
         ):
             checkbox = QCheckBox(f"{name}{hint}", sources_box)

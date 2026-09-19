@@ -11,7 +11,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Open Library | ảnh bìa, metadata | không | **Được phép, có điều kiện** | Bật |
 | Google Books API (v1) | ảnh bìa, metadata | tùy chọn (của người dùng) | **Được phép, có điều kiện** | Bật |
 | Google Books, nguồn cấp Atom cũ | dự phòng khi API v1 hết hạn mức | không | **Chưa rõ** (API cũ, không còn tài liệu) | Bật (cùng công tắc "Google Books") |
-| Apple Books (iTunes Search API) | ảnh bìa, metadata | không | **Chưa rõ / rủi ro** (điều khoản giới hạn mục đích dùng ảnh) | Bật |
+| Apple Books (iTunes Search API) | ảnh bìa, metadata | không | **Chưa rõ / rủi ro** (điều khoản giới hạn mục đích dùng ảnh) | **Tắt** (quyết định 2026-09-19) |
 | Tiki (`tiki.vn/api/v2/products`) | ảnh bìa sách tiếng Việt | không | **Chưa rõ** (API nội bộ, không có điều khoản công bố) | **Tắt** |
 | Google Custom Search JSON API | ảnh bìa từ toàn web | khóa + cx của người dùng | Được phép cho khách hàng **hiện có**; **đã đóng với khách hàng mới** | Tắt (cần khóa) |
 | Nhà cung cấp AI (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, OpenRouter, Ollama) | tóm tắt sách | khóa của người dùng | Theo điều khoản từng nhà cung cấp; **nội dung sách rời khỏi máy** | Tắt (cần khóa) |
@@ -51,7 +51,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 - **Tài liệu:** trang Search API của Apple (`performance-partners.apple.com/search-api`).
 - **Điều kiện đọc được:** giới hạn khoảng **20 lời gọi/phút** (có thể đổi); trang lớn nên lưu đệm; nội dung khuyến mại trong API, gồm ảnh bìa album/ứng dụng, chỉ được dùng **để quảng bá nội dung của cửa hàng, không phải để giải trí**.
 - **Khớp hiện trạng:** MewBook dùng ảnh bìa từ Apple làm ảnh bìa sách trong thư viện riêng của người dùng, tức không phải để quảng bá cửa hàng Apple. Đây là điểm **chưa rõ / có rủi ro**. Giới hạn 20 lời gọi/phút vẫn đúng với cách dùng hiện tại (mỗi lần tìm vài lời gọi, có lưu đệm), trừ khi người dùng chạy tra cứu hàng loạt.
-- **Đề xuất:** đưa vào câu hỏi luật sư 13; cho đến khi có ý kiến, chủ dự án cân nhắc để nguồn này **tắt mặc định**. Hiện đang bật vì Apple là nguồn ảnh bìa sách tiếng Việt tốt nhất trong ba nguồn không cần khóa.
+- **Quyết định của chủ dự án (2026-09-19): tắt mặc định** (`disabled_cover_sources = ["Tiki", "Apple Books"]`); người dùng bật lại ở Cài đặt → Ảnh bìa và thấy dòng ghi chú lý do. Câu hỏi luật sư 13 vẫn mở. Hệ quả: chất lượng tìm ảnh bìa sách tiếng Việt giảm cho tới khi người dùng tự bật.
 
 ### 2.5 Tiki
 
@@ -90,10 +90,11 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 
 Không nguồn nào nhận tệp sách nguyên vẹn.
 
-## 4. Việc cần chủ dự án quyết định
+## 4. Quyết định và việc còn lại
+
+Đã quyết định (2026-09-19): Apple Books **tắt mặc định** (mục 2.4); Tiki tắt mặc định và **giữ** trong mã; nhánh Atom cũ của Google Books **giữ** làm dự phòng (mục 2.3, 2.5). Luật sư xem lại ở câu 13.
+
+Còn lại:
 
 1. Cung cấp email/URL liên hệ cho `User-Agent` (Open Library yêu cầu).
-2. Apple Books: giữ bật hay tắt mặc định trong lúc chờ luật sư (mục 2.4).
-3. Nhánh Atom cũ của Google Books: giữ hay gỡ (mục 2.3).
-4. Tiki: đọc điều khoản, hoặc gỡ hẳn (mục 2.5).
-5. Thêm dòng ghi công Open Library vào hộp thoại Giới thiệu.
+2. Thêm dòng ghi công Open Library vào hộp thoại Giới thiệu.
