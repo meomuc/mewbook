@@ -10,7 +10,7 @@ from smartdoc.core.event_bus import (
     SortChangedEvent,
 )
 from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
-from smartdoc.presentation.library_view import LibraryListWidget, _truncate
+from smartdoc.presentation.library_view import COVER_ASPECT, LibraryListWidget, _badge_font_px, _truncate
 
 
 def _pump_until(qapp, predicate, timeout: float = 3.0) -> bool:
@@ -182,7 +182,7 @@ def test_cover_size_changed_event_updates_grid_icon_size(qapp, app_context):
 
     widget = LibraryListWidget(app_context)
     app_context.event_bus.publish(CoverSizeChangedEvent(size=250))
-    assert _pump_until(qapp, lambda: widget.list_view.iconSize() == QSize(250, int(250 * 1.33)), timeout=3.0)
+    assert _pump_until(qapp, lambda: widget.list_view.iconSize() == QSize(250, int(250 * COVER_ASPECT)), timeout=3.0)
 
 
 def test_view_mode_changed_event_switches_to_list_mode(qapp, app_context):
@@ -241,6 +241,51 @@ def test_grid_icon_gets_a_format_badge_and_caches_by_extension(qapp, app_context
     assert len(widget.model._icon_cache) == 2
 
 
+def test_format_badge_font_is_seven_and_a_half_percent_of_cover_height():
+    assert _badge_font_px(200) == 15
+    assert _badge_font_px(400) == 30
+    assert _badge_font_px(600) == 45
+
+
+def test_format_badge_font_has_a_readable_floor_for_tiny_covers():
+    assert _badge_font_px(10) >= 7  # 7.5% of 10px would round to ~1px -- unreadable
+
+
+def _bright_pixels(image, x_range, y_range, threshold=240):
+    return sum(
+        1
+        for x in x_range
+        for y in y_range
+        if min(image.pixelColor(x, y).red(), image.pixelColor(x, y).green(), image.pixelColor(x, y).blue()) >= threshold
+    )
+
+
+def test_format_badge_sits_bottom_right_in_solid_light_letters(qapp):
+    from PySide6.QtGui import QColor, QPixmap
+
+    from smartdoc.presentation.library_view import _with_format_badge
+    from smartdoc.presentation.theme import apply_theme
+
+    apply_theme(qapp, "broadsheet")  # dark placeholder covers -> white letters
+    cover = QPixmap(200, 300)
+    cover.fill(QColor(30, 30, 30))
+    image = _with_format_badge(cover, "pdf").toImage()
+
+    bottom_right = _bright_pixels(image, range(120, 200), range(240, 300))
+    top_left = _bright_pixels(image, range(0, 80), range(0, 60))
+    assert bottom_right > 30  # the label is there, fully opaque (not a faint tint)
+    assert top_left == 0  # and no longer in the old top-left spot
+
+
+def test_format_badge_is_skipped_without_an_extension(qapp):
+    from PySide6.QtGui import QPixmap
+
+    from smartdoc.presentation.library_view import _with_format_badge
+
+    cover = QPixmap(50, 70)
+    assert _with_format_badge(cover, "") is cover
+
+
 def test_grid_model_applies_content_font_and_color(qapp, app_context):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QColor
@@ -285,3 +330,29 @@ def test_table_model_applies_content_font_and_color(qapp, app_context):
 
     assert font.pointSize() == 16
     assert QColor(color) == QColor("#00ff00")
+
+
+def test_a_selected_row_paints_without_raising(qapp):
+    """Regression: the delegate used `option.palette.Text` (no such attribute on a
+    QPalette instance in PySide6), so painting a selected row raised on every repaint --
+    which is what froze the app after a book was selected in the List view."""
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QImage, QPainter, QStandardItem, QStandardItemModel
+    from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTableView
+
+    from smartdoc.presentation.library_view import _ThemedRowDelegate
+
+    view = QTableView()
+    model = QStandardItemModel(1, 1, view)
+    model.setItem(0, 0, QStandardItem("Gia-Định Thành Thông-Chí"))
+    view.setModel(model)
+    delegate = _ThemedRowDelegate(view)
+    option = QStyleOptionViewItem()
+    option.rect = QRect(0, 0, 200, 24)
+    option.state |= QStyle.State_Selected
+    image = QImage(220, 40, QImage.Format_ARGB32)
+    painter = QPainter(image)
+    try:
+        delegate.paint(painter, option, model.index(0, 0))  # must not raise
+    finally:
+        painter.end()

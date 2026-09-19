@@ -1,4 +1,4 @@
-# SmartDoc Library
+# MewBook ("Mèo Mực")
 
 Metadata-first ebook/document manager (Windows first). Scans and indexes files in
 place — never copies or moves your originals.
@@ -47,9 +47,11 @@ Clean Architecture, 4 layers, under `src/smartdoc/`:
 - `core/` — `AppContext` (dependency root), `EventBus`, `ConfigManager`
 - `domain/` — `Document` model, `MetadataNormalizer`
 - `infrastructure/` — SQLite FTS5 `DatabaseManager`, PDF/EPUB extractors, cover cache
-- `application/` — file watcher, background import job queue
+- `application/` — file watcher, background import job queue, smart classification service,
+  cover search, metadata lookup (`metadata_lookup.py`), metadata apply/undo
+  (`metadata_applier.py`) and the safe file writer (`metadata_writer.py`)
 - `presentation/` — PySide6 UI: main window, omnibar, grid/list view, sidebar
-  (virtual collections + faceted filters), file actions, `QtEventBridge`
+  (virtual collections + hashtag/author/format filters), file actions, `QtEventBridge`
 - `app.py` — composition root (`uv run smartdoc`)
 
 Every class takes `context: AppContext` in `__init__` and reaches its
@@ -82,12 +84,126 @@ rules, or both). When a WHERE fragment touches a column that also exists on
 as `documents.<col>` or SQLite raises "ambiguous column name" once a text
 query is also present (see the method's docstring).
 
+## Smart classification (phân loại thông minh)
+
+Tags books with a category (a hashtag such as "Kiếm hiệp - Tiên hiệp") and
+files that hashtag under a folder of the sidebar's Hashtag tree ("Văn học").
+It never moves or edits the original files, only adds hashtags, and a whole run
+can be undone from the bar above the list.
+
+**Where it appears**
+- After files or folders are added, one compact popup carries the import result
+  and asks whether to classify the new documents. "Ghi nhớ lựa chọn" makes the
+  answer permanent; Settings → Phân loại changes it back (ask / always / never).
+- The button "✨ Phân loại thông minh" above the document list (also Tools menu)
+  applies to the list being viewed, i.e. the folder, hashtag or collection
+  selected in the sidebar plus any search, all pages, and says how many
+  documents that is before starting. Right-click on selected documents does the
+  same for just those.
+
+**How it works** (`domain/taxonomy.py`, `infrastructure/text_sampler.py`,
+`infrastructure/vi_tokenizer.py`, `application/classification_features.py`,
+`domain/text_classifier.py`, `application/classify_worker.py`,
+`application/smart_classifier.py`)
+- The first 2,000 to 5,000 words (Settings, default 3,000) are read from EPUB,
+  PDF or MOBI, together with the title, author, your own tags, subjects embedded
+  in the file, its description and its chapter titles.
+- Vietnamese text is word-segmented with pyvi ("văn học thế giới" becomes
+  "văn_học thế_giới"); text without diacritics gets word-pair features instead.
+- A sparse linear model (one JSON file) scores 48 categories from
+  `src/smartdoc/data/taxonomy.json`. When the model is not sure it leaves the
+  book alone instead of guessing; those books are remembered as looked at.
+- A category you already put on a book, or a folder you already chose for a
+  hashtag, is never overridden.
+
+**Speed rules.** Nothing is loaded at startup: no model, no tokenizer, no
+process. A job runs in a separate spawned process at below-normal CPU and low
+disk priority (one process for small jobs, two at most for big ones), works in
+small chunks so Stop reacts at once, writes to the database in batches and
+refreshes the list at most every two seconds. The process exits when the job
+ends, so its memory (pyvi pulls in scikit-learn, about 100 MB) is only used
+while classifying.
+
+**Training is a separate program.** The app only runs the model. `train.py`
+builds it, and you run it whenever you have collected more labelled books:
+
+```
+uv run python train.py --dry-run                       # train and report, but save nothing
+uv run python train.py                                 # your library + your tags
+uv run python train.py --dataset D:\Sach\da-phan-loai   # + folders named after categories
+uv run python train.py --output builtin                # replace the model shipped with the app
+```
+
+By default it writes `%APPDATA%\SmartDocLibrary\models\classifier_model.json.gz`
+(used in preference to the shipped model) and a plain-text report next to it. It
+reads the library read-only and only trusts labels that people wrote (category
+tags, subjects inside the files), never tags the classifier itself applied.
+`train.py --help` lists all options. The category list can be extended without
+touching code: put a `taxonomy.json` in the app data folder that adds
+categories, overrides one by `id`, or removes one with `"disabled": true`, then
+re-run `train.py`.
+
+**Measured accuracy** (trained on 9,451 labelled books of the author's own
+library, evaluated on 1,689 held-out titles with their embedded labels hidden):
+the right category 71% of the time, the right sidebar folder 90%; with the
+abstain thresholds it answers about 56% of books at about 85% precision. On
+books that had no label at all the figures are lower (roughly 60% category,
+78% folder). The shipped model reflects that library (mostly Vietnamese
+fiction and non-fiction), so retrain on yours for best results.
+
+## Versioning & releases
+
+MewBook follows [Semantic Versioning 2.0.0](https://semver.org). **1.0.0
+(2026-09-19) is the first commercial release.** The version is
+`MAJOR.MINOR.PATCH`:
+
+| Bump | When | Examples |
+|---|---|---|
+| **MAJOR** (2.0.0) | Existing users' data, settings or workflow would break or need migrating by hand | incompatible library.db change with no automatic migration, a feature removed, a new required server-side step |
+| **MINOR** (1.1.0) | New features, backwards compatible | a new cover source, a new AI provider, a new theme |
+| **PATCH** (1.0.1) | Bug fixes only, no new behavior | a crash fix, a wrong label, a broken API call |
+
+Pre-releases add a suffix, e.g. `1.1.0-beta.1`, and rank below `1.1.0`.
+
+- **Single source of truth:** `__version__` in `src/smartdoc/__init__.py`.
+  `pyproject.toml` (hatch dynamic version), the About dialog, the log header,
+  the exe's version resource and the installer all read it from there, so
+  never edit a version number anywhere else.
+- **Changelog:** every user-visible change goes under `## [Unreleased]` in
+  `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com) format:
+  Added / Changed / Deprecated / Removed / Fixed / Security).
+- **Release checklist:**
+  1. Move the `[Unreleased]` entries under a new `## [X.Y.Z] - YYYY-MM-DD` heading.
+  2. Set `__version__ = "X.Y.Z"`.
+  3. `powershell -ExecutionPolicy Bypass -File packaging\build.ps1` (runs the tests, then builds the exe and installer).
+  4. Commit, then tag: `git tag -a vX.Y.Z -m "MewBook X.Y.Z"` and `git push --tags`.
+  5. If the release needs a Supabase change, say so under **Security** or
+     **Changed** in the changelog and ship the SQL in `src/smartdoc/application/sql/`.
+
 ## Packaging (Windows)
+
+One command builds everything, stamped with the current version:
 
 ```
 uv sync --group dev   # pulls in pyinstaller
+powershell -ExecutionPolicy Bypass -File packaging\build.ps1
+```
+
+This runs the test suite, writes `packaging/EULA.txt`, builds
+`dist/MewBook/MewBook.exe` (whose Properties → Details show the version,
+publisher and copyright), and, if [Inno Setup 6](https://jrsoftware.org/isdl.php)
+is installed, builds `dist/installer/MewBook-Setup-X.Y.Z.exe` from
+`packaging/MewBook.iss`. The installer runs per-user (no admin prompt), adds
+Start menu and optional desktop shortcuts, and upgrades in place (fixed
+`AppId`). On uninstall it deletes the anonymous identity (`identity.dat`), so
+a reinstall gets a new one, and it asks whether to delete the library data
+too. Original ebook files are never touched.
+
+To build only the exe by hand:
+
+```
 cd packaging
-uv run pyinstaller --noconfirm --distpath ../dist --workpath ../build_pyinstaller SmartDocLibrary.spec
+uv run pyinstaller --noconfirm --distpath ../dist --workpath ../build_pyinstaller MewBook.spec
 ```
 
 Run it from `packaging/` (not the repo root) -- when PyInstaller is given a
@@ -97,17 +213,22 @@ not the current working directory. `--name`/`--windowed`/etc. are makespec
 options and are rejected once you're building from an existing `.spec`;
 those choices are already baked into it.
 
-Produces `dist/SmartDocLibrary/SmartDocLibrary.exe`, a standalone build that
+Produces `dist/MewBook/MewBook.exe`, a standalone build that
 runs without the dev venv or a system Python install (verified: launched
 the built exe directly, with the real app icon on both the window and the
 .exe file, and it started and stayed responsive on its own).
-`packaging/SmartDocLibrary.spec` is checked in so the build is reproducible;
+`packaging/MewBook.spec` is checked in so the build is reproducible;
 `packaging/generate_icon.py` regenerates the icon if it ever needs a
 redesign. `dist/` and `build_pyinstaller/` are build output, not committed.
+(The build/product name is MewBook -- "Mèo Mực" is the in-app display name;
+see AppConfig's docstring on `APP_DIR_NAME` for why the on-disk %APPDATA%
+folder itself keeps its original name across the rename.)
 
-Not done yet: a signed
-installer (Inno Setup or similar) so it doesn't trip Windows SmartScreen /
-antivirus on a fresh machine, and the auto-updater (TDD-024).
+Not done yet: **code signing** (needs a purchased code-signing certificate;
+until then Windows SmartScreen warns on first run of the installer), and the
+auto-updater (TDD-024). Also see `THIRD_PARTY_NOTICES.md` for licensing
+steps that must happen before selling closed-source copies (PyMuPDF is
+AGPL, mobi is GPL).
 
 ## Status
 
@@ -120,8 +241,8 @@ watches + bulk-scans, extracts metadata/cover/text from PDF and EPUB,
 indexes into SQLite FTS5, and shows results in a grid with search
 (debounced Omnibar), sort + cover-size slider, pagination, double-click to
 open, a right-click menu (open / reveal in Explorer / edit metadata / bulk
-edit / remove from library), a faceted filter panel (by format/author, with
-counts), Virtual Collections (saved rule-based filters) in the sidebar, a
+edit / remove from library), a filter sidebar (hashtag / author / format with live
+counts, an "Đang lọc" bar and quick-filter suggestions), Virtual Collections (saved rule-based filters) in the sidebar, a
 Settings dialog (file types, watch folders, theme, worker threads), a
 Duplicate Finder (exact content-hash matches + fuzzy title/author matches),
 and a Calibre library importer (File → Nhập từ thư viện Calibre...).
@@ -186,10 +307,13 @@ has no delete-review feature, so `SupabaseReviewSync.delete_reviews()` (a
 test/cleanup helper) silently affects zero rows against a table set up
 this way; that's correct RLS behavior, not a bug.
 
-Known, accepted risk (carried over from the original design): every
-install of the app ships pointed at the *same* Supabase project, so all
-reviews across all users are visible to everyone and anyone can post as
-any nickname — this is the intended "anonymous community reviews"
-behavior, not a flaw, but it does mean there's no per-user moderation or
-abuse prevention beyond what the RLS policies and Supabase's own rate
-limiting provide.
+Since 1.0.0 every installation has an anonymous identity
+(`core/user_identity.py`): a random secret token, generated on first run,
+stored encrypted, and deleted by the uninstaller. Reviews are written only
+through the server-side `submit_review` function
+(`src/smartdoc/application/sql/001_reviewer_identity.sql`, which you can copy
+from Settings → "Sao chép SQL nâng cấp"). That function hashes the token
+server-side, so a nickname belongs to the first installation that used it,
+only a review's author can update it, and authorship can't be forged. There
+is still no moderation beyond that and Supabase's own rate limiting:
+reviews stay public and anonymous.

@@ -125,8 +125,8 @@ def test_double_click_opens_reader_window_not_external_open(qapp, app_context, m
     opened_docs = []
     opened_externally = []
     monkeypatch.setattr(
-        "smartdoc.presentation.library_view.ReaderWindow",
-        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+        "smartdoc.presentation.library_view.open_reader",
+        lambda context, doc, parent=None: opened_docs.append(doc),
     )
     monkeypatch.setattr(widget.file_actions, "open_file", lambda path: opened_externally.append(path))
 
@@ -143,8 +143,8 @@ def test_single_selection_read_action_opens_reader_window(qapp, app_context, mon
 
     opened_docs = []
     monkeypatch.setattr(
-        "smartdoc.presentation.library_view.ReaderWindow",
-        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+        "smartdoc.presentation.library_view.open_reader",
+        lambda context, doc, parent=None: opened_docs.append(doc),
     )
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Đọc trong ứng dụng"))
 
@@ -500,3 +500,74 @@ def test_context_menu_send_to_ereader_action_invokes_send(qapp, app_context, mon
     widget._show_context_menu(position)
 
     assert called == [1]
+
+
+def _pick_submenu_action_containing(text_substring: str):
+    def fake_exec_menu(self, menu, _position):
+        for action in menu.actions():
+            submenu = action.menu()
+            if submenu is None:
+                continue
+            for sub in submenu.actions():
+                if text_substring in sub.text():
+                    return sub
+        return None
+
+    return fake_exec_menu
+
+
+def test_add_to_new_collection_creates_it_and_files_the_document(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+    doc_id = widget.model.document_at(0)["id"]
+
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_submenu_action_containing("Tạo bộ sưu tập mới"))
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("Đọc cuối tuần", True)))
+
+    widget._show_context_menu(position)
+
+    collections = app_context.db.list_collections()
+    assert [c["name"] for c in collections] == ["Đọc cuối tuần"]
+    assert app_context.db.list_collection_document_ids(collections[0]["id"]) == [doc_id]
+
+
+def test_add_to_new_collection_rejects_a_duplicate_name(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog, QMessageBox
+
+    from smartdoc.domain.smart_collections import VirtualCollection
+
+    existing = VirtualCollection(name="Yêu thích")
+    app_context.db.save_collection(existing.id, existing.name, existing.to_json(), existing.logic, existing.created_at)
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    warned = []
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_submenu_action_containing("Tạo bộ sưu tập mới"))
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *a, **k: ("yêu thích", True)))
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warned.append(1)))
+
+    widget._show_context_menu(position)
+
+    assert warned
+    assert len(app_context.db.list_collections()) == 1
+
+
+def test_single_selection_metadata_search_action_opens_the_suggestion_dialog(qapp, app_context, monkeypatch):
+    _seed_two_docs(app_context)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    opened_docs = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.library_view.MetadataSuggestDialog",
+        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+    )
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Tìm metadata"))
+
+    widget._show_context_menu(position)
+
+    assert len(opened_docs) == 1

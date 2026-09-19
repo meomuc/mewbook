@@ -91,3 +91,33 @@ def test_virtual_collection_sql_injection_attempt_is_treated_as_a_literal_value(
     # SQL string itself.
     assert "DROP TABLE" not in sql
     assert params == ("x'; DROP TABLE documents; --",)
+
+
+def test_whole_person_and_whole_tag_rules_use_the_normalised_key():
+    author_sql, author_param = SmartRule(field="author", operator="has_author", value="NHÃ  CA").to_sql()
+    tag_sql, tag_param = SmartRule(field="tags", operator="has_tag", value="Lịch Sử").to_sql()
+
+    assert author_sql == "mb_has_author(documents.author, ?)"
+    assert author_param == "nhã ca"
+    assert tag_sql == "mb_has_tag(documents.tags, ?)"
+    assert tag_param == "lịch sử"
+
+
+def test_whole_match_rules_only_apply_to_their_own_field():
+    with pytest.raises(ValueError):
+        SmartRule(field="title", operator="has_author", value="x")
+    with pytest.raises(ValueError):
+        SmartRule(field="author", operator="has_tag", value="x")
+
+
+def test_whole_match_rules_round_trip_through_json_and_run_in_sql(app_context):
+    for doc_id, author in (("d1", "NHÃ CA"), ("d2", "Nhã Cát")):
+        app_context.db.add_or_update_document(
+            doc_id, {"title": doc_id, "author": author, "file_path": f"{doc_id}.pdf", "created_at": 1.0}
+        )
+    collection = VirtualCollection(name="Nhã Ca", rules=[SmartRule(field="author", operator="has_author", value="Nhã Ca")])
+    app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+
+    where_sql, params = app_context.db.collection_where_fragment(collection.id)
+
+    assert [d["id"] for d in app_context.db.query_documents(where_sql=where_sql, params=params)] == ["d1"]

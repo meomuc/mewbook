@@ -12,6 +12,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
+from smartdoc.domain.author_names import author_key, tag_key
+
 # Columns that also exist on documents_fts; a rule targeting one of these
 # must be qualified as documents.<col> so it stays unambiguous when a text
 # search is combined with the collection filter (see DatabaseManager.query_documents).
@@ -25,22 +27,32 @@ _OPERATOR_SQL = {
     "lt": "<",
     "contains": "LIKE",
 }
+# Whole-person / whole-tag matches (case-insensitive, co-author lists split), the
+# same matching the sidebar filters use; only made by "save this filter as a
+# collection", the single-rule collection dialog doesn't offer them.
+_MATCH_OPERATORS = {"has_author": "author", "has_tag": "tags"}
 
 
 @dataclass(frozen=True)
 class SmartRule:
     field: str
-    operator: str  # "eq" | "gt" | "lt" | "contains"
+    operator: str  # "eq" | "gt" | "lt" | "contains" | "has_author" | "has_tag"
     value: str
 
     def __post_init__(self) -> None:
         if self.field not in _ALLOWED_FIELDS:
             raise ValueError(f"Unknown field for a Smart Rule: {self.field!r}")
-        if self.operator not in _OPERATOR_SQL:
+        if self.operator not in _OPERATOR_SQL and self.operator not in _MATCH_OPERATORS:
             raise ValueError(f"Unknown operator for a Smart Rule: {self.operator!r}")
+        if self.operator in _MATCH_OPERATORS and self.field != _MATCH_OPERATORS[self.operator]:
+            raise ValueError(f"{self.operator!r} only applies to the {_MATCH_OPERATORS[self.operator]!r} field")
 
     def to_sql(self) -> tuple[str, str]:
         """Returns (sql_fragment, parameter) -- never interpolates `value`."""
+        if self.operator == "has_author":
+            return "mb_has_author(documents.author, ?)", author_key(self.value)
+        if self.operator == "has_tag":
+            return "mb_has_tag(documents.tags, ?)", tag_key(self.value)
         column = f"documents.{self.field}" if self.field in _FTS_SHARED_COLUMNS else self.field
         if self.operator == "contains":
             return f"{column} LIKE ?", f"%{self.value}%"

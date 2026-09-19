@@ -88,6 +88,58 @@ def test_pdf_reader_next_and_previous_page(qapp, app_context, tmp_path):
     assert window.pdf_view.pageNavigator().currentPage() == 1
 
 
+def test_arrow_keys_page_through_a_pdf(qapp, app_context, tmp_path):
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=3)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+
+    def press(key):
+        window.keyPressEvent(QKeyEvent(QEvent.KeyPress, key, Qt.NoModifier))
+
+    press(Qt.Key_Right)
+    assert window.pdf_view.pageNavigator().currentPage() == 1
+    press(Qt.Key_Space)
+    assert window.pdf_view.pageNavigator().currentPage() == 2
+    press(Qt.Key_Left)
+    assert window.pdf_view.pageNavigator().currentPage() == 1
+    press(Qt.Key_Backspace)
+    assert window.pdf_view.pageNavigator().currentPage() == 0
+
+
+def test_floating_nav_appears_on_scroll_and_pages(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=3)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+    window.show()
+    qapp.processEvents()
+
+    assert not window.floating_nav.isVisible()  # stays out of the way until scrolled
+
+    window.pdf_view.verticalScrollBar().setValue(40)
+    qapp.processEvents()
+    assert window.floating_nav.isVisible()
+
+    window.floating_nav.next_button.click()
+    assert window.pdf_view.pageNavigator().currentPage() == 1
+
+
+def test_arrow_keys_page_through_epub_chapters(qapp, app_context, tmp_path):
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+
+    epub_path = tmp_path / "book.epub"
+    _make_epub(epub_path, chapter_count=3)
+    window = ReaderWindow(app_context, _doc(file_path=str(epub_path), extension="epub"))
+
+    window.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Right, Qt.NoModifier))
+    assert window._current_chapter == 1
+    window.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Left, Qt.NoModifier))
+    assert window._current_chapter == 0
+
+
 def test_pdf_reader_go_to_page_via_spinbox(qapp, app_context, tmp_path):
     pdf_path = tmp_path / "book.pdf"
     _make_pdf(pdf_path, page_count=5)
@@ -223,3 +275,91 @@ def test_epub_reader_closes_underlying_zip_on_window_close(qapp, app_context, tm
     # The underlying zip handle must be closed, not leaked.
     with pytest.raises(ValueError):
         epub_doc.chapter_html(0)
+
+
+# ── Kindle formats (MOBI/AZW3) ────────────────────────────────────────
+# The unpacking itself belongs to the `mobi` package; what's tested here
+# is this app's integration with it -- routing, which reader each unpacked
+# format lands in, cleanup, and that a failure degrades to the "open
+# externally" fallback instead of taking the window down.
+
+
+def _fake_mobi_module(monkeypatch, extract_result):
+    import sys
+    import types
+
+    module = types.ModuleType("mobi")
+    if isinstance(extract_result, Exception):
+        def extract(_path):
+            raise extract_result
+    else:
+        def extract(_path):
+            return extract_result
+    module.extract = extract
+    monkeypatch.setitem(sys.modules, "mobi", module)
+    return module
+
+
+def test_mobi_unpacked_to_epub_uses_the_epub_reader(qapp, app_context, tmp_path, monkeypatch):
+    epub_path = tmp_path / "unpacked.epub"
+    _make_epub(epub_path, chapter_count=2)
+    mobi_path = tmp_path / "book.mobi"
+    mobi_path.write_bytes(b"not really a mobi -- extraction is faked below")
+    _fake_mobi_module(monkeypatch, (str(tmp_path), str(epub_path)))
+
+    window = ReaderWindow(app_context, _doc(file_path=str(mobi_path), extension="mobi"))
+
+    assert hasattr(window, "epub_view")
+    assert window.chapter_spin.maximum() == 2
+
+
+def test_mobi_unpacked_to_html_renders_in_a_browser(qapp, app_context, tmp_path, monkeypatch):
+    html_path = tmp_path / "book.html"
+    html_path.write_text("<html><body><p>Nội dung sách</p></body></html>", encoding="utf-8")
+    mobi_path = tmp_path / "old.mobi"
+    mobi_path.write_bytes(b"fake")
+    _fake_mobi_module(monkeypatch, (str(tmp_path), str(html_path)))
+
+    window = ReaderWindow(app_context, _doc(file_path=str(mobi_path), extension="mobi"))
+
+    assert hasattr(window, "epub_view")
+    assert "Nội dung sách" in window.epub_view.toPlainText()
+
+
+def test_azw3_is_handled_the_same_way_as_mobi(qapp, app_context, tmp_path, monkeypatch):
+    epub_path = tmp_path / "unpacked.epub"
+    _make_epub(epub_path, chapter_count=1)
+    azw3_path = tmp_path / "book.azw3"
+    azw3_path.write_bytes(b"fake")
+    _fake_mobi_module(monkeypatch, (str(tmp_path), str(epub_path)))
+
+    window = ReaderWindow(app_context, _doc(file_path=str(azw3_path), extension="azw3"))
+
+    assert hasattr(window, "epub_view")
+
+
+def test_unreadable_mobi_falls_back_to_opening_externally(qapp, app_context, tmp_path, monkeypatch):
+    mobi_path = tmp_path / "drm.mobi"
+    mobi_path.write_bytes(b"fake")
+    _fake_mobi_module(monkeypatch, ValueError("Could not extract"))
+
+    window = ReaderWindow(app_context, _doc(file_path=str(mobi_path), extension="mobi"))
+
+    assert not hasattr(window, "epub_view")
+    assert not hasattr(window, "pdf_view")  # the plain "open with another app" screen
+
+
+def test_mobi_tempdir_is_cleaned_up_when_the_window_closes(qapp, app_context, tmp_path, monkeypatch):
+    workdir = tmp_path / "mobiex"
+    workdir.mkdir()
+    epub_path = workdir / "unpacked.epub"
+    _make_epub(epub_path, chapter_count=1)
+    mobi_path = tmp_path / "book.mobi"
+    mobi_path.write_bytes(b"fake")
+    _fake_mobi_module(monkeypatch, (str(workdir), str(epub_path)))
+
+    window = ReaderWindow(app_context, _doc(file_path=str(mobi_path), extension="mobi"))
+    assert workdir.exists()
+
+    window.close()
+    assert not workdir.exists()  # a temp copy of every book opened would otherwise pile up

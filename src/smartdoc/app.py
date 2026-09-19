@@ -1,29 +1,128 @@
 """Composition root: wires AppContext + background services + the Qt UI together."""
 from __future__ import annotations
 
+import logging
+import multiprocessing
 import sys
 
+from PySide6.QtCore import QLockFile, QTimer
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
+from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER, __version__
 from smartdoc.application.file_watcher import LibraryWatcher
+from smartdoc.application.fingerprint_backfill import FingerprintBackfill
 from smartdoc.application.import_queue import ImportQueueManager
+from smartdoc.application.smart_classifier import AutoClassifyOnImport, SmartClassifyService
 from smartdoc.core.app_context import AppContext
+from smartdoc.core.config import default_app_data_dir
+from smartdoc.core.diagnostics import current_log_path, install_exception_hooks, setup_logging
+from smartdoc.presentation.dialog_size import DialogSizeGuard
+from smartdoc.presentation.eula_dialog import EulaDialog
 from smartdoc.presentation.main_window import MainWindow
 from smartdoc.presentation.resources import app_icon_path
-from smartdoc.presentation.theme import apply_theme
+from smartdoc.presentation.theme import app_stylesheet, apply_theme, theme_font
 
 
 def _apply_appearance(app: QApplication, context: AppContext) -> None:
-    apply_theme(app, context.config.config.theme)
+    colors = apply_theme(app, context.config.config.theme)
     font_family = context.config.config.font_family
-    font = QFont(font_family) if font_family else app.font()
+    if font_family:
+        font = QFont(font_family)
+    else:
+        # Default to the theme's own typeface (serif for most, monospace
+        # for Retro-Tech, light sans for Japandi -- see
+        # ThemeColors.font_families) rather than the bare OS default, while
+        # leaving the user's own override in Settings completely intact.
+        font = theme_font(colors)
     font.setPointSize(context.config.config.font_size)
     app.setFont(font)
+    # Button/tooltip look for themes that restyle them; empty (Qt's own
+    # look) for the original themes. Always set, so switching back from
+    # such a theme clears it.
+    app.setStyleSheet(app_stylesheet(colors))
+
+
+logger = logging.getLogger(__name__)
+
+_LOCK_FILE_NAME = "mewbook.lock"
+
+
+def _acquire_single_instance_lock(app_data_dir) -> QLockFile | None:
+    """Two copies of the app writing to the same library.db and cover
+    cache at once is a recipe for corruption -- only the first one runs.
+    QLockFile detects a stale lock left by a crashed run (dead PID) and
+    takes it over, so a crash never locks the user out."""
+    app_data_dir.mkdir(parents=True, exist_ok=True)
+    lock = QLockFile(str(app_data_dir / _LOCK_FILE_NAME))
+    lock.setStaleLockTime(0)
+    if lock.tryLock(200):
+        return lock
+    return None
+
+
+_crash_dialog_open = False
+
+
+def _show_crash_dialog(summary: str) -> None:
+    """At most one crash dialog at a time, and never from inside the failing call.
+
+    An error raised while painting (a delegate, say) repeats on every repaint. Running the
+    dialog's modal loop right there made each repaint raise again and open another dialog on
+    top of the last, and the window froze ("Not Responding"). Later errors are still logged
+    by the hook; they just don't stack more dialogs."""
+    global _crash_dialog_open
+    if QApplication.instance() is None or _crash_dialog_open:
+        return
+    _crash_dialog_open = True
+    QTimer.singleShot(0, lambda: _run_crash_dialog(summary))
+
+
+def _run_crash_dialog(summary: str) -> None:
+    global _crash_dialog_open
+    log_path = current_log_path()
+    try:
+        QMessageBox.critical(
+            None,
+            f"{APP_DISPLAY_NAME} gặp lỗi",
+            "Đã xảy ra lỗi không mong muốn. Ứng dụng vẫn cố gắng tiếp tục chạy.\n\n"
+            f"{summary}\n\n"
+            + (f"Chi tiết đã được ghi vào:\n{log_path}\n\n" if log_path else "")
+            + "Nếu lỗi lặp lại, hãy gửi file nhật ký này kèm mô tả thao tác cho nhà phát triển "
+            "(Trợ giúp > Giới thiệu > Sao chép thông tin hỗ trợ).",
+        )
+    finally:
+        _crash_dialog_open = False
 
 
 def main() -> None:
+    # Smart classification runs in child processes ("spawn"). In a frozen build
+    # each child is this very executable, and this call is what turns it into a
+    # worker instead of a second copy of the app -- so it has to come first.
+    multiprocessing.freeze_support()
+    app_data_dir = default_app_data_dir()
+    setup_logging(app_data_dir)
+    install_exception_hooks(show_dialog=_show_crash_dialog)
+
+    app = QApplication(sys.argv)
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_DISPLAY_NAME)
+    app.setApplicationVersion(__version__)
+    app.setOrganizationName(APP_PUBLISHER)
+
+    instance_lock = _acquire_single_instance_lock(app_data_dir)
+    if instance_lock is None:
+        logger.info("Another instance is already running -- exiting")
+        QMessageBox.information(
+            None, APP_DISPLAY_NAME, f"{APP_DISPLAY_NAME} đang chạy. Hãy chuyển sang cửa sổ đang mở trên thanh tác vụ."
+        )
+        sys.exit(0)
+    app._instance_lock = instance_lock  # held (and released on exit) by the app object
+
     context = AppContext()
+    # The ★ buttons file documents into this built-in collection -- create
+    # it up front so it's visible in the sidebar before the first star.
+    context.db.ensure_reading_list()
 
     import_manager = ImportQueueManager(context, num_workers=context.config.config.worker_thread_count)
     import_manager.start()
@@ -31,10 +130,36 @@ def main() -> None:
     watcher = LibraryWatcher(context)
     watcher.start()
 
-    app = QApplication(sys.argv)
+    # Nothing here loads a model or starts a process: that only happens when a
+    # classification job is requested (button, import popup, or the "always"
+    # setting for files the folder watcher picks up).
+    smart_classifier = SmartClassifyService(context)
+    auto_classifier = AutoClassifyOnImport(context, smart_classifier)
+
     icon_path = app_icon_path()
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
+
+    # Keeps every popup (this app's own dialogs *and* Qt's built-in
+    # message/file dialogs) inside the screen it opens on -- see
+    # presentation/dialog_size.py. Held on the app object so the filter
+    # isn't garbage-collected while it's still installed.
+    app._dialog_size_guard = DialogSizeGuard()
+    app.installEventFilter(app._dialog_size_guard)
+
+    # Gate entry on the EULA/Privacy notice -- asked once per install, not
+    # once per launch (see AppConfig.eula_accepted). Closing the dialog any
+    # way other than its "Tôi đã đọc và Đồng ý" button does not count as
+    # agreeing (see EulaDialog), so this quits instead of ever building the
+    # main window.
+    if not context.config.config.eula_accepted:
+        if EulaDialog().exec() != QDialog.Accepted:
+            watcher.stop()
+            import_manager.stop()
+            context.shutdown()
+            sys.exit(0)
+        context.config.config.eula_accepted = True
+        context.config.save()
 
     # A plain local variable inside on_appearance_changed would go out of
     # scope (and, with no C++ or Python owner, be garbage-collected out from
@@ -46,7 +171,11 @@ def main() -> None:
     def build_and_show_window() -> MainWindow:
         _apply_appearance(app, context)
         window = MainWindow(
-            context, watcher=watcher, import_manager=import_manager, on_appearance_changed=on_appearance_changed
+            context,
+            watcher=watcher,
+            import_manager=import_manager,
+            on_appearance_changed=on_appearance_changed,
+            smart_classifier=smart_classifier,
         )
         window.show()
         current_window.append(window)
@@ -71,7 +200,17 @@ def main() -> None:
 
     build_and_show_window()
 
+    # Books imported before fingerprints existed get theirs in the background.
+    fingerprint_backfill = FingerprintBackfill(context)
+    fingerprint_backfill.start()
+
     exit_code = app.exec()
+    fingerprint_backfill.stop()
+    auto_classifier.stop()
+    smart_classifier.stop()
+    context.shutdown()  # only now: the event loop has drained, nothing queries the database any more
+    logger.info("Exiting with code %s", exit_code)
+    instance_lock.unlock()
     sys.exit(exit_code)
 
 

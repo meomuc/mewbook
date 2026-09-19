@@ -1,7 +1,11 @@
 """TDD-020: Metadata Editor + TDD-023: Bulk Batch Editor.
 
 Editing here only ever touches the database (title/author/tags), never the
-original file on disk — the app's Single Source of Truth rule.
+original file on disk. Writing metadata into the file is a separate, explicit
+step of the metadata search dialog (metadata_suggest_dialog.py).
+
+Whatever the user changes by hand here is remembered as "locked": a later
+metadata suggestion never overwrites a field the user typed themselves.
 
 Deviation from the literal TDD-023 spec: it lists Author/Tags/Publisher as
 bulk-editable fields, but this schema (TDD-001/002) has no `publisher`
@@ -19,19 +23,13 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
 )
 
 from smartdoc.core.event_bus import LibraryUpdatedEvent
-
-
-def _human_size(num_bytes: int) -> str:
-    size = float(num_bytes or 0)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024:
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
+from smartdoc.presentation.format_utils import human_size as _human_size
+from smartdoc.presentation.metadata_suggest_dialog import MetadataSuggestDialog
 
 
 class MetadataEditorDialog(QDialog):
@@ -61,9 +59,20 @@ class MetadataEditorDialog(QDialog):
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
 
+        self.find_button = QPushButton("🔎 Tìm thông tin...", self)
+        self.find_button.setToolTip("Tìm tiêu đề, tác giả, nhà xuất bản... của cuốn sách này trong thư viện và trên internet")
+        self.find_button.clicked.connect(self._on_find_metadata)
+
         layout = QVBoxLayout(self)
         layout.addLayout(form)
+        layout.addWidget(self.find_button)
         layout.addWidget(buttons)
+
+    def _on_find_metadata(self) -> None:
+        dialog = MetadataSuggestDialog(self.context, self.doc, self)
+        dialog.exec()
+        if dialog.applied:
+            self.reject()  # the fields above are out of date now; reopen to see the new values
 
     def _on_save(self) -> None:
         title = self.title_edit.text().strip()
@@ -73,7 +82,12 @@ class MetadataEditorDialog(QDialog):
             "author": author or "Unknown",
             "tags": self.tags_edit.text().strip(),
         }
+        typed_by_hand = [
+            name for name in ("title", "author") if payload[name] != (self.doc.get(name) or ("Unknown" if name == "author" else ""))
+        ]
         self.context.db.update_document_fields(self.doc["id"], payload)
+        if typed_by_hand:
+            self.context.db.lock_fields(self.doc["id"], typed_by_hand)
         self.context.event_bus.publish(LibraryUpdatedEvent())
         self.accept()
 

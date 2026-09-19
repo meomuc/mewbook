@@ -15,16 +15,43 @@ SQLite and would fail at CREATE VIRTUAL TABLE time.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import sqlite3
 import threading
 import time
+import uuid
 from typing import Any
 
+from smartdoc.domain.author_names import (
+    author_key,
+    author_keys,
+    normalize_key,
+    rename_person_in_field,
+    split_author_names,
+    tag_key,
+    tag_keys,
+)
+from smartdoc.domain.library_filter import AUTHORS, COLLECTIONS, FORMATS, TAGS, LibraryFilter, value_key
 from smartdoc.domain.smart_collections import VirtualCollection
 
 logger = logging.getLogger(__name__)
+
+# The built-in reading list the library's ★ button files documents into.
+READING_LIST_ID = "reading-list"
+READING_LIST_NAME = "Sẽ đọc"
+
+# split_author_names (imported above) stays importable from this module: older callers use that path.
+
+
+def _mb_has_author(author: str | None, key: str) -> int:
+    return 1 if key in author_keys(author) else 0
+
+
+def _mb_has_tag(tags: str | None, key: str) -> int:
+    return 1 if key in tag_keys(tags) else 0
+
 
 _SANITIZE_RE = re.compile(r"[^\w\sÀ-ỹ]", re.UNICODE)
 # The omnibar's own placeholder text advertises "author:nam python" as valid
@@ -96,7 +123,77 @@ CREATE TABLE IF NOT EXISTS collection_documents (
     doc_id TEXT NOT NULL,
     PRIMARY KEY (collection_id, doc_id)
 );
+
+-- User-made groups inside the sidebar's facet tree (e.g. a "Văn học Nga"
+-- group holding several authors). Purely organisational: they don't
+-- change any document, they just nest facet values under a folder.
+-- category is one of FACET_CATEGORIES. A value belongs to at most one
+-- group within its category, hence the (category, value) key.
+CREATE TABLE IF NOT EXISTS facet_groups (
+    id TEXT PRIMARY KEY,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS facet_group_members (
+    category TEXT NOT NULL,
+    value TEXT NOT NULL,
+    group_id TEXT NOT NULL,
+    PRIMARY KEY (category, value)
+);
+
+-- What the smart classifier (application/smart_classifier.py) decided for a
+-- document. category_id is NULL when it looked and had no confident answer --
+-- remembered so the next run doesn't redo that work (until the model changes).
+-- applied_tag is the hashtag this run *added* to the document (NULL if the
+-- document already had it or nothing was added): it is what "Hoàn tác" (undo)
+-- removes again, and what tells a tag the machine wrote apart from one the
+-- user chose (train.py must not treat the former as ground truth).
+CREATE TABLE IF NOT EXISTS smart_classification (
+    doc_id TEXT PRIMARY KEY,
+    category_id TEXT,
+    confidence REAL NOT NULL DEFAULT 0,
+    model_version TEXT NOT NULL DEFAULT '',
+    classified_at REAL NOT NULL,
+    applied_tag TEXT,
+    run_id TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_smart_classification_run ON smart_classification(run_id);
+
+-- One row per field changed by a metadata update (application/metadata_applier.py):
+-- what it was, what it became and where the new value came from. A run_id groups
+-- the rows of one "Áp dụng" click, which is what "Hoàn tác" (undo) takes back.
+-- written_to_file / backup_path say whether the update was also written into the
+-- book file itself and where the pre-write copy of the file is kept.
+CREATE TABLE IF NOT EXISTS metadata_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    source TEXT NOT NULL DEFAULT '',
+    confidence REAL,
+    applied_at REAL NOT NULL,
+    written_to_file INTEGER NOT NULL DEFAULT 0,
+    backup_path TEXT,
+    undone_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_metadata_history_run ON metadata_history(run_id);
+CREATE INDEX IF NOT EXISTS idx_metadata_history_doc ON metadata_history(doc_id);
 """
+
+FACET_CATEGORIES = ("extension", "author", "tag")
+
+
+def parse_locked_fields(value: str | None) -> set[str]:
+    """The `locked_fields` column (a JSON list) as a set; anything unreadable is empty."""
+    try:
+        parsed = json.loads(value) if value else []
+    except ValueError:
+        return set()
+    return {field for field in parsed if isinstance(field, str)} if isinstance(parsed, list) else set()
 
 
 class DatabaseManager:
@@ -107,6 +204,10 @@ class DatabaseManager:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL;")
         self.connection.execute("PRAGMA foreign_keys=ON;")
+        # Person/tag matching that SQLite's own LIKE can't do: it only folds
+        # ASCII case ("NHÃ CA" != "Nhã Ca") and can't split co-author lists.
+        self.connection.create_function("mb_has_author", 2, _mb_has_author, deterministic=True)
+        self.connection.create_function("mb_has_tag", 2, _mb_has_tag, deterministic=True)
 
     def initialize_tables(self) -> None:
         with self.write_lock:
@@ -124,12 +225,27 @@ class DatabaseManager:
             "updated_at": "ALTER TABLE documents ADD COLUMN updated_at REAL",
             "avg_rating": "ALTER TABLE documents ADD COLUMN avg_rating REAL",
             "review_count": "ALTER TABLE documents ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0",
+            # Metadata lookup (docs/METADATA_LOOKUP_SPEC.md): identity that survives a
+            # metadata write, the bibliographic fields, and the fields the user typed
+            # by hand (never overwritten by a suggestion).
+            "fingerprint": "ALTER TABLE documents ADD COLUMN fingerprint TEXT",
+            "publisher": "ALTER TABLE documents ADD COLUMN publisher TEXT",
+            "pub_year": "ALTER TABLE documents ADD COLUMN pub_year INTEGER",
+            "language": "ALTER TABLE documents ADD COLUMN language TEXT",
+            "isbn": "ALTER TABLE documents ADD COLUMN isbn TEXT",
+            "series": "ALTER TABLE documents ADD COLUMN series TEXT",
+            "description": "ALTER TABLE documents ADD COLUMN description TEXT",
+            "locked_fields": "ALTER TABLE documents ADD COLUMN locked_fields TEXT",
+            # NULL = not counted yet, 0 = counted and unknown (see infrastructure/page_count.py).
+            "page_count": "ALTER TABLE documents ADD COLUMN page_count INTEGER",
         }
         ran_any = False
         for column, statement in migrations.items():
             if column not in existing_columns:
                 self.connection.execute(statement)
                 ran_any = True
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_fingerprint ON documents(fingerprint)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_isbn ON documents(isbn)")
         if ran_any:
             self.connection.commit()
 
@@ -155,14 +271,16 @@ class DatabaseManager:
             metadata.get("content_hash"),
             metadata.get("created_at", 0.0),
             now,
+            metadata.get("fingerprint"),
+            metadata.get("page_count"),
         )
         with self.write_lock:
             try:
                 self.connection.execute(
                     """
                     INSERT INTO documents
-                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at, updated_at, fingerprint, page_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title=excluded.title,
                         author=excluded.author,
@@ -173,7 +291,9 @@ class DatabaseManager:
                         content=excluded.content,
                         cover_path=excluded.cover_path,
                         content_hash=excluded.content_hash,
-                        updated_at=excluded.updated_at
+                        updated_at=excluded.updated_at,
+                        fingerprint=COALESCE(excluded.fingerprint, documents.fingerprint),
+                        page_count=COALESCE(excluded.page_count, documents.page_count)
                     """,
                     params,
                 )
@@ -181,6 +301,13 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 logger.exception("Failed to write document %s (db locked?)", doc_id)
                 raise
+
+    def set_page_count(self, doc_id: str, page_count: int) -> None:
+        """Stores a counted page total (0 = looked at, unknown). Deliberately leaves
+        updated_at alone: counting pages is not an edit of the book."""
+        with self.write_lock:
+            self.connection.execute("UPDATE documents SET page_count = ? WHERE id = ?", (page_count, doc_id))
+            self.connection.commit()
 
     _EDITABLE_FIELDS = ("title", "author", "tags")
 
@@ -203,6 +330,319 @@ class DatabaseManager:
             for doc_id in doc_ids:
                 self.connection.execute(f"UPDATE documents SET {set_clause} WHERE id = ?", (*values, doc_id))
             self.connection.commit()
+
+    # -- Metadata lookup: fingerprint, history, locked fields --------------
+
+    # What a metadata update may change. `tags` and the cover have their own flows.
+    METADATA_FIELDS = ("title", "author", "publisher", "pub_year", "language", "isbn", "series", "description")
+
+    def set_fingerprint(self, doc_id: str, fingerprint: str) -> None:
+        with self.write_lock:
+            self.connection.execute("UPDATE documents SET fingerprint = ? WHERE id = ?", (fingerprint, doc_id))
+            self.connection.commit()
+
+    def documents_missing_fingerprint(self, limit: int = 50, after_rowid: int = 0) -> list[dict[str, Any]]:
+        """Books without a fingerprint, in stable order; `after_rowid` continues after the last row
+        of a previous batch, so a book that was skipped is not offered again in the same pass."""
+        rows = self.connection.execute(
+            "SELECT doc_rowid, id, file_path, extension FROM documents"
+            " WHERE fingerprint IS NULL AND doc_rowid > ? ORDER BY doc_rowid LIMIT ?",
+            (after_rowid, limit),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find_documents_by_fingerprint(self, fingerprint: str, exclude_id: str = "") -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM documents WHERE fingerprint = ? AND id != ?", (fingerprint, exclude_id)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def find_documents_by_isbn(self, isbn: str, exclude_id: str = "") -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM documents WHERE isbn = ? AND id != ?", (isbn, exclude_id)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def set_file_stats(self, doc_id: str, content_hash: str | None, file_size: int) -> None:
+        """After MewBook rewrote the book file: its whole-file hash and size changed."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET content_hash = ?, file_size = ? WHERE id = ?", (content_hash, file_size, doc_id)
+            )
+            self.connection.commit()
+
+    def apply_metadata(
+        self,
+        doc_id: str,
+        run_id: str,
+        changes: dict[str, Any],
+        *,
+        source: str = "",
+        confidence: float | None = None,
+        written_to_file: bool = False,
+        backup_path: str | None = None,
+    ) -> list[str]:
+        """Writes `changes` (only METADATA_FIELDS, only values that differ from
+        what is stored) and records each one in metadata_history under `run_id`.
+        Returns the fields that actually changed."""
+        now = time.time()
+        with self.write_lock:
+            row = self.connection.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
+            if row is None:
+                return []
+            changed: list[str] = []
+            for field, new_value in changes.items():
+                if field not in self.METADATA_FIELDS:
+                    continue
+                old_value = row[field]
+                if str(old_value if old_value is not None else "") == str(new_value if new_value is not None else ""):
+                    continue
+                self.connection.execute(f"UPDATE documents SET {field} = ? WHERE id = ?", (new_value, doc_id))
+                self.connection.execute(
+                    "INSERT INTO metadata_history (doc_id, run_id, field, old_value, new_value, source, confidence,"
+                    " applied_at, written_to_file, backup_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        doc_id,
+                        run_id,
+                        field,
+                        None if old_value is None else str(old_value),
+                        None if new_value is None else str(new_value),
+                        source,
+                        confidence,
+                        now,
+                        1 if written_to_file else 0,
+                        backup_path,
+                    ),
+                )
+                changed.append(field)
+            if changed:
+                self.connection.execute("UPDATE documents SET updated_at = ? WHERE id = ?", (now, doc_id))
+            self.connection.commit()
+            return changed
+
+    def metadata_run(self, run_id: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            "SELECT * FROM metadata_history WHERE run_id = ? ORDER BY id", (run_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def latest_metadata_run(self, doc_id: str) -> str | None:
+        """The newest run of this document that has not been undone."""
+        row = self.connection.execute(
+            "SELECT run_id FROM metadata_history WHERE doc_id = ? AND undone_at IS NULL ORDER BY id DESC LIMIT 1",
+            (doc_id,),
+        ).fetchone()
+        return row["run_id"] if row else None
+
+    def undo_metadata_run(self, run_id: str) -> list[dict[str, Any]]:
+        """Puts every field of the run back to its old value and marks the run
+        undone. Returns the history rows (the caller restores the file from
+        `backup_path` when `written_to_file` is set)."""
+        now = time.time()
+        with self.write_lock:
+            rows = [
+                dict(row)
+                for row in self.connection.execute(
+                    "SELECT * FROM metadata_history WHERE run_id = ? AND undone_at IS NULL ORDER BY id", (run_id,)
+                )
+            ]
+            for row in rows:
+                old_value = row["old_value"]
+                if old_value is None and row["field"] in ("title", "author"):
+                    old_value = ""  # these two columns are NOT NULL
+                elif old_value is not None and row["field"] == "pub_year":
+                    old_value = int(old_value)
+                self.connection.execute(f"UPDATE documents SET {row['field']} = ? WHERE id = ?", (old_value, row["doc_id"]))
+                self.connection.execute("UPDATE metadata_history SET undone_at = ? WHERE id = ?", (now, row["id"]))
+            if rows:
+                self.connection.execute("UPDATE documents SET updated_at = ? WHERE id = ?", (now, rows[0]["doc_id"]))
+            self.connection.commit()
+            return rows
+
+    def locked_fields(self, doc_id: str) -> set[str]:
+        row = self.connection.execute("SELECT locked_fields FROM documents WHERE id = ?", (doc_id,)).fetchone()
+        return parse_locked_fields(row["locked_fields"] if row else None)
+
+    def lock_fields(self, doc_id: str, fields) -> None:
+        """Marks fields the user typed by hand: a suggestion never overwrites them."""
+        locked = self.locked_fields(doc_id) | {f for f in fields if f in self.METADATA_FIELDS}
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET locked_fields = ? WHERE id = ?", (json.dumps(sorted(locked)), doc_id)
+            )
+            self.connection.commit()
+
+    # -- Facet groups (sidebar tree folders) -------------------------------
+
+    def create_facet_group(self, category: str, name: str) -> str:
+        group_id = uuid.uuid4().hex
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT INTO facet_groups (id, category, name, created_at) VALUES (?, ?, ?, ?)",
+                (group_id, category, name.strip(), time.time()),
+            )
+            self.connection.commit()
+        return group_id
+
+    def rename_facet_group(self, group_id: str, name: str) -> None:
+        with self.write_lock:
+            self.connection.execute("UPDATE facet_groups SET name = ? WHERE id = ?", (name.strip(), group_id))
+            self.connection.commit()
+
+    def delete_facet_group(self, group_id: str) -> None:
+        """Deletes the folder only -- its members simply become ungrouped
+        again; no document is touched."""
+        with self.write_lock:
+            self.connection.execute("DELETE FROM facet_group_members WHERE group_id = ?", (group_id,))
+            self.connection.execute("DELETE FROM facet_groups WHERE id = ?", (group_id,))
+            self.connection.commit()
+
+    def list_facet_groups(self, category: str) -> list[dict[str, Any]]:
+        """Groups for one category, oldest first, each with a `members`
+        list of the facet values filed under it."""
+        groups = [
+            dict(row)
+            for row in self.connection.execute(
+                "SELECT * FROM facet_groups WHERE category = ? ORDER BY created_at ASC", (category,)
+            )
+        ]
+        members: dict[str, list[str]] = {}
+        for row in self.connection.execute(
+            "SELECT group_id, value FROM facet_group_members WHERE category = ?", (category,)
+        ):
+            members.setdefault(row["group_id"], []).append(row["value"])
+        for group in groups:
+            group["members"] = sorted(members.get(group["id"], []), key=str.casefold)
+        return groups
+
+    def move_facet_value(self, category: str, value: str, group_id: str | None) -> None:
+        """Files `value` under `group_id`, or takes it out of any group when
+        group_id is None. Moving replaces any previous group."""
+        with self.write_lock:
+            self.connection.execute(
+                "DELETE FROM facet_group_members WHERE category = ? AND value = ?", (category, value)
+            )
+            if group_id:
+                self.connection.execute(
+                    "INSERT INTO facet_group_members (category, value, group_id) VALUES (?, ?, ?)",
+                    (category, value, group_id),
+                )
+            self.connection.commit()
+
+    def _rename_facet_member(self, category: str, old_value: str, new_value: str | None) -> None:
+        """Keeps group membership following a renamed (or deleted, when
+        new_value is None) author/tag instead of stranding the old name."""
+        with self.write_lock:
+            if new_value:
+                taken = self.connection.execute(
+                    "SELECT 1 FROM facet_group_members WHERE category = ? AND value = ?", (category, new_value)
+                ).fetchone()
+                if taken:
+                    # Renamed onto a value that's already filed somewhere --
+                    # that filing wins; drop the old name's.
+                    self.connection.execute(
+                        "DELETE FROM facet_group_members WHERE category = ? AND value = ?", (category, old_value)
+                    )
+                else:
+                    self.connection.execute(
+                        "UPDATE facet_group_members SET value = ? WHERE category = ? AND value = ?",
+                        (new_value, category, old_value),
+                    )
+            else:
+                self.connection.execute(
+                    "DELETE FROM facet_group_members WHERE category = ? AND value = ?", (category, old_value)
+                )
+            self.connection.commit()
+
+    def rename_author(self, old_name: str, new_name: str) -> int:
+        """Renames an author across every document carrying it, and returns
+        how many rows changed. Used by the sidebar's facet tree, where the
+        author list is derived from the documents themselves -- there is no
+        separate author table to rename in, so "renaming an author" really
+        means rewriting that field on each of their documents."""
+        old_name, new_name = old_name.strip(), new_name.strip()
+        if not old_name or not new_name or old_name == new_name:
+            return 0
+        with self.write_lock:
+            cursor = self.connection.execute(
+                "UPDATE documents SET author = ?, updated_at = ? WHERE author = ?",
+                (new_name, time.time(), old_name),
+            )
+            self.connection.commit()
+            changed = cursor.rowcount
+        self._rename_facet_member("author", old_name, new_name)
+        return changed
+
+    def rename_person(self, old_name: str, new_name: str) -> int:
+        """Renames one *person* in every author field that names them, whatever
+        the spelling ("NHÃ CA", "nhã ca") and even inside a co-author list
+        ("Nhã Ca, X" keeps X). Returns how many documents changed. rename_author
+        above only rewrites fields that equal `old_name` exactly."""
+        old_name, new_name = old_name.strip(), new_name.strip()
+        old_key = normalize_key(old_name)
+        if not old_key or not new_name or old_name == new_name:
+            return 0
+        rows = self.connection.execute("SELECT id, author FROM documents").fetchall()
+        now = time.time()
+        updates = []
+        for row in rows:
+            if old_key in author_keys(row["author"]):
+                rewritten = rename_person_in_field(row["author"], old_name, new_name)
+                if rewritten != row["author"]:
+                    updates.append((rewritten, now, row["id"]))
+        if updates:
+            with self.write_lock:
+                self.connection.executemany("UPDATE documents SET author = ?, updated_at = ? WHERE id = ?", updates)
+                self.connection.commit()
+        self._rename_facet_member("author", old_name, new_name)
+        return len(updates)
+
+    def rename_tag(self, old_tag: str, new_tag: str) -> int:
+        """Renames one hashtag everywhere it appears. Tags live as a
+        comma-joined string per document, so each affected row is rewritten
+        element-wise rather than with a blind string replace -- a plain
+        REPLACE() would also rewrite tags that merely *contain* the old one
+        ("Khoa hoc" inside "Khoa hoc vien tuong")."""
+        changed = self._rewrite_tags(old_tag, new_tag)
+        self._rename_facet_member("tag", old_tag.strip(), new_tag.strip())
+        return changed
+
+    def delete_tag(self, tag: str) -> int:
+        """Removes one hashtag from every document carrying it."""
+        changed = self._rewrite_tags(tag, None)
+        self._rename_facet_member("tag", tag.strip(), None)
+        return changed
+
+    def _rewrite_tags(self, old_tag: str, new_tag: str | None) -> int:
+        old_tag = old_tag.strip()
+        new_tag = new_tag.strip() if new_tag else None
+        if not old_tag or old_tag == new_tag:
+            return 0
+
+        rows = self.connection.execute("SELECT id, tags FROM documents WHERE tags != ''").fetchall()
+        updates: list[tuple[str, float, str]] = []
+        now = time.time()
+        for row in rows:
+            tags = [t.strip() for t in row["tags"].split(",")]
+            if old_tag not in tags:
+                continue
+            rewritten: list[str] = []
+            for tag in tags:
+                if tag != old_tag:
+                    if tag:
+                        rewritten.append(tag)
+                elif new_tag and new_tag not in rewritten:
+                    rewritten.append(new_tag)
+            updates.append((", ".join(rewritten), now, row["id"]))
+
+        if not updates:
+            return 0
+        with self.write_lock:
+            self.connection.executemany(
+                "UPDATE documents SET tags = ?, updated_at = ? WHERE id = ?", updates
+            )
+            self.connection.commit()
+        return len(updates)
 
     def update_ai_summary(self, doc_id: str, summary: str) -> None:
         """Persists a generated AI summary (application/ai_summary.py) --
@@ -246,6 +686,8 @@ class DatabaseManager:
         with self.write_lock:
             self.connection.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
             self.connection.execute("DELETE FROM collection_documents WHERE doc_id = ?", (doc_id,))
+            self.connection.execute("DELETE FROM smart_classification WHERE doc_id = ?", (doc_id,))
+            self.connection.execute("DELETE FROM metadata_history WHERE doc_id = ?", (doc_id,))
             self.connection.commit()
 
     def get_document(self, doc_id: str) -> dict[str, Any] | None:
@@ -312,6 +754,16 @@ class DatabaseManager:
     def list_document_ids(self) -> list[str]:
         return [row["id"] for row in self.connection.execute("SELECT id FROM documents")]
 
+    # Everything the duplicate finder shows or compares -- deliberately *not*
+    # `content`, the full extracted text of each book: SELECT * pulled every
+    # book's whole text into memory just to compare titles, which on a large
+    # library is hundreds of MB for nothing.
+    _DEDUP_COLUMNS = "id, title, author, file_path, extension, file_size, content_hash, created_at, cover_path"
+
+    def list_documents_for_dedup(self) -> list[dict[str, Any]]:
+        cursor = self.connection.execute(f"SELECT {self._DEDUP_COLUMNS} FROM documents ORDER BY created_at DESC")
+        return [dict(row) for row in cursor.fetchall()]
+
     def find_duplicate_groups_by_content_hash(self) -> list[list[dict[str, Any]]]:
         """TDD-021 exact-duplicate detection: documents whose file bytes hash
         identically (see infrastructure/file_hash.py), grouped together.
@@ -319,8 +771,8 @@ class DatabaseManager:
         correctly excluded rather than lumped into one giant "NULL" group.
         """
         rows = self.connection.execute(
-            """
-            SELECT * FROM documents
+            f"""
+            SELECT {self._DEDUP_COLUMNS} FROM documents
             WHERE content_hash IS NOT NULL AND content_hash IN (
                 SELECT content_hash FROM documents
                 WHERE content_hash IS NOT NULL
@@ -416,6 +868,165 @@ class DatabaseManager:
             logger.error("count_documents_matching failed (fts=%r, where=%r)", fts_query, where_sql)
             return 0
 
+    def list_document_ids_matching(self, fts_query: str = "", where_sql: str = "", params: tuple = ()) -> list[str]:
+        """Every id matching the same filters as query_documents -- no paging.
+        "Apply to the current list" (smart classification) means the whole
+        filtered result, not just the page on screen."""
+        match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        try:
+            if match_expr:
+                extra = f"AND ({where_sql})" if where_sql else ""
+                sql = f"""
+                    SELECT documents.id
+                    FROM documents_fts
+                    JOIN documents ON documents.doc_rowid = documents_fts.rowid
+                    WHERE documents_fts MATCH ? {extra}
+                """
+                query_params: tuple = (match_expr, *params)
+            else:
+                extra = f"WHERE {where_sql}" if where_sql else ""
+                sql = f"SELECT id FROM documents {extra} ORDER BY created_at DESC"
+                query_params = tuple(params)
+            return [row[0] for row in self.connection.execute(sql, query_params)]
+        except sqlite3.OperationalError:
+            logger.error("list_document_ids_matching failed (fts=%r, where=%r)", fts_query, where_sql)
+            return []
+
+    _LIGHT_COLUMNS = "id, title, author, tags, file_path, extension"
+
+    def get_documents_light(self, doc_ids: list[str]) -> list[dict[str, Any]]:
+        """Just the columns the classifier needs -- never `content`, the full
+        extracted text, which for a big library is hundreds of MB."""
+        rows: list[dict[str, Any]] = []
+        for start in range(0, len(doc_ids), 500):  # stay well under SQLite's bound-variable limit
+            chunk = doc_ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            cursor = self.connection.execute(
+                f"SELECT {self._LIGHT_COLUMNS} FROM documents WHERE id IN ({placeholders})", tuple(chunk)
+            )
+            rows.extend(dict(row) for row in cursor.fetchall())
+        return rows
+
+    # -- Smart classification (application/smart_classifier.py) ---------------
+
+    def smart_classification_records(self, doc_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """doc_id -> its smart_classification row, for the ids that have one."""
+        found: dict[str, dict[str, Any]] = {}
+        for start in range(0, len(doc_ids), 500):
+            chunk = doc_ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            for row in self.connection.execute(
+                f"SELECT * FROM smart_classification WHERE doc_id IN ({placeholders})", tuple(chunk)
+            ):
+                found[row["doc_id"]] = dict(row)
+        return found
+
+    def apply_smart_classifications(self, run_id: str, model_version: str, items: list[dict[str, Any]]) -> dict[str, int]:
+        """Records the classifier's decisions in one transaction.
+
+        Each item: doc_id, category_id (None = no confident answer),
+        confidence, and -- when a category was chosen -- tag (the hashtag to
+        add) and group (the sidebar folder to file that hashtag under).
+
+        Only ever *adds*: the tag is appended to the document's existing tags
+        (never replacing them), and a hashtag the user has already filed into
+        some folder stays where they put it. The folder is created on first
+        use, or re-used if one with that name exists. The one exception is an
+        item's `replace_tag` -- the hashtag an *earlier classification run*
+        added, which is swapped for the new one so a re-run doesn't leave two
+        categories on a book. Returns counts: tagged, already_tagged, unknown,
+        missing (documents deleted meanwhile).
+        """
+        stats = {"tagged": 0, "already_tagged": 0, "unknown": 0, "missing": 0}
+        now = time.time()
+        with self.write_lock:
+            groups = {
+                row["name"].casefold(): row["id"]
+                for row in self.connection.execute("SELECT id, name FROM facet_groups WHERE category = 'tag'")
+            }
+            filed = {
+                row["value"] for row in self.connection.execute("SELECT value FROM facet_group_members WHERE category = 'tag'")
+            }
+            for item in items:
+                doc_id, tag = item["doc_id"], item.get("tag")
+                row = self.connection.execute("SELECT tags FROM documents WHERE id = ?", (doc_id,)).fetchone()
+                if row is None:
+                    stats["missing"] += 1
+                    continue
+                applied: str | None = None
+                if tag:
+                    current = [t.strip() for t in (row["tags"] or "").split(",") if t.strip()]
+                    replaced = item.get("replace_tag")
+                    if replaced and replaced.casefold() != tag.casefold():
+                        current = [t for t in current if t.casefold() != replaced.casefold()]
+                    if tag.casefold() in {t.casefold() for t in current}:
+                        stats["already_tagged"] += 1
+                    else:
+                        current.append(tag)
+                        applied = tag
+                        stats["tagged"] += 1
+                    if applied or (replaced and replaced.casefold() != tag.casefold()):
+                        self.connection.execute(
+                            "UPDATE documents SET tags = ?, updated_at = ? WHERE id = ?", (", ".join(current), now, doc_id)
+                        )
+                    group_name = item.get("group")
+                    if group_name and tag not in filed:
+                        group_id = groups.get(group_name.casefold())
+                        if group_id is None:
+                            group_id = uuid.uuid4().hex
+                            self.connection.execute(
+                                "INSERT INTO facet_groups (id, category, name, created_at) VALUES (?, 'tag', ?, ?)",
+                                (group_id, group_name, now),
+                            )
+                            groups[group_name.casefold()] = group_id
+                        self.connection.execute(
+                            "INSERT OR IGNORE INTO facet_group_members (category, value, group_id) VALUES ('tag', ?, ?)",
+                            (tag, group_id),
+                        )
+                        filed.add(tag)
+                else:
+                    stats["unknown"] += 1
+                self.connection.execute(
+                    """
+                    INSERT INTO smart_classification (doc_id, category_id, confidence, model_version, classified_at, applied_tag, run_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(doc_id) DO UPDATE SET
+                        category_id=excluded.category_id, confidence=excluded.confidence,
+                        model_version=excluded.model_version, classified_at=excluded.classified_at,
+                        applied_tag=excluded.applied_tag, run_id=excluded.run_id
+                    """,
+                    (doc_id, item.get("category_id"), float(item.get("confidence") or 0.0), model_version, now, applied, run_id),
+                )
+            self.connection.commit()
+        return stats
+
+    def undo_smart_classification(self, run_id: str) -> int:
+        """Takes back one classification run: removes the hashtags it added
+        (only those -- tags that were already on a document, or that the user
+        added since, are left alone) and forgets its records. The sidebar
+        folders it created stay (they are harmless and may hold other
+        hashtags). Returns how many documents lost a tag."""
+        changed = 0
+        now = time.time()
+        with self.write_lock:
+            rows = self.connection.execute(
+                "SELECT doc_id, applied_tag FROM smart_classification WHERE run_id = ? AND applied_tag IS NOT NULL", (run_id,)
+            ).fetchall()
+            for row in rows:
+                doc = self.connection.execute("SELECT tags FROM documents WHERE id = ?", (row["doc_id"],)).fetchone()
+                if doc is None:
+                    continue
+                current = [t.strip() for t in (doc["tags"] or "").split(",") if t.strip()]
+                remaining = [t for t in current if t.casefold() != row["applied_tag"].casefold()]
+                if len(remaining) != len(current):
+                    self.connection.execute(
+                        "UPDATE documents SET tags = ?, updated_at = ? WHERE id = ?", (", ".join(remaining), now, row["doc_id"])
+                    )
+                    changed += 1
+            self.connection.execute("DELETE FROM smart_classification WHERE run_id = ?", (run_id,))
+            self.connection.commit()
+        return changed
+
     def count_by_extension(self) -> dict[str, int]:
         rows = self.connection.execute(
             "SELECT extension, COUNT(*) AS n FROM documents GROUP BY extension ORDER BY n DESC"
@@ -494,6 +1105,34 @@ class DatabaseManager:
             )
             self.connection.commit()
 
+    def ensure_reading_list(self) -> str:
+        """Creates the built-in "Sẽ đọc" collection on first use and returns
+        its id. It has a fixed id (READING_LIST_ID) rather than being looked
+        up by name, so a user renaming it -- or creating an unrelated
+        collection that happens to also be called "Sẽ đọc" -- can't make
+        the star button start filing books somewhere else."""
+        if self.get_collection(READING_LIST_ID) is None:
+            collection = VirtualCollection(name=READING_LIST_NAME, id=READING_LIST_ID)
+            self.save_collection(
+                collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at
+            )
+        return READING_LIST_ID
+
+    def reading_list_ids(self) -> set[str]:
+        """One query for the whole set, so the library view can mark every
+        starred row on a page without a lookup per row."""
+        return set(self.list_collection_document_ids(READING_LIST_ID))
+
+    def toggle_reading_list(self, doc_id: str) -> bool:
+        """Stars/unstars one document. Returns the new state (True = now in
+        the reading list)."""
+        self.ensure_reading_list()
+        if doc_id in self.reading_list_ids():
+            self.remove_documents_from_collection(READING_LIST_ID, [doc_id])
+            return False
+        self.add_documents_to_collection(READING_LIST_ID, [doc_id])
+        return True
+
     def list_collection_document_ids(self, collection_id: str) -> list[str]:
         rows = self.connection.execute(
             "SELECT doc_id FROM collection_documents WHERE collection_id = ?", (collection_id,)
@@ -528,6 +1167,53 @@ class DatabaseManager:
             return "1=0", ()
         return "(" + " OR ".join(parts) + ")", tuple(params)
 
+    def collections_where_fragment(self, collection_ids) -> tuple[str, tuple]:
+        """Union of several collections: a document in *any* of them."""
+        parts: list[str] = []
+        params: list = []
+        for collection_id in collection_ids:
+            sql, collection_params = self.collection_where_fragment(collection_id)
+            parts.append(sql)
+            params.extend(collection_params)
+        if not parts:
+            return "1=0", ()
+        return "(" + " OR ".join(parts) + ")", tuple(params)
+
+    def filter_where(self, flt: LibraryFilter, exclude: tuple[str, ...] = ()) -> tuple[str, tuple]:
+        """The WHERE fragment for a LibraryFilter's sidebar groups: OR within a
+        group, AND between groups. (The text query is not part of it -- it goes
+        to FTS separately, see query_documents.) `exclude` leaves whole groups
+        out, which is how a facet count answers "what if I picked this
+        instead?" without its own group narrowing the options."""
+        fragments: list[str] = []
+        params: list = []
+
+        if flt.formats and FORMATS not in exclude:
+            keys = [value_key(FORMATS, ext) for ext in flt.formats]
+            fragments.append(f"documents.extension IN ({','.join('?' for _ in keys)})")
+            params.extend(keys)
+
+        if flt.authors and AUTHORS not in exclude:
+            fragments.append("(" + " OR ".join("mb_has_author(documents.author, ?)" for _ in flt.authors) + ")")
+            params.extend(author_key(name) for name in flt.authors)
+
+        if flt.tags and TAGS not in exclude:
+            fragments.append("(" + " OR ".join("mb_has_tag(documents.tags, ?)" for _ in flt.tags) + ")")
+            params.extend(tag_key(tag) for tag in flt.tags)
+
+        if flt.collections and COLLECTIONS not in exclude:
+            collection_sql, collection_params = self.collections_where_fragment(flt.collections)
+            fragments.append(collection_sql)
+            params.extend(collection_params)
+
+        return " AND ".join(fragments), tuple(params)
+
+    def list_facet_rows(self) -> list[tuple[str, str, str, str]]:
+        """(id, author, tags, extension) of every document -- just the columns
+        the sidebar counts are built from, never the extracted text."""
+        rows = self.connection.execute("SELECT id, author, tags, extension FROM documents").fetchall()
+        return [(row["id"], row["author"] or "", row["tags"] or "", row["extension"] or "") for row in rows]
+
     def count_documents_in_collection(self, collection_id: str) -> int:
         where_sql, params = self.collection_where_fragment(collection_id)
         return self.count_documents_matching(where_sql=where_sql, params=params)
@@ -547,7 +1233,11 @@ class DatabaseManager:
         return total - incomplete, incomplete
 
     def close(self) -> None:
-        self.connection.close()
+        # Waits for a write that is running on another thread (e.g. the detail
+        # panel's background page counter): closing a sqlite3 connection under a
+        # statement that is executing is a hard crash (access violation), not an exception.
+        with self.write_lock:
+            self.connection.close()
 
 
 if __name__ == "__main__":

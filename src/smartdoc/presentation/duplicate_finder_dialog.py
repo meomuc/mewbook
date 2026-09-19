@@ -4,19 +4,29 @@ Two tabs (exact / fuzzy matches), each a sortable checkbox table. Checking a
 row and pressing "Xóa file" removes it from the library, optionally also
 deleting the physical file -- never silently: the user always picks one of
 the two explicitly (or cancels).
+
+The exact tab is one indexed SQL query and fills in immediately. The fuzzy
+tab's scan runs on a background thread with a progress bar: even with the
+indexed search in application/duplicate_finder.py it takes a few seconds on
+a large library, and it used to run inside this dialog's constructor on the
+GUI thread -- which is what froze the whole app. Closing the dialog cancels
+a scan still in progress.
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
+    QLabel,
     QMenu,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -24,10 +34,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from smartdoc.application.duplicate_finder import DuplicateEngine
+from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
 from smartdoc.presentation.file_actions import FileActionEngine
 
 _DOC_ROLE = Qt.UserRole + 1
+_FUZZY_TAB_TITLE = "Có thể trùng (tiêu đề/tác giả gần giống)"
 _MARKED_BRUSH = QBrush(QColor("#f5c2c7"))
 _CLEAR_BRUSH = QBrush()  # resets to the table's default background
 
@@ -62,15 +73,34 @@ class DuplicateFinderDialog(QDialog):
         self.file_actions = FileActionEngine(context)
         self._exact_groups: list[list[dict]] = []
         self._fuzzy_groups: list[list[dict]] = []
+        # Each scan gets a new generation number; results/progress from an
+        # older (superseded or cancelled) scan are ignored on arrival.
+        self._scan_generation = 0
+        self._cancel_scan = threading.Event()
+        # The worker thread never touches a Qt object (emitting a signal on a
+        # dialog destroyed mid-scan is a hard crash, not an exception): it
+        # only writes plain Python values into this dict, and a timer owned
+        # by the dialog -- so it dies with it -- picks them up on the GUI
+        # thread.
+        self._scan_state: dict = {}
+        self._scan_poll = QTimer(self)
+        self._scan_poll.setInterval(50)
+        self._scan_poll.timeout.connect(self._poll_fuzzy_scan)
 
         self.setWindowTitle("Dọn dẹp trùng lặp")
         self.resize(760, 480)
+        self.setMaximumSize(1100, 800)  # a long duplicate list shouldn't be able to balloon the window
 
         self.exact_table = self._build_table()
         self.fuzzy_table = self._build_table()
         self.tabs = QTabWidget(self)
         self.tabs.addTab(self.exact_table, "Trùng hoàn toàn (nội dung giống hệt)")
-        self.tabs.addTab(self.fuzzy_table, "Có thể trùng (tiêu đề/tác giả gần giống)")
+        self.tabs.addTab(self.fuzzy_table, _FUZZY_TAB_TITLE)
+
+        self.scan_status_label = QLabel(self)
+        self.scan_progress = QProgressBar(self)
+        self.scan_progress.setTextVisible(True)
+        self.scan_progress.setMaximumHeight(14)
 
         refresh_button = QPushButton("🔄 Quét lại")
         refresh_button.clicked.connect(self.refresh)
@@ -92,6 +122,8 @@ class DuplicateFinderDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.tabs)
+        layout.addWidget(self.scan_status_label)
+        layout.addWidget(self.scan_progress)
         layout.addLayout(action_row)
         layout.addWidget(close_buttons)
 
@@ -115,17 +147,112 @@ class DuplicateFinderDialog(QDialog):
 
     def refresh(self) -> None:
         self._exact_groups = self.engine.find_exact_duplicates()
-        self._fuzzy_groups = self.engine.find_fuzzy_duplicates()
         self._populate(self.exact_table, self._exact_groups)
-        self._populate(self.fuzzy_table, self._fuzzy_groups)
+        self._start_fuzzy_scan()
+
+    # -- Fuzzy scan on a background thread ---------------------------------
+
+    def _start_fuzzy_scan(self) -> None:
+        self._cancel_scan.set()  # stop any scan still running from before
+        self._cancel_scan = threading.Event()
+        self._scan_generation += 1
+        generation, cancel = self._scan_generation, self._cancel_scan
+
+        self._fuzzy_groups = []
+        self._populate(self.fuzzy_table, [])
+        self.tabs.setTabText(1, f"{_FUZZY_TAB_TITLE} -- đang quét...")
+        self.scan_status_label.setText("Đang tìm các tài liệu có tiêu đề/tác giả gần giống nhau...")
+        self.scan_progress.setRange(0, 0)  # indeterminate until the first progress report
+        self.scan_progress.show()
+
+        # Read here, on the GUI thread (one quick query); the worker only
+        # does the comparison. A worker holding the shared database
+        # connection could otherwise still be mid-query when the app closes
+        # that connection on exit -- a hard crash, not an exception.
+        docs = self.context.db.list_documents_for_dedup()
+
+        # A fresh dict per scan: a superseded worker keeps writing into its
+        # own, which nobody reads any more.
+        state: dict = {"generation": generation}
+        self._scan_state = state
+        engine = self.engine
+
+        def worker() -> None:
+            def progress(done: int, total: int) -> None:
+                state["progress"] = (done, total)
+
+            try:
+                groups = engine.find_fuzzy_duplicates(progress=progress, should_cancel=cancel.is_set, docs=docs)
+            except DuplicateSearchCancelled:
+                return
+            except Exception as exc:  # a scan failure must not take the dialog down with it
+                state["result"] = ([], str(exc))
+                return
+            state["result"] = (groups, "")
+
+        threading.Thread(target=worker, daemon=True).start()
+        self._scan_poll.start()
+
+    def _poll_fuzzy_scan(self) -> None:
+        state = self._scan_state
+        generation = state.get("generation", -1)
+        if "result" in state:
+            self._scan_poll.stop()
+            groups, error = state["result"]
+            self._on_fuzzy_finished(generation, groups, error)
+        elif "progress" in state:
+            self._on_fuzzy_progress(generation, *state["progress"])
+
+    def _on_fuzzy_progress(self, generation: int, done: int, total: int) -> None:
+        if generation != self._scan_generation or total <= 0:
+            return
+        self.scan_progress.setRange(0, total)
+        self.scan_progress.setValue(done)
+        self.scan_progress.setFormat(f"%p%  ({done}/{total} tài liệu)")
+
+    def _on_fuzzy_finished(self, generation: int, groups: list, error: str) -> None:
+        if generation != self._scan_generation:
+            return
+        self.scan_progress.hide()
+        if error:
+            self.tabs.setTabText(1, _FUZZY_TAB_TITLE)
+            self.scan_status_label.setText(f"Không quét được tài liệu gần giống: {error}")
+            return
+        self._fuzzy_groups = groups
+        self._populate(self.fuzzy_table, groups)
+        self.tabs.setTabText(1, f"{_FUZZY_TAB_TITLE} ({len(groups)} nhóm)")
+        self.scan_status_label.setText(
+            f"Trùng hoàn toàn: {len(self._exact_groups)} nhóm  ·  Có thể trùng: {len(groups)} nhóm"
+        )
+
+    def wait_for_scan(self, timeout: float = 10.0) -> bool:
+        """For tests: pump events until the current fuzzy scan reports back."""
+        import time
+
+        from PySide6.QtWidgets import QApplication
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            QApplication.processEvents()
+            if self.scan_progress.isHidden():
+                return True
+            time.sleep(0.01)
+        return False
+
+    def done(self, result: int) -> None:  # noqa: D401 -- Qt override
+        # Closing (any way: Close button, Esc, [x]) stops a scan in progress
+        # rather than leaving it churning in the background.
+        self._cancel_scan.set()
+        self._scan_poll.stop()
+        super().done(result)
 
     def _populate(self, table: QTableWidget, groups: list[list[dict]]) -> None:
         table.setSortingEnabled(False)
         table.setRowCount(0)
+        table.setRowCount(sum(len(group) for group in groups))
         row = 0
         for group in groups:
             for doc in group:
-                table.insertRow(row)
 
                 title_item = QTableWidgetItem(doc.get("title", ""))
                 title_item.setFlags(title_item.flags() | Qt.ItemIsUserCheckable)
@@ -213,7 +340,19 @@ class DuplicateFinderDialog(QDialog):
             self.file_actions.delete_documents(
                 [(doc["id"], doc.get("file_path")) for doc in selected_docs], delete_physical_file=delete_physical
             )
-            self.refresh()
+            # Deleting can only *remove* duplicates, never create new ones,
+            # so drop the deleted documents from the groups already found
+            # rather than re-running the whole scan.
+            deleted_ids = {doc["id"] for doc in selected_docs}
+            self._exact_groups = self._without(self._exact_groups, deleted_ids)
+            self._fuzzy_groups = self._without(self._fuzzy_groups, deleted_ids)
+            self._populate(self.exact_table, self._exact_groups)
+            self._populate(self.fuzzy_table, self._fuzzy_groups)
+
+    @staticmethod
+    def _without(groups: list[list[dict]], deleted_ids: set[str]) -> list[list[dict]]:
+        remaining = [[doc for doc in group if doc["id"] not in deleted_ids] for group in groups]
+        return [group for group in remaining if len(group) > 1]
 
 
 if __name__ == "__main__":

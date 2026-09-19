@@ -6,12 +6,30 @@ import os
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+from smartdoc.core.secret_store import SecretStore
+
+# Kept as the original name -- this is only the on-disk %APPDATA% folder
+# name, invisible to the user, and renaming it would silently orphan every
+# existing install's settings/database/cover cache on upgrade. The
+# user-visible product name (MewBook / "Mèo Mực") lives entirely in the UI
+# layer (see presentation/main_window.py, presentation/sidebar.py).
 APP_DIR_NAME = "SmartDocLibrary"
 
-# "light" and "dark" are implemented (see presentation/theme.py); "cozy" and
-# "glassmorphism" from the original spec are not built yet, so they aren't
-# offered as real choices anywhere in the UI.
-THEME_CHOICES = ("light", "dark")
+# Config fields whose on-disk value is encrypted at rest (see
+# core.secret_store.SecretStore) -- anything that is an actual bring-your-own
+# API key. Kept in-memory as plaintext for the rest of the app to use
+# (ai_summary.py, cover_search.py, their dialogs) -- only the JSON file on
+# disk is protected.
+_ENCRYPTED_FIELDS = ("ai_api_key", "google_image_api_key")
+
+# See presentation/theme.py for the full palette/token definitions.
+THEME_CHOICES = ("broadsheet", "woodshelf", "inkynight", "healing", "retro_tech", "japandi", "zen_dark")
+
+# Maps a config value written by a pre-rebrand version of this app (when the
+# only choices were generic "light"/"dark") to the closest new named theme,
+# so upgrading never crashes on an unknown value or silently resets to a
+# theme the user didn't pick. Applied once in ConfigManager._load().
+_LEGACY_THEME_MAP = {"light": "broadsheet", "dark": "inkynight"}
 
 # Formats an extractor exists for (routed through PdfExtractor or
 # EpubExtractor -- see application/import_queue.py). DOCX from the original
@@ -25,11 +43,16 @@ KNOWN_EXTENSIONS = ("pdf", "epub", "mobi", "azw3")
 # vetted list rather than a free-text "custom endpoint" field -- matches
 # the request for "phổ biến hiện có" (the popular ones that already exist)
 # rather than a generic (and much harder to get right/secure) integration.
-AI_PROVIDER_CHOICES = ("gemini", "openai", "anthropic")
+AI_PROVIDER_CHOICES = ("gemini", "groq", "openrouter", "mistral", "ollama", "openai", "anthropic", "deepseek")
 AI_PROVIDER_DISPLAY_NAMES = {
-    "gemini": "Google Gemini",
+    "gemini": "Google Gemini (có gói miễn phí)",
+    "groq": "Groq (miễn phí)",
+    "openrouter": "OpenRouter (nhiều model miễn phí)",
+    "mistral": "Mistral AI (có gói miễn phí)",
+    "ollama": "Ollama - chạy trên máy (miễn phí, không cần key)",
     "openai": "OpenAI (ChatGPT)",
     "anthropic": "Anthropic Claude",
+    "deepseek": "DeepSeek",
 }
 
 
@@ -42,7 +65,7 @@ def default_app_data_dir() -> Path:
 @dataclass
 class AppConfig:
     watch_folders: list[str] = field(default_factory=list)
-    theme: str = "light"
+    theme: str = "broadsheet"
     view_mode: str = "grid"  # "grid" | "list"
     db_path: str | None = None
     cover_cache_dir: str | None = None
@@ -54,9 +77,10 @@ class AppConfig:
     # policies, not in keeping this secret. See application/cloud_reviews.py.
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
-    # Optional list-view columns beyond the mandatory Title -- see
-    # presentation/library_view.py's OPTIONAL_COLUMNS for the valid keys.
-    visible_columns: list[str] = field(default_factory=lambda: ["author", "created_at"])
+    # Optional list-view columns beyond the mandatory Title (which always
+    # includes an inline cover thumbnail) -- see
+    # presentation/library_view.py's OPTIONAL_COLUMN_KEYS for the valid keys.
+    visible_columns: list[str] = field(default_factory=lambda: ["author", "format", "file_size", "created_at"])
     # Application font -- the app's own chrome (menus, buttons, dialogs,
     # generic labels). Kept separate from the "content" font below per
     # explicit request: "tách cấu hình ... của nội dung và cấu hình của
@@ -73,6 +97,8 @@ class AppConfig:
     content_font_size: int = 13
     content_text_color: str | None = None  # hex, e.g. "#1a1a1a"; None = theme default
     show_detail_panel: bool = False
+    # Sidebar filter sections the user folded away ("tags", "authors", "formats").
+    collapsed_filter_sections: list[str] = field(default_factory=list)
     # Last folder the user picked in any "choose a file/folder" dialog, so
     # the next dialog opens there instead of always starting at the OS
     # default location.
@@ -87,11 +113,50 @@ class AppConfig:
     # settings: plain config, no separate secrets vault.
     ai_provider: str | None = None  # one of core.config.AI_PROVIDER_CHOICES
     ai_api_key: str | None = None
+    # None = the provider's default (application/ai_summary.DEFAULT_MODELS).
+    ai_model: str | None = None
+    # Only used by Ollama (local server); None = http://localhost:11434.
+    ai_base_url: str | None = None
+    # Last-used summary options in the AI Summary dialog -- see
+    # application/ai_summary.SUMMARY_STYLES / _LENGTHS / _LANGUAGES.
+    ai_summary_style: str = "intro"
+    ai_summary_length: str = "short"
+    ai_summary_language: str = "vi"
+    # Google Programmable Search Engine (Custom Search JSON API), restricted
+    # to image search -- see application/cover_search.py. Same
+    # bring-your-own-key model as the AI provider above: this app never
+    # ships or proxies a key of its own.
+    google_image_api_key: str | None = None
+    google_image_search_cx: str | None = None  # the search engine's "cx" id
+    # Whether the user has accepted the EULA/Privacy notice shown on first
+    # launch (see presentation/eula_dialog.py). False on every fresh
+    # install; never reset automatically once True.
+    eula_accepted: bool = False
     # Folder to copy files into for "Send to e-reader" -- an e-reader
     # connected over USB just mounts as a normal folder on Windows, so this
     # is a plain remembered path, not a device-specific integration. None
     # until the user picks one (first Send prompts for it, then remembers).
     ereader_folder_path: str | None = None
+    # Metadata lookup (application/metadata_lookup.py). Whether the "write into
+    # the book file" box of the suggestion dialog starts ticked (off: the
+    # library index is updated, the file is left alone unless the user opts in
+    # each time), and how many pre-write backups of a book file to keep.
+    metadata_write_to_file_default: bool = False
+    metadata_backup_keep: int = 3
+    # Smart classification (application/smart_classifier.py). What to do when
+    # new documents are added: "ask" pops up a small question after each
+    # import, "always" classifies quietly, "never" doesn't offer at all.
+    smart_classify_on_import: str = "ask"
+    # How many of a book's first words are read for classification (2,000-5,000
+    # -- enough for the preface, contents and chapter one without reading
+    # whole books).
+    smart_classify_max_words: int = 3000
+    # Upper bound on classification worker processes. Deliberately small: the
+    # job is meant to trickle along in idle time, not to use the whole machine.
+    smart_classify_max_workers: int = 2
+
+
+SMART_CLASSIFY_ON_IMPORT_CHOICES = ("ask", "always", "never")
 
 
 class ConfigManager:
@@ -99,7 +164,12 @@ class ConfigManager:
         self.app_data_dir = app_data_dir or default_app_data_dir()
         self.app_data_dir.mkdir(parents=True, exist_ok=True)
         self.settings_path = self.app_data_dir / "settings.json"
+        self._secrets = SecretStore(self.app_data_dir)
         self.config: AppConfig = self._load()
+
+    @property
+    def secrets(self) -> SecretStore:
+        return self._secrets
 
     def _load(self) -> AppConfig:
         if not self.settings_path.exists():
@@ -116,10 +186,20 @@ class ConfigManager:
         known_fields = {f.name for f in fields(AppConfig)}
         defaults = asdict(AppConfig())
         defaults.update({k: v for k, v in raw.items() if k in known_fields})
-        return AppConfig(**defaults)
+        config = AppConfig(**defaults)
+        if config.theme not in THEME_CHOICES:
+            config.theme = _LEGACY_THEME_MAP.get(config.theme, "broadsheet")
+        if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
+            config.smart_classify_on_import = "ask"  # a hand-edited settings.json must not disable the prompt by typo
+        for field_name in _ENCRYPTED_FIELDS:
+            setattr(config, field_name, self._secrets.decrypt(getattr(config, field_name)))
+        return config
 
     def _write(self, config: AppConfig) -> None:
-        self.settings_path.write_text(json.dumps(asdict(config), indent=2, ensure_ascii=False), encoding="utf-8")
+        data = asdict(config)
+        for field_name in _ENCRYPTED_FIELDS:
+            data[field_name] = self._secrets.encrypt(getattr(config, field_name))
+        self.settings_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def save(self) -> None:
         self._write(self.config)

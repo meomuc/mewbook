@@ -1,6 +1,9 @@
-"""AI Summary dialog: generate a non-spoiler, theme/genre-only overview of a
-document to help decide whether to read it, using the user's own configured
-AI provider/key (Settings -> AI Tóm tắt). Generating and saving are
+"""AI Summary dialog: generate a summary of a document using the user's own
+configured AI provider/key (Settings -> AI Tóm tắt). The default kind is a
+non-spoiler, theme/genre-only overview that helps decide whether to read
+it; the user can instead pick key points, a full summary, a review or
+discussion questions, plus length and language (see
+application/ai_summary.SUMMARY_STYLES). Generating and saving are
 separate, deliberate steps -- a fresh generation is only a preview until
 the user clicks "Lưu tóm tắt".
 
@@ -17,9 +20,17 @@ from __future__ import annotations
 import threading
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout
+from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout
 
-from smartdoc.application.ai_summary import AISummaryError, build_request_content, generate_summary_from_content
+from smartdoc.application.ai_summary import (
+    SUMMARY_LANGUAGES,
+    SUMMARY_LENGTHS,
+    SUMMARY_STYLES,
+    AISummaryError,
+    build_request_content,
+    generate_summary_from_content,
+    provider_requires_key,
+)
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 
 
@@ -33,11 +44,14 @@ class AISummaryDialog(QDialog):
         config = context.config.config
         self._provider = config.ai_provider
         self._api_key = config.ai_api_key
-        self._configured = bool(self._provider and self._api_key)
+        self._model = config.ai_model
+        self._base_url = config.ai_base_url
+        self._configured = bool(self._provider and (self._api_key or not provider_requires_key(self._provider)))
 
         self.setWindowTitle(f"Tóm tắt AI: {doc.get('title', '')}")
         self.resize(560, 620)
         self.setMinimumWidth(460)
+        self.setMaximumSize(820, 900)
 
         self.status_label = QLabel(self)
         self.status_label.setWordWrap(True)
@@ -48,6 +62,22 @@ class AISummaryDialog(QDialog):
             "Đây là toàn bộ nội dung sẽ gửi cho AI -- không giới hạn độ dài. "
             "Bạn có thể chỉnh sửa trước khi tạo tóm tắt."
         )
+
+        # What kind of summary to ask for -- remembered across dialogs.
+        self.style_combo = self._combo({k: v[0] for k, v in SUMMARY_STYLES.items()}, config.ai_summary_style)
+        self.length_combo = self._combo({k: v[0] for k, v in SUMMARY_LENGTHS.items()}, config.ai_summary_length)
+        self.language_combo = self._combo({k: v[0] for k, v in SUMMARY_LANGUAGES.items()}, config.ai_summary_language)
+        # Two rows: the style labels are long and must not be elided.
+        style_row = QHBoxLayout()
+        style_row.addWidget(QLabel("Kiểu tóm tắt:", self))
+        style_row.addWidget(self.style_combo, stretch=1)
+        options_row = QHBoxLayout()
+        options_row.addWidget(QLabel("Độ dài:", self))
+        options_row.addWidget(self.length_combo)
+        options_row.addSpacing(12)
+        options_row.addWidget(QLabel("Ngôn ngữ:", self))
+        options_row.addWidget(self.language_combo)
+        options_row.addStretch(1)
 
         self.summary_edit = QTextEdit(self)
         self.summary_edit.setReadOnly(True)
@@ -72,7 +102,9 @@ class AISummaryDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Nội dung yêu cầu AI tóm tắt (có thể chỉnh sửa):", self))
         layout.addWidget(self.request_content_edit, stretch=2)
-        layout.addWidget(QLabel("Tóm tắt chủ đề/thể loại (không tiết lộ nội dung/cốt truyện):", self))
+        layout.addLayout(style_row)
+        layout.addLayout(options_row)
+        layout.addWidget(QLabel("Kết quả:", self))
         layout.addWidget(self.summary_edit, stretch=1)
         layout.addWidget(self.status_label)
         layout.addLayout(button_row)
@@ -85,6 +117,27 @@ class AISummaryDialog(QDialog):
                 "Chưa cấu hình AI Tóm tắt. Vào Cài đặt > AI Tóm tắt để thêm nhà cung cấp và API key của bạn."
             )
 
+    def _combo(self, choices: dict[str, str], current: str) -> QComboBox:
+        combo = QComboBox(self)
+        for key, label in choices.items():
+            combo.addItem(label, key)
+        combo.setCurrentIndex(max(combo.findData(current), 0))
+        return combo
+
+    def _selected_options(self) -> dict:
+        return {
+            "style": self.style_combo.currentData(),
+            "length": self.length_combo.currentData(),
+            "language": self.language_combo.currentData(),
+        }
+
+    def _remember_options(self, options: dict) -> None:
+        config = self.context.config.config
+        config.ai_summary_style = options["style"]
+        config.ai_summary_length = options["length"]
+        config.ai_summary_language = options["language"]
+        self.context.config.save()
+
     def _on_generate(self) -> None:
         if not self._configured:
             return
@@ -94,10 +147,13 @@ class AISummaryDialog(QDialog):
 
         provider, api_key = self._provider, self._api_key
         request_content = self.request_content_edit.toPlainText()
+        options = self._selected_options()
+        self._remember_options(options)
+        options.update(model=self._model, base_url=self._base_url)
 
         def worker() -> None:
             try:
-                summary = generate_summary_from_content(provider, api_key, request_content)
+                summary = generate_summary_from_content(provider, api_key, request_content, **options)
                 self.generation_finished.emit(summary, "")
             except AISummaryError as exc:
                 self.generation_finished.emit("", str(exc))

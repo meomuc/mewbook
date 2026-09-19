@@ -3,6 +3,18 @@ from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
 
 
+def _pump_until(qapp, predicate, timeout: float = 3.0) -> bool:
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        qapp.processEvents()
+        if predicate():
+            return True
+        time.sleep(0.02)
+    return predicate()
+
+
 def test_files_label_shows_total_and_completeness_counts(qapp, app_context):
     app_context.db.add_or_update_document(
         "complete",
@@ -69,7 +81,29 @@ def test_status_bar_has_a_top_border_separating_it_from_the_panel_above(qapp, ap
 
 def test_author_credit_is_always_shown(qapp, app_context):
     panel = StatusBarPanel(app_context)
-    assert panel.author_label.text() == "anhtiensinh"
+    assert panel.author_label.text() == "Dev:AnhTienSinh"
+
+
+def test_donate_ticker_is_shown_and_scrolls(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    first_frame = panel.donate_ticker.text()
+    assert first_frame  # some text is already showing, not blank until the timer first fires
+
+    panel.donate_ticker._tick()
+    assert panel.donate_ticker.text() != first_frame  # ticker actually advances
+
+
+def test_clicking_donate_ticker_opens_donate_dialog(qapp, app_context, monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.status_bar_panel.DonateDialog",
+        lambda parent=None: type("_Fake", (), {"exec": lambda self: opened.append(True)})(),
+    )
+    panel = StatusBarPanel(app_context)
+
+    panel.donate_ticker.clicked.emit()
+
+    assert opened == [True]
 
 
 def test_collection_label_empty_when_no_collection_selected(qapp, app_context):
@@ -103,4 +137,21 @@ def test_refreshes_on_library_updated_event(qapp, app_context):
     app_context.db.add_or_update_document("d1", {"title": "A", "author": "X", "file_path": "a.pdf", "created_at": 0.0})
     app_context.event_bus.publish(LibraryUpdatedEvent())
 
-    assert "1 tài liệu" in panel.files_label.text()
+    assert _pump_until(qapp, lambda: "1 tài liệu" in panel.files_label.text())
+
+
+def test_a_burst_of_library_updates_refreshes_only_once(qapp, app_context, monkeypatch):
+    """A bulk import publishes one LibraryUpdatedEvent per file -- the status
+    bar must coalesce them rather than recount the library each time."""
+    panel = StatusBarPanel(app_context)
+    calls = []
+    original_refresh = panel.refresh
+    monkeypatch.setattr(panel, "refresh", lambda: (calls.append(1), original_refresh()))
+    panel._refresh_timer.timeout.disconnect()
+    panel._refresh_timer.timeout.connect(panel.refresh)
+
+    for _ in range(40):
+        app_context.event_bus.publish(LibraryUpdatedEvent())
+
+    assert _pump_until(qapp, lambda: len(calls) >= 1)
+    assert len(calls) == 1

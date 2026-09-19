@@ -4,6 +4,9 @@ import requests
 from smartdoc.application.ai_summary import (
     AISummaryError,
     build_request_content,
+    DEFAULT_MODELS,
+    SUMMARY_LENGTHS,
+    build_system_prompt,
     generate_summary,
     generate_summary_from_content,
 )
@@ -165,6 +168,49 @@ def test_connection_failure_includes_provider_guide(monkeypatch):
     assert "aistudio.google.com" in str(exc_info.value)
 
 
+def test_retries_on_503_then_succeeds(monkeypatch):
+    """A transient "Service Unavailable" (the bug report this guards
+    against) should be retried automatically instead of failing outright."""
+    monkeypatch.setattr("smartdoc.application.ai_summary._RETRY_DELAY_SECONDS", 0)  # don't actually sleep in tests
+    calls = {"n": 0}
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kwargs):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return _FakeResponse(status_code=503)
+        return _FakeResponse(json_data={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    result = generate_summary("gemini", "key", _doc())
+
+    assert calls["n"] == 3  # two 503s, then success
+    assert result == "ok"
+
+
+def test_gives_up_after_max_retries_with_friendly_message(monkeypatch):
+    monkeypatch.setattr("smartdoc.application.ai_summary._RETRY_DELAY_SECONDS", 0)
+    monkeypatch.setattr(requests, "post", lambda *a, **k: _FakeResponse(status_code=503))
+
+    with pytest.raises(AISummaryError, match="quá tải"):
+        generate_summary("gemini", "key", _doc())
+
+
+def test_does_not_retry_on_non_transient_error(monkeypatch):
+    calls = {"n": 0}
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kwargs):
+        calls["n"] += 1
+        return _FakeResponse(status_code=401)
+
+    monkeypatch.setattr(requests, "post", fake_post)
+
+    with pytest.raises(AISummaryError):
+        generate_summary("gemini", "bad-key", _doc())
+
+    assert calls["n"] == 1  # 401 is not retried
+
+
 def test_prompt_notes_missing_content_when_absent(monkeypatch):
     captured = {}
 
@@ -178,3 +224,76 @@ def test_prompt_notes_missing_content_when_absent(monkeypatch):
 
     sent_text = captured["json"]["contents"][0]["parts"][0]["text"]
     assert "chưa được trích xuất" in sent_text
+
+
+def _capture_post(monkeypatch, response_json):
+    captured = {}
+
+    def fake_post(url, json=None, headers=None, **kwargs):
+        captured.update(url=url, json=json, headers=headers or {})
+        return _FakeResponse(json_data=response_json)
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    return captured
+
+
+_CHAT_REPLY = {"choices": [{"message": {"content": "  Tóm tắt  "}}]}
+
+
+@pytest.mark.parametrize(
+    "provider, url_part",
+    [
+        ("groq", "api.groq.com/openai/v1/chat/completions"),
+        ("openrouter", "openrouter.ai/api/v1/chat/completions"),
+        ("deepseek", "api.deepseek.com/chat/completions"),
+        ("mistral", "api.mistral.ai/v1/chat/completions"),
+        ("openai", "api.openai.com/v1/chat/completions"),
+    ],
+)
+def test_openai_compatible_providers_hit_their_endpoint(monkeypatch, provider, url_part):
+    captured = _capture_post(monkeypatch, _CHAT_REPLY)
+
+    assert generate_summary_from_content(provider, "k", "content") == "Tóm tắt"
+    assert url_part in captured["url"]
+    assert captured["headers"]["Authorization"] == "Bearer k"
+    assert captured["json"]["model"] == DEFAULT_MODELS[provider]
+
+
+def test_ollama_runs_locally_without_a_key(monkeypatch):
+    captured = _capture_post(monkeypatch, _CHAT_REPLY)
+
+    assert generate_summary_from_content("ollama", None, "content") == "Tóm tắt"
+    assert captured["url"] == "http://localhost:11434/v1/chat/completions"
+    assert "Authorization" not in captured["headers"]
+
+
+def test_ollama_custom_base_url(monkeypatch):
+    captured = _capture_post(monkeypatch, _CHAT_REPLY)
+
+    generate_summary_from_content("ollama", None, "content", base_url="http://192.168.1.5:11434/")
+
+    assert captured["url"] == "http://192.168.1.5:11434/v1/chat/completions"
+
+
+def test_model_override_is_used(monkeypatch):
+    captured = _capture_post(monkeypatch, _CHAT_REPLY)
+
+    generate_summary_from_content("groq", "k", "content", model="  qwen-custom ")
+
+    assert captured["json"]["model"] == "qwen-custom"
+
+
+def test_style_length_and_language_shape_the_system_prompt(monkeypatch):
+    captured = _capture_post(monkeypatch, _CHAT_REPLY)
+
+    generate_summary_from_content("groq", "k", "content", style="key_points", length="long", language="en")
+
+    system = captured["json"]["messages"][0]["content"]
+    assert "gạch đầu dòng" in system
+    assert "400-600" in system
+    assert "English" in system
+    assert captured["json"]["max_tokens"] == SUMMARY_LENGTHS["long"][2]
+
+
+def test_default_style_stays_spoiler_free():
+    assert "KHÔNG được tiết lộ" in build_system_prompt()

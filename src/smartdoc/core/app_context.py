@@ -9,8 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.core.config import ConfigManager
 from smartdoc.core.event_bus import EventBus
+from smartdoc.core.filter_service import FilterService
+from smartdoc.core.self_writes import SelfWriteRegistry
+from smartdoc.core.user_identity import UserIdentity
 from smartdoc.infrastructure.database import DatabaseManager
 
 
@@ -21,6 +25,16 @@ class AppContext:
         self.event_bus = event_bus or EventBus()
         self.db = db or DatabaseManager(self.config.config.db_path or "library.db")
         self.db.initialize_tables()
+        # What the library is filtered by (search text + sidebar selection) --
+        # one owner, one event; see core/filter_service.py.
+        self.filters = FilterService(self.event_bus)
+        # Live counts for the sidebar / "Đang lọc" bar, cached until the library changes.
+        self.facets = FacetCounter(self)
+        # Files MewBook is rewriting itself, which the folder watcher must not re-import.
+        self.self_writes = SelfWriteRegistry()
+        # Anonymous per-install identity (see core/user_identity.py) --
+        # used to own reviews/nicknames without any sign-up.
+        self.identity = UserIdentity.load_or_create(self.config.app_data_dir, self.config.secrets)
 
     @classmethod
     def create_in_memory(cls, app_data_dir: Path) -> "AppContext":

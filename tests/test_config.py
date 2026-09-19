@@ -40,18 +40,37 @@ def test_loading_settings_with_unknown_legacy_keys_does_not_crash(tmp_path):
     )
     mgr = ConfigManager(app_data_dir=tmp_path)
     assert mgr.config.watch_folders == ["C:/Books"]
-    assert mgr.config.theme == "light"  # falls back to default, legacy key ignored
+    assert mgr.config.theme == "broadsheet"  # falls back to default, legacy key ignored
 
 
 def test_worker_thread_count_and_theme_round_trip(tmp_path):
     mgr = ConfigManager(app_data_dir=tmp_path)
     mgr.config.worker_thread_count = 8
-    mgr.config.theme = "dark"
+    mgr.config.theme = "inkynight"
     mgr.save()
 
     reloaded = ConfigManager(app_data_dir=tmp_path)
     assert reloaded.config.worker_thread_count == 8
-    assert reloaded.config.theme == "dark"
+    assert reloaded.config.theme == "inkynight"
+
+
+def test_legacy_light_dark_theme_migrates_to_new_names(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)  # creates settings.json
+    raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    raw["theme"] = "light"
+    (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.theme == "broadsheet"
+
+    raw["theme"] = "dark"
+    (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
+    reloaded_dark = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded_dark.config.theme == "inkynight"
+
+    raw["theme"] = "some-removed-theme"
+    (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
+    reloaded_unknown = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded_unknown.config.theme == "broadsheet"
 
 
 def test_ereader_folder_path_defaults_to_none_and_round_trips(tmp_path):
@@ -63,3 +82,59 @@ def test_ereader_folder_path_defaults_to_none_and_round_trips(tmp_path):
 
     reloaded = ConfigManager(app_data_dir=tmp_path)
     assert reloaded.config.ereader_folder_path == r"E:\Kindle\documents"
+
+
+def test_api_keys_are_encrypted_on_disk_but_plaintext_in_memory(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    mgr.config.ai_api_key = "sk-super-secret"
+    mgr.config.google_image_api_key = "AIza-also-secret"
+    mgr.save()
+
+    raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    assert "sk-super-secret" not in raw["ai_api_key"]
+    assert "AIza-also-secret" not in raw["google_image_api_key"]
+
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.ai_api_key == "sk-super-secret"
+    assert reloaded.config.google_image_api_key == "AIza-also-secret"
+
+
+def test_legacy_plaintext_api_key_still_loads(tmp_path):
+    """A settings.json written by a pre-encryption version of this app has
+    the key stored as plain text -- upgrading must not treat that as
+    garbage and silently drop it."""
+    mgr = ConfigManager(app_data_dir=tmp_path)  # creates settings.json + the secret keyfile
+    raw = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    raw["ai_api_key"] = "plain-legacy-key"
+    (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
+
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.ai_api_key == "plain-legacy-key"
+
+
+def test_eula_not_accepted_by_default(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.eula_accepted is False
+
+    mgr.config.eula_accepted = True
+    mgr.save()
+
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.eula_accepted is True
+
+
+def test_smart_classify_settings_default_and_round_trip(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.smart_classify_on_import == "ask"
+    assert 2000 <= mgr.config.smart_classify_max_words <= 5000
+    mgr.config.smart_classify_on_import = "always"
+    mgr.config.smart_classify_max_words = 4000
+    mgr.save()
+    reloaded = ConfigManager(app_data_dir=tmp_path)
+    assert reloaded.config.smart_classify_on_import == "always"
+    assert reloaded.config.smart_classify_max_words == 4000
+
+
+def test_a_mistyped_smart_classify_choice_falls_back_to_asking(tmp_path):
+    (tmp_path / "settings.json").write_text(json.dumps({"smart_classify_on_import": "alwayz"}), encoding="utf-8")
+    assert ConfigManager(app_data_dir=tmp_path).config.smart_classify_on_import == "ask"

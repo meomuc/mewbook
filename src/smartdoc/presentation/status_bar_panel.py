@@ -3,16 +3,17 @@
 Built as a real QStatusBar (QMainWindow.setStatusBar) rather than a plain
 widget docked at the bottom, so it gets the OS-native "thin bar, small
 text" treatment for free. Refreshes on LibraryUpdatedEvent and
-CollectionSelectedEvent -- the same two events the library view itself
+FilterChangedEvent -- the same two events the library view itself
 reacts to, so the counts here never lag behind what's on screen.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel, QStatusBar
 
-from smartdoc.core.event_bus import CollectionSelectedEvent, LibraryUpdatedEvent
-from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
+from smartdoc.presentation.donate_dialog import DonateDialog
+from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.theme import current_colors
 
 # Same green/crimson pair settings_dialog.py's connection test uses -- one
@@ -22,11 +23,51 @@ _STATUS_OK_COLOR = "green"
 _STATUS_MISSING_COLOR = "crimson"
 
 
+class _DonateTicker(QLabel):
+    """A small scrolling ticker calling out the donate popup -- a static
+    label here would be easy to lose among the other status bar items, so
+    the text instead scrolls through a fixed-width window on a timer, like
+    a classic marquee, to actually catch the eye. Click opens DonateDialog.
+    """
+
+    clicked = Signal()
+
+    _MESSAGE = "☕☕ Tác giả là một con nghiện cà phê và mê sách! Nếu bạn thấy ứng dụng này hữu ích, hãy mời tác giả một ly cà phê☕☕"
+    _GAP = "    •    "
+    _WINDOW_CHARS = 42
+    _TICK_MS = 220
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._loop_text = self._MESSAGE + self._GAP
+        self._offset = 0
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("Ủng hộ tác giả một ly cà phê ☕ (bấm để xem mã QR)")
+        colors = current_colors()
+        self.setStyleSheet(f"color: {colors.accent}; font-weight: 600;")
+        self.setFixedWidth(self.fontMetrics().averageCharWidth() * self._WINDOW_CHARS)
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(self._TICK_MS)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start()
+        self._tick()
+
+    def _tick(self) -> None:
+        doubled = self._loop_text * 2
+        self.setText(doubled[self._offset : self._offset + self._WINDOW_CHARS])
+        self._offset = (self._offset + 1) % len(self._loop_text)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class StatusBarPanel(QStatusBar):
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
         self.context = context
-        self._active_collection_id: str | None = None
+        self._active_collection_ids: tuple[str, ...] = ()
 
         colors = current_colors()
         # A top border so the bar reads as its own strip, separated from
@@ -39,8 +80,10 @@ class StatusBarPanel(QStatusBar):
         self.folders_label = QLabel(self)
         self.cloud_label = QLabel(self)
         self.ai_label = QLabel(self)
-        self.author_label = QLabel("anhtiensinh", self)
-        self.author_label.setToolTip("SmartDoc Library -- phát triển bởi anhtiensinh")
+        self.author_label = QLabel("Dev:AnhTienSinh", self)
+        self.author_label.setToolTip("Mèo Mực (MewBook) -- phát triển bởi AnhTienSinh")
+        self.donate_ticker = _DonateTicker(self)
+        self.donate_ticker.clicked.connect(self._on_donate_clicked)
 
         for label in (
             self.files_label,
@@ -53,30 +96,45 @@ class StatusBarPanel(QStatusBar):
             # below actually renders instead of showing raw HTML tags.
             label.setTextFormat(Qt.RichText)
             self.addWidget(label)
+        self.addPermanentWidget(self.donate_ticker)
         self.addPermanentWidget(self.author_label)
 
+        self._refresh_timer = debounced(self, self.refresh)
         self._bridge = QtEventBridge(self)
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
-        self._bridge.subscribe(context.event_bus, CollectionSelectedEvent)
+        self._bridge.subscribe(context.event_bus, FilterChangedEvent)
 
         self.refresh()
+
+    def _on_donate_clicked(self) -> None:
+        DonateDialog(self).exec()
 
     def _on_bridged_event(self, event) -> None:
-        if isinstance(event, CollectionSelectedEvent):
-            self._active_collection_id = event.collection_id
-        self.refresh()
+        if isinstance(event, FilterChangedEvent):
+            self._active_collection_ids = event.filter.collections
+            self.refresh()
+        else:
+            self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
 
     def refresh(self) -> None:
         total = self.context.db.count_documents()
         complete, incomplete = self.context.db.count_metadata_completeness()
         self.files_label.setText(f"📚 {total} tài liệu  ·  ✅ {complete} đủ thông tin  ·  ⚠️ {incomplete} thiếu thông tin")
 
-        if self._active_collection_id:
-            row = self.context.db.get_collection(self._active_collection_id)
+        ids = self._active_collection_ids
+        if len(ids) == 1:
+            row = self.context.db.get_collection(ids[0])
             name = row["name"] if row else "Bộ sưu tập"
-            count = self.context.db.count_documents_in_collection(self._active_collection_id)
+            count = self.context.db.count_documents_in_collection(ids[0])
             self.collection_label.setText(f"📁 {name}: {count} tài liệu")
+        elif ids:
+            # Several collections combined: the count is of their union
+            # (a document in two of them counts once), matching what the
+            # library view is actually showing.
+            sql, params = self.context.db.collections_where_fragment(ids)
+            count = self.context.db.count_documents_matching(where_sql=sql, params=params)
+            self.collection_label.setText(f"📁 {len(ids)} bộ sưu tập: {count} tài liệu")
         else:
             self.collection_label.setText("")
 

@@ -11,13 +11,17 @@ that event whenever the selection changes.
 """
 from __future__ import annotations
 
+import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QCursor, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QCursor, QFontMetrics, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
+    QBoxLayout,
     QFrame,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -27,31 +31,29 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import (
-    CollectionSelectedEvent,
-    DocumentSelectedEvent,
-    FacetFilterChangedEvent,
-    LibraryUpdatedEvent,
-)
+from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.domain.author_names import split_author_names
+from smartdoc.domain.library_filter import LibraryFilter
+from smartdoc.infrastructure.cloud_files import is_cloud_only
+from smartdoc.infrastructure.page_count import SUPPORTED_EXTENSIONS as _PAGE_COUNT_EXTENSIONS
+from smartdoc.infrastructure.page_count import count_pages, is_estimate
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
+from smartdoc.presentation.cover_placeholder import gradient_pixmap
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
+from smartdoc.presentation.format_utils import human_size as _human_size
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
-from smartdoc.presentation.reader_window import ReaderWindow
+from smartdoc.presentation.reader_manager import open_reader
 from smartdoc.presentation.review_dialog import ReviewDialog
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation.sidebar_style import section_label
+from smartdoc.presentation.theme import action_css, action_text, current_colors
 
 COVER_WIDTH = 280
+# The title is set this much larger than the content font size, as the
+# panel's heading; the author and everything else use the size as-is.
+_TITLE_STEP_PX = 4
+_AUTHOR_STEP_PX = 1
 PANEL_MIN_WIDTH = 320
-
-
-def _human_size(num_bytes: int) -> str:
-    size = float(num_bytes or 0)
-    for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024:
-            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
-        size /= 1024
-    return f"{size:.1f} TB"
 
 
 def _format_datetime(value) -> str:
@@ -63,6 +65,24 @@ def _format_datetime(value) -> str:
         return "—"
 
 
+def _format_date(value) -> str:
+    """Date only: the added/modified dates share one row, which has no room for two full
+    timestamps (the exact time stays in the tooltip)."""
+    return _format_datetime(value).split(" ")[0]
+
+
+def _pages_text(doc: dict) -> str:
+    pages = doc.get("page_count") or 0
+    if pages <= 0:
+        return ""
+    return f"{'~' if is_estimate(doc.get('extension')) else ''}{pages:,} trang"
+
+
+def _others_texts(count: int) -> tuple[str, ...]:
+    """The "other books by this author" link, longest wording first."""
+    return (f"(có {count} tài liệu cùng tác giả)", f"({count} tài liệu cùng tác giả)", f"({count} cùng tác giả)")
+
+
 def _rating_text(doc: dict) -> str:
     avg = doc.get("avg_rating")
     count = doc.get("review_count") or 0
@@ -71,13 +91,40 @@ def _rating_text(doc: dict) -> str:
     return "Chưa có đánh giá"
 
 
-def _content_font_css(config, *, bold: bool = False) -> str:
+def _content_font_css(config, *, bold: bool = False, extra_px: int = 0) -> str:
     """CSS fragment for the document-content font (title/author/tags here)
     -- kept separate from the app's own chrome font, see AppConfig's
-    docstring on content_font_family."""
-    family = f'font-family: "{config.content_font_family}";' if config.content_font_family else ""
-    weight = "font-weight: bold;" if bold else ""
-    return f"font-size: {config.content_font_size}px; {family} {weight}"
+    docstring on content_font_family. Falls back to the theme's font stack
+    (see ThemeColors.font_families) rather than the bare OS default."""
+    colors = current_colors()
+    if config.content_font_family:
+        family = f'font-family: "{config.content_font_family}";'
+    else:
+        stack = ", ".join(f'"{name}"' for name in colors.font_families)
+        family = f"font-family: {stack};"
+    if colors.font_weight < 400:
+        # Light themes stay light even for the title -- weight, not boldness,
+        # is what carries their look.
+        weight = f"font-weight: {400 if bold else colors.font_weight};"
+    else:
+        weight = "font-weight: bold;" if bold else ""
+    return f"font-size: {config.content_font_size + extra_px}px; {family} {weight}"
+
+
+def _rounded(pixmap: QPixmap, radius: int) -> QPixmap:
+    """`pixmap` with rounded corners, for themes with soft cover corners."""
+    if radius <= 2 or pixmap.isNull():
+        return pixmap
+    result = QPixmap(pixmap.size())
+    result.fill(Qt.transparent)
+    painter = QPainter(result)
+    painter.setRenderHint(QPainter.Antialiasing)
+    path = QPainterPath()
+    path.addRoundedRect(QRectF(result.rect()), radius, radius)
+    painter.setClipPath(path)
+    painter.drawPixmap(0, 0, pixmap)
+    painter.end()
+    return result
 
 
 def _content_text_color(config, fallback: str) -> str:
@@ -122,21 +169,43 @@ class _HashtagLabel(_ClickableLabel):
         self.setToolTip(f"Xem các tài liệu có {display_text}")
 
 
+class _AuthorRow(QWidget):
+    """Holds the author field and the "(N other books)" link, and tells the panel when
+    its width changes so it can decide whether the two still fit side by side."""
+
+    def __init__(self, on_resize, parent=None) -> None:
+        super().__init__(parent)
+        self._on_resize = on_resize
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        super().resizeEvent(event)
+        self._on_resize()
+
+
 class DocumentDetailPanel(QWidget):
     """Right-side panel showing details of the selected document."""
+
+    _page_count_ready = Signal(str, int)  # doc id, pages (0 = could not be counted)
 
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
         self.context = context
         self.file_actions = FileActionEngine(context)
         self._current_doc: dict | None = None
+        self._others_count = 0  # other books by this book's author(s), for the link beside the name
         self.setMinimumWidth(PANEL_MIN_WIDTH)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         colors = current_colors()
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        radius = (
+            f" border-top-left-radius: {colors.panel_radius}px; border-bottom-left-radius: {colors.panel_radius}px;"
+            if colors.panel_radius
+            else ""
+        )
         self.setStyleSheet(
-            f"DocumentDetailPanel {{ background: {colors.surface}; "
-            f"border-left: 1px solid {colors.border}; }}"
+            f"DocumentDetailPanel {{ background: {colors.panel_bg}; "
+            f"border-left: 1px solid {colors.border};{radius} }}"
         )
 
         # Scrollable inner content
@@ -149,41 +218,38 @@ class DocumentDetailPanel(QWidget):
         self._content = QWidget()
         self._content.setStyleSheet("background: transparent;")
         self._content_layout = QVBoxLayout(self._content)
-        self._content_layout.setContentsMargins(16, 16, 16, 16)
-        self._content_layout.setSpacing(12)
+        self._content_layout.setContentsMargins(24, 12, 24, 20)
+        self._content_layout.setSpacing(10)
 
-        # -- Header: panel title + refresh (re-fetch this document in case
-        # something changed it outside a click this panel itself made) --
+        # -- Refresh (re-fetch this document in case something changed it
+        # outside a click this panel itself made) -- a small icon in the
+        # corner rather than a whole header row above the cover --
         header_row = QHBoxLayout()
-        header_label = QLabel("📋 Chi tiết", self._content)
-        header_label.setStyleSheet(f"font-weight: 700; color: {colors.text}; font-size: 13px;")
         self.refresh_label = _ClickableLabel(self._content)
-        self.refresh_label.setText("🔄")
-        self.refresh_label.setStyleSheet(f"color: {colors.accent}; font-size: 14px;")
+        self.refresh_label.setText("⟳")
+        self.refresh_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 16px;")
         self.refresh_label.setToolTip("Làm mới thông tin")
         self.refresh_label.clicked.connect(self._on_refresh)
-        header_row.addWidget(header_label)
         header_row.addStretch(1)
         header_row.addWidget(self.refresh_label)
         self._content_layout.addLayout(header_row)
-        self._content_layout.addWidget(self._divider())
 
         # -- Cover (click to open the file) --
         self.cover_label = _ClickableLabel(self._content)
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setMinimumHeight(int(COVER_WIDTH * 1.33))
         self.cover_label.setToolTip("Nhấn để đọc trong ứng dụng")
+        cover_effect = self._cover_effect(colors)
+        if cover_effect is not None:
+            self.cover_label.setGraphicsEffect(cover_effect)
         self._content_layout.addWidget(self.cover_label)
 
         self.cover_search_label = _ClickableLabel(self._content)
-        self.cover_search_label.setText("🔍 Tìm ảnh bìa...")
+        self.cover_search_label.setText(action_text("◉ Tìm ảnh bìa..."))
         self.cover_search_label.setAlignment(Qt.AlignCenter)
-        self.cover_search_label.setStyleSheet(f"color: {colors.accent}; font-size: 11px;")
+        self.cover_search_label.setStyleSheet(action_css(colors, font_px=13))
         self._content_layout.addWidget(self.cover_search_label)
-
-        # -- Divider: separates the cover/read/cover-search group above
-        # from the editable title/author group below --
-        self._content_layout.addWidget(self._divider())
+        self._content_layout.addSpacing(8)
 
         # -- Title / Author: editable directly, no separate "Edit" dialog --
         # Font family/size/color here follow AppConfig.content_font_* (see
@@ -193,43 +259,67 @@ class DocumentDetailPanel(QWidget):
         self.title_edit = QLineEdit(self._content)
         self.title_edit.setPlaceholderText("Tiêu đề...")
         self.title_edit.setStyleSheet(
-            f"{_content_font_css(app_config, bold=True)} "
-            f"color: {_content_text_color(app_config, colors.text)}; border: none; background: transparent;"
+            f"{_content_font_css(app_config, bold=True, extra_px=_TITLE_STEP_PX)} "
+            f"color: {_content_text_color(app_config, colors.panel_text)}; border: none; background: transparent;"
         )
         self._content_layout.addWidget(self.title_edit)
+        if colors.text_glow:
+            glow = QGraphicsDropShadowEffect(self.title_edit)
+            glow.setBlurRadius(12)
+            glow.setOffset(0, 0)
+            halo = QColor(colors.accent)
+            halo.setAlpha(80)
+            glow.setColor(halo)
+            self.title_edit.setGraphicsEffect(glow)
 
-        self.author_edit = QLineEdit(self._content)
+        # The author is what tells one book from a same-titled other, so it gets full-contrast
+        # text a step larger than the rest -- not the muted grey it used to share with captions.
+        self._author_row = _AuthorRow(self._layout_author_row, self._content)
+        self._author_layout = QBoxLayout(QBoxLayout.LeftToRight, self._author_row)
+        self._author_layout.setContentsMargins(0, 0, 0, 0)
+        self._author_layout.setSpacing(6)
+        self.author_edit = QLineEdit(self._author_row)
         self.author_edit.setPlaceholderText("Tác giả...")
         self.author_edit.setStyleSheet(
-            f"{_content_font_css(app_config)} "
-            f"color: {_content_text_color(app_config, colors.muted_text)}; border: none; background: transparent;"
+            f"{_content_font_css(app_config, extra_px=_AUTHOR_STEP_PX)} "
+            f"color: {_content_text_color(app_config, colors.panel_text)}; border: none; background: transparent;"
         )
-        self._content_layout.addWidget(self.author_edit)
+        self.author_edit.textChanged.connect(lambda _text: self._layout_author_row())
 
-        # -- Divider --
-        self._content_layout.addWidget(self._divider())
+        # -- "(N other books by this author)" -- a link beside the author's name rather than
+        # making the name itself clickable, since that field is where the name is *edited*
+        # in place and a click there has to mean "edit".
+        self.author_works_label = _ClickableLabel(self._author_row)
+        self.author_works_label.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
+        self.author_works_label.setWordWrap(True)
+        self.author_works_label.clicked.connect(self._on_author_works_clicked)
+        self._author_layout.addWidget(self.author_edit)
+        self._author_layout.addWidget(self.author_works_label, 1)
+        self._content_layout.addWidget(self._author_row)
+
+        self._content_layout.addSpacing(4)
 
         # -- Info rows --
         self.format_size_label = self._info_label()
-        self.date_added_label = self._info_label()
-        self.date_modified_label = self._info_label()
+        self.bibliography_label = self._info_label()  # publisher, year, language, ISBN -- hidden while there are none
+        self.dates_label = self._info_label()  # added and modified, side by side
         self._content_layout.addWidget(self.format_size_label)
-        self._content_layout.addWidget(self.date_added_label)
-        self._content_layout.addWidget(self.date_modified_label)
+        self._content_layout.addWidget(self.bibliography_label)
+        self._content_layout.addWidget(self.dates_label)
 
         # -- Rating (click to open the review dialog) -- accent-colored,
         # like every other clickable action in this panel, so it visually
         # reads as "do something" rather than as plain status text.
         self.rating_label = _ClickableLabel(self._content)
         self.rating_label.setWordWrap(True)
-        self.rating_label.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
+        self.rating_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 13px;")
         self.rating_label.setToolTip("Nhấn để xem / viết đánh giá")
         self._content_layout.addWidget(self.rating_label)
 
         # -- File path (click to reveal in Explorer) -- accent-colored too --
         self.path_label = _ClickableLabel(self._content)
         self.path_label.setWordWrap(True)
-        self.path_label.setStyleSheet(f"color: {colors.accent}; font-size: 12px;")
+        self.path_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 12px;")
         self.path_label.setToolTip("Nhấn để mở vị trí file")
         self._content_layout.addWidget(self.path_label)
 
@@ -244,10 +334,7 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self._divider())
 
         # -- Tags: plain clickable hashtags for display, one line edit to change them --
-        self.tags_title_label = QLabel("Hashtag", self._content)
-        self.tags_title_label.setStyleSheet(
-            f"font-weight: bold; color: {colors.text}; font-size: 13px;"
-        )
+        self.tags_title_label = section_label("Hashtag", self._content)
         self._content_layout.addWidget(self.tags_title_label)
         self._tags_container = QWidget(self._content)
         self._tags_layout = _FlowLayout(self._tags_container)
@@ -256,6 +343,11 @@ class DocumentDetailPanel(QWidget):
 
         self.tags_edit = QLineEdit(self._content)
         self.tags_edit.setPlaceholderText("Thêm #tag, cách nhau bởi dấu phẩy (VD: Python, AI)...")
+        self.tags_edit.setStyleSheet(
+            f"QLineEdit {{ background: {colors.surface}; color: {colors.panel_text}; border: 1px solid {colors.border};"
+            f" border-radius: 3px; padding: 7px 10px; }}"
+            f" QLineEdit:focus {{ border: 1px solid {colors.accent}; }}"
+        )
         self.tags_edit.editingFinished.connect(lambda: self._save_field("tags", self.tags_edit.text()))
         self._content_layout.addWidget(self.tags_edit)
 
@@ -263,15 +355,14 @@ class DocumentDetailPanel(QWidget):
         self._content_layout.addWidget(self._divider())
 
         # -- AI Summary --
-        self.summary_title_label = QLabel("Tóm tắt AI", self._content)
-        self.summary_title_label.setStyleSheet(
-            f"font-weight: bold; color: {colors.text}; font-size: 13px;"
-        )
+        self.summary_title_label = section_label("Tóm tắt AI", self._content)
         self.summary_label = QLabel(self._content)
         self.summary_label.setWordWrap(True)
         self.summary_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 12px;")
         self.ai_summary_action_label = _ClickableLabel(self._content)
-        self.ai_summary_action_label.setStyleSheet(f"color: {colors.accent}; font-size: 11px;")
+        self.ai_summary_action_label.setStyleSheet(action_css(colors, font_px=15))
+        if colors.action_style in ("bracket", "soft"):
+            self.ai_summary_action_label.setAlignment(Qt.AlignCenter if colors.action_style == "bracket" else Qt.AlignLeft)
         self.ai_summary_action_label.clicked.connect(self._on_ai_summary)
         self._content_layout.addWidget(self.summary_title_label)
         self._content_layout.addWidget(self.summary_label)
@@ -297,6 +388,9 @@ class DocumentDetailPanel(QWidget):
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, DocumentSelectedEvent)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
+        # Page counts are worked out on a worker thread; the signal hands the result back to the GUI thread.
+        self._counting: set[str] = set()
+        self._page_count_ready.connect(self._on_page_count_ready)
 
         self._show_empty()
 
@@ -311,11 +405,22 @@ class DocumentDetailPanel(QWidget):
         line.setFixedHeight(1)
         return line
 
+    def _show_bibliography(self, doc: dict) -> None:
+        parts = [
+            doc.get("publisher"),
+            str(doc["pub_year"]) if doc.get("pub_year") else None,
+            (doc.get("language") or "").upper() or None,
+            f"ISBN {doc['isbn']}" if doc.get("isbn") else None,
+        ]
+        text = " · ".join(part for part in parts if part)
+        self.bibliography_label.setText(f"📚  {text}" if text else "")
+        self.bibliography_label.setVisible(bool(text))
+
     def _info_label(self) -> QLabel:
         label = QLabel(self._content)
         label.setWordWrap(True)
         colors = current_colors()
-        label.setStyleSheet(f"color: {colors.text}; font-size: 12px;")
+        label.setStyleSheet(f"color: {colors.panel_text}; font-size: 13px;")
         return label
 
     # ── State transitions ────────────────────────────────────────────
@@ -337,6 +442,28 @@ class DocumentDetailPanel(QWidget):
         self._show_detail()
         self._populate(doc)
 
+    def _cover_effect(self, colors):
+        """The big cover's shadow in the theme's style: a neutral soft
+        shadow, a warm lifted one, an accent glow (glowing themes), or none."""
+        if colors.cover_shadow == "none" and not colors.text_glow:
+            return None
+        effect = QGraphicsDropShadowEffect(self.cover_label)
+        if colors.text_glow:
+            effect.setBlurRadius(26)
+            effect.setOffset(0, 0)
+            halo = QColor(colors.accent)
+            halo.setAlpha(70)
+            effect.setColor(halo)
+        elif colors.cover_shadow == "warm":
+            effect.setBlurRadius(22)
+            effect.setOffset(0, 6)
+            effect.setColor(QColor(107, 85, 64, 70))
+        else:
+            effect.setBlurRadius(18)
+            effect.setOffset(0, 3)
+            effect.setColor(QColor(0, 0, 0, 70))
+        return effect
+
     def _populate(self, doc: dict) -> None:
         # Cover
         cover_path = doc.get("cover_path")
@@ -344,25 +471,39 @@ class DocumentDetailPanel(QWidget):
             pixmap = QPixmap(cover_path).scaledToWidth(
                 COVER_WIDTH, Qt.SmoothTransformation
             )
-            self.cover_label.setPixmap(pixmap)
+            self.cover_label.setPixmap(_rounded(pixmap, current_colors().cover_radius))
         else:
-            from PySide6.QtGui import QColor as _QC
-
-            placeholder = QPixmap(QSize(COVER_WIDTH, int(COVER_WIDTH * 1.33)))
-            placeholder.fill(_QC("#cfd8dc"))
-            self.cover_label.setPixmap(placeholder)
+            placeholder_size = QSize(COVER_WIDTH, int(COVER_WIDTH * 1.33))
+            placeholder = gradient_pixmap(
+                doc.get("id", ""),
+                placeholder_size,
+                current_colors(),
+                title=doc.get("title") or "",
+                author=doc.get("author") or "",
+            )
+            self.cover_label.setPixmap(_rounded(placeholder, current_colors().cover_radius))
 
         # Text fields (editable directly -- setText() doesn't fire
         # editingFinished, so this never re-triggers a save)
         self.title_edit.setText(doc.get("title") or "")
         self.author_edit.setText(doc.get("author") or "")
+        # Show the start of a long title/author, not its tail (setText
+        # leaves the cursor -- and so the visible part -- at the end).
+        self.title_edit.setCursorPosition(0)
+        self.author_edit.setCursorPosition(0)
+        self.title_edit.setToolTip(doc.get("title") or "")
+        self._update_author_works_link(doc)
 
-        ext = (doc.get("extension") or "").upper()
-        size = _human_size(doc.get("file_size", 0))
-        self.format_size_label.setText(f"📄  {ext} • {size}" if ext else f"📄  {size}")
+        self._show_format_line(doc)
+        self._maybe_count_pages(doc)
 
-        self.date_added_label.setText(f"📅  Thêm: {_format_datetime(doc.get('created_at'))}")
-        self.date_modified_label.setText(f"✏️  Sửa: {_format_datetime(doc.get('updated_at'))}")
+        self._show_bibliography(doc)
+        self.dates_label.setText(
+            f"📅  Thêm: {_format_date(doc.get('created_at'))}  ·  ✏️  Sửa: {_format_date(doc.get('updated_at'))}"
+        )
+        self.dates_label.setToolTip(
+            f"Thêm: {_format_datetime(doc.get('created_at'))}\nSửa: {_format_datetime(doc.get('updated_at'))}"
+        )
         self.rating_label.setText(f"⭐  {_rating_text(doc)}")
 
         file_path = doc.get("file_path", "")
@@ -393,10 +534,46 @@ class DocumentDetailPanel(QWidget):
         if summary:
             self.summary_label.setText(summary)
             self.summary_label.show()
-            self.ai_summary_action_label.setText("🔄 Tạo lại tóm tắt AI")
+            self.ai_summary_action_label.setText(action_text("🔄 Tạo lại tóm tắt AI"))
         else:
             self.summary_label.hide()
-            self.ai_summary_action_label.setText("✨ Tạo tóm tắt AI")
+            self.ai_summary_action_label.setText(action_text("✦ Tạo tóm tắt AI"))
+
+    def _show_format_line(self, doc: dict) -> None:
+        parts = [(doc.get("extension") or "").upper(), _human_size(doc.get("file_size", 0)), _pages_text(doc)]
+        self.format_size_label.setText("📄  " + " · ".join(part for part in parts if part))
+
+    def _maybe_count_pages(self, doc: dict) -> None:
+        """Books imported before page counts existed have none stored. Work it out once,
+        for the book being looked at, off the GUI thread -- and never for a OneDrive
+        placeholder, which reading would download."""
+        doc_id, path = doc.get("id"), doc.get("file_path") or ""
+        if (
+            doc.get("page_count") is not None
+            or not doc_id
+            or doc_id in self._counting
+            or (doc.get("extension") or "").lower() not in _PAGE_COUNT_EXTENSIONS
+            or is_cloud_only(path)
+        ):
+            return
+        self._counting.add(doc_id)
+        threading.Thread(
+            target=self._count_in_background, args=(doc_id, path, doc["extension"]), name="page-count", daemon=True
+        ).start()
+
+    def _count_in_background(self, doc_id: str, path: str, extension: str) -> None:
+        pages = count_pages(path, extension) or 0
+        try:
+            self.context.db.set_page_count(doc_id, pages)
+            self._page_count_ready.emit(doc_id, pages)
+        except (sqlite3.Error, RuntimeError):
+            pass  # the app is closing: database closed or this widget already destroyed
+
+    def _on_page_count_ready(self, doc_id: str, pages: int) -> None:
+        self._counting.discard(doc_id)
+        if self._current_doc and self._current_doc.get("id") == doc_id:
+            self._current_doc["page_count"] = pages
+            self._show_format_line(self._current_doc)
 
     def _clear_tags(self) -> None:
         while self._tags_layout.count():
@@ -433,8 +610,7 @@ class DocumentDetailPanel(QWidget):
 
     def _on_read(self) -> None:
         if self._current_doc:
-            self._reader_window = ReaderWindow(self.context, self._current_doc, self)
-            self._reader_window.show()
+            open_reader(self.context, self._current_doc, self)
 
     def _on_reveal(self) -> None:
         if self._current_doc:
@@ -453,11 +629,74 @@ class DocumentDetailPanel(QWidget):
             AISummaryDialog(self.context, self._current_doc, self).exec()
 
     def _on_tag_clicked(self, tag: str) -> None:
-        """Clicking a hashtag here is equivalent to selecting it on the
-        collection side: show every document with this tag, not just
-        whatever collection/facet filters happened to be active before."""
-        self.context.event_bus.publish(CollectionSelectedEvent(collection_id=None))
-        self.context.event_bus.publish(FacetFilterChangedEvent(tags=(tag,)))
+        """Clicking a hashtag here jumps to every document with this tag,
+        not just whatever the previous filters left. The "Đang lọc" bar shows
+        the (new) filter, so the jump is visible and one click undoes it."""
+        self.context.filters.set(LibraryFilter(tags=(tag,)))
+
+    def _update_author_works_link(self, doc: dict) -> None:
+        names = split_author_names(doc.get("author"))
+        others = 0
+        if names:
+            sql, params = self.context.db.filter_where(LibraryFilter(authors=tuple(names)))
+            # Counts each person's own books and the ones they co-wrote (the same matching the
+            # sidebar's author list uses), and excludes this book itself.
+            others = self.context.db.count_documents_matching(where_sql=sql, params=params) - 1
+        if others <= 0:
+            self.author_works_label.hide()
+        else:
+            self._others_count = others
+            self.author_works_label.setToolTip(
+                f"Có {others} tài liệu khác cùng tác giả. Nhấn để xem các tài liệu của "
+                f"{names[0] if len(names) == 1 else 'các tác giả này'}, kể cả sách viết chung"
+            )
+            self.author_works_label.setText(_others_texts(others)[0])
+            self.author_works_label.show()
+        self._layout_author_row()
+
+    def _layout_author_row(self) -> None:
+        """Name and link on one line when they fit, the link under the name when not.
+
+        Side by side the name field is cut to its text (a QLineEdit otherwise takes all the
+        width and pushes the link away), and grows as the name is edited."""
+        edit, link = self.author_edit, self.author_works_label
+        edit.ensurePolished()  # so font() reflects the stylesheet, not the default
+        link.ensurePolished()
+        text = edit.text() or edit.placeholderText()
+        name_width = QFontMetrics(edit.font()).horizontalAdvance(text) + 16  # cursor + margins
+        room = self._author_row.width() - name_width - self._author_layout.spacing()
+        side_by_side = False
+        if not link.isHidden() and self._author_row.width() > 0:
+            # The full wording if it fits beside the name, else a shorter one; only when even
+            # the shortest doesn't fit does the link drop below.
+            link_metrics = QFontMetrics(link.font())
+            for wording in _others_texts(self._others_count):
+                if link_metrics.horizontalAdvance(wording) + 2 <= room:
+                    link.setText(wording)
+                    side_by_side = True
+                    break
+            else:
+                link.setText(_others_texts(self._others_count)[0])
+        if side_by_side:
+            self._author_layout.setDirection(QBoxLayout.LeftToRight)
+            edit.setFixedWidth(name_width)
+        else:
+            self._author_layout.setDirection(QBoxLayout.TopToBottom)
+            edit.setMinimumWidth(0)
+            edit.setMaximumWidth(16777215)  # QWIDGETSIZE_MAX: undo setFixedWidth
+
+    def _on_author_works_clicked(self) -> None:
+        """Shows every document by this document's author(s) -- their own
+        books and any they co-wrote -- in the main library view. Like a
+        hashtag click, this replaces whatever was filtered before (so the
+        result matches the count the link announced) and shows up in the
+        "Đang lọc" bar."""
+        if not self._current_doc:
+            return
+        names = split_author_names(self._current_doc.get("author"))
+        if not names:
+            return
+        self.context.filters.set(LibraryFilter(authors=tuple(names)))
 
     def _save_field(self, field: str, value: str) -> None:
         """Inline edit of title/author/tags directly on the panel -- these
@@ -473,6 +712,8 @@ class DocumentDetailPanel(QWidget):
         if value == (self._current_doc.get(field) or ""):
             return
         self.context.db.update_document_fields(doc_id, {field: value})
+        if field in ("title", "author"):
+            self.context.db.lock_fields(doc_id, [field])  # typed by hand: a metadata suggestion won't overwrite it
         self._current_doc[field] = value
         self.context.event_bus.publish(LibraryUpdatedEvent())
 

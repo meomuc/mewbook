@@ -24,6 +24,7 @@ from smartdoc.application.cloud_reviews import CloudReviewError
 from smartdoc.application.rating_sync import sync_all_rating_stats
 from smartdoc.core.event_bus import CoverSizeChangedEvent, SortChangedEvent, ViewModeChangedEvent
 from smartdoc.presentation.library_view import DEFAULT_ICON_WIDTH, HIGHEST_RATED_SORT_LABEL, SORT_OPTIONS
+from smartdoc.presentation.theme import current_colors
 
 COVER_SIZE_MIN = 100
 COVER_SIZE_MAX = 300
@@ -74,16 +75,41 @@ class LibraryToolbar(QWidget):
         self.size_slider.setValue(DEFAULT_ICON_WIDTH)
         self.size_slider.valueChanged.connect(self._on_size_changed)
 
+        # Lives at the right end of the main window's header bar (see
+        # MainWindow._build_header_bar): compact, no stretch of its own.
+        colors = current_colors()
+        for button in (self.grid_view_button, self.list_view_button):
+            button.setAutoRaise(True)
+            button.setFixedSize(32, 30)
+        self.setStyleSheet(
+            f"QToolButton {{ border: none; border-radius: 3px; background: transparent; }}"
+            f" QToolButton:checked {{ background: {colors.selected_bg}; }}"
+            f" QToolButton:hover {{ background: {colors.border}; }}"
+            f" QComboBox {{ background: {colors.surface}; color: {colors.sidebar_text};"
+            f" border: 1px solid {colors.border}; border-radius: 3px; padding: 5px 10px; min-width: 150px; }}"
+            f" QComboBox::drop-down {{ border: none; width: 20px; }}"
+        )
+        self.sort_combo.setToolTip("Sắp xếp")
+        self.size_slider.setFixedWidth(110)
+        self.size_slider.setToolTip("Cỡ bìa")
+        size_label = QLabel("Cỡ bìa", self)
+        size_label.setStyleSheet(f"color: {colors.muted_text};")
+        self._size_label = size_label
+
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
         layout.addWidget(self.grid_view_button)
         layout.addWidget(self.list_view_button)
-        layout.addSpacing(12)
-        layout.addWidget(QLabel("Sắp xếp:"))
+        layout.addSpacing(14)
         layout.addWidget(self.sort_combo)
-        layout.addStretch(1)
-        layout.addWidget(QLabel("Cỡ bìa:"))
+        layout.addSpacing(14)
+        layout.addWidget(size_label)
         layout.addWidget(self.size_slider)
+
+    def set_size_control_visible(self, visible: bool) -> None:
+        self._size_label.setVisible(visible)
+        self.size_slider.setVisible(visible)
 
     def _on_view_mode_clicked(self, mode: str) -> None:
         self.context.config.config.view_mode = mode

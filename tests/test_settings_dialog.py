@@ -98,13 +98,13 @@ def test_cancelling_ereader_folder_picker_leaves_config_unchanged(qapp, app_cont
 
 
 def test_theme_change_sets_appearance_changed_flag_no_restart_needed(qapp, app_context):
-    assert app_context.config.config.theme == "light"
+    assert app_context.config.config.theme == "broadsheet"
     dialog = SettingsDialog(app_context)
-    dialog.theme_combo.setCurrentIndex(1)  # "dark"
+    dialog.theme_combo.setCurrentIndex(2)  # "inkynight"
 
     dialog._on_save()  # must not show any blocking dialog -- nothing to stub out anymore
 
-    assert app_context.config.config.theme == "dark"
+    assert app_context.config.config.theme == "inkynight"
     assert dialog.appearance_changed is True
 
 
@@ -192,6 +192,33 @@ def test_clearing_ai_key_saves_as_none(qapp, app_context):
     dialog._on_save()
 
     assert app_context.config.config.ai_api_key is None
+
+
+def test_cover_search_tab_starts_unconfigured_by_default(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert dialog.google_image_api_key_edit.text() == ""
+    assert dialog.google_image_cx_edit.text() == ""
+
+
+def test_saving_google_image_search_config_persists(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.google_image_api_key_edit.setText("AIza-fake-key")
+    dialog.google_image_cx_edit.setText("012345:abcdef")
+
+    dialog._on_save()
+
+    assert app_context.config.config.google_image_api_key == "AIza-fake-key"
+    assert app_context.config.config.google_image_search_cx == "012345:abcdef"
+
+
+def test_clearing_google_image_key_saves_as_none(qapp, app_context):
+    app_context.config.config.google_image_api_key = "existing-key"
+    dialog = SettingsDialog(app_context)
+    dialog.google_image_api_key_edit.setText("   ")
+
+    dialog._on_save()
+
+    assert app_context.config.config.google_image_api_key is None
 
 
 def test_ai_provider_guide_updates_when_provider_changes(qapp, app_context):
@@ -286,3 +313,121 @@ def test_performance_tab_shows_active_worker_count(qapp, app_context):
 def test_performance_tab_shows_zero_active_when_no_import_manager(qapp, app_context):
     dialog = SettingsDialog(app_context)
     assert "0" in dialog.performance_status_label.text()
+
+
+def test_cloud_review_tab_starts_unconfigured_and_saves(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert dialog.supabase_url_edit.text() == ""
+    assert dialog.supabase_key_edit.text() == ""
+
+    dialog.supabase_url_edit.setText("https://demo.supabase.co/")
+    dialog.supabase_key_edit.setText("anon-key-123")
+    dialog._on_save()
+
+    # The trailing slash is stripped -- cloud_reviews builds URLs by
+    # appending "/rest/v1/...", so leaving it would produce a double slash.
+    assert app_context.config.config.supabase_url == "https://demo.supabase.co"
+    assert app_context.config.config.supabase_anon_key == "anon-key-123"
+
+
+def test_cloud_review_tab_preloads_existing_config(qapp, app_context):
+    app_context.config.config.supabase_url = "https://saved.supabase.co"
+    app_context.config.config.supabase_anon_key = "saved-key"
+
+    dialog = SettingsDialog(app_context)
+
+    assert dialog.supabase_url_edit.text() == "https://saved.supabase.co"
+    assert dialog.supabase_key_edit.text() == "saved-key"
+
+
+def test_supabase_test_result_is_shown_in_the_status_label(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog._on_supabase_test_finished(False, "❌ View 'review_stats' không tồn tại")
+    assert "review_stats" in dialog.supabase_test_status_label.text()
+    assert "crimson" in dialog.supabase_test_status_label.styleSheet()
+
+
+def test_cover_test_result_is_shown_in_the_status_label(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog._on_cover_test_finished(True, "✅ Kết nối thành công!")
+    assert "thành công" in dialog.cover_test_status_label.text()
+    assert "green" in dialog.cover_test_status_label.styleSheet()
+
+
+def _theme_index(dialog, key):
+    from smartdoc.presentation.settings_dialog import THEME_CHOICES
+
+    return list(THEME_CHOICES).index(key)
+
+
+def test_changing_theme_clears_a_font_saved_earlier(qapp, app_context):
+    app_context.config.config.theme = "broadsheet"
+    app_context.config.config.font_family = "Arial"
+    app_context.config.config.content_font_family = "Arial"
+    dialog = SettingsDialog(app_context)
+
+    dialog.theme_combo.setCurrentIndex(_theme_index(dialog, "retro_tech"))
+    dialog._on_save()
+
+    assert app_context.config.config.theme == "retro_tech"
+    assert app_context.config.config.font_family is None  # so the theme's own font applies
+    assert app_context.config.config.content_font_family is None
+    assert dialog.appearance_changed is True
+
+
+def _pick_font(combo, family):
+    """Simulates the user choosing `family` in a font picker. The test
+    environment has no fonts installed, so a real QFontComboBox can't hold
+    any family; this stands in for one that can."""
+    from PySide6.QtGui import QFont
+
+    combo.currentFont = lambda: QFont(family)
+    combo.currentFontChanged.emit(QFont(family))
+
+
+def test_font_picked_in_the_same_visit_wins_over_the_theme_font(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.theme_combo.setCurrentIndex(_theme_index(dialog, "retro_tech"))
+    _pick_font(dialog.font_combo, "Arial")
+    dialog._on_save()
+
+    assert app_context.config.config.font_family == "Arial"
+    assert app_context.config.config.content_font_family is None  # only the one that was touched
+
+
+def test_font_boxes_follow_the_selected_theme_until_the_user_picks_one(qapp, app_context):
+    from smartdoc.presentation.theme import THEMES, resolve_font_family
+
+    dialog = SettingsDialog(app_context)
+    shown = {"app": [], "content": []}
+    dialog.font_combo.setCurrentFont = lambda font: shown["app"].append(font.family())
+    dialog.content_font_combo.setCurrentFont = lambda font: shown["content"].append(font.family())
+
+    dialog.theme_combo.setCurrentIndex(_theme_index(dialog, "retro_tech"))
+    expected = resolve_font_family(THEMES["retro_tech"])
+    assert shown == {"app": [expected], "content": [expected]}
+    assert app_context.config.config.font_family is None  # previewing is not saving
+
+    _pick_font(dialog.font_combo, "Arial")  # from here on the app font is the user's
+    dialog.theme_combo.setCurrentIndex(_theme_index(dialog, "japandi"))
+    assert shown["app"] == [expected]
+    assert shown["content"] == [expected, resolve_font_family(THEMES["japandi"])]
+
+
+def test_saving_without_touching_fonts_keeps_them_unset(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog._on_save()
+    assert app_context.config.config.font_family is None
+    assert app_context.config.config.content_font_family is None
+
+
+def test_metadata_write_options_default_off_and_are_saved(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert not dialog.metadata_write_check.isChecked() and dialog.metadata_backup_spin.value() == 3
+
+    dialog.metadata_write_check.setChecked(True)
+    dialog.metadata_backup_spin.setValue(7)
+    dialog._on_save()
+
+    config = app_context.config.config
+    assert config.metadata_write_to_file_default is True and config.metadata_backup_keep == 7

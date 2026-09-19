@@ -90,6 +90,9 @@ class LibraryWatcher:
         return extension in self.context.config.config.allowed_extensions
 
     def _handle_stable_file(self, path: str) -> None:
+        if self.context.self_writes.is_recent(path):
+            logger.info("Ignoring a change MewBook made itself: %s", path)
+            return
         logger.info("File stable, publishing FileDetectedEvent: %s", path)
         self.context.event_bus.publish(FileDetectedEvent(file_path=path))
 

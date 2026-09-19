@@ -61,7 +61,7 @@ def test_generate_success_populates_text_and_enables_save(qapp, app_context, mon
     app_context.config.config.ai_api_key = "fake-key"
     monkeypatch.setattr(
         "smartdoc.presentation.ai_summary_dialog.generate_summary_from_content",
-        lambda provider, key, content: "A cozy fantasy adventure.",
+        lambda provider, key, content, **options: "A cozy fantasy adventure.",
     )
 
     dialog = AISummaryDialog(app_context, _doc())
@@ -78,7 +78,7 @@ def test_generate_sends_the_edited_request_content(qapp, app_context, monkeypatc
     app_context.config.config.ai_api_key = "fake-key"
     captured = {}
 
-    def fake_generate(provider, key, content):
+    def fake_generate(provider, key, content, **options):
         captured["content"] = content
         return "summary"
 
@@ -96,7 +96,7 @@ def test_generate_error_shown_in_status_label(qapp, app_context, monkeypatch):
     app_context.config.config.ai_provider = "gemini"
     app_context.config.config.ai_api_key = "fake-key"
 
-    def raise_error(provider, key, content):
+    def raise_error(provider, key, content, **options):
         raise AISummaryError("boom")
 
     monkeypatch.setattr("smartdoc.presentation.ai_summary_dialog.generate_summary_from_content", raise_error)
@@ -136,3 +136,38 @@ def test_save_with_empty_text_does_nothing(qapp, app_context):
 
     assert app_context.db.get_document("d1")["ai_summary"] is None
     assert events == []
+
+
+def test_selected_summary_options_are_sent_and_remembered(qapp, app_context, monkeypatch):
+    app_context.config.config.ai_provider = "groq"
+    app_context.config.config.ai_api_key = "fake-key"
+    app_context.config.config.ai_model = "my-model"
+    captured = {}
+
+    def fake_generate(provider, key, content, **options):
+        captured.update(options, provider=provider)
+        return "summary"
+
+    monkeypatch.setattr("smartdoc.presentation.ai_summary_dialog.generate_summary_from_content", fake_generate)
+
+    dialog = AISummaryDialog(app_context, _doc())
+    dialog.style_combo.setCurrentIndex(dialog.style_combo.findData("key_points"))
+    dialog.length_combo.setCurrentIndex(dialog.length_combo.findData("long"))
+    dialog.language_combo.setCurrentIndex(dialog.language_combo.findData("en"))
+    dialog._on_generate()
+
+    assert _pump_until(qapp, lambda: "style" in captured)
+    assert captured["provider"] == "groq"
+    assert (captured["style"], captured["length"], captured["language"]) == ("key_points", "long", "en")
+    assert captured["model"] == "my-model"
+    assert app_context.config.config.ai_summary_style == "key_points"
+    assert AISummaryDialog(app_context, _doc()).style_combo.currentData() == "key_points"
+
+
+def test_ollama_needs_no_api_key(qapp, app_context):
+    app_context.config.config.ai_provider = "ollama"
+    app_context.config.config.ai_api_key = None
+
+    dialog = AISummaryDialog(app_context, _doc())
+
+    assert dialog.generate_button.isEnabled()

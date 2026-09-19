@@ -19,7 +19,7 @@ import queue
 import threading
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from smartdoc.core.event_bus import (
@@ -32,6 +32,8 @@ from smartdoc.core.event_bus import (
 from smartdoc.domain.models import MetadataNormalizer
 from smartdoc.infrastructure.epub_extractor import EpubExtractor
 from smartdoc.infrastructure.file_hash import sha256_file
+from smartdoc.infrastructure.fingerprint import fingerprint_file
+from smartdoc.infrastructure.page_count import count_pages
 from smartdoc.infrastructure.pdf_extractor import PdfExtractor
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ class _BatchProgress:
     success: int = 0
     duplicate: int = 0
     failed: int = 0
+    doc_ids: list[str] = field(default_factory=list)  # the ones that were newly added
 
 
 class ImportQueueManager:
@@ -90,12 +93,28 @@ class ImportQueueManager:
         """
         if not paths:
             return 0
+        self._start_batch(paths)
+        return len(paths)
+
+    def add_files_tracked(self, paths: list[str]) -> str | None:
+        """Like add_files, but returns the batch_id instead of a plain
+        count -- for a caller that needs to correlate its own batch's
+        DocumentIndexedEvent/ImportBatchCompletedEvent against a global
+        event bus that may also be carrying an unrelated import's events at
+        the same time (e.g. AddDocumentDialog, open while a watched folder
+        also happens to be importing). Returns None if there was nothing to
+        enqueue."""
+        if not paths:
+            return None
+        return self._start_batch(paths)
+
+    def _start_batch(self, paths: list[str]) -> str:
         batch_id = uuid.uuid4().hex
         with self._batches_lock:
             self._batches[batch_id] = _BatchProgress(total=len(paths))
         for path in paths:
             self.add_file(path, batch_id)
-        return len(paths)
+        return batch_id
 
     def scan_folder(self, folder_path: str) -> int:
         """Walk a folder recursively and enqueue every allowed file. Used
@@ -111,6 +130,11 @@ class ImportQueueManager:
                 if name.rsplit(".", 1)[-1].lower() in allowed:
                     paths.append(str(Path(root) / name))
         return self.add_files(paths)
+
+    def pending_count(self) -> int:
+        """Files queued or being processed right now (0 when idle)."""
+        with self._progress_lock:
+            return max(0, self._total - self._done)
 
     def active_worker_count(self) -> int:
         """Number of worker threads currently running -- shown in Settings
@@ -152,7 +176,7 @@ class ImportQueueManager:
             path, batch_id = item
             outcome = "failed"
             try:
-                outcome = self._process_file(path)
+                outcome = self._process_file(path, batch_id)
             except Exception:
                 logger.exception("Failed to import file: %s", path)
                 outcome = "failed"
@@ -160,7 +184,7 @@ class ImportQueueManager:
                 self._queue.task_done()
                 self._report_progress()
                 if batch_id is not None:
-                    self._report_batch_outcome(batch_id, outcome)
+                    self._report_batch_outcome(batch_id, outcome, MetadataNormalizer.generate_document_id(path))
 
     def _report_progress(self) -> None:
         with self._progress_lock:
@@ -168,7 +192,7 @@ class ImportQueueManager:
             done, total = self._done, self._total
         self.context.event_bus.publish(ImportProgressEvent(done=done, total=total))
 
-    def _report_batch_outcome(self, batch_id: str, outcome: str) -> None:
+    def _report_batch_outcome(self, batch_id: str, outcome: str, doc_id: str) -> None:
         finished: _BatchProgress | None = None
         with self._batches_lock:
             batch = self._batches.get(batch_id)
@@ -181,17 +205,22 @@ class ImportQueueManager:
                 batch.failed += 1
             else:
                 batch.success += 1
+                batch.doc_ids.append(doc_id)
             if batch.done >= batch.total:
                 finished = batch
                 del self._batches[batch_id]
         if finished is not None:
             self.context.event_bus.publish(
                 ImportBatchCompletedEvent(
-                    success=finished.success, duplicate=finished.duplicate, failed=finished.failed
+                    success=finished.success,
+                    duplicate=finished.duplicate,
+                    failed=finished.failed,
+                    batch_id=batch_id,
+                    doc_ids=tuple(finished.doc_ids),
                 )
             )
 
-    def _process_file(self, path: str) -> str:
+    def _process_file(self, path: str, batch_id: str | None = None) -> str:
         """Returns "success", "duplicate", or "failed" for batch reporting."""
         extension = Path(path).suffix.lower().lstrip(".")
         doc_id = MetadataNormalizer.generate_document_id(path)
@@ -225,12 +254,15 @@ class ImportQueueManager:
             raw_metadata["file_size"] = 0
         raw_metadata["created_at"] = time.time()
         raw_metadata["content_hash"] = sha256_file(path)
+        raw_metadata["fingerprint"] = fingerprint_file(path, extension)
+        if raw_metadata.get("page_count") is None:  # a PDF already reported its own while it was open
+            raw_metadata["page_count"] = count_pages(path, extension)
 
         clean_metadata = MetadataNormalizer.clean_metadata(raw_metadata)
         clean_metadata["cover_path"] = cover_path
 
         self.context.db.add_or_update_document(doc_id, clean_metadata, extracted_text)
-        self.context.event_bus.publish(DocumentIndexedEvent(doc_id=doc_id))
+        self.context.event_bus.publish(DocumentIndexedEvent(doc_id=doc_id, batch_id=batch_id))
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return "success"
 

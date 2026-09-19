@@ -20,6 +20,15 @@ FIELD_CHOICES: list[tuple[str, str, str]] = [
 ]
 
 
+def can_edit_in_dialog(collection: VirtualCollection) -> bool:
+    """False for collections this one-rule dialog can't show faithfully (several rules, or the
+    whole-person/whole-tag rules made by "save this filter"): saving from it would silently rewrite them."""
+    if not collection.rules:
+        return True
+    rule = collection.rules[0]
+    return len(collection.rules) == 1 and any(f == rule.field and o == rule.operator for _l, f, o in FIELD_CHOICES)
+
+
 class NewCollectionDialog(QDialog):
     def __init__(self, parent=None, collection: VirtualCollection | None = None) -> None:
         """`collection` set = editing that existing collection's rule/name

@@ -1,11 +1,530 @@
 # Changelog
 
-Chronological, human-readable history of what changed and why — kept so
-the whole project can be understood as one coherent story, not just a pile
-of commits. Newest entries at the top. Each entry links the commit(s) it
-corresponds to.
+All notable changes to MewBook ("Mèo Mực") are documented in this file.
 
-## 2026-09-18 — Status bar: divider from the panel above, function vs. status colors
+The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
+-- see "Versioning & releases" in README.md for how version numbers are chosen.
+
+## [Unreleased]
+
+New features, so the next release is a MINOR bump (1.1.0).
+
+### Added
+- **Cover dialog: paste an image link or choose an image from your computer.** Besides searching
+  the internet, the cover dialog now has a box for an image URL (**"Tải về"**) and a
+  **"Chọn ảnh từ máy..."** button. The image is checked (a real image, at most 15 MB), shown
+  selected at the top of the results for a preview, and applied with "Dùng ảnh này" like any
+  search result; searching again keeps it.
+- **Filters redesigned: author, hashtag, format, collection and search now work as one.**
+  - **"Đang lọc" bar** above the list shows every active filter as a chip you can remove
+    (`Tác giả: Nhã Ca ✕`), how many books remain ("31 / 7.545 tài liệu"), **"Xóa lọc"**
+    (clears everything, the search text included; also the Esc key in the list) and
+    **"Lưu thành bộ sưu tập"** (keeps the current filter as a collection that updates itself
+    when it can be expressed as rules, otherwise as a fixed list of the current books, and says
+    which before saving). The author link and hashtags in the detail panel now show here too;
+    before, the sidebar looked unfiltered while the list was filtered.
+  - **One click = "show me this".** It switches that group to the clicked item and keeps the
+    other groups, so filters narrow step by step. **Ctrl/Shift+click** (or "Thêm vào lựa chọn"
+    in the right-click menu) adds to the selection; clicking the only selected item clears it.
+    The double-click gesture is gone (it made the list reload twice and flicker).
+    "Tất cả tài liệu" clears everything, search text included.
+  - **Counts follow the filter.** Every number is "how many books if I pick this" given the
+    other selections, and choices that would show nothing disappear, so a click in the sidebar
+    can no longer lead to an empty list. Books without a hashtag get a **"Chưa phân loại"**
+    entry.
+  - **Authors, cleaned up on screen only** (no file or metadata is changed): spelling variants
+    ("NHÃ CA", "Nhã Ca") are one person; a co-authored book ("A, B và C") counts for each of
+    them, so the sidebar and the detail panel's author link give the same result; "Unknown",
+    "nhiều tác giả" and similar are gathered into one "Không rõ / Nhiều tác giả" entry at the
+    bottom. The list shows the top 8, and **"Xem tất cả …"** opens a searchable list of all.
+    Renaming an author from the right-click menu now renames that person in every spelling
+    and inside co-author lists.
+  - **New sidebar section:** hashtags and formats are wrapping chips with counts, sections
+    fold (and remember it), the "⋯" menu sorts and makes folders, and your existing folders
+    show as 📂 chips that select all their members. The panel updates in place instead of
+    rebuilding, so it no longer jumps or loses its scroll position.
+  - **"Lọc nhanh" box** at the top of the sidebar, and suggestions under the main search
+    box: type "nha" and get "Tác giả: Nhã Ca (12)", "Hashtag: …", collections and formats,
+    accents and case ignored; Enter or a click turns it into a filter chip.
+  - **"🧹 Gợi ý dọn tên tác giả"** (the "⋯" menu of the Tác giả section) suggests merging
+    names that differ only by accents ("Nguyen Nhat Anh" / "Nguyễn Nhật Ánh") and flags
+    usernames used as the author of many books ("CongThuc88", 369 books in a real library) so
+    they can be set to "Không rõ". Nothing changes until you press the button and confirm, and
+    only the library entries change, never the book files.
+  - Collections made from a filter have several conditions, so "Chỉnh sửa điều kiện" is
+    disabled for them (the one-rule dialog would flatten them); rename and delete still work.
+- **Detail panel: author and "other books" on one line.** The author's name and the link to
+  their other books are now a single line, "Tên tác giả (có 1 tài liệu cùng tác giả)"; the
+  wording is shortened to fit a narrow panel, and the link moves under the name only when
+  even the shortest form does not fit. The count no longer includes the book itself, and the
+  link is hidden when the author has no other book. The author's name is also shown in full
+  contrast and one size larger, instead of the muted caption grey.
+- **Detail panel: page count, dates on one row.** The panel now shows the number of pages
+  next to the format and size ("PDF · 1.9 MB · 320 trang"; an EPUB has no fixed pages, so
+  its number is an estimate from the amount of text and is shown as "~412 trang"). Books
+  imported earlier get theirs counted the first time they are selected, in the background
+  (never for OneDrive files that are not downloaded yet). "Thêm" and "Sửa" dates now share
+  one row; hover it for the exact time.
+- **Metadata search (tìm metadata).** Right-click a book → "🔎 Tìm metadata..." (or
+  "Tìm thông tin..." in the edit dialog) looks the book up, in this order: the
+  book file itself, your own library (another copy of the same book), then the
+  internet (Open Library, Google Books, Apple Books). Nothing changes until you
+  review the differences and press "Áp dụng": only empty or placeholder fields
+  are ticked for you, fields you typed by hand are never offered, and every
+  change is recorded so "Hoàn tác" (undo) can take it back.
+  - New book fields: publisher, publication year, language, ISBN, series and
+    description (shown in the detail panel). The library upgrades in place.
+  - **Optionally writes into the book file** (tick "Ghi vào file gốc", off by
+    default; Settings → Quản lý File sets the default): EPUB takes all fields,
+    PDF takes title and author. The file is backed up first, the new file is
+    built beside it and checked before it replaces the original, and "Hoàn tác"
+    restores the backup. MOBI/AZW3 and encrypted PDFs are never written.
+  - Books get a `fingerprint` (a hash of the pages/chapters that does not change
+    when metadata is written) so the same book is still recognised afterwards;
+    books imported earlier get theirs in the background.
+- **Smart classification and sorting (phân loại và sắp xếp thông minh).**
+  Adds a category hashtag to each book and files it under a folder of the
+  Hashtag tree in the sidebar, using a small offline model. Files are never
+  moved, existing tags and your own folders are kept, and a run can be undone.
+  - After files or folders are added, one compact popup with the import result
+    asks whether to classify the new documents (ask / always / never, in
+    Settings → Phân loại).
+  - A "✨ Phân loại thông minh" button above the document list (also in the
+    Tools menu and the right-click menu) applies to the list being viewed, as
+    selected in the sidebar, and shows the document count first.
+  - Reads the first 2,000 to 5,000 words of EPUB, PDF and MOBI books, plus title,
+    author, tags, embedded subjects and chapter titles; Vietnamese is
+    word-segmented with pyvi.
+  - Runs in a separate low-priority process that only exists while classifying,
+    and nothing is loaded at startup.
+  - `train.py` trains and evaluates the model separately from the app; the app
+    ships with a model trained on the author's library. New dependency: pyvi
+    (brings scikit-learn, scipy and numpy, used only by the worker process and
+    `train.py`; the Windows build grows accordingly).
+- **Four "mood" themes** next to the original three, all in the same
+  theme picker:
+  - **Không Gian Chữa Lành** (Cottagecore): cream and sage colors, large
+    rounded corners, a pill-shaped search box, warm soft cover shadows, a
+    detail panel rounded on one side, a 🌿 brand mark, "Góc đọc sách"
+    labels and a faint film-grain overlay.
+  - **Hoài Niệm Kỹ Thuật Số** (Lo-Fi Retro-Tech): monospace everywhere
+    (Consolas fallback), a fake old-OS title bar with three pastel dots,
+    flat bordered pastel covers, neon glow on the selected cover,
+    `// bộ_sưu_tập` code-style labels and `[ action ]` buttons.
+  - **Japandi Tối Giản**: light sans-serif with wide letter spacing, flat
+    earth-tone covers, no shadows or rounded buttons, text-link actions,
+    a borderless sidebar, wide margins, and an asymmetric grid where the
+    page's first book is shown large beside the others.
+  - **Zen Dark Mode**: dark teal (not black) background, a soft turquoise
+    glow on the selected cover and title, deep low-saturation covers, and
+    slow (~500 ms) fades on hover and selection.
+- **Theme previews:** the theme pickers (menu bar corner and Settings)
+  show a small picture of each theme.
+- **Theme style options** (`ThemeColors`): font stack and weight, letter
+  spacing, corner radii, cover shadow, border, flat or gradient covers,
+  selection style, action style, search style, title bar, grain overlay,
+  motion and grid layout. Every default reproduces the original themes
+  exactly, and every theme is validated automatically, including WCAG
+  contrast and readable text on placeholder covers.
+
+### Fixed
+- **Freeze after selecting a book in the List view.** Painting a selected row raised an
+  error on every repaint (`QPalette.Text` was read from an instance, where PySide6 has no
+  such attribute), and the crash dialog opened from inside that paint, so each repaint
+  stacked another dialog and the window went "Not Responding". The row now paints, and the
+  crash dialog shows at most once at a time and only after the failing call has returned.
+- A random test-suite crash (access violation) when leftover widgets were
+  garbage-collected on an import worker thread. Widgets are now destroyed
+  on the GUI thread after each test.
+- The pagination "go to page" box was white with light text on dark
+  content areas.
+- **Cover search returned a jumble of unrelated covers**, and titles ran
+  on without wrapping. Results now have to match the title (and author)
+  at least 80%: subtitle and edition notes count as the same book,
+  different books that merely share a word do not, and a matching title
+  with the wrong author is dropped. Each result is a fixed cell with the
+  title wrapped to three lines, then author, source and match score. A
+  "Hiện cả kết quả khớp dưới 80%" checkbox brings back the weak matches
+  for rare books.
+- **Closing the app while it was busy showed a crash popup.** The window
+  closed the database before the events its workers had just published were
+  handled, so every widget that refreshed on them failed with "Cannot operate
+  on a closed database". The database is now closed only after the event loop
+  has ended. Closing while documents are being imported or smart
+  classification is running now asks first ("Đang xử lý ... Bạn vẫn muốn
+  thoát?"); saying no keeps everything running, saying yes stops the work
+  and the window waits, with a busy cursor, until it has fully stopped.
+- **Cover search missed books the catalogs do hold** (for example "Gia-Định
+  Thành Thông-Chí"), for three reasons, each now fixed:
+  - Hyphens and other punctuation in the title were sent to the catalogs
+    as typed, so "Gia-Định Thành Thông-Chí" did not find "Gia Định thành
+    thông chí". Queries are now cleaned first.
+  - Google Books' free daily quota often runs out (error 429), which silenced
+    the best source for Vietnamese books. Its keyless Atom feed, which draws
+    on the same catalog and has no such quota, now takes over.
+  - Tiki, a large Vietnamese bookshop, is now a source for Vietnamese titles,
+    with high-resolution covers. At most three results come from any one
+    source, so near-identical shop listings cannot crowd out the rest.
+- **File-format label on covers** (PDF, EPUB...) moved to the bottom-right
+  corner, drawn as solid letters with a thin contrasting outline at 7.5% of
+  the cover's height, so it stays sharp on light and dark covers. Placeholder
+  covers keep their title clear of it.
+- **Changing the theme now changes the font too.** Every theme has its own
+  typeface (the four that shared one serif font each got theirs), and a font
+  saved in Settings earlier no longer sticks to the new theme: it is cleared
+  on a theme change unless you pick a font in the same visit. The font boxes
+  in Settings show the theme's font while no font is chosen.
+
+## [1.0.0] - 2026-09-19
+
+First commercial release. From this version on, every release gets a
+SemVer number (`src/smartdoc/__init__.py` is the single source of truth)
+and an entry in this file.
+
+### Added
+- **Cover search: Apple Books source.** Free, keyless and stable; returns
+  publisher artwork at 600px and covers many Vietnamese titles that Open
+  Library/Google Books don't carry (the Vietnamese store is queried too
+  when the title has Vietnamese diacritics).
+- **Cover search: match ranking.** All sources are queried in parallel and
+  every candidate is scored by title/author similarity (accent- and
+  case-insensitive, subtitle-aware); the best match is shown first with
+  its match percentage. Duplicates are dropped.
+- **Cover search: download validation.** Each image is checked to decode
+  as a real image of plausible cover size before it's offered, so broken
+  links, HTML error pages and 1x1 placeholders never appear.
+- **AI summary: 5 more providers** -- Groq, OpenRouter, Mistral (all with
+  free tiers), DeepSeek, and **Ollama** (runs locally, free, no key, no
+  data leaves the machine). A **Model** field in Settings overrides the
+  provider's default model.
+- **AI summary: summary options.** Choose the kind (non-spoiler intro, key
+  points, full summary, review & audience, discussion questions), the
+  length (short/medium/long) and the language (Vietnamese/English). The
+  last choice is remembered.
+- **Anonymous user identity.** On first run each installation generates a
+  random secret identity, stored encrypted in `identity.dat`. It is used
+  to own reviews and nicknames without any sign-up; uninstalling removes
+  it, so a reinstall gets a new one. No personal data is involved.
+- **Reviews: unique nicknames.** A nickname belongs to the first
+  installation that used it; anyone else gets "nick name đã có người
+  dùng". "Ẩn danh" stays shared.
+- **Reviews: update or post new.** If you already reviewed a book,
+  submitting asks whether to update your earlier review or post a new one.
+- **Reviews: colored display.** Gold stars in the review list, an average
+  rating summary at the top, your own reviews marked "Bạn", dates, and
+  "(đã sửa)" on edited reviews.
+- **Settings → Đánh giá cộng đồng: "Sao chép SQL nâng cấp"** copies the
+  server upgrade script (`application/sql/001_reviewer_identity.sql`).
+- **Crash reporting and logs.** Rotating log at
+  `%APPDATA%\SmartDocLibrary\logs\mewbook.log`; uncaught errors are
+  logged with a full traceback and shown as a friendly dialog.
+- **Single instance.** Starting the app while it's already running shows a
+  notice instead of opening a second copy on the same database.
+- **About dialog:** version, copyright, anonymous install ID, "Sao chép
+  thông tin hỗ trợ" and "Thư mục nhật ký".
+- **Release packaging:** version resource embedded in `MewBook.exe`,
+  Inno Setup installer script (`packaging/MewBook.iss`), one-command
+  build (`packaging/build.ps1`), `THIRD_PARTY_NOTICES.md`.
+
+### Changed
+- **List view columns** now fill the table: Title stretches to take the
+  remaining width, the other columns are sized to their content in the
+  current font, numbers/dates are aligned, and long text is elided
+  instead of wrapping.
+- Cover search requests larger images (Open Library "-L", Google Books
+  ~480px) so saved covers aren't upscaled from tiny thumbnails.
+- Cover search retries 5xx errors as well as 429, honors `Retry-After`,
+  stops retrying once a daily quota is exhausted, caches results for 30
+  minutes and retries title-only when author-filtered results are few.
+  Google Books uses your Google API key (Settings → Ảnh bìa) when one is
+  set, giving it its own daily quota.
+- Anthropic's default model is now `claude-haiku-4-5`.
+- The reviewer nickname is only saved after the server accepts it.
+
+### Security
+- Reviews are written only through the server-side `submit_review`
+  function, which derives the author from the installation's secret
+  token, so authorship can't be forged and only the author can edit a
+  review. **Server action required:** run the upgrade SQL (see above)
+  -- until then, submitting shows instructions instead of posting.
+
+## Pre-1.0 development history
+
+Chronological notes kept during development, newest first. Not
+versioned; kept so the project can be understood as one coherent story.
+
+### 2026-09-18 — Walnut Library redesign to match the mockup
+
+- **Header.** Filter chips are pills: the active one is solid accent,
+  the others light grey. "Tất cả" shows its count on the chip; the other
+  chips show theirs in a tooltip. A new "★ Sẽ đọc" chip shows only the
+  reading list. There is a "＋ Thêm mới" button (opens the Add Document
+  dialog), and the cover-size slider is hidden in this theme.
+- **Sidebar.** The heading is "THƯ VIỆN" and the first row is "Tất cả".
+  Rows are taller, with outline icons drawn per row (a box for "Tất cả", a
+  folder for collections, a star for the reading list) in place of emoji.
+  The selected row shows its count in a small tinted pill. Row text is
+  plain "name (count)" in every theme now; the icons and pills are drawn
+  by the delegate. In all themes, the collections list fits its rows
+  instead of sitting in a scrolling box.
+- **Grid.** Covers are 160px wide, and the gutter grows with the cover
+  size. All themes use a paperback-like cover ratio of 1.42 (was 1.33).
+  Placeholder covers are painted at 180px and scaled down, so their text
+  stays sharp on large covers.
+- **Action bar.** Spans the full window width along the bottom (under the
+  sidebar too). Larger mini cover with a shadow, 16px title,
+  "author · EPUB · size", and plain "Mở sách" (filled) / "Chỉnh sửa"
+  (outlined) / "⋯" buttons without emoji.
+
+### 2026-09-18 — Editorial Light redesign to match the mockup; theme names
+
+- **Theme names.** "Tờ Báo Sáng" / "Kệ Sách Gỗ" / "Mực Đêm" are now shown as
+  "Editorial Light" / "Walnut Library" / "Midnight Ink". The config keys
+  (`broadsheet` / `woodshelf` / `inkynight`) are unchanged, so saved
+  settings keep working.
+- **Header bar.** Logo, name, search, grid/list toggle, sort and cover size
+  now sit in one bar across the whole window (they used to be in the
+  sidebar and above the grid). Search has a magnifier icon and flatter
+  corners.
+- **Book cards.** The grid is drawn by a card delegate: the cover with a
+  soft shadow, cropped to one shape so rows line up; the title in two
+  lines under it, the author muted below; when selected, an accent outline
+  and accent text instead of a filled blue block.
+- **Placeholder covers.** Covers without art now show the title and author
+  on the cover, use richer colours, and have a thin spine band. Two bugs
+  fixed: the spine was solid black because QColor can't parse CSS
+  `rgba()`, and each book's colour changed between launches because
+  `hash()` is salted per process (crc32 now). The format badge moved to
+  the top-left corner so it doesn't cover the title.
+- **Sidebar.** Section headings are small caps ("BỘ SƯU TẬP", "TÁC GIẢ"),
+  counts are right-aligned and muted, and the selected row is a tinted
+  band with an accent stripe (`presentation/sidebar_style.py`). The facet
+  tree no longer shows expand arrows on its category roots.
+- **Detail panel.** No "Chi tiết" header row (refresh is a small icon
+  now). The cover has a drop shadow, the title is larger, and
+  HASHTAG / TÓM TẮT AI use the same section headings.
+- **Pagination.** Centred under the grid: flat arrows and one filled
+  "Đến" button. Scrollbars across the window are thin, with no arrows.
+- **Midnight Ink fix.** Text typed in the search box was dark on the dark
+  header; it's light now.
+
+### 2026-09-18 — Duplicate finder no longer freezes the app
+
+- **Cause.** The fuzzy (similar title/author) tier compared every pair of
+  documents with difflib -- O(n^2) -- inside the dialog's constructor on
+  the GUI thread, after loading every row with `SELECT *` (full extracted
+  text included). ~43 s at 1,600 documents, close to an hour at 15,000.
+- **Fix.** `application/duplicate_finder.py` now normalises titles
+  (case, Vietnamese diacritics, punctuation), finds candidate pairs through
+  an inverted index of each title's rarest words (prefix filtering), and
+  runs difflib's cheap upper bounds before the full ratio: 1,600 documents
+  in ~50 ms with no pair missed versus the full comparison, 16,000 in ~3 s.
+  Titles whose numbers differ ("Tập 4" / "Tập 5") are no longer flagged --
+  they're different volumes, and the "select duplicates" button would have
+  marked them for deletion. The dedup queries only read the columns shown.
+- **Dialog.** Exact matches (one SQL query) appear immediately; the fuzzy
+  scan runs on a background thread with a progress bar and is cancelled
+  when the dialog closes. The worker never touches SQLite or a Qt object --
+  rows are read on the GUI thread first and results are picked up by a
+  timer owned by the dialog -- so closing mid-scan can't crash. Deleting
+  files updates the lists in place instead of rescanning.
+
+### 2026-09-18 — Faster loading, multi-select filters, facet groups, reading list, MOBI reading
+
+- **Loading performance.** Measured on a 15,000-document library with real
+  covers: opening the main window went from 420 ms to 115 ms, the GUI
+  thread's work per page of covers from 186 ms to 6 ms, and 50 back-to-back
+  import events from 820 ms to 32 ms. Two causes: covers were decoded
+  synchronously inside the models' data() on the GUI thread (now decoded
+  on a small thread pool by `presentation/cover_loader.py`, placeholder
+  first, most-recently-requested first, queue dropped on page change), and
+  every imported file made the sidebar, facet tree, status bar and chip bar
+  each redo a full refresh (now coalesced into one per burst; user clicks
+  still apply instantly).
+- **Hashtag filter fixed.** Filtering used `tags LIKE '%tag%'`, so a tag
+  also matched every longer tag starting with it ("Khoa hoc" pulled in
+  "Khoa hoc vien tuong"). Now matched as a whole list element. The facet
+  tree also keeps its scroll position across rebuilds, which is what made a
+  click far down the list look like it jumped back up to "Tác giả".
+- **Sidebar selection: single click combines, double click isolates** --
+  for both the facet tree (OR within a category, AND across) and the
+  collections list (union of the selected collections).
+- **Facet tree management (right-click):** rename an author or hashtag
+  (rewrites every document's metadata; similarly-named tags untouched),
+  delete a hashtag from all documents, sort each category by name/count,
+  and user-made **groups** -- create, rename, delete, move values in and
+  out; clicking a group selects all its members. Groups are purely
+  organisational and follow renamed values.
+- **★ "Sẽ đọc" reading list:** a star on every cover (grid) and title
+  cell (list) files the book into a built-in collection pinned under "Tất
+  cả tài liệu". Found by a fixed id, so renaming it doesn't break the stars.
+- **"Thêm vào bộ sưu tập" → "Tạo bộ sưu tập mới..."** from the same menu.
+- **Detail panel author link:** "Xem N tài liệu của …" shows every
+  document by that person *including co-authored ones*, splitting author
+  fields on ",", ";", "&", "và", "and" and matching whole names (so
+  "Nguyễn Nhật Ánh" doesn't match "Nguyễn Nhật Ánh Hai").
+- **Reader:** at most 5 reader windows at once (`reader_manager.py`);
+  re-opening an already-open book raises its window instead of a second
+  copy. Reader windows now actually free their memory on close
+  (WA_DeleteOnClose) -- before, closing only hid them.
+- **MOBI/AZW3 can be read in the app**: unpacked to a temporary EPUB/HTML
+  via the `mobi` package and shown in the existing readers; the temp copy
+  is removed when the window closes. Unreadable files (e.g. DRM) still fall
+  back to "open with another app".
+
+### 2026-09-18 — Themes Phase 2: per-theme layouts, connection tests, reader navigation, popup sizing
+
+Completes the staged theme work (Phase 1 below shipped the tokens and
+palettes; this is the structural half), plus a batch of fixes around it:
+
+- **Each theme now has its own layout, not just its own palette.**
+  "Kệ Sách Gỗ" drops the right-hand detail panel entirely in favour of a
+  pill-chip filter bar on top (`presentation/filter_chips.py`, built from
+  the formats actually in the library, not a hardcoded list) and a
+  selection action bar along the bottom
+  (`presentation/selection_action_bar.py`: mini cover, title/author, Mở
+  sách / Chỉnh sửa / overflow menu). "Mực Đêm" collapses its sidebar to a
+  64px icon rail with a slide-out flyout
+  (`presentation/icon_rail_sidebar.py`), the active icon filled solid
+  cyan. Cover size is now a per-theme default too (84px / 130px / 120px).
+  The collections list was extracted into a reusable `CollectionListPanel`
+  so the rail's flyout shows the *same* list the full sidebar does rather
+  than a second implementation.
+- **A theme picker now sits in the menu bar's right corner**, so switching
+  look-and-feel doesn't mean going three clicks deep into Settings. It
+  goes through the same save + rebuild path the Settings tab uses.
+- **Connection testing for every feature that declares a connection.**
+  "Ảnh bìa" (Google Custom Search) and the new "☁️ Đánh giá cộng đồng"
+  (Supabase) tabs each got a "Kiểm tra kết nối" button plus a full
+  step-by-step setup guide. Supabase had *no settings UI at all* before
+  this -- the only way to configure it was hand-editing settings.json.
+  Its test checks the `reviews` table and the `review_stats` view
+  separately, because they fail independently: a library can submit and
+  read reviews fine while "Được đánh giá cao nhất" is broken purely
+  because that view (an easily-missed second SQL step) was never created,
+  which previously surfaced only as a raw PGRST205 JSON error.
+- **Reader navigation**: ←/→/Space/Backspace page through documents,
+  prev/next buttons float over the reading area when you scroll and fade
+  back out when you stop, and the toolbar's controls now have even
+  widths/padding instead of hugging their (very differently sized)
+  labels.
+- **Popup sizing is now enforced app-wide** (`presentation/dialog_size.py`),
+  including Qt's own message/file dialogs, instead of per-dialog pixel
+  caps. Capping `maximumSize` alone never worked: a layout's *minimum*
+  size wins over it, and one long unwrapped label (a file path, a raw API
+  error) pushed that minimum past the screen -- so the guard also wraps
+  those labels and releases the layout's minimum constraint.
+- The cover format label (PDF/EPUB) lost its dark plate: it now sits
+  directly on the artwork, semi-transparent with a 1px shadow for
+  legibility -- readable, but no longer competing with the cover.
+- "Font nội dung" moved from its own Settings tab into a section of
+  "Giao diện", where everything else about appearance already lives.
+- Fixed a latent crash in bulk imports: Pillow loads its format plugins
+  lazily on first use, and several import worker threads hitting that at
+  once is a genuine import race (it showed up as a hard "Windows fatal
+  exception: access violation" mid-run). Plugins are now registered once
+  at module import, on the main thread.
+
+### 2026-09-18 — Three named themes (Phase 1): tokens, List view, Add Document dialog, reader reskin
+
+Phase 1 of a staged rollout (Phase 2 -- Woodshelf's pill-chip filter bar +
+bottom sticky action bar, Inky Night's collapsed icon-rail sidebar, a real
+reader table-of-contents + reading-progress bar -- is future work, not
+started here):
+
+- Replaced the generic light/dark theme pair with 3 named, fully-designed
+  themes -- **Tờ Báo Sáng** (Broadsheet, default), **Kệ Sách Gỗ**
+  (Woodshelf), **Mực Đêm** (Inky Night) -- sharing one design language
+  (paper content background, a single cyan accent `#0088b0`, hairline
+  borders, gradient cover placeholders) via a much richer `ThemeColors`
+  token set in `presentation/theme.py`. Inky Night keeps its grid/list
+  *content* area light while every other surface (sidebar, top chrome,
+  detail panel, status bar) goes dark -- the one theme where "chrome" and
+  "content" genuinely need different backgrounds, handled via a new
+  `content_bg` token mapped onto `QPalette.Base` rather than a second live
+  palette. Old configs migrate automatically (`light` → `broadsheet`,
+  `dark` → `inkynight`).
+- Cover art placeholders (grid, List view thumbnail, Document Detail
+  Panel) are now a deterministic-per-book gradient block with a "book
+  spine" shadow (`presentation/cover_placeholder.py`) instead of one flat
+  gray rectangle shared by every coverless document.
+- List view: new default columns (cover thumbnail, Định dạng, Dung lượng)
+  alongside Title/Author/Ngày thêm; the previous defaults (tags/rating/
+  review count/ngày chỉnh sửa) are still available via the existing
+  column-picker, not removed. Selected rows now get the shared "selected
+  item" look (cyan tint + left border) via a small custom item delegate,
+  since plain QSS can't paint a left-border-only accent per row in a
+  QTableView.
+- New **"Thêm tài liệu"** modal (`presentation/add_document_dialog.py`,
+  replacing the File menu's old bare file picker): drag-and-drop or browse
+  multiple files, optionally set a Title/Author override (single file
+  only) plus a Collection and Hashtag applied to the whole batch at
+  add-time -- previously only possible one document at a time, after the
+  fact, via the metadata editor. `DocumentIndexedEvent`/
+  `ImportBatchCompletedEvent` gained a `batch_id` field so this dialog
+  only ever tags doc_ids from its own batch, never an unrelated import
+  running concurrently (e.g. a watched folder catching up in the
+  background) -- covered by a dedicated regression test.
+- Reader window: one fixed dark-chrome/warm-paper reading look (not tied
+  to the 3 library themes), replacing the previous unstyled black-on-white
+  default.
+- App-wide font now defaults to a Source Serif 4 fallback stack (the exact
+  font isn't bundled yet -- dropping real `.ttf`/`.otf` files into a new
+  `presentation/assets/fonts/` later would get pixel-exact fidelity)
+  instead of the bare OS default, while the user's own font override in
+  Settings still works exactly as before.
+- Verified at 15,000 synthetic documents: page load and a full page's
+  worth of grid/list icon rendering both stay well under 15ms, confirming
+  the gradient placeholders don't regress the existing pagination +
+  icon-cache performance strategy.
+
+### 2026-09-18 — Rebrand to MewBook, EULA/Privacy notice, encrypted API keys, Google Images cover search
+
+- Rebranded the in-app display name to **"Mèo Mực"** (window title, sidebar
+  header), product name **MewBook** elsewhere (packaging output, README,
+  About dialog). Display-only: the internal `smartdoc` package, import
+  paths, and the on-disk `%APPDATA%/SmartDocLibrary` folder are unchanged
+  on purpose, so existing installs don't lose settings/database/cover
+  cache on upgrade. `packaging/SmartDocLibrary.spec` renamed to
+  `packaging/MewBook.spec`, producing `dist/MewBook/MewBook.exe`.
+- New first-launch EULA/Privacy dialog (`presentation/eula_dialog.py`),
+  gating entry to the main window on an explicit "Tôi đã đọc và Đồng ý"
+  click (`AppConfig.eula_accepted`, asked once per install). The same text
+  is reachable any time after that from a new Help menu -> "Giới thiệu"
+  (About) dialog's "Điều khoản pháp lý" page.
+- **API keys are now encrypted at rest**: `ai_api_key` and the new
+  `google_image_api_key` are stored encrypted in `settings.json`
+  (`core/secret_store.py`, a per-install Fernet key file) -- plaintext in
+  memory for the app's own use, only the file on disk is protected. A
+  legacy plaintext key from before this change still loads correctly and
+  gets encrypted on the next save. Settings now shows a note about this
+  under both key fields, and the Review dialog shows a note above "Gửi
+  đánh giá" that reviews sync to the community library.
+- Cover search: added an optional Google Custom Search (Image Search)
+  source (Settings -> "🖼️ Ảnh bìa"), tried first when configured with the
+  user's own API key + Search Engine ID -- searches the whole web rather
+  than just a books catalog, which is what actually finds a cover for a
+  Vietnamese title Open Library/Google Books don't carry. Without a key
+  configured, cover search behaves exactly as before (Open Library +
+  Google Books, no setup required).
+- AI Tóm tắt: a transient 429/5xx from the provider (e.g. the reported
+  Gemini "503 Service Unavailable") is now retried automatically before
+  failing, with a friendlier message if it still doesn't come through.
+- Cover grid's format badge ("PDF"/"EPUB") font size is now 10% of the
+  cover's own height instead of a fixed 9px, so it stays proportionally
+  sized at any cover-size setting instead of shrinking to near-invisible
+  on large covers.
+- Status bar: the author credit now reads "Auth:Anhtiensinh", and a small
+  scrolling donate ticker next to it opens a QR popup
+  (`presentation/donate_dialog.py`) for a voluntary coffee donation.
+- Omnibar placeholder text rewritten as a clearer usage hint.
+- Several dialogs (Cài đặt, Tìm ảnh bìa, Tóm tắt AI, Đánh giá, Dọn dẹp
+  trùng lặp) now cap their maximum size instead of being free to grow
+  unbounded with their content; the new EULA/About/Donate dialogs are
+  fixed-size from the start.
+
+### 2026-09-18 — Status bar: divider from the panel above, function vs. status colors
 
 - The status bar now has a top border, separating it visually from
   whatever's directly above it (it spans the full window width, under
@@ -17,7 +536,7 @@ corresponds to.
   Settings' own connection-test button already uses, so "connected" means
   the same color everywhere in the app.
 
-## 2026-09-17 — Send files to a USB-connected e-reader
+### 2026-09-17 — Send files to a USB-connected e-reader
 
 - New "📱 Gửi tới máy đọc sách..." action in the File menu and both
   right-click context menus (single/multi-selection), and
@@ -37,7 +556,7 @@ corresponds to.
     Settings -> "Quản lý File" (previously only watch folders lived
     there).
 
-## 2026-09-17 — Edit menu: clear selection, edit, delete, copy/cut/paste files
+### 2026-09-17 — Edit menu: clear selection, edit, delete, copy/cut/paste files
 
 The Edit menu only had "Select all" -- everything else (edit, delete,
 copy/cut/paste files) required the right-click context menu, and even
@@ -63,7 +582,7 @@ there, copy/cut/paste of the underlying files wasn't offered at all.
   new Edit menu entries (Ctrl+C/Ctrl+X/Ctrl+V, Del, Ctrl+Shift+A for
   clear selection).
 
-## 2026-09-17 — File-type badge, panel refresh button, clearer dividers/action colors
+### 2026-09-17 — File-type badge, panel refresh button, clearer dividers/action colors
 
 - **Grid view covers gained a file-type badge** ("PDF"/"EPUB") stamped at
   the bottom-right corner -- small, semi-transparent dark background so it
@@ -86,7 +605,7 @@ there, copy/cut/paste of the underlying files wasn't offered at all.
   they were plain text, indistinguishable from the genuinely read-only
   `format_size_label`/`date_added_label`/`date_modified_label`.
 
-## 2026-09-17 — In-app EPUB reading (not just PDF)
+### 2026-09-17 — In-app EPUB reading (not just PDF)
 
 The reader window's non-PDF fallback ("open with the OS's own app") was
 reported as a bug, not accepted as a known limitation -- fair, since
@@ -115,7 +634,7 @@ EPUB is one of this app's two real formats.
   the handle actually becomes unusable after the window closes (not just
   that no exception occurred).
 
-## 2026-09-17 — Fix cover search rate-limiting
+### 2026-09-17 — Fix cover search rate-limiting
 
 Reproduced live: searching a real Vietnamese title ("Đắc Nhân Tâm") returns
 zero Open Library results (confirmed separately, matches the earlier
@@ -130,7 +649,7 @@ clearer message ("đang bị giới hạn tốc độ truy vấn, hãy thử l�
 phút") when retries are exhausted, instead of a raw HTTP error that reads
 as "broken."
 
-## 2026-09-17 — Fix search, "All" filter priority, and hashtag-click focus jump
+### 2026-09-17 — Fix search, "All" filter priority, and hashtag-click focus jump
 
 Three real bugs from a new report, root-caused by actually reproducing
 each one (live scripted Qt interaction, not just re-reading the code):
@@ -167,7 +686,7 @@ each one (live scripted Qt interaction, not just re-reading the code):
   (`tree.currentItem()` is now `None` after a click, nothing left for Qt
   to auto-focus).
 
-## 2026-09-17 — Separate "content font" from the app's own font
+### 2026-09-17 — Separate "content font" from the app's own font
 
 Settings gained a new "🔤 Font nội dung" tab, deliberately separate from
 "🎨 Giao diện" -- per explicit request to split "cấu hình giao diện font
@@ -197,7 +716,7 @@ Like theme/app-font, these apply after Settings closes via the same
 "Live-apply Settings" entry above) -- not live mid-session, since the
 values are baked into stylesheet strings at widget-construction time.
 
-## 2026-09-17 — Collections: dedupe + counts; Faceted filters: click-based + Hashtag category
+### 2026-09-17 — Collections: dedupe + counts; Faceted filters: click-based + Hashtag category
 
 - **Collections:** creating one with a name that already exists (case/
   whitespace-insensitive) is now rejected with a warning instead of
@@ -238,7 +757,7 @@ values are baked into stylesheet strings at widget-construction time.
   `FacetFilterChangedEvent(tags=...)` the sidebar's own Hashtag category
   uses, so both entry points feed the exact same filtering code path.
 
-## 2026-09-17 — Fix Gemini 404, part 2: gemini-2.0-flash was fully retired
+### 2026-09-17 — Fix Gemini 404, part 2: gemini-2.0-flash was fully retired
 
 The header fix (previous entry) wasn't the whole story -- confirmed live
 against the real API that `gemini-2.0-flash` itself now 404s regardless of
@@ -252,7 +771,7 @@ Verified live: a garbage key against this model now gets a proper "API
 key not valid" (400) instead of "Not Found" (404), confirming the model
 itself is routable.
 
-## 2026-09-17 — Fix Gemini 404 for Google's newer "AQ." API key format
+### 2026-09-17 — Fix Gemini 404 for Google's newer "AQ." API key format
 
 Real bug hit immediately after shipping the connection-test feature: a
 freshly-created Gemini key produced `404 Not Found` on
@@ -269,7 +788,7 @@ broken endpoint/model name rather than what it actually is. Switched
 formats). OpenAI and Anthropic were unaffected -- both already used an
 auth header, never a query param.
 
-## 2026-09-17 — AI Summary follow-ups: setup guide, connection test, uncapped content
+### 2026-09-17 — AI Summary follow-ups: setup guide, connection test, uncapped content
 
 - **Settings' "AI Tóm tắt" tab gained a setup guide and a connection
   test.** Each provider now shows where to get a key (Google AI Studio /
@@ -293,7 +812,7 @@ auth header, never a query param.
   wrapper over both. Already-saved summaries still display immediately on
   open, unchanged from before.
 
-## 2026-09-17 — AI Summary (non-spoiler book overview, user's own API key)
+### 2026-09-17 — AI Summary (non-spoiler book overview, user's own API key)
 
 The last item from this round of requests: TDD-016-style AI summaries,
 but never implemented until now.
@@ -322,7 +841,7 @@ but never implemented until now.
 - Status bar's AI connection indicator (added in the previous entry) now
   reflects real configuration state end to end.
 
-## 2026-09-17 — New app icon/brand mark, icon pass across the UI
+### 2026-09-17 — New app icon/brand mark, icon pass across the UI
 
 - **Replaced the app icon** with the user-supplied brand mark (a cat
   reading a book) in place of the earlier programmatically-drawn
@@ -345,7 +864,7 @@ but never implemented until now.
   alone rather than a wall-to-wall icon sweep, since it's a lower-priority
   polish item relative to the rest of this batch.
 
-## 2026-09-17 — Live-apply Settings, bottom status bar, double-click reads, #tag, cover search fix
+### 2026-09-17 — Live-apply Settings, bottom status bar, double-click reads, #tag, cover search fix
 
 Second review pass over the same checklist's follow-up requests.
 
@@ -394,7 +913,7 @@ Second review pass over the same checklist's follow-up requests.
   confirm the correct item gets highlighted, this is as far as it can be
   confirmed here.
 
-## 2026-09-17 — Edit an existing Collection's rule, not just its name
+### 2026-09-17 — Edit an existing Collection's rule, not just its name
 
 `NewCollectionDialog` now doubles as an edit dialog: passing it an existing
 `VirtualCollection` pre-fills the name/field/value and saving upserts the
@@ -404,7 +923,7 @@ added earlier today -- closes the gap between "đổi tên" (rename, already
 covered) and "chỉnh sửa" (edit the actual rule), which the request listed
 as two separate asks.
 
-## 2026-09-17 — In-app Document Reader window
+### 2026-09-17 — In-app Document Reader window
 
 - **Reader window (`presentation/reader_window.py`):** a separate,
   independent top-level window (not modal -- the library stays usable
@@ -427,7 +946,7 @@ as two separate asks.
   should be confirmed the next time `packaging/SmartDocLibrary.spec` is
   built.
 
-## 2026-09-17 — Cover Image Search (Open Library)
+### 2026-09-17 — Cover Image Search (Open Library)
 
 - **Cover Image Search:** search Open Library's public search API
   (`openlibrary.org/search.json`, no API key needed) by title + author,
@@ -441,7 +960,7 @@ as two separate asks.
   right-click menu. New `DatabaseManager.update_document_cover()` for
   replacing just the cover path without touching other metadata.
 
-## 2026-09-17 — Duplicate Finder redesign + Settings expansion (font/threads/scan timing)
+### 2026-09-17 — Duplicate Finder redesign + Settings expansion (font/threads/scan timing)
 
 - **Duplicate Finder:** both tabs (exact/fuzzy) gained a "Ngày thêm" (date
   added) column; all columns are now clickable-header-sortable
@@ -464,7 +983,7 @@ as two separate asks.
   "configure a max/timing parameter beyond the shipped default" control,
   per the request to allow this generally.
 
-## 2026-09-17 — Import dedup/summary, manual Collections, detail panel inline edit, bug fixes
+### 2026-09-17 — Import dedup/summary, manual Collections, detail panel inline edit, bug fixes
 
 A review pass against a large user checklist covering the list view,
 file/collection management, and known bugs. This entry covers the first
@@ -516,7 +1035,7 @@ entries the same day.
 - **Configurable file-watcher debounce:** `watch_debounce_seconds` moved
   from a hardcoded constant into `AppConfig` (default unchanged: 1.5s).
 
-## 2026-09-17 — List View QTableView + Document Detail Side Panel
+### 2026-09-17 — List View QTableView + Document Detail Side Panel
 
 **Commits:** `f1ee45c` → `db6b48f`
 
@@ -545,7 +1064,7 @@ entries the same day.
 - **Infrastructure:** added `DatabaseManager.get_document(doc_id)` for
   single-document lookup by ID.
 
-## 2026-09-17 — Milestones A–E (Windows Phase 1) + Cloud Review System
+### 2026-09-17 — Milestones A–E (Windows Phase 1) + Cloud Review System
 
 **Commits:** `f50c766` → `2b7b51f`
 
@@ -622,7 +1141,7 @@ isolation):
   `library.db` directly into the project's source tree instead of
   `%APPDATA%`. Fixed the fallback to always resolve to an absolute path.
 
-## What's next
+### What's next
 
 See the "Not yet implemented" list in `README.md`'s Status section for the
 standing backlog. New work in progress: list view columns + alignment,

@@ -208,3 +208,61 @@ def test_select_duplicates_colors_marked_rows_differently(qapp, app_context):
         if dialog.exact_table.item(row, 0).checkState() == Qt.Unchecked
     }
     assert marked_brushes.isdisjoint(kept_brushes)
+
+
+def _seed_fuzzy_duplicates(app_context):
+    app_context.db.add_or_update_document(
+        "f1", {"title": "Python Co Ban", "author": "Nguyen Van A", "file_path": "p1.pdf", "created_at": 1.0}
+    )
+    app_context.db.add_or_update_document(
+        "f2", {"title": "Python Cơ Bản (copy)", "author": "Nguyễn Văn A", "file_path": "p2.pdf", "created_at": 2.0}
+    )
+
+
+def test_fuzzy_scan_runs_in_the_background_and_fills_the_tab(qapp, app_context):
+    _seed_fuzzy_duplicates(app_context)
+    dialog = DuplicateFinderDialog(app_context)
+
+    # The constructor returns straight away; the fuzzy tab fills in later.
+    assert dialog.wait_for_scan()
+    assert dialog.fuzzy_table.rowCount() == 2
+    assert "1 nhóm" in dialog.tabs.tabText(1)
+
+
+def test_closing_the_dialog_cancels_a_scan_in_progress(qapp, app_context):
+    dialog = DuplicateFinderDialog(app_context)
+    cancel_flag = dialog._cancel_scan
+
+    dialog.reject()
+
+    assert cancel_flag.is_set()
+
+
+def test_deleting_updates_the_fuzzy_tab_without_rescanning(qapp, app_context, monkeypatch):
+    _seed_fuzzy_duplicates(app_context)
+    dialog = DuplicateFinderDialog(app_context)
+    assert dialog.wait_for_scan()
+
+    rescans = []
+    monkeypatch.setattr(dialog, "_start_fuzzy_scan", lambda: rescans.append(1))
+    _delete_via_menu(monkeypatch)
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    dialog.tabs.setCurrentWidget(dialog.fuzzy_table)
+    dialog.fuzzy_table.item(0, 0).setCheckState(Qt.Checked)
+
+    dialog._on_delete_selected()
+
+    assert rescans == []
+    assert dialog.fuzzy_table.rowCount() == 0  # a group of one is no longer a duplicate group
+    assert len(app_context.db.list_documents_for_dedup()) == 1
+
+
+def test_a_newer_scan_supersedes_an_older_one(qapp, app_context):
+    dialog = DuplicateFinderDialog(app_context)
+    stale_generation = dialog._scan_generation
+
+    dialog.refresh()  # starts a new scan
+    dialog._on_fuzzy_finished(stale_generation, [[{"id": "x"}, {"id": "y"}]], "")
+
+    assert dialog._fuzzy_groups == []  # the stale result was ignored
+    dialog.wait_for_scan()

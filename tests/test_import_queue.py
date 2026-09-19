@@ -6,6 +6,7 @@ import pytest
 
 from smartdoc.application.import_queue import ImportQueueManager
 from smartdoc.core.event_bus import (
+    DocumentIndexedEvent,
     FileDetectedEvent,
     ImportBatchCompletedEvent,
     ImportProgressEvent,
@@ -144,6 +145,28 @@ def test_reimporting_the_same_path_is_skipped_as_a_duplicate(tmp_path, app_conte
     assert app_context.db.list_all_documents()[0]["updated_at"] == updated_at_first_pass
 
 
+def test_add_files_tracked_returns_batch_id_and_tags_its_own_events(tmp_path, app_context, manager):
+    pdf_path = tmp_path / "tracked.pdf"
+    _make_pdf(pdf_path, "Tracked Book", "Author", "content")
+
+    indexed: list[DocumentIndexedEvent] = []
+    completed: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(DocumentIndexedEvent, lambda e: indexed.append(e))
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: completed.append(e))
+
+    batch_id = manager.add_files_tracked([str(pdf_path)])
+    assert batch_id
+
+    assert _wait_until(lambda: len(completed) == 1)
+    assert completed[0].batch_id == batch_id
+    assert len(indexed) == 1
+    assert indexed[0].batch_id == batch_id
+
+
+def test_add_files_tracked_returns_none_for_empty_list(manager):
+    assert manager.add_files_tracked([]) is None
+
+
 def test_add_files_batch_reports_success_duplicate_and_failed_counts(tmp_path, app_context, manager):
     already_indexed = tmp_path / "already.pdf"
     _make_pdf(already_indexed, "Already Indexed", "Author", "content")
@@ -162,3 +185,36 @@ def test_add_files_batch_reports_success_duplicate_and_failed_counts(tmp_path, a
     assert enqueued == 3
     assert _wait_until(lambda: len(batches) == 1)
     assert (batches[0].success, batches[0].duplicate, batches[0].failed) == (1, 1, 1)
+
+
+def test_batch_completion_lists_the_new_documents_only(tmp_path, app_context, manager):
+    already_indexed = tmp_path / "already.pdf"
+    _make_pdf(already_indexed, "Already Indexed", "Author", "content")
+    manager.add_file(str(already_indexed))
+    assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 1)
+
+    new_pdf = tmp_path / "new.pdf"
+    _make_pdf(new_pdf, "Brand New", "Author", "content")
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+
+    manager.add_files([str(already_indexed), str(new_pdf)])
+    assert _wait_until(lambda: len(batches) == 1)
+
+    new_ids = [d["id"] for d in app_context.db.list_all_documents() if d["title"] == "Brand New"]
+    assert len(new_ids) == 1
+    assert list(batches[0].doc_ids) == new_ids  # the duplicate is not offered for classification
+
+
+def test_pending_count_reports_files_queued_or_in_progress(manager, tmp_path):
+    assert manager.pending_count() == 0
+
+    pdfs = []
+    for index in range(3):
+        pdf = tmp_path / f"book{index}.pdf"
+        _make_pdf(pdf, f"Title {index}", "Author", "some body text")
+        pdfs.append(str(pdf))
+    manager.add_files(pdfs)
+
+    assert 0 <= manager.pending_count() <= 3  # workers may already have finished some
+    assert _wait_until(lambda: manager.pending_count() == 0)  # and it settles back to idle

@@ -473,3 +473,25 @@ def test_count_metadata_completeness(db):
 
     assert complete == 1
     assert incomplete == 2
+
+
+def test_close_waits_for_a_write_running_on_another_thread(db):
+    """Closing the connection under a running statement crashes the process; close() must queue behind writers."""
+    import threading
+    import time
+
+    db.write_lock.acquire()  # a writer is "in the middle of" its statement
+    closer = threading.Thread(target=db.close)
+    closer.start()
+    time.sleep(0.15)
+    assert closer.is_alive()  # still waiting for the writer
+    db.write_lock.release()
+    closer.join(timeout=3)
+
+    assert not closer.is_alive()
+    import sqlite3
+
+    import pytest
+
+    with pytest.raises(sqlite3.Error):
+        db.set_page_count("x", 1)  # after close a late writer gets a normal, catchable error

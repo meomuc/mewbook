@@ -1,7 +1,8 @@
 [project]
 name = "smartdoc-library"
-version = "0.1.0"
-description = "SmartDoc Library - metadata-first ebook/document manager"
+# Single source of truth: smartdoc/__init__.py's __version__ (SemVer 2.0.0).
+dynamic = ["version"]
+description = "MewBook (Meo Muc) - metadata-first ebook/document manager"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "pymupdf>=1.24",
@@ -9,6 +10,17 @@ dependencies = [
     "watchdog>=4.0",
     "pyside6>=6.11.2",
     "requests>=2.34.2",
+    "cryptography>=42.0",
+    # Unpacks Kindle formats (MOBI/AZW3) into a readable EPUB/HTML -- Qt
+    # has no renderer for them, so without this they can only be handed
+    # off to an external app. See presentation/reader_window.py.
+    "mobi>=0.4",
+    # Vietnamese word segmentation ("văn học thế giới" -> "văn_học thế_giới")
+    # for the smart classifier (application/smart_classifier.py). It drags in
+    # scikit-learn/scipy/numpy, so it is imported lazily and only ever inside
+    # the short-lived, low-priority classification worker process -- never in
+    # the GUI process (see infrastructure/vi_tokenizer.py).
+    "pyvi>=0.1.1",
 ]
 
 [project.scripts]
@@ -27,8 +39,13 @@ package = true
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "src/smartdoc/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/smartdoc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# So tests can share helpers as `tests._metadata_helpers` under plain `pytest` (not only `python -m pytest`).
+pythonpath = ["."]

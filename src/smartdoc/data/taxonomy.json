@@ -1,0 +1,310 @@
+{
+  "version": 1,
+  "description": "Bảng thể loại của phân loại thông minh. Mỗi thể loại là một hashtag (name) được xếp vào một thư mục (group) trong cây Hashtag của sidebar. 'aliases' là các nhãn đồng nghĩa dùng để nhận ra tài liệu đã có thể loại và để biến nhãn có sẵn (tag, subject trong file) thành dữ liệu huấn luyện; 'keywords' là từ vựng chủ đề dùng để khởi tạo mô hình trước khi nó thấy sách thật. Người dùng có thể thêm/sửa thể loại bằng file taxonomy.json trong thư mục dữ liệu của ứng dụng rồi chạy lại train.py.",
+  "categories": [
+    {
+      "id": "novel", "name": "Tiểu thuyết", "group": "Văn học",
+      "aliases": ["tiểu thuyết", "truyện dài", "novel", "novels"],
+      "weak_aliases": ["fiction", "literary fiction", "literary", "literature", "classics", "classic literature", "vh cổ điển nước ngoài", "văn học cổ điển", "văn học nước ngoài", "văn học việt nam", "văn học hiện đại", "contemporary", "modern fiction", "general fiction", "american fiction", "110 best books: literary fiction", "110 best books: classics"],
+      "title_cues": ["tiểu thuyết", "novel"],
+      "keywords": ["tiểu thuyết", "truyện dài", "nhân vật", "nhân vật chính", "câu chuyện", "cuộc đời", "số phận", "tình yêu", "gia đình", "chiến tranh", "xã hội", "thời đại", "cô gái", "chàng trai", "người đàn ông", "người phụ nữ", "chương một", "phần một", "tác phẩm", "nhà văn", "văn học", "hư cấu", "bi kịch", "hôn nhân", "tuổi thơ", "làng quê", "thành phố", "kiệt tác", "novel", "story", "character", "protagonist", "narrator", "chapter one", "literary", "masterpiece", "classic", "translated", "life", "love", "family", "society"]
+    },
+    {
+      "id": "short_story", "name": "Truyện ngắn", "group": "Văn học",
+      "aliases": ["truyện ngắn", "short story", "short stories", "tập truyện ngắn", "truyện ngắn chọn lọc", "tuyển tập truyện ngắn"],
+      "title_cues": ["truyện ngắn", "short stories", "tuyển tập truyện", "tập truyện"],
+      "keywords": ["truyện ngắn", "tập truyện", "tuyển tập truyện ngắn", "tập truyện ngắn", "các truyện", "mục lục truyện", "một truyện ngắn", "nhà văn", "truyện thứ nhất", "short stories", "short story", "collection of stories", "tales", "stories", "anthology", "selected stories"]
+    },
+    {
+      "id": "poetry", "name": "Thơ", "group": "Văn học",
+      "aliases": ["thơ", "poetry", "poems", "poem", "thi ca", "tập thơ", "thơ ca"],
+      "title_cues": ["tập thơ", "thi ca", "thi tuyển", "thơ tình", "thơ đường", "thơ lục bát", "poems", "poetry"],
+      "keywords": ["thơ", "tập thơ", "bài thơ", "thi sĩ", "thi ca", "thơ ca", "thơ tình", "thơ lục bát", "lục bát", "thơ tự do", "thơ đường", "khổ thơ", "câu thơ", "vần điệu", "thi phẩm", "nhà thơ", "trường ca", "poetry", "poem", "poems", "verse", "sonnet", "stanza", "poet", "rhyme", "haiku", "ode", "ballad", "elegy"]
+    },
+    {
+      "id": "crime_mystery", "name": "Trinh thám - Hình sự", "group": "Văn học",
+      "aliases": ["trinh thám", "hình sự", "trinh thám, hình sự", "điều tra", "thám tử", "điều tra.thám tử", "detective", "mystery", "thriller", "crime", "mystery & crime", "suspense", "crime fiction", "detective fiction", "tội phạm", "truyện trinh thám"],
+      "title_cues": ["trinh thám", "thám tử", "vụ án", "án mạng", "detective", "murder", "sherlock", "hình sự"],
+      "keywords": ["trinh thám", "thám tử", "án mạng", "vụ án", "hung thủ", "nạn nhân", "điều tra", "cảnh sát", "hiện trường", "bằng chứng", "nghi phạm", "sát nhân", "tội phạm", "giết người", "xác chết", "thẩm vấn", "điều tra viên", "đội hình sự", "pháp y", "vân tay", "kẻ giết người", "murder", "detective", "investigation", "police", "suspect", "victim", "crime scene", "killer", "homicide", "inspector", "alibi", "clue", "forensic", "thriller", "mystery", "sherlock holmes", "agatha christie"]
+    },
+    {
+      "id": "horror", "name": "Kinh dị - Ma quái", "group": "Văn học",
+      "aliases": ["kinh dị", "ma quái", "kinh dị, ma quái", "horror", "ghost stories", "ghost story", "truyện ma", "gothic", "truyện kinh dị"],
+      "title_cues": ["kinh dị", "ma quái", "truyện ma", "ma cà rồng", "horror", "haunted"],
+      "keywords": ["ma", "quỷ", "hồn ma", "oan hồn", "ma quái", "kinh dị", "rùng rợn", "lời nguyền", "ám ảnh", "ma cà rồng", "quái vật", "xác sống", "tà ma", "nghĩa địa", "bóng đêm", "âm hồn", "ngôi nhà ma", "rùng mình", "horror", "ghost", "haunted", "vampire", "zombie", "monster", "curse", "demon", "evil", "nightmare", "terror", "dread", "grave", "gothic"]
+    },
+    {
+      "id": "scifi_fantasy", "name": "Khoa học viễn tưởng - Giả tưởng", "group": "Văn học",
+      "aliases": ["khoa học viễn tưởng", "viễn tưởng", "giả tưởng", "tiểu thuyết giả tưởng", "science fiction", "sci-fi", "scifi", "sf", "fantasy", "fantasy fiction", "dystopias", "dystopias -- fiction", "time travel -- fiction", "cyberpunk", "space opera", "fantasy fiction tiểu thuyết giả tưởng"],
+      "title_cues": ["khoa học viễn tưởng", "viễn tưởng", "giả tưởng", "science fiction", "fantasy", "sci-fi"],
+      "keywords": ["viễn tưởng", "giả tưởng", "tương lai", "người máy", "robot", "tàu vũ trụ", "hành tinh", "phi thuyền", "du hành thời gian", "dị giới", "phép thuật", "pháp sư", "rồng", "người lùn", "yêu tinh", "thế giới song song", "vũ trụ", "người ngoài hành tinh", "sci-fi", "science fiction", "fantasy", "spaceship", "alien", "planet", "galaxy", "robot", "android", "magic", "wizard", "dragon", "elf", "kingdom", "prophecy", "time travel", "dystopia", "cyborg", "empire"]
+    },
+    {
+      "id": "romance", "name": "Ngôn tình - Lãng mạn", "group": "Văn học",
+      "aliases": ["ngôn tình", "lãng mạn", "romance", "love story", "chick lit", "romantic", "tình cảm", "truyện tình cảm"],
+      "title_cues": ["ngôn tình", "lãng mạn", "romance", "love story"],
+      "keywords": ["tình yêu", "yêu", "người yêu", "nụ hôn", "trái tim", "hạnh phúc", "đám cưới", "hôn nhân", "chia tay", "nhớ nhung", "tổng tài", "lãng mạn", "ngôn tình", "mối tình", "thầm yêu", "tỏ tình", "say đắm", "love", "romance", "kiss", "heart", "wedding", "marriage", "passion", "lover", "boyfriend", "girlfriend", "relationship", "romantic"]
+    },
+    {
+      "id": "wuxia", "name": "Kiếm hiệp - Tiên hiệp", "group": "Văn học",
+      "aliases": ["kiếm hiệp", "tiên hiệp", "huyền huyễn", "võ hiệp", "wuxia", "xianxia", "tu tiên", "tu chân", "truyện kiếm hiệp", "kim dung", "cổ long"],
+      "title_cues": ["kiếm hiệp", "tiên hiệp", "võ lâm", "giang hồ", "tu chân", "huyền huyễn", "kim dung", "cổ long"],
+      "keywords": ["kiếm hiệp", "võ lâm", "giang hồ", "môn phái", "võ công", "kiếm", "đao", "chưởng môn", "minh chủ", "thiếu lâm", "võ đang", "cái bang", "nội công", "khinh công", "tuyệt học", "bí kíp", "đệ tử", "sư phụ", "sư huynh", "sư đệ", "ma giáo", "chính phái", "tu tiên", "tu luyện", "linh khí", "đan dược", "cảnh giới", "đại lục", "tông môn", "huyền huyễn", "kim dung", "cổ long", "sword", "martial arts", "jianghu", "cultivation", "sect"]
+    },
+    {
+      "id": "adventure", "name": "Phiêu lưu - Mạo hiểm", "group": "Văn học",
+      "aliases": ["phiêu lưu", "mạo hiểm", "phiêu lưu, mạo hiểm", "adventure", "adventure stories", "swashbuckler", "adventure fiction"],
+      "title_cues": ["phiêu lưu", "mạo hiểm", "adventures of", "kho báu"],
+      "keywords": ["phiêu lưu", "mạo hiểm", "kho báu", "đảo hoang", "thám hiểm", "hải tặc", "cướp biển", "hành trình", "cuộc phiêu lưu", "sa mạc", "rừng rậm", "thuyền trưởng", "bản đồ", "sinh tồn", "adventure", "treasure", "island", "pirate", "expedition", "journey", "voyage", "explorer", "jungle", "survival", "captain", "ship", "sea"]
+    },
+    {
+      "id": "folktale", "name": "Truyện cổ tích - Dân gian", "group": "Văn học",
+      "aliases": ["cổ tích", "chuyện cổ tích", "truyện cổ tích", "fairy", "fairy tales", "fairy tale", "folk tale", "folktales", "truyền thuyết", "dân gian", "truyện dân gian", "thần thoại", "ngụ ngôn", "fables", "legends", "mythology"],
+      "title_cues": ["cổ tích", "truyền thuyết", "thần thoại", "ngụ ngôn", "fairy tale", "folk tale", "truyện dân gian", "truyện cổ"],
+      "keywords": ["cổ tích", "ngày xửa ngày xưa", "ngày xưa", "ông tiên", "bà tiên", "phép màu", "công chúa", "hoàng tử", "nàng tiên", "bà mụ", "cô tấm", "thạch sanh", "sọ dừa", "chú cuội", "thánh gióng", "sơn tinh thủy tinh", "truyền thuyết", "thần thoại", "ngụ ngôn", "dân gian", "truyện kể", "con rồng cháu tiên", "phù thủy", "once upon a time", "fairy tale", "folk tale", "princess", "prince", "witch", "fable", "legend", "myth", "grimm", "andersen"]
+    },
+    {
+      "id": "humor", "name": "Truyện cười - Hài hước", "group": "Văn học",
+      "aliases": ["tiếu lâm", "hài hước", "truyện cười", "humor", "humour", "funny", "comedy", "satire", "châm biếm", "trào phúng"],
+      "title_cues": ["truyện cười", "tiếu lâm", "hài hước", "humor", "jokes"],
+      "keywords": ["truyện cười", "tiếu lâm", "hài hước", "cười", "bông đùa", "châm biếm", "trào phúng", "chuyện vui", "hóm hỉnh", "giễu cợt", "joke", "humor", "funny", "laugh", "comedy", "satire", "prank", "witty", "parody"]
+    },
+    {
+      "id": "drama", "name": "Kịch - Kịch bản", "group": "Văn học",
+      "aliases": ["kịch", "kịch bản", "kịch, kịch bản", "drama", "play", "plays", "screenplay", "kịch nói"],
+      "title_cues": ["kịch bản", "vở kịch", "screenplay", "kịch nói"],
+      "keywords": ["kịch", "kịch bản", "hồi một", "màn một", "cảnh một", "lời thoại", "sân khấu", "đạo diễn", "diễn viên", "vở kịch", "kịch nói", "tuồng", "chèo", "cải lương", "screenplay", "act one", "scene", "stage", "dialogue", "playwright", "tragedy", "comedy", "shakespeare"]
+    },
+    {
+      "id": "children", "name": "Thiếu nhi - Tuổi học trò", "group": "Văn học",
+      "aliases": ["thiếu nhi", "tuổi học trò", "juvenile", "juvenile fiction", "children", "children's", "young adult", "ya", "kids", "truyện thiếu nhi", "bedtime stories", "sách thiếu nhi"],
+      "title_cues": ["truyện thiếu nhi", "thiếu nhi", "cho bé", "bé yêu", "tuổi học trò", "bedtime stories"],
+      "keywords": ["em bé", "các em", "thiếu nhi", "tuổi thơ", "học trò", "học sinh", "trường học", "lớp học", "thầy cô", "bạn bè", "cô giáo", "cậu bé", "cô bé", "trò chơi", "mùa hè", "kính vạn hoa", "nguyễn nhật ánh", "children", "kids", "boy", "girl", "school", "teacher", "friends", "puppy", "bedtime", "young readers"]
+    },
+    {
+      "id": "vn_classics", "name": "Cổ văn Việt Nam", "group": "Văn học",
+      "aliases": ["cổ văn việt nam", "cổ văn", "văn học cổ", "văn học trung đại", "hán nôm", "vh cổ điển việt nam", "văn học cổ điển việt nam"],
+      "title_cues": ["hán nôm", "cổ văn", "truyện kiều", "văn học trung đại", "chữ nôm"],
+      "keywords": ["cổ văn", "hán nôm", "chữ nôm", "chữ hán", "văn học trung đại", "truyện nôm", "truyện kiều", "nguyễn du", "hồ xuân hương", "lục vân tiên", "nguyễn đình chiểu", "chinh phụ ngâm", "cung oán ngâm khúc", "bà huyện thanh quan", "nguyễn trãi", "lê thánh tông", "bài phú", "hịch", "bình ngô đại cáo", "đại việt", "sử ký", "thành thông chí", "vũ trung tùy bút", "lê quý đôn", "phạm đình hổ", "nguyễn dữ", "truyền kỳ mạn lục", "thi tập", "quốc âm"]
+    },
+    {
+      "id": "memoir_essay", "name": "Hồi ký - Tùy bút", "group": "Văn học",
+      "aliases": ["hồi ký", "hồi kí", "tuỳ bút", "tùy bút", "hồi ký, tuỳ bút", "hồi ký, tùy bút", "tản văn", "bài viết", "tự truyện", "memoir", "memoirs", "essay", "essays", "autobiography", "nhật ký", "bút ký", "ký sự", "tạp văn", "tạp bút"],
+      "title_cues": ["hồi ký", "hồi kí", "tùy bút", "tuỳ bút", "tản văn", "nhật ký", "tự truyện", "memoir", "autobiography", "bút ký", "ký sự"],
+      "keywords": ["hồi ký", "hồi ức", "kỷ niệm", "nhớ lại", "tùy bút", "tản văn", "bút ký", "ký sự", "nhật ký", "tự truyện", "tôi nhớ", "ngày ấy", "thuở nhỏ", "quê hương", "những năm tháng", "hà nội", "sài gòn", "ký ức", "tuổi trẻ", "bạn văn", "cố hương", "memoir", "memories", "essay", "recollections", "diary", "autobiography", "reminiscence", "my life", "i remember"]
+    },
+    {
+      "id": "history", "name": "Lịch sử", "group": "Lịch sử - Chính trị",
+      "aliases": ["lịch sử", "history", "sử học", "sử", "lịch sử việt nam", "lịch sử thế giới", "world history"],
+      "weak_aliases": ["history literature"],
+      "title_cues": ["lịch sử", "sử học", "sử địa", "sử ký", "history of", "triều đại", "dynasty"],
+      "keywords": ["lịch sử", "triều đại", "vương triều", "nhà nguyễn", "nhà trần", "nhà lê", "nhà lý", "nhà hồ", "nhà đường", "nhà hán", "nhà minh", "nhà thanh", "hoàng đế", "vua", "chúa", "cách mạng", "đế quốc", "thực dân", "thuộc địa", "khởi nghĩa", "kháng chiến", "cổ đại", "trung cổ", "thế kỷ", "sử ký", "đại việt", "văn minh", "la mã", "hy lạp", "ai cập", "history", "dynasty", "empire", "revolution", "century", "ancient", "medieval", "colonial", "civilization", "historian", "kingdom", "emperor"]
+    },
+    {
+      "id": "war_military", "name": "Chiến tranh - Quân sự", "group": "Lịch sử - Chính trị",
+      "aliases": ["chiến tranh", "cuộc chiến vn", "quân sự", "war", "military", "world war", "phát xít", "chiến tranh việt nam", "vietnam war", "binh pháp", "war -- early works to 1800", "military art and science -- early works to 1800", "1914-1918 -- personal narratives"],
+      "title_cues": ["chiến tranh", "quân sự", "binh pháp", "chiến dịch", "world war", "vietnam war", "quân đội", "tam thập lục kế"],
+      "keywords": ["chiến tranh", "quân đội", "bộ đội", "trận đánh", "chiến dịch", "tướng", "sư đoàn", "chiến trường", "vũ khí", "súng", "bom", "máy bay", "xe tăng", "hải quân", "không quân", "lính", "chiến sĩ", "kháng chiến", "chống mỹ", "điện biên phủ", "phát xít", "thế chiến", "binh pháp", "tôn tử", "chiến thuật", "war", "army", "battle", "soldier", "military", "weapon", "tank", "navy", "general", "campaign", "vietnam war", "world war", "strategy"]
+    },
+    {
+      "id": "biography", "name": "Tiểu sử - Danh nhân", "group": "Lịch sử - Chính trị",
+      "aliases": ["nhân vật lịch sử", "tiểu sử", "danh nhân", "biography", "biographies", "biography & autobiography", "chân dung", "người nổi tiếng"],
+      "title_cues": ["tiểu sử", "danh nhân", "biography", "cuộc đời và sự nghiệp", "chân dung"],
+      "keywords": ["tiểu sử", "danh nhân", "cuộc đời và sự nghiệp", "chân dung", "sinh ra", "qua đời", "thân thế", "sự nghiệp", "người sáng lập", "nhà lãnh đạo", "nhà khoa học", "chủ tịch", "biography", "life of", "born", "died", "early life", "career", "legacy", "founder", "leader"]
+    },
+    {
+      "id": "politics_society", "name": "Chính trị - Xã hội", "group": "Lịch sử - Chính trị",
+      "aliases": ["chính trị", "politics", "political science", "xã hội học", "sociology", "social science", "chính trị - xã hội"],
+      "weak_aliases": ["xã hội", "current affairs"],
+      "title_cues": ["chính trị", "chính phủ", "politics", "xã hội học", "dân chủ", "nhà nước", "quan hệ quốc tế", "ngoại giao"],
+      "keywords": ["chính trị", "chính phủ", "nhà nước", "quốc hội", "đảng", "dân chủ", "bầu cử", "quyền lực", "xã hội", "xã hội học", "giai cấp", "bình đẳng", "toàn cầu hóa", "chủ nghĩa", "tư bản", "xã hội chủ nghĩa", "cộng sản", "ngoại giao", "quan hệ quốc tế", "tổng thống", "chính sách", "cải cách", "tham nhũng", "nhân quyền", "politics", "government", "democracy", "election", "power", "state", "policy", "sociology", "ideology", "capitalism", "socialism", "diplomacy"]
+    },
+    {
+      "id": "law", "name": "Pháp luật", "group": "Lịch sử - Chính trị",
+      "aliases": ["pháp luật", "luật", "law", "legal", "luật học", "bộ luật"],
+      "title_cues": ["pháp luật", "bộ luật", "nghị định", "thông tư", "luật sư", "luật doanh nghiệp", "luật dân sự", "luật hình sự", "hiến pháp"],
+      "keywords": ["pháp luật", "luật", "bộ luật", "điều khoản", "nghị định", "thông tư", "quy định", "tòa án", "thẩm phán", "luật sư", "hợp đồng", "quyền và nghĩa vụ", "bản án", "tố tụng", "hiến pháp", "luật dân sự", "luật hình sự", "luật doanh nghiệp", "law", "legal", "court", "judge", "attorney", "contract", "statute", "constitution", "liability"]
+    },
+    {
+      "id": "geography_travel", "name": "Địa lý - Du lịch", "group": "Lịch sử - Chính trị",
+      "aliases": ["địa lý", "du lịch", "travel", "geography", "travelogue", "ký hành", "hướng dẫn du lịch", "travel guide"],
+      "title_cues": ["du lịch", "địa lý", "travel guide", "cẩm nang du lịch", "phượt", "địa danh"],
+      "keywords": ["du lịch", "địa lý", "hành trình", "điểm đến", "khám phá", "bản đồ", "quốc gia", "thành phố", "núi", "sông", "biển", "đảo", "khí hậu", "lữ hành", "phượt", "kinh nghiệm du lịch", "khách sạn", "travel", "tour", "destination", "guide", "map", "country", "city", "mountain", "island", "backpacking", "itinerary"]
+    },
+    {
+      "id": "economics", "name": "Kinh tế học", "group": "Kinh tế - Kinh doanh",
+      "aliases": ["kinh tế", "kinh tế học", "economics", "economic", "economy", "kinh tế vĩ mô", "kinh tế vi mô", "econ"],
+      "weak_aliases": ["eco"],
+      "title_cues": ["kinh tế", "economics", "lạm phát", "kinh tế học", "kinh tế vĩ mô"],
+      "keywords": ["kinh tế", "kinh tế học", "kinh tế vĩ mô", "vi mô", "cung cầu", "lạm phát", "gdp", "tăng trưởng", "thị trường", "thất nghiệp", "thương mại", "chính sách tiền tệ", "ngân hàng trung ương", "xuất khẩu", "nhập khẩu", "thuế", "tài khóa", "chu kỳ kinh tế", "độc quyền", "cạnh tranh", "phúc lợi", "economics", "macroeconomics", "microeconomics", "inflation", "supply and demand", "market", "unemployment", "trade", "monetary policy", "fiscal", "recession"]
+    },
+    {
+      "id": "management", "name": "Quản trị - Lãnh đạo", "group": "Kinh tế - Kinh doanh",
+      "aliases": ["quản trị", "quản lý", "management", "leadership", "lãnh đạo", "hbr", "hrb", "harvard business review", "hrm", "nhân sự", "quản trị kinh doanh"],
+      "weak_aliases": ["business", "kinh doanh", "doanh nghiệp"],
+      "title_cues": ["quản trị", "quản lý", "lãnh đạo", "leadership", "management", "nhân sự", "hbr", "harvard business review", "nhà lãnh đạo"],
+      "keywords": ["quản trị", "quản lý", "lãnh đạo", "nhà quản lý", "nhân viên", "nhân sự", "đội nhóm", "văn hóa doanh nghiệp", "chiến lược", "kế hoạch", "mục tiêu", "kpi", "okr", "hiệu suất", "tuyển dụng", "đào tạo", "động lực", "ra quyết định", "thay đổi", "tổ chức", "giám đốc", "ceo", "doanh nghiệp", "kinh doanh", "management", "leadership", "manager", "employee", "team", "strategy", "organization", "executive", "performance", "hiring", "culture", "decision making", "harvard business review"]
+    },
+    {
+      "id": "marketing_sales", "name": "Marketing - Bán hàng", "group": "Kinh tế - Kinh doanh",
+      "aliases": ["marketing", "bán hàng", "sales", "selling", "quảng cáo", "advertising", "branding", "thương hiệu", "tiếp thị", "seo"],
+      "title_cues": ["marketing", "tiếp thị", "bán hàng", "thương hiệu", "quảng cáo", "branding", "khách hàng", "sales"],
+      "keywords": ["marketing", "tiếp thị", "bán hàng", "khách hàng", "thương hiệu", "quảng cáo", "chiêu thị", "chốt sale", "chốt đơn", "thuyết phục", "định vị", "phân khúc", "thị trường mục tiêu", "digital marketing", "seo", "content marketing", "facebook ads", "tỷ lệ chuyển đổi", "doanh số", "đại lý", "bán lẻ", "chăm sóc khách hàng", "sales", "customer", "brand", "advertising", "persuasion", "positioning", "conversion", "retail", "funnel", "copywriting"]
+    },
+    {
+      "id": "finance_investing", "name": "Tài chính - Đầu tư", "group": "Kinh tế - Kinh doanh",
+      "aliases": ["tài chính", "đầu tư", "finance", "financial", "investing", "investment", "chứng khoán", "stock", "stocks", "forex", "crypto", "bitcoin", "kế toán", "accounting", "bất động sản", "real estate", "personal finance", "quản lý tài chính"],
+      "title_cues": ["đầu tư", "chứng khoán", "tài chính", "cổ phiếu", "forex", "bitcoin", "kế toán", "bất động sản", "làm giàu", "kiếm tiền", "warren buffett", "tự do tài chính"],
+      "keywords": ["đầu tư", "tài chính", "chứng khoán", "cổ phiếu", "trái phiếu", "quỹ", "lợi nhuận", "rủi ro", "danh mục", "lãi suất", "ngân hàng", "tiết kiệm", "tự do tài chính", "thu nhập thụ động", "bất động sản", "kế toán", "báo cáo tài chính", "dòng tiền", "giàu", "phân tích kỹ thuật", "forex", "bitcoin", "tiền mã hóa", "investing", "investment", "stock", "bond", "portfolio", "wealth", "retirement", "budget", "interest", "dividend", "valuation", "cash flow", "hedge fund", "warren buffett"]
+    },
+    {
+      "id": "startup", "name": "Khởi nghiệp", "group": "Kinh tế - Kinh doanh",
+      "aliases": ["khởi nghiệp", "startup", "startups", "entrepreneurship", "entrepreneur", "lean startup", "khởi sự kinh doanh"],
+      "title_cues": ["khởi nghiệp", "startup", "lean startup", "khởi sự kinh doanh", "entrepreneur", "nhà sáng lập"],
+      "keywords": ["khởi nghiệp", "startup", "ý tưởng kinh doanh", "nhà sáng lập", "gọi vốn", "vốn đầu tư mạo hiểm", "sản phẩm tối thiểu", "mvp", "mô hình kinh doanh", "pivot", "tăng trưởng", "khách hàng đầu tiên", "founder", "venture capital", "funding", "pitch", "business model", "product market fit", "lean", "growth hacking", "scale", "bootstrapped", "unicorn"]
+    },
+    {
+      "id": "self_help", "name": "Phát triển bản thân", "group": "Kỹ năng - Tâm lý",
+      "aliases": ["phát triển bản thân", "selfhelp", "self help", "self-help", "self-improvement", "kỹ năng sống", "kỹ năng mềm", "suy ngẫm", "làm người", "suy ngẫm, làm người", "bài học cuộc sống", "nghệ thuật sống", "động lực", "truyền cảm hứng", "inspiration", "motivational", "personal development", "personal growth"],
+      "weak_aliases": ["tư duy"],
+      "title_cues": ["phát triển bản thân", "kỹ năng sống", "self-help", "self help", "thói quen", "động lực", "truyền cảm hứng", "thay đổi cuộc đời", "personal development", "thành công"],
+      "keywords": ["phát triển bản thân", "thành công", "thói quen", "mục tiêu", "động lực", "tư duy", "thay đổi cuộc sống", "hạnh phúc", "tự tin", "kỷ luật", "quản lý thời gian", "năng suất", "tích cực", "thái độ", "đam mê", "ước mơ", "bài học cuộc sống", "làm chủ", "tự lực", "nghệ thuật sống", "tự học", "kỹ năng", "self-help", "success", "habits", "goals", "motivation", "mindset", "productivity", "discipline", "confidence", "personal development", "happiness", "positive thinking", "growth", "inspiration"]
+    },
+    {
+      "id": "psychology", "name": "Tâm lý học", "group": "Kỹ năng - Tâm lý",
+      "aliases": ["tâm lý", "tâm lý học", "psychology", "tâm thần", "psychiatry"],
+      "weak_aliases": ["psychological"],
+      "title_cues": ["tâm lý", "psychology", "tâm thần", "hành vi con người", "trí tuệ cảm xúc", "emotional intelligence", "trầm cảm"],
+      "keywords": ["tâm lý", "tâm lý học", "hành vi", "nhận thức", "cảm xúc", "tiềm thức", "vô thức", "trầm cảm", "lo âu", "stress", "tâm thần", "nhân cách", "động cơ", "đám đông", "tâm lý học đám đông", "freud", "jung", "thiên kiến", "trí nhớ", "tư duy nhanh và chậm", "hành vi con người", "liệu pháp", "chữa lành", "psychology", "behavior", "cognitive", "emotion", "unconscious", "depression", "anxiety", "personality", "therapy", "mind", "bias", "neuroscience"]
+    },
+    {
+      "id": "communication", "name": "Giao tiếp - Đàm phán", "group": "Kỹ năng - Tâm lý",
+      "aliases": ["giao tiếp", "đàm phán", "communication", "negotiation", "thuyết trình", "presentation", "public speaking", "kỹ năng giao tiếp", "ứng xử", "networking", "đối nhân xử thế"],
+      "title_cues": ["giao tiếp", "đàm phán", "thuyết trình", "negotiation", "public speaking", "đối nhân xử thế", "đắc nhân tâm"],
+      "keywords": ["giao tiếp", "đàm phán", "thuyết trình", "ứng xử", "đối nhân xử thế", "lắng nghe", "thuyết phục", "nói chuyện", "diễn thuyết", "kết nối", "quan hệ", "đặt câu hỏi", "phản hồi", "xung đột", "đắc nhân tâm", "ngôn ngữ cơ thể", "communication", "negotiation", "public speaking", "presentation", "listening", "persuasion", "networking", "conversation", "conflict", "rapport"]
+    },
+    {
+      "id": "family_parenting", "name": "Gia đình - Nuôi dạy con", "group": "Kỹ năng - Tâm lý",
+      "aliases": ["chăm sóc gia đình", "nuôi dạy con", "parenting", "family life", "mang thai", "thai giáo", "hôn nhân gia đình"],
+      "weak_aliases": ["family", "gia đình"],
+      "title_cues": ["nuôi dạy con", "dạy con", "mang thai", "thai nhi", "làm cha mẹ", "trẻ em", "trẻ nhỏ", "parenting"],
+      "keywords": ["nuôi dạy con", "cha mẹ", "con cái", "trẻ nhỏ", "mang thai", "thai nhi", "sinh con", "em bé", "bú mẹ", "ăn dặm", "dạy con", "trẻ sơ sinh", "tuổi dậy thì", "gia đình", "hôn nhân", "vợ chồng", "mẹ và bé", "parenting", "pregnancy", "baby", "toddler", "child development", "family", "marriage", "discipline", "teenagers"]
+    },
+    {
+      "id": "science", "name": "Khoa học", "group": "Khoa học - Công nghệ",
+      "aliases": ["khoa học", "science", "popular science", "khoa học phổ thông", "khoa học tự nhiên", "natural science", "khoa học thường thức"],
+      "weak_aliases": ["chemistry", "hóa học"],
+      "title_cues": ["khoa học", "science", "nhà khoa học", "thí nghiệm", "hóa học", "chemistry"],
+      "keywords": ["khoa học", "nhà khoa học", "thí nghiệm", "nghiên cứu", "giả thuyết", "lý thuyết", "phát minh", "phát hiện", "tiến hóa", "vật chất", "năng lượng", "nguyên tử", "phân tử", "hóa học", "phản ứng", "khoa học phổ thông", "science", "scientist", "experiment", "research", "theory", "hypothesis", "discovery", "evolution", "energy", "atom", "molecule", "chemistry", "reaction"]
+    },
+    {
+      "id": "programming", "name": "Công nghệ thông tin", "group": "Khoa học - Công nghệ",
+      "aliases": ["lập trình", "công nghệ thông tin", "cntt", "programming", "software", "computer science", "computers", "web development", "php", "java", "python", "javascript", "linux", "database", "mạng máy tính", "php-fpm", "apache", "nginx reverse proxy", "tcp/ip"],
+      "weak_aliases": ["it"],
+      "title_cues": ["lập trình", "programming", "python", "javascript", "linux", "công nghệ thông tin", "phần mềm", "software", "cơ sở dữ liệu", "database", "mạng máy tính", "devops", "android", "tcp/ip"],
+      "keywords": ["lập trình", "phần mềm", "mã nguồn", "thuật toán", "cơ sở dữ liệu", "mạng máy tính", "hệ điều hành", "ngôn ngữ lập trình", "trình biên dịch", "giao thức", "máy chủ", "web", "ứng dụng", "api", "framework", "debug", "linux", "windows", "python", "java", "javascript", "php", "sql", "html", "css", "tcp/ip", "bảo mật", "an ninh mạng", "lập trình viên", "code", "programming", "software", "algorithm", "database", "network", "server", "operating system", "compiler", "developer", "function", "variable", "class", "object", "security", "cloud", "devops", "git"]
+    },
+    {
+      "id": "ai_data", "name": "Trí tuệ nhân tạo - Dữ liệu", "group": "Khoa học - Công nghệ",
+      "aliases": ["trí tuệ nhân tạo", "ai", "artificial intelligence", "machine learning", "học máy", "deep learning", "học sâu", "data science", "khoa học dữ liệu", "big data", "dữ liệu lớn", "data mining", "phân tích dữ liệu", "data analysis", "analytics"],
+      "title_cues": ["trí tuệ nhân tạo", "machine learning", "deep learning", "học máy", "học sâu", "data science", "khoa học dữ liệu", "big data", "dữ liệu lớn", "chatgpt", "artificial intelligence", "neural network"],
+      "keywords": ["trí tuệ nhân tạo", "học máy", "học sâu", "mạng nơ-ron", "dữ liệu", "khoa học dữ liệu", "phân tích dữ liệu", "mô hình", "huấn luyện", "xử lý ngôn ngữ tự nhiên", "thị giác máy tính", "big data", "dữ liệu lớn", "chatgpt", "machine learning", "deep learning", "neural network", "artificial intelligence", "data science", "model", "training", "dataset", "nlp", "computer vision", "regression", "classification", "tensorflow", "pytorch", "analytics", "statistics"]
+    },
+    {
+      "id": "math", "name": "Toán học", "group": "Khoa học - Công nghệ",
+      "aliases": ["toán", "toán học", "mathematics", "math", "maths", "đại số", "hình học", "giải tích", "xác suất", "thống kê", "statistics", "probability", "algebra", "geometry", "calculus"],
+      "title_cues": ["toán học", "mathematics", "đại số", "hình học", "giải tích", "xác suất", "thống kê", "số học", "bài toán"],
+      "keywords": ["toán", "toán học", "định lý", "chứng minh", "phương trình", "hàm số", "đạo hàm", "tích phân", "ma trận", "vector", "xác suất", "thống kê", "số học", "số nguyên tố", "hình học", "đại số", "giải tích", "tập hợp", "logic", "bài tập", "lời giải", "mathematics", "theorem", "proof", "equation", "function", "derivative", "integral", "matrix", "probability", "statistics", "algebra", "geometry", "calculus", "number theory"]
+    },
+    {
+      "id": "physics_astronomy", "name": "Vật lý - Thiên văn", "group": "Khoa học - Công nghệ",
+      "aliases": ["vật lý", "thiên văn", "vật lý học", "thiên văn học", "physics", "astronomy", "cosmology", "vũ trụ học", "astrophysics", "thiên văn vũ trụ", "quantum"],
+      "title_cues": ["vật lý", "thiên văn", "vũ trụ", "physics", "astronomy", "cosmos", "hố đen", "lượng tử"],
+      "keywords": ["vật lý", "thiên văn", "vũ trụ", "hố đen", "ngôi sao", "thiên hà", "hành tinh", "sao chổi", "lượng tử", "tương đối", "thuyết tương đối", "cơ học", "năng lượng", "ánh sáng", "hấp dẫn", "big bang", "kính thiên văn", "hệ mặt trời", "vật chất tối", "hạt cơ bản", "einstein", "hawking", "physics", "astronomy", "cosmos", "black hole", "star", "galaxy", "quantum", "relativity", "gravity", "light", "telescope", "particle"]
+    },
+    {
+      "id": "biology_nature", "name": "Sinh học - Thiên nhiên", "group": "Khoa học - Công nghệ",
+      "aliases": ["sinh học", "biology", "thiên nhiên", "nature", "động vật", "animals", "thực vật", "plants", "môi trường", "environment", "ecology", "sinh thái"],
+      "title_cues": ["sinh học", "biology", "thiên nhiên", "động vật", "thực vật", "sinh thái", "môi trường", "ecology"],
+      "keywords": ["sinh học", "tế bào", "gen", "adn", "tiến hóa", "loài", "động vật", "thực vật", "sinh thái", "môi trường", "thiên nhiên", "rừng", "đại dương", "côn trùng", "chim", "cá", "thú", "hệ sinh thái", "di truyền", "vi khuẩn", "virus", "đa dạng sinh học", "khí hậu", "biến đổi khí hậu", "biology", "cell", "gene", "dna", "evolution", "species", "animal", "plant", "ecology", "environment", "nature", "forest", "ocean", "insects", "birds", "genetics"]
+    },
+    {
+      "id": "engineering", "name": "Kỹ thuật - Điện - Cơ khí", "group": "Khoa học - Công nghệ",
+      "aliases": ["kỹ thuật", "engineering", "điện", "điện tử", "electronics", "cơ khí", "mechanical", "xây dựng", "construction", "tự động hóa", "automation", "arduino", "robotics"],
+      "title_cues": ["kỹ thuật", "engineering", "điện tử", "cơ khí", "mạch điện", "tự động hóa", "arduino", "vi điều khiển"],
+      "keywords": ["kỹ thuật", "điện", "điện tử", "mạch", "vi điều khiển", "cơ khí", "máy móc", "động cơ", "tự động hóa", "xây dựng", "kết cấu", "bản vẽ", "vật liệu", "thiết kế", "cnc", "plc", "arduino", "mạch điện", "biến áp", "công suất", "engineering", "electronics", "circuit", "mechanical", "motor", "automation", "construction", "structure", "material", "design", "voltage", "current", "sensor"]
+    },
+    {
+      "id": "philosophy", "name": "Triết học", "group": "Triết học - Tôn giáo",
+      "aliases": ["triết học", "philosophy", "triết", "tư tưởng", "siêu hình học", "metaphysics", "đạo đức học", "ethics", "existentialism", "chủ nghĩa hiện sinh", "alan watts"],
+      "title_cues": ["triết học", "triết lý", "philosophy", "triết gia", "siêu hình", "chủ nghĩa hiện sinh", "existentialism"],
+      "keywords": ["triết học", "triết gia", "tư tưởng", "siêu hình", "bản thể", "nhận thức luận", "đạo đức", "hiện sinh", "chủ nghĩa", "lý trí", "tự do", "ý chí", "tồn tại", "hư vô", "biện chứng", "duy vật", "duy tâm", "socrates", "plato", "aristotle", "kant", "nietzsche", "hegel", "schopenhauer", "khổng tử", "lão tử", "trang tử", "nho giáo", "đạo giáo", "philosophy", "philosopher", "metaphysics", "ethics", "existence", "reason", "freedom", "will", "being", "nothingness", "dialectic"]
+    },
+    {
+      "id": "religion_spirituality", "name": "Tôn giáo - Tâm linh", "group": "Triết học - Tôn giáo",
+      "aliases": ["tôn giáo", "tâm linh", "religion", "spirituality", "phật giáo", "buddhism", "osho", "thiền", "meditation", "công giáo", "kitô giáo", "christianity", "kinh thánh", "bible", "cựu ước", "tân ước", "hồi giáo", "islam", "kinh", "nikaya", "khoa học huyền bí", "huyền bí", "occult", "new age", "zen", "đạo phật", "phật pháp", "giáo lý"],
+      "title_cues": ["phật giáo", "phật pháp", "đạo phật", "thiền", "kinh thánh", "tôn giáo", "tâm linh", "osho", "buddha", "buddhism", "thích nhất hạnh", "công giáo", "kitô", "hồi giáo", "cầu nguyện", "meditation", "linh hồn"],
+      "keywords": ["phật", "phật giáo", "phật pháp", "kinh", "tụng", "thiền", "thiền định", "tu hành", "tu tập", "giác ngộ", "nghiệp", "luân hồi", "từ bi", "đạo", "chùa", "sư", "nhà sư", "niết bàn", "chánh niệm", "osho", "thượng đế", "chúa", "kinh thánh", "cầu nguyện", "đức tin", "linh hồn", "tâm linh", "thánh", "giáo hội", "hồi giáo", "huyền bí", "nhân quả", "buddha", "buddhism", "meditation", "enlightenment", "karma", "soul", "spiritual", "god", "prayer", "faith", "bible", "church", "islam", "zen", "mindfulness", "sutra"]
+    },
+    {
+      "id": "health", "name": "Y học - Sức khỏe", "group": "Sức khỏe - Đời sống",
+      "aliases": ["y học", "sức khỏe", "y học, sức khỏe", "medicine", "health", "dinh dưỡng", "nutrition", "thể dục", "fitness", "dược", "pharmacology", "chăm sóc sức khỏe", "wellness", "đông y", "yoga", "thuốc"],
+      "weak_aliases": ["disease", "bệnh"],
+      "title_cues": ["y học", "sức khỏe", "bệnh", "dinh dưỡng", "thuốc", "medicine", "nutrition", "yoga", "đông y", "ung thư", "giảm cân"],
+      "keywords": ["y học", "sức khỏe", "bệnh", "bệnh nhân", "bác sĩ", "điều trị", "triệu chứng", "thuốc", "dược", "dinh dưỡng", "chế độ ăn", "giảm cân", "tập luyện", "thể dục", "yoga", "đông y", "châm cứu", "vitamin", "ung thư", "tim mạch", "tiểu đường", "huyết áp", "phòng bệnh", "chẩn đoán", "phẫu thuật", "giấc ngủ", "medicine", "health", "disease", "patient", "doctor", "treatment", "symptoms", "drug", "nutrition", "diet", "fitness", "exercise", "cancer", "diabetes", "surgery", "sleep", "wellness"]
+    },
+    {
+      "id": "cooking", "name": "Ẩm thực - Nấu ăn", "group": "Sức khỏe - Đời sống",
+      "aliases": ["ẩm thực", "nấu ăn", "cooking", "cookbook", "recipes", "công thức nấu ăn", "món ăn", "food", "baking", "làm bánh"],
+      "title_cues": ["nấu ăn", "ẩm thực", "món ăn", "cookbook", "recipes", "làm bánh", "cooking"],
+      "keywords": ["nấu ăn", "ẩm thực", "món ăn", "công thức", "nguyên liệu", "gia vị", "nước dùng", "xào", "kho", "nướng", "hấp", "chiên", "luộc", "làm bánh", "bánh", "canh", "bếp", "đầu bếp", "thực đơn", "món chay", "cách làm", "recipe", "ingredients", "cook", "bake", "cuisine", "chef", "kitchen", "dish", "sauce", "spice", "dessert"]
+    },
+    {
+      "id": "hobby_lifestyle", "name": "Đời sống - Sở thích", "group": "Sức khỏe - Đời sống",
+      "aliases": ["đời sống", "sở thích", "làm vườn", "gardening", "thú cưng", "pets", "thời trang", "fashion", "nội thất", "crafts", "thủ công", "diy", "phong thủy", "tử vi", "nhiếp ảnh", "photography", "ảo thuật"],
+      "weak_aliases": ["lifestyle", "hobby"],
+      "title_cues": ["làm vườn", "thú cưng", "thời trang", "phong thủy", "nhiếp ảnh", "gardening", "knitting", "crochet", "thủ công", "nội thất", "tử vi"],
+      "keywords": ["sở thích", "làm vườn", "cây cảnh", "thú cưng", "chó", "mèo", "thời trang", "thủ công", "nhiếp ảnh", "phong thủy", "tử vi", "nhà cửa", "nội thất", "trang trí", "ảo thuật", "đan len", "gardening", "pets", "dog", "cat", "fashion", "craft", "diy", "photography", "home", "decor", "magic tricks", "hobby"]
+    },
+    {
+      "id": "sports", "name": "Thể thao", "group": "Sức khỏe - Đời sống",
+      "aliases": ["thể thao", "sports", "sport", "bóng đá", "football", "soccer", "cờ vua", "chess", "golf", "tennis", "bơi lội", "chạy bộ", "running"],
+      "title_cues": ["thể thao", "bóng đá", "cầu thủ", "cờ vua", "billiard", "golf", "tennis", "bơi lội", "chạy bộ", "marathon", "olympic", "world cup"],
+      "keywords": ["thể thao", "bóng đá", "cầu thủ", "huấn luyện viên", "giải đấu", "world cup", "cờ vua", "cờ tướng", "olympic", "vận động viên", "chạy bộ", "marathon", "bơi", "tennis", "golf", "bóng rổ", "võ thuật", "sports", "football", "soccer", "player", "coach", "tournament", "chess", "athlete", "basketball"]
+    },
+    {
+      "id": "language_learning", "name": "Học ngoại ngữ", "group": "Giáo dục - Ngôn ngữ",
+      "aliases": ["ngoại ngữ", "học tiếng anh", "english language", "english language -- grammar", "english language -- synonyms and antonyms", "english language -- prepositions", "song ngữ", "ebook song ngữ", "bilingual", "language learning", "ngữ pháp", "grammar", "từ vựng", "vocabulary", "ielts", "toeic", "tiếng nhật", "tiếng hàn", "tiếng trung", "tiếng pháp"],
+      "weak_aliases": ["study", "english", "tiếng anh"],
+      "title_cues": ["tiếng anh", "ngữ pháp", "từ vựng", "ielts", "toeic", "toefl", "grammar", "vocabulary", "tiếng nhật", "tiếng hàn", "tiếng trung", "tiếng pháp", "song ngữ", "bất quy tắc"],
+      "keywords": ["ngoại ngữ", "tiếng anh", "ngữ pháp", "từ vựng", "phát âm", "luyện nghe", "luyện nói", "ielts", "toeic", "toefl", "giao tiếp tiếng anh", "dịch", "song ngữ", "tiếng nhật", "tiếng hàn", "tiếng trung", "hán tự", "kanji", "grammar", "vocabulary", "pronunciation", "english", "learn", "exercise", "unit", "lesson", "bilingual", "translation"]
+    },
+    {
+      "id": "textbook", "name": "Giáo trình - Sách giáo khoa", "group": "Giáo dục - Ngôn ngữ",
+      "aliases": ["giáo trình", "sách giáo khoa", "textbook", "sgk", "bài giảng", "giáo khoa", "học tập", "tài liệu học tập", "ôn thi", "luyện thi"],
+      "weak_aliases": ["education", "giáo dục", "exam"],
+      "title_cues": ["giáo trình", "sách giáo khoa", "bài giảng", "đề thi", "ôn thi", "luyện thi", "textbook", "tuyển sinh", "giáo khoa", "sư phạm"],
+      "keywords": ["giáo trình", "bài giảng", "bài tập", "câu hỏi ôn tập", "đại học", "sinh viên", "học phần", "môn học", "khoa", "học sinh", "lớp", "kỳ thi", "đề thi", "đáp án", "luyện thi", "mục tiêu học tập", "tóm tắt chương", "textbook", "curriculum", "syllabus", "chapter review", "exercises", "university", "student", "course", "exam", "lecture", "education", "teaching", "pedagogy"]
+    },
+    {
+      "id": "reference", "name": "Từ điển - Tra cứu", "group": "Giáo dục - Ngôn ngữ",
+      "aliases": ["từ điển", "tra cứu", "dictionary", "encyclopedia", "bách khoa", "bách khoa toàn thư", "thesaurus"],
+      "weak_aliases": ["reference", "handbook", "sổ tay", "cẩm nang", "atlas", "almanac"],
+      "title_cues": ["từ điển", "bách khoa", "dictionary", "encyclopedia", "tra cứu", "thesaurus"],
+      "keywords": ["từ điển", "bách khoa", "tra cứu", "sổ tay", "cẩm nang", "danh mục", "bảng tra", "phụ lục", "chỉ mục", "mục từ", "dictionary", "encyclopedia", "handbook", "reference", "manual", "glossary", "index", "appendix", "thesaurus", "atlas"]
+    },
+    {
+      "id": "arts_culture", "name": "Nghệ thuật - Văn hóa", "group": "Nghệ thuật - Văn hóa",
+      "aliases": ["nghệ thuật", "văn hóa", "music", "âm nhạc", "điện ảnh", "film", "movie", "hội họa", "painting", "kiến trúc", "architecture", "mỹ thuật", "phong tục", "văn hóa việt nam"],
+      "weak_aliases": ["art", "arts", "culture", "design", "thiết kế"],
+      "title_cues": ["văn hóa", "âm nhạc", "điện ảnh", "hội họa", "kiến trúc", "mỹ thuật", "bảo tàng"],
+      "keywords": ["nghệ thuật", "văn hóa", "âm nhạc", "nhạc", "ca sĩ", "điện ảnh", "phim", "đạo diễn", "hội họa", "tranh", "họa sĩ", "điêu khắc", "mỹ thuật", "kiến trúc", "thiết kế", "nhiếp ảnh", "bảo tàng", "triển lãm", "lễ hội", "phong tục", "truyền thống", "di sản", "art", "culture", "music", "film", "cinema", "painting", "artist", "sculpture", "architecture", "design", "museum", "exhibition", "heritage", "tradition"]
+    },
+    {
+      "id": "comics", "name": "Truyện tranh", "group": "Nghệ thuật - Văn hóa",
+      "aliases": ["truyện tranh", "comics", "comic", "manga", "manhwa", "graphic novel", "comics & graphic novels", "anime"],
+      "title_cues": ["truyện tranh", "manga", "comics", "graphic novel", "anime"],
+      "keywords": ["truyện tranh", "manga", "comic", "khung tranh", "tác giả truyện tranh", "shounen", "shoujo", "anime", "graphic novel", "superhero", "vol", "chapter"]
+    }
+  ]
+}

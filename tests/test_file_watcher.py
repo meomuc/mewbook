@@ -112,3 +112,29 @@ def test_extension_allowlist_is_read_live_from_config(tmp_path, app_context):
         assert _wait_until(lambda: len(detected) == 1, timeout=4.0)
     finally:
         watcher.stop()
+
+
+def test_a_change_mewbook_made_itself_is_not_reported_as_a_new_file(app_context):
+    from smartdoc.application.file_watcher import LibraryWatcher
+    from smartdoc.core.event_bus import FileDetectedEvent
+
+    detected = []
+    app_context.event_bus.subscribe(FileDetectedEvent, lambda e: detected.append(e.file_path))
+    watcher = LibraryWatcher(app_context)
+
+    app_context.self_writes.mark("C:/Books/mine.epub")
+    watcher._handle_stable_file("C:/Books/mine.epub")  # MewBook just wrote metadata into it
+    watcher._handle_stable_file("C:/Books/other.epub")  # a genuine change elsewhere
+
+    assert detected == ["C:/Books/other.epub"]
+
+
+def test_self_write_registry_forgets_after_its_window():
+    from smartdoc.core.self_writes import SelfWriteRegistry
+
+    now = [100.0]
+    registry = SelfWriteRegistry(clock=lambda: now[0])
+    registry.mark("a.epub", seconds=30)
+    assert registry.is_recent("a.epub") and not registry.is_recent("b.epub")
+    now[0] = 131.0
+    assert not registry.is_recent("a.epub")

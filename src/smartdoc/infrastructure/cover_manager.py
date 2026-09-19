@@ -13,6 +13,19 @@ logger = logging.getLogger(__name__)
 
 MAX_WIDTH = 300
 
+# Pillow imports its format plugins lazily, the first time an image is
+# actually opened. Covers are extracted on the import queue's worker
+# threads (4 of them by default), so several threads could hit that lazy
+# import at the same moment on the first import of a session -- concurrent
+# module imports from multiple threads is exactly the race that showed up
+# as a hard "Windows fatal exception: access violation" mid-import.
+# Doing it once here, at module import time on the main thread, means the
+# workers only ever find the plugins already loaded. init() rather than
+# the cheaper preinit(): preinit skips WebP, which is the format every
+# cover is *written* as below, so the race would still be reachable on
+# save. Costs ~15ms once at startup.
+Image.init()
+
 
 class CoverCacheManager:
     def __init__(self, context) -> None:

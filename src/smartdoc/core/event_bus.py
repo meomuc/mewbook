@@ -11,6 +11,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Callable
 
+from smartdoc.domain.library_filter import LibraryFilter
+
 
 @dataclass(frozen=True)
 class BaseEvent:
@@ -31,6 +33,13 @@ class ImportProgressEvent(BaseEvent):
 @dataclass(frozen=True)
 class DocumentIndexedEvent(BaseEvent):
     doc_id: str
+    # Set when this document was indexed as part of a caller-tracked batch
+    # (see ImportQueueManager.add_files) -- None for files queued
+    # individually (e.g. the live file watcher), which are never
+    # batch-tracked. Lets a caller that started its own batch (e.g.
+    # AddDocumentDialog) tell "one of mine" apart from an unrelated import
+    # running concurrently on the same global event bus.
+    batch_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +53,18 @@ class LibraryUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class FilterChangedEvent(BaseEvent):
+    """The one event for "what the library is filtered by" -- search text,
+    collections, hashtags, authors and formats together (see FilterService)."""
+
+    filter: LibraryFilter
+
+
+# The three events below are the *old* split filter state. Nothing in the app
+# publishes them any more (widgets call FilterService); FilterService still
+# listens so an external publisher keeps working, and turns them into a
+# FilterChangedEvent. Don't subscribe to them -- subscribe to FilterChangedEvent.
+@dataclass(frozen=True)
 class SearchRequestedEvent(BaseEvent):
     query: str
 
@@ -51,13 +72,30 @@ class SearchRequestedEvent(BaseEvent):
 @dataclass(frozen=True)
 class FacetFilterChangedEvent(BaseEvent):
     extensions: tuple[str, ...] = ()
+    # Exact author-field values (what the sidebar's author facet shows).
     authors: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    # Individual people: matches any document whose author field *includes*
+    # one of these names -- their own books plus co-authored ones (see
+    # database.author_names_fragment). Set from the Document Detail Panel's
+    # "see this author's documents" link.
+    author_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class CollectionSelectedEvent(BaseEvent):
     collection_id: str | None  # None means "All documents"
+    # Several collections selected at once (single clicks in the sidebar
+    # combine them): documents in *any* of them are shown. When set, this
+    # takes precedence; collection_id stays the first of them so listeners
+    # that only care about "the" collection keep working.
+    collection_ids: tuple[str, ...] = ()
+
+    @property
+    def selected_ids(self) -> tuple[str, ...]:
+        if self.collection_ids:
+            return self.collection_ids
+        return (self.collection_id,) if self.collection_id else ()
 
 
 @dataclass(frozen=True)
@@ -89,6 +127,39 @@ class ImportBatchCompletedEvent(BaseEvent):
     success: int
     duplicate: int
     failed: int
+    batch_id: str | None = None
+    # Ids of the documents this batch newly added (`success` of them) -- what
+    # the "classify these new documents?" offer acts on.
+    doc_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SmartClassifyProgressEvent(BaseEvent):
+    """One step of a running smart-classification job (published from its
+    background thread -- widgets must go through QtEventBridge)."""
+
+    job_id: str
+    done: int
+    total: int
+    tagged: int = 0  # given a category so far
+    unknown: int = 0  # looked at, no confident answer
+    failed: int = 0
+    phase: str = "running"  # "starting" (worker warming up) | "running"
+
+
+@dataclass(frozen=True)
+class SmartClassifyFinishedEvent(BaseEvent):
+    job_id: str
+    run_id: str  # what "Hoàn tác" (undo) is keyed by
+    total: int = 0
+    tagged: int = 0
+    unknown: int = 0
+    failed: int = 0
+    skipped: int = 0  # already had a category (or were already looked at)
+    cancelled: bool = False
+    error: str = ""  # non-empty when the job could not run at all
+    seconds: float = 0.0
+    by_group: tuple[tuple[str, int], ...] = ()  # (sidebar folder, how many landed in it)
 
 
 class EventBus:
