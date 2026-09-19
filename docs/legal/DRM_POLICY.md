@@ -1,6 +1,6 @@
 # Chính sách DRM của MewBook (S0-09)
 
-Trạng thái: **bản đề xuất, chờ chủ dự án duyệt**. Không phải kết luận pháp lý; các điểm pháp lý đã được đưa vào `LAWYER_QUESTIONS.md` (câu 12). Căn cứ: quyết định D8 (có chuyển đổi định dạng), non-goal "gỡ DRM dưới mọi hình thức" (`01_PRD.md`), FR-LIC-06, FR-CNV-02, `02_ARCHITECTURE.md` mục 10, `05_LEGAL_OPEN_SOURCE_CHECKLIST.md` mục 2.5.
+Trạng thái: **bản đề xuất; chủ dự án đã quyết định hai điểm mở (mục 5) và cho áp dụng dòng A2 vào `CLAUDE.md`**. Không phải kết luận pháp lý; các điểm pháp lý đã được đưa vào `LAWYER_QUESTIONS.md` (câu 12). Căn cứ: quyết định D8 (có chuyển đổi định dạng), non-goal "gỡ DRM dưới mọi hình thức" (`01_PRD.md`), FR-LIC-06, FR-CNV-02, `02_ARCHITECTURE.md` mục 10, `05_LEGAL_OPEN_SOURCE_CHECKLIST.md` mục 2.5.
 
 ## 1. Chính sách
 
@@ -37,9 +37,9 @@ Không thấy chỗ nào trong mã hiện tại trái chính sách.
 4. Không đóng gói Calibre; `ebook-convert` chạy như tiến trình riêng; không cài hay khuyên cài plugin nào của Calibre.
 5. Test: file mẫu có dấu hiệu DRM (tạo giả bằng cách sửa header/thêm `rights.xml`; không dùng sách có DRM thật) phải bị từ chối và không sinh file đầu ra.
 
-## 4. Đề xuất sửa `CLAUDE.md` (A2) — chờ chủ dự án duyệt, chưa áp dụng
+## 4. Quy tắc `CLAUDE.md` (A2) — đã áp dụng 2026-09-19 theo phê duyệt chung của chủ dự án
 
-Thêm một dòng vào mục 4 (Guardrails), ngay sau dòng "Don't move or delete users' original ebook files...":
+Đã thêm một dòng vào mục 4 (Guardrails), ngay sau dòng "Don't move or delete users' original ebook files...":
 
 ```diff
  - Don't move or delete users' original ebook files. Writing *metadata* into EPUB/PDF is allowed only as specified in `docs/METADATA_LOOKUP_SPEC.md` §5 (explicit per-run opt-in, backup first, temp file + verify + `os.replace`); no other code path may modify them.
@@ -57,6 +57,6 @@ Quyết định ngày 2026-09-19:
 
 Còn mở:
 
-- a. Chủ dự án duyệt chính sách ở mục 1 và dòng A2 ở mục 4 (hoặc sửa lời). A2 chưa được áp dụng vào `CLAUDE.md`.
+- a. Chủ dự án duyệt chính sách ở mục 1 và dòng A2 ở mục 4 (hoặc sửa lời). A2 đã được áp dụng vào `CLAUDE.md`; chủ dự án vẫn có thể sửa lời.
 - d. Luật sư xem câu 12 trong `LAWYER_QUESTIONS.md` trước khi công khai.
 - Cải thiện nhỏ (đề xuất, chưa làm): thông báo cho người dùng phân biệt "PDF có mật khẩu" với "sách có DRM".

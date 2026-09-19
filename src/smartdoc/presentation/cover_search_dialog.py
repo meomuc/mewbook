@@ -263,6 +263,7 @@ class CoverSearchDialog(QDialog):
                     google_api_key=config.google_image_api_key,
                     google_cx=config.google_image_search_cx,
                     min_score=min_score,
+                    disabled_sources=config.disabled_cover_sources,
                 )
             except CoverSearchError as exc:
                 self.search_finished.emit([], str(exc))

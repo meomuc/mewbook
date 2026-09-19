@@ -61,7 +61,13 @@ from smartdoc.application.ai_summary import (
     test_connection,
 )
 from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync, upgrade_sql
-from smartdoc.application.cover_search import CoverSearchError
+from smartdoc.application.cover_search import (
+    SOURCE_APPLE_BOOKS,
+    SOURCE_GOOGLE_BOOKS,
+    SOURCE_OPEN_LIBRARY,
+    SOURCE_TIKI,
+    CoverSearchError,
+)
 from smartdoc.application.cover_search import test_connection as test_cover_connection
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
@@ -549,11 +555,30 @@ class SettingsDialog(QDialog):
             "(nhiều sách tiếng Việt), Open Library và Google Books -- kết quả được xếp "
             "theo độ khớp tên sách/tác giả. Phần dưới đây là tùy chọn: thêm Google Images "
             "để tìm trên toàn web, và API key này cũng giúp Google Books không bị hết "
-            "lượt tra cứu miễn phí dùng chung trong ngày (cần bật thêm \"Books API\").",
+            "lượt tra cứu miễn phí dùng chung trong ngày (cần bật thêm \"Books API\"). Lưu ý: Google đã "
+            "ngừng nhận khách hàng mới cho Custom Search JSON API, nên Google Images chỉ dùng được "
+            "với tài khoản đã có sẵn.",
             tab,
         )
         note.setWordWrap(True)
         layout.addWidget(note)
+
+        # Which keyless sources may be contacted at all (search text goes to them); see docs/legal/DATA_SOURCES.md.
+        sources_box = QGroupBox("Nguồn được phép tra cứu (gửi tên sách/tác giả ra ngoài)", tab)
+        sources_layout = QVBoxLayout(sources_box)
+        self._cover_source_checkboxes: dict[str, QCheckBox] = {}
+        disabled_sources = set(config.disabled_cover_sources)
+        for name, hint in (
+            (SOURCE_OPEN_LIBRARY, ""),
+            (SOURCE_GOOGLE_BOOKS, ""),
+            (SOURCE_APPLE_BOOKS, ""),
+            (SOURCE_TIKI, " -- tắt sẵn: API nội bộ của cửa hàng, chưa có điều khoản cho phép dùng"),
+        ):
+            checkbox = QCheckBox(f"{name}{hint}", sources_box)
+            checkbox.setChecked(name not in disabled_sources)
+            self._cover_source_checkboxes[name] = checkbox
+            sources_layout.addWidget(checkbox)
+        layout.addWidget(sources_box)
 
         form = QFormLayout()
         self.google_image_api_key_edit = QLineEdit(config.google_image_api_key or "", tab)
@@ -892,6 +917,11 @@ class SettingsDialog(QDialog):
 
         config.google_image_api_key = self.google_image_api_key_edit.text().strip() or None
         config.google_image_search_cx = self.google_image_cx_edit.text().strip() or None
+        # Keep entries this tab has no checkbox for (e.g. a hand-added "Google Images").
+        shown = set(self._cover_source_checkboxes)
+        config.disabled_cover_sources = [name for name in config.disabled_cover_sources if name not in shown] + [
+            name for name, box in self._cover_source_checkboxes.items() if not box.isChecked()
+        ]
 
         config.supabase_url = self.supabase_url_edit.text().strip().rstrip("/") or None
         config.supabase_anon_key = self.supabase_key_edit.text().strip() or None

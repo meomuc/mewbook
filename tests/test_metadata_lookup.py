@@ -335,3 +335,24 @@ def test_text_from_catalogs_is_composed_to_nfc():
     cleaned = ml._clean_fields({"author": decomposed, "title": "Việt Nam sử lược", "pub_year": 1999, "junk": "x", "publisher": ""})
     assert cleaned == {"author": "Trần Trọng Kim", "title": "Việt Nam sử lược", "pub_year": 1999}
     assert unicodedata.is_normalized("NFC", cleaned["author"])
+
+
+
+def test_a_source_switched_off_in_settings_is_not_searched(app_context):
+    app_context.config.config.disabled_cover_sources = ["Apple Books"]
+    row = ("Gia Định thành thông chí", "Trịnh Hoài Đức", {"publisher": "NXB X"})
+    service = _service(app_context, **{ml.SOURCE_OPEN_LIBRARY: _source(row), ml.SOURCE_APPLE_BOOKS: _no_internet})
+
+    result = service.lookup(WANTED)
+
+    assert result.searched_internet and result.errors == []
+    assert [c.source for c in result.candidates] == [ml.SOURCE_OPEN_LIBRARY]
+
+
+def test_every_source_off_reports_it_instead_of_searching(app_context):
+    app_context.config.config.disabled_cover_sources = [ml.SOURCE_OPEN_LIBRARY, ml.SOURCE_APPLE_BOOKS]
+    service = _service(app_context, **{ml.SOURCE_OPEN_LIBRARY: _no_internet, ml.SOURCE_APPLE_BOOKS: _no_internet})
+
+    result = service.lookup(WANTED)
+
+    assert any("đang tắt" in error for error in result.errors)

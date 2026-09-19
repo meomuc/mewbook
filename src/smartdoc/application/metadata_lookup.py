@@ -396,8 +396,13 @@ class MetadataLookupService:
         limit = 12
         candidates: list[MetadataCandidate] = []
         errors: list[str] = []
-        with ThreadPoolExecutor(max_workers=len(self._internet_sources)) as pool:
-            futures = {name: pool.submit(source, title, author, isbn, limit) for name, source in self._internet_sources.items()}
+        # Sources the user switched off in Settings (Cài đặt -> Ảnh bìa) are never contacted.
+        disabled = set(getattr(self.context.config.config, "disabled_cover_sources", ()) or ())
+        sources = {name: source for name, source in self._internet_sources.items() if name not in disabled}
+        if not sources:
+            return [], ["Mọi nguồn tra cứu trên mạng đang tắt -- bật lại trong Cài đặt → Ảnh bìa."]
+        with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+            futures = {name: pool.submit(source, title, author, isbn, limit) for name, source in sources.items()}
             for name, future in futures.items():
                 try:
                     found = future.result()

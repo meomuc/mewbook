@@ -1,3 +1,4 @@
+import codecs
 import json
 
 from smartdoc.core.config import AppConfig, ConfigManager, KNOWN_EXTENSIONS
@@ -138,3 +139,26 @@ def test_smart_classify_settings_default_and_round_trip(tmp_path):
 def test_a_mistyped_smart_classify_choice_falls_back_to_asking(tmp_path):
     (tmp_path / "settings.json").write_text(json.dumps({"smart_classify_on_import": "alwayz"}), encoding="utf-8")
     assert ConfigManager(app_data_dir=tmp_path).config.smart_classify_on_import == "ask"
+
+
+def test_a_settings_file_saved_with_a_bom_still_loads(tmp_path):
+    # Notepad and Windows PowerShell 5 write "UTF-8 with BOM"; that used to crash startup.
+    (tmp_path / "settings.json").write_bytes(codecs.BOM_UTF8 + b'{"theme": "broadsheet", "eula_accepted": true}')
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.eula_accepted is True
+
+
+def test_a_settings_file_without_db_path_gets_the_default_location(tmp_path):
+    # Without a db_path the library used to be created in the current working directory.
+    (tmp_path / "settings.json").write_text('{"eula_accepted": true}', encoding="utf-8")
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.db_path == str(tmp_path / "library.db")
+
+
+def test_tiki_is_disabled_by_default_and_the_choice_persists(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert mgr.config.disabled_cover_sources == ["Tiki"]
+
+    mgr.config.disabled_cover_sources = ["Tiki", "Apple Books"]
+    mgr.save()
+    assert ConfigManager(app_data_dir=tmp_path).config.disabled_cover_sources == ["Tiki", "Apple Books"]

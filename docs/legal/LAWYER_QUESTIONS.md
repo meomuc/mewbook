@@ -34,6 +34,10 @@ Danh sách này gộp 9 câu chuẩn ở `docs/handoff/05_LEGAL_OPEN_SOURCE_CHEC
 
 11. **Nguồn gốc kho huấn luyện của mô hình đi kèm.** Mô hình chỉ chứa thống kê từ (không có văn bản sách) nhưng được huấn luyện từ thư viện cá nhân của chủ dự án, và từ vựng có dấu vết chân trang/nguồn phát hành của các trang ebook (xem `MODEL_VOCAB_AUDIT.md` mục 2.3), tức một phần sách huấn luyện có thể đến từ nguồn không rõ giấy phép. Việc phân phối một mô hình học từ đó có rủi ro bản quyền không? Có nên chuyển sang mô hình huấn luyện từ bộ mẫu công khai/phạm vi công cộng trước khi phát hành?
 
-## E. Từ chính sách DRM (S0-09)
+## E. Từ kiểm kê nguồn dữ liệu (S0-08)
+
+13. **Điều khoản của các nguồn ảnh bìa/metadata** (`DATA_SOURCES.md`). (a) Apple Books: điều khoản của iTunes Search API chỉ cho dùng nội dung khuyến mại (kể cả ảnh bìa) để quảng bá nội dung của cửa hàng; dùng ảnh làm bìa sách trong thư viện riêng của người dùng có vượt phạm vi đó không? (b) Nguồn cấp Atom cũ của Google Books (`google.com/books/feeds`, không còn tài liệu) có nằm trong điều khoản Google Books APIs, và có mâu thuẫn với quy tắc "không scrape google.com" không? (c) Tiki: API nội bộ `tiki.vn/api/v2/products` không có điều khoản công bố; dùng tự động từ máy người dùng (mặc định tắt) có rủi ro không, hay nên gỡ? (d) Yêu cầu của Open Library (nhận diện bằng `User-Agent` kèm email, ghi công) và của Google Books (đường liên hệ để chủ quyền yêu cầu gỡ) đã đủ chưa? (e) Việc gửi trích đoạn nội dung sách tới nhà cung cấp AI do người dùng chọn có cần lời nhắc quyền riêng tư/bản quyền riêng không?
+
+## F. Từ chính sách DRM (S0-09)
 
 12. **Chính sách "không hỗ trợ DRM" và rủi ro pháp lý khi công khai.** `DRM_POLICY.md` chỉ cho phép *phát hiện để từ chối*, không gỡ hay vượt DRM, và không nhúng, đóng gói hay liên kết tới công cụ gỡ DRM. Câu hỏi: (a) chính sách này có đủ để tránh trách nhiệm theo luật Việt Nam và theo các quy định chống vượt biện pháp bảo vệ kỹ thuật (ví dụ DMCA §1201 khi kho mã nằm trên nền tảng của Mỹ) không; (b) việc gọi `ebook-convert` của Calibre như tiến trình riêng, không cài plugin nào, có thể bị coi là hỗ trợ vượt DRM khi người dùng tự cài plugin bên ngoài không; (c) chép nguyên trạng một file có DRM lên thiết bị của chính người dùng có vấn đề gì không.

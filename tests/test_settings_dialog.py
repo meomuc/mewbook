@@ -431,3 +431,23 @@ def test_metadata_write_options_default_off_and_are_saved(qapp, app_context):
 
     config = app_context.config.config
     assert config.metadata_write_to_file_default is True and config.metadata_backup_keep == 7
+
+
+
+def test_cover_source_checkboxes_reflect_config_and_tiki_starts_off(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    boxes = dialog._cover_source_checkboxes
+    assert not boxes["Tiki"].isChecked()
+    assert boxes["Open Library"].isChecked() and boxes["Google Books"].isChecked() and boxes["Apple Books"].isChecked()
+
+
+def test_saving_source_choices_updates_disabled_cover_sources(qapp, app_context):
+    app_context.config.config.disabled_cover_sources = ["Tiki", "Google Images"]
+    dialog = SettingsDialog(app_context)
+    dialog._cover_source_checkboxes["Apple Books"].setChecked(False)
+    dialog._cover_source_checkboxes["Tiki"].setChecked(True)
+
+    dialog._on_save()
+
+    # the ticked Tiki is enabled, the unticked Apple Books disabled, and the entry without a checkbox is kept
+    assert sorted(app_context.config.config.disabled_cover_sources) == ["Apple Books", "Google Images"]

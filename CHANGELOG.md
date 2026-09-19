@@ -138,9 +138,17 @@ New features, so the next release is a MINOR bump (1.1.0).
 - **Installer and exe carry the licence.** The installer's licence page shows `LICENSE` instead
   of a generated EULA; `LICENSE`, `THIRD_PARTY_NOTICES.md` and every dependency's licence files
   (`*.dist-info`) are bundled with the app.
+- **Sources can be switched off; Tiki is off by default.** Settings → Ảnh bìa has a checkbox for each
+  keyless source (Open Library, Google Books, Apple Books, Tiki). A source that is off is never contacted,
+  by cover search, its title-only fallback or metadata lookup, and searching with every source off says
+  so instead of returning nothing. Tiki is an undocumented shop API with no published terms, so it starts
+  off for everyone (tick it again to use it). Per-source terms: `docs/legal/DATA_SOURCES.md`.
 - **Chính sách DRM** (`docs/legal/DRM_POLICY.md`): DRM is only ever detected to refuse a file, never removed.
 
 ### Fixed
+- **Startup crash on a `settings.json` saved with a BOM** (Notepad and Windows PowerShell 5 add one),
+  and **the library being created in the current folder when `settings.json` had no `db_path`**; it now
+  falls back to the app data folder like a fresh install.
 - **Freeze after selecting a book in the List view.** Painting a selected row raised an
   error on every repaint (`QPalette.Text` was read from an instance, where PySide6 has no
   such attribute), and the crash dialog opened from inside that paint, so each repaint

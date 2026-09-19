@@ -53,6 +53,7 @@ import threading
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
+from collections.abc import Collection
 from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from urllib.parse import urlsplit
@@ -594,6 +595,8 @@ def _cache_put(key: tuple, results: list[CoverSearchResult]) -> None:
         _cache[key] = (time.monotonic(), list(results))
 
 
+_FALLBACK_SOURCE = {_search_open_library: SOURCE_OPEN_LIBRARY, _search_apple_books: SOURCE_APPLE_BOOKS}
+
 # At most this many of the offered covers come from one source, so a shop
 # listing the same book five times can't crowd out the other catalogs.
 _MAX_PER_SOURCE = 3
@@ -626,6 +629,7 @@ def search_covers(
     google_api_key: str | None = None,
     google_cx: str | None = None,
     min_score: float = MIN_MATCH_SCORE,
+    disabled_sources: Collection[str] = (),
 ) -> list[CoverSearchResult]:
     """Returns up to `limit` candidates scoring at least `min_score`
     (default 80%), best match first.
@@ -634,14 +638,18 @@ def search_covers(
     score (see score_candidate), weak ones are dropped, and the rest are
     ranked by it, with duplicate image URLs removed. Only raises
     CoverSearchError if *every* source failed -- a partial outage still
-    returns whatever the working sources found."""
+    returns whatever the working sources found.
+
+    `disabled_sources` are source names (SOURCE_*) the user switched off in
+    Settings; they are never contacted, not even by the title-only fallback."""
     title = (title or "").strip()
     if not title:
         return []
     author = (author or "").strip()
 
     use_google_images = bool(google_api_key and google_cx)
-    cache_key = (normalize_text(title), normalize_text(author), limit, use_google_images, min_score)
+    disabled = frozenset(disabled_sources)
+    cache_key = (normalize_text(title), normalize_text(author), limit, use_google_images, min_score, disabled)
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -664,6 +672,10 @@ def search_covers(
         searches[SOURCE_GOOGLE_IMAGES] = lambda: _search_google_images(
             title, author, min(fetch, 10), google_api_key, google_cx
         )
+    for name in disabled:
+        searches.pop(name, None)
+    if not searches:
+        raise CoverSearchError("Mọi nguồn ảnh bìa đang tắt -- bật lại ít nhất một nguồn trong Cài đặt → Ảnh bìa.")
     source_order = list(searches)
 
     def rank(found: list[CoverSearchResult]) -> list[CoverSearchResult]:
@@ -701,6 +713,8 @@ def search_covers(
         # -- widen to title-only on the two most reliable keyless sources.
         # The author still counts in scoring, so this only adds real matches.
         for fallback in (_search_open_library, _search_apple_books):
+            if _FALLBACK_SOURCE[fallback] in disabled:
+                continue
             try:
                 candidates.extend(fallback(query_title, "", fetch))
             except CoverSearchError:

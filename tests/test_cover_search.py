@@ -731,3 +731,56 @@ def test_read_cover_file_rejects_missing_non_image_and_oversized_files(tmp_path,
     monkeypatch.setattr("smartdoc.application.cover_search.MAX_COVER_BYTES", 10)
     with pytest.raises(CoverSearchError, match="quá lớn"):
         read_cover_file(str(big))
+
+
+
+def test_disabled_sources_are_never_contacted(monkeypatch):
+    clear_cache()
+    called_urls = []
+
+    def fake_get(url, *a, **k):
+        called_urls.append(url)
+        return _FakeResponse(json_data=_open_library_payload(3))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    search_covers("Anything", limit=3, disabled_sources={"Apple Books", "Google Books"})
+
+    assert any("openlibrary.org" in u for u in called_urls)
+    assert not any("itunes.apple.com" in u or "googleapis.com/books" in u for u in called_urls)
+
+
+def test_disabled_sources_are_also_skipped_by_the_title_only_fallback(monkeypatch):
+    clear_cache()
+    called_urls = []
+
+    def fake_get(url, *a, **k):
+        called_urls.append(url)
+        return _FakeResponse(json_data={"docs": []})
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    # An author makes search_covers widen to title-only on Open Library and Apple Books when it finds little.
+    with pytest.raises(CoverSearchError):
+        search_covers("Anything", "Some Author", limit=3, disabled_sources={"Apple Books", "Google Books", "Open Library"})
+    search_covers("Anything", "Some Author", limit=3, disabled_sources={"Apple Books", "Google Books"})
+
+    assert not any("itunes.apple.com" in u for u in called_urls)
+
+
+def test_disabling_every_source_is_an_explicit_error_not_a_silent_empty_list(monkeypatch):
+    clear_cache()
+    monkeypatch.setattr(requests, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no request expected")))
+    with pytest.raises(CoverSearchError, match="đang tắt"):
+        search_covers("Anything", disabled_sources={"Open Library", "Google Books", "Apple Books"})
+
+
+def test_the_cache_does_not_serve_results_from_a_source_that_was_switched_off(monkeypatch):
+    clear_cache()
+    payload = {"docs": [{"title": "Anything", "author_name": ["A"], "cover_i": 7, "first_publish_year": 2000}]}
+    monkeypatch.setattr(requests, "get", lambda *a, **k: _FakeResponse(json_data=payload))
+    with_ol = search_covers("Anything", limit=3, min_score=0, disabled_sources={"Google Books", "Apple Books"})
+    assert any(r.source == "Open Library" for r in with_ol)
+
+    with pytest.raises(CoverSearchError):
+        search_covers("Anything", limit=3, min_score=0, disabled_sources={"Open Library", "Google Books", "Apple Books"})

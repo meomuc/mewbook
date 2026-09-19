@@ -31,7 +31,7 @@ Không thêm tiêu đề hàng loạt trong lượt này (tránh một commit đ
 - **Tài liệu (`docs/`, README):** chưa quy định (tùy chọn: cùng giấy phép, hoặc CC BY-SA). Chủ dự án quyết định ở S0-11.
 - **`-or-later` và các phụ thuộc:** `mobi` là `GPL-3.0-only` và PyMuPDF chỉ ghi "GNU AFFERO GPL 3.0" không kèm "only/or later". Mã của MewBook vẫn cấp giấy phép `or-later`, nhưng **bản phân phối hợp nhất** (exe có `mobi`) thực tế chỉ dùng được theo phiên bản 3 của GPL/AGPL: người nhận không thể chọn một phiên bản mới hơn cho toàn bộ. Điểm này đã nằm trong câu hỏi luật sư 3b và 4; không cần đổi quyết định O4.
 
-## 3b. Đề xuất `CLAUDE.md` (A6) — chờ duyệt, chưa áp dụng
+## 3b. Quy tắc `CLAUDE.md` (A6) — đã áp dụng 2026-09-19 theo phê duyệt chung của chủ dự án
 
 Thêm vào mục 3 (Code Style & Conventions):
 
@@ -39,14 +39,14 @@ Thêm vào mục 3 (Code Style & Conventions):
 +- Licence: the code is `AGPL-3.0-or-later` (`LICENSE`). Every **new** source file starts with `# SPDX-License-Identifier: AGPL-3.0-or-later` (SQL: `--`), before the module docstring; see `docs/legal/SPDX_POLICY.md`. Don't add a dependency whose licence is incompatible with AGPL-3.0 (see `docs/legal/LICENSE_INVENTORY.md`).
 ```
 
-Câu này thay thế và gộp với dòng hiện có ở mục 4 về giấy phép phụ thuộc; giữ dòng cũ cho tới khi chủ dự án duyệt.
+Dòng cũ ở mục 4 về kiểm tra giấy phép phụ thuộc được giữ nguyên (hai dòng bổ sung nhau).
 
-## 4. Việc còn lại của S0-05 (chưa làm, cần chủ dự án cho phép sửa file đóng gói)
+## 4. Đóng gói (S0-05, đã áp dụng)
 
-Khung đóng gói đang bị "đóng băng" theo quy tắc của đợt dựng thử, nên phần dưới đây **chưa áp dụng**. Diff đề xuất (giữ CRLF):
+Đã làm ngày 2026-09-19 (commit `S0-05: installer shows LICENSE ...`) và kiểm bằng bản dựng thử `build.ps1 -SkipTests`:
 
-- `packaging/MewBook.iss`: `LicenseFile=EULA.txt` → `LicenseFile=..\LICENSE`; sửa chú thích dòng 5–6 (không còn cần `packaging\EULA.txt`).
-- `packaging/build.ps1`: bỏ dòng chú thích và lệnh `uv run ... EULA_TEXT ... EULA.txt` (hai dòng 24–25 và dòng trống sau đó).
-- `packaging/MewBook.spec`: thêm vào `_datas` hai dòng `('../LICENSE', '.')` và `('../THIRD_PARTY_NOTICES.md', '.')` để bản dựng luôn mang giấy phép và thông báo bên thứ ba.
-- Sau đó: `README.md` dòng 201 ("writes `packaging/EULA.txt`") và `CLAUDE.md` dòng 41 ("generated `packaging/EULA.txt`") cần sửa cho khớp; mục `packaging/EULA.txt` trong `.gitignore` có thể giữ.
-- Hộp thoại EULA/Quyền riêng tư trong ứng dụng (`presentation/eula_dialog.py`, dùng lại ở Giới thiệu) **không đổi** trong S0-05: nó vẫn là thông báo quyền riêng tư và chờ S0-06 (hộp thoại Giới thiệu hiển thị AGPL) và S2-06 (bản nháp Privacy/Terms).
+- `packaging/MewBook.iss`: trang giấy phép của trình cài đặt hiển thị `..\LICENSE` (AGPL-3.0-or-later).
+- `packaging/build.ps1`: không còn sinh `packaging/EULA.txt`.
+- `packaging/MewBook.spec`: đóng gói `LICENSE`, `THIRD_PARTY_NOTICES.md` và (S0-06) `*.dist-info` của mọi phụ thuộc, nên giấy phép của chúng đi kèm bản dựng. Bản dựng thử có 32 thư mục `dist-info`; chỉ `loguru` và `sklearn_crfsuite` không có tệp giấy phép (đã ghi ở `LICENSE_INVENTORY.md` mục 5.7).
+- README, CLAUDE.md và CHANGELOG đã sửa cho khớp.
+- Hộp thoại EULA/Quyền riêng tư trong ứng dụng (`presentation/eula_dialog.py`) **không đổi**: nó vẫn là thông báo quyền riêng tư, chờ S2-06 (bản nháp Privacy/Terms). Hộp thoại Giới thiệu đã hiển thị AGPL (S0-06).

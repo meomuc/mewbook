@@ -128,6 +128,9 @@ class AppConfig:
     # ships or proxies a key of its own.
     google_image_api_key: str | None = None
     google_image_search_cx: str | None = None  # the search engine's "cx" id
+    # Cover/metadata sources switched off, by their display names (application/cover_search.SOURCE_*).
+    # Tiki is off by default: an undocumented shop API with no published terms (docs/legal/DATA_SOURCES.md).
+    disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki"])
     # Whether the user has accepted the EULA/Privacy notice shown on first
     # launch (see presentation/eula_dialog.py). False on every fresh
     # install; never reset automatically once True.
@@ -179,7 +182,8 @@ class ConfigManager:
             )
             self._write(config)
             return config
-        raw = json.loads(self.settings_path.read_text(encoding="utf-8"))
+        # utf-8-sig: a settings.json saved by Notepad or PowerShell 5 starts with a BOM.
+        raw = json.loads(self.settings_path.read_text(encoding="utf-8-sig"))
         # Drop keys from an older schema version (e.g. a settings.json
         # written before a field was renamed/removed) instead of letting
         # them reach AppConfig(**defaults) as an unexpected keyword arg.
@@ -187,6 +191,10 @@ class ConfigManager:
         defaults = asdict(AppConfig())
         defaults.update({k: v for k, v in raw.items() if k in known_fields})
         config = AppConfig(**defaults)
+        if not config.db_path:
+            # Without this the library silently lands in the current working directory (AppContext falls
+            # back to a relative "library.db").
+            config.db_path = str(self.app_data_dir / "library.db")
         if config.theme not in THEME_CHOICES:
             config.theme = _LEGACY_THEME_MAP.get(config.theme, "broadsheet")
         if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
