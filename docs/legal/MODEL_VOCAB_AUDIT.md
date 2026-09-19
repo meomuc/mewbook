@@ -50,9 +50,11 @@ Từ vựng chứa **token do tên trang/nhóm phát hành ebook, chân trang v�
 
 Ghi `trained_docs = 9.451`, số sách theo từng thể loại (từ 1 đến 2.310), `trained_at`, độ chính xác giữ lại. Đây là **thống kê tổng hợp** về thành phần thư viện của tác giả (ví dụ số truyện ngắn, tiểu thuyết); 5 trong 47 lớp có ≤ 3 sách. **Rủi ro thấp**, nhưng lộ quy mô và cơ cấu thư viện. Có thể làm tròn hoặc bỏ `per_class` nếu muốn.
 
-### 2.5 Điểm đáng chú ý về `min_df`
+### 2.5 Điểm đáng chú ý về `min_df` (đã sửa ngày 2026-09-19)
 
-Bộ huấn luyện đặt `min_df = 2` (`classification_trainer.py`, `TrainOptions`), nhưng **df đếm theo dòng huấn luyện, không theo cuốn sách**. Mỗi sách có nhãn được dùng **hai lần** (có và không có nhãn nhúng trong file; 9.451 sách sinh ra 14.774 dòng, hệ số 1,56). Các token đến từ tiêu đề, tác giả, hashtag nằm trong cả hai dạng, nên **một token chỉ xuất hiện trong đúng một cuốn sách vẫn đạt df = 2 và lọt vào từ vựng**. Vì vậy `min_df = 2` không đảm bảo "ít nhất hai cuốn sách". Đây là gốc của 323 đặc trưng hiếm ở 2.1.
+> **Đính chính.** Bản đầu của mục này (S0-04) nói df đếm theo *dòng huấn luyện* vì "mỗi sách dùng hai lần (có và không có nhãn nhúng)". Khi đọc mã để làm S0-04b, tôi thấy điều đó **không đúng**: `build_model_svm` đếm df theo *tài liệu* (`df.update(doc.token_ids())`, một tập token cho cả sách gộp cả hai dạng). Con số 14.774 là số **tài liệu** (sách có nhãn 9.451 cộng sách không nhãn dùng làm nền), không phải số dòng.
+
+Điểm yếu thật của `min_df = 2` là **cùng một cuốn sách ở nhiều định dạng** (EPUB và PDF của một tên sách) là hai tài liệu chung một `group_key`, nên một token chỉ thuộc **một** cuốn vẫn đạt df = 2 và lọt vào từ vựng. Ngoài ra tên tác giả, tiêu đề và hashtag riêng đi vào từ vựng chỉ với hai bản sao. Đó là gốc của 323 đặc trưng hiếm ở 2.1. Hướng sửa ở mục 4 vẫn đúng, chỉ cần đếm theo `group_key` chứ không theo dòng.
 
 ## 3. Đánh giá rủi ro tổng thể
 
@@ -102,3 +104,28 @@ Bộ huấn luyện đặt `min_df = 2` (`classification_trainer.py`, `TrainOpti
 | 3 | Có làm tròn/bỏ `per_class` trong meta không? | Làm tròn |
 | 4 | Có muốn chuyển sang mô hình huấn luyện từ bộ mẫu công khai (đề xuất 6) không? | Để sau, không chặn 1.1.0 |
 | 5 | Mô hình cũ nằm trong lịch sử git (commit `ad06b01`). Đổi mô hình chỉ có tác dụng nếu lịch sử được xử lý | Gắn với quyết định lịch sử (`SECRET_SCAN_REPORT.md` mục 4, đề xuất hướng A: kho công khai mới) |
+
+## 7. Kết quả S0-04b: mô hình đi kèm đã được huấn luyện lại (2026-09-19)
+
+Chủ dự án duyệt (2026-09-19): huấn luyện lại với ngưỡng chất lượng (giảm độ chính xác tối đa 1 điểm phần trăm, precision giữ ≥ 85%). Đã làm:
+
+- `classification_trainer.py`: df đếm theo **cuốn sách** (`group_key`), thêm `min_books` và `min_books_private` (mặc định 2 và 0, nên mô hình cá nhân của người dùng không đổi); bản phát hành dùng `RELEASE_MIN_BOOKS = 5` và `RELEASE_MIN_BOOKS_PRIVATE = 10` (token chỉ đến từ tiêu đề/tác giả/thẻ, không có trong nội dung của ít nhất 5 sách, cần 10 sách). `python train.py --release` áp dụng chúng.
+- `classification_stoplist.py`: danh sách loại trừ token chân trang/nguồn phát hành (website, mạng xã hội, email, tên nhóm ebook, Project Gutenberg, bản quyền...). Danh sách được ưu tiên hơn cả từ khóa taxonomy (bốn từ khóa `ebook`, `ebook_song`, `facebook`, `facebook_ads` bị loại).
+- Meta: số sách theo lớp làm tròn **lên** bội số của 10.
+- Test: `tests/test_classification_trainer.py` (bản sao nhiều định dạng đếm một lần, ngưỡng bản phát hành, ngưỡng cho token riêng, danh sách loại trừ, làm tròn meta).
+
+**Đo** trên cùng một tập giữ lại (1.095 sách, không có nhãn nhúng). Hai lần chạy cho kết quả hơi khác nhau vì huấn luyện không hoàn toàn tất định, nên ghi cả hai:
+
+| Mô hình | Đặc trưng | Accuracy | Đúng thư mục | Macro-F1 | Trả lời / precision |
+|---|---|---|---|---|---|
+| Đang đi kèm trước đó (`meta.evaluation`) | 60.000 | 71,2% | | | 56,4% / 85,1% |
+| Cũ, chạy lại lần 1 | 60.000 | 70,9% | 91,1% | 61,8% | 56,5% / 85,1% |
+| Cũ, chạy lại lần 2 | 60.000 | 70,1% | 91,1% | 61,9% | 60,8% / 85,1% |
+| **Bản phát hành, lần 1** | 51.046 | 70,5% | 91,3% | 62,0% | 56,3% / 85,1% |
+| **Bản phát hành, lần 2 (được ghi vào kho)** | 51.046 | **70,3%** | 91,1% | 60,0% | 55,9% / **85,5%** |
+
+Kết luận: so với mô hình cũ đang đi kèm, accuracy giảm 0,9 điểm (71,2% xuống 70,3%), nằm trong ngưỡng 1 điểm, và dao động giữa các lần chạy (0,8 điểm) cùng cỡ với chênh lệch; precision 85,5% đạt ≥ 85%; macro-F1 lần ghi giảm khoảng 2 điểm (nhóm nhỏ). Không có gì cho thấy mô hình mới kém đáng kể.
+
+**Kiểm tra mô hình đã ghi:** 51.046 đặc trưng; **không còn token nào trong danh sách loại trừ**; không có token ngoài taxonomy nào có df dưới 5 sách (425 đặc trưng df thấp đều là từ khóa taxonomy, công khai); `per_class` toàn bội số của 10, nhỏ nhất 10; `trained_docs` 5.755.
+
+**Còn lại (chưa làm):** nội dung sách trong thư viện huấn luyện vẫn có thể đến từ nguồn không rõ giấy phép (câu 11 gửi luật sư): mô hình chỉ chứa thống kê từ, không chứa văn bản. Bộ mẫu công khai/phạm vi công cộng (đề xuất 6) để sau 1.0.

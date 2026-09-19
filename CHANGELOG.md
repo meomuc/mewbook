@@ -145,6 +145,12 @@ New features, so the next release is a MINOR bump (1.1.0).
   artwork to promote the store) start off for everyone; tick them again to use them. Per-source terms: `docs/legal/DATA_SOURCES.md`.
 - **Chính sách DRM** (`docs/legal/DRM_POLICY.md`): DRM is only ever detected to refuse a file, never removed.
 
+- **Bundled classification model retrained without release-site boilerplate or rare names.** A word must now
+  occur in at least 5 distinct books (10 if it only comes from titles, authors or tags), and website,
+  social-media, e-mail and ebook-group boilerplate is excluded. Accuracy on held-out books is unchanged within
+  run-to-run noise (70.3% vs 71.2%, precision 85.5%); the vocabulary shrank from 60,000 to 51,046 words. Your
+  own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
+
 ### Fixed
 - **Startup crash on a `settings.json` saved with a BOM** (Notepad and Windows PowerShell 5 add one),
   and **the library being created in the current folder when `settings.json` had no `db_path`**; it now

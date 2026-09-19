@@ -49,6 +49,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from smartdoc.application.classification_features import FeatureExtractor, FeatureParts
+from smartdoc.application.classification_stoplist import is_stopped
 from smartdoc.domain.taxonomy import Taxonomy, fold
 from smartdoc.domain.text_classifier import (
     DEFAULT_FEATURE_WEIGHTS,
@@ -243,6 +244,10 @@ def seed_counts(taxonomy: Taxonomy, processor: TextProcessor) -> dict[str, dict[
 # -- Model construction --------------------------------------------------------------
 
 
+RELEASE_MIN_BOOKS = 5
+RELEASE_MIN_BOOKS_PRIVATE = 10
+
+
 @dataclass
 class TrainOptions:
     algorithm: str = "auto"
@@ -272,6 +277,20 @@ class TrainOptions:
     synthetic_weight: float = 0.5
     title_label_weight: float = 0.7
     min_df: int = 2
+    min_books: int = 2
+    """(svm) A token becomes a feature only if it occurs in at least this many *distinct books* (copies of one
+    book in other formats count once). Taxonomy keywords are exempt. The model shipped with the app is trained
+    with ``RELEASE_MIN_BOOKS`` so that names and phrases belonging to a handful of books -- which could identify
+    the library it was trained on -- stay out of the vocabulary; a personal model on a small library keeps 2."""
+    min_books_private: int = 0
+    """(svm) A token that is not in the *text* of at least ``min_books`` books, and only reaches that count
+    through titles, authors or the user's own tags, needs this many books instead: one prolific author or a
+    personal hashtag must not be enough. 0 turns the rule off (the release settings use
+    ``RELEASE_MIN_BOOKS_PRIVATE``)."""
+    df_by_group: bool = True
+    """(svm) Count document frequency per book (``group_key``) instead of per file."""
+    use_stoplist: bool = True
+    """(svm) Drop release-site / copyright / contact boilerplate (application/classification_stoplist.py)."""
     holdout_fraction: float = 0.2
     target_precision: float = 0.85
     max_per_class: int = 2000
@@ -388,20 +407,44 @@ def build_model_svm(
     if not labelled:
         raise ValueError("no labelled documents to train on")
 
-    df: Counter[int] = Counter()
+    # Document frequency, counted over distinct books unless told otherwise. A book that exists in two formats
+    # is two TrainingDocs sharing a group_key; counting them twice would let a token that belongs to a single
+    # book pass a "two books" threshold.
+    by_book: dict[str, set[int]] = {}
+    text_by_book: dict[str, set[int]] = {}
     for doc in list(labelled) + list(background):
-        df.update(doc.token_ids())
+        key = (doc.group_key or doc.doc_id) if options.df_by_group else f"{doc.doc_id}#{id(doc)}"
+        by_book.setdefault(key, set()).update(doc.token_ids())
+        text_by_book.setdefault(key, set()).update(doc.body.ids)
+        text_by_book[key].update(doc.hints.ids)
+    df: Counter[int] = Counter()
+    for token_ids in by_book.values():
+        df.update(token_ids)
+    text_df: Counter[int] = Counter()
+    for token_ids in text_by_book.values():
+        text_df.update(token_ids)
     seed_ids = {cid: {interner.intern(t): w for t, w in counts.items()} for cid, counts in seeds.items()}
     seed_token_ids = {i for counts in seed_ids.values() for i in counts}
 
-    n_docs = len(labelled) + len(background)
+    n_docs = len(by_book)
     vocab_size = len(interner.tokens)
     df_array = np.zeros(vocab_size, dtype=np.int64)
     for token_id, count in df.items():
         df_array[token_id] = count
+    text_df_array = np.zeros(vocab_size, dtype=np.int64)
+    for token_id, count in text_df.items():
+        text_df_array[token_id] = count
     seed_mask = np.zeros(vocab_size, dtype=bool)
     seed_mask[list(seed_token_ids)] = True
-    candidates = np.where((df_array >= options.min_df) | seed_mask)[0]
+    allowed = df_array >= options.min_books
+    if options.min_books_private:
+        allowed &= (text_df_array >= options.min_books) | (df_array >= options.min_books_private)
+    # The stoplist wins even over taxonomy keywords: "ebook" or "facebook" as a seed word is drowned out by the
+    # same word as release-site boilerplate in thousands of files, which is what it exists to keep out.
+    stop_mask = np.zeros(vocab_size, dtype=bool)
+    if options.use_stoplist:
+        stop_mask = np.fromiter((is_stopped(t) for t in interner.tokens), dtype=bool, count=vocab_size)
+    candidates = np.where((allowed | seed_mask) & ~stop_mask)[0]
     if len(candidates) > options.max_features:
         # Seed words always stay; the rest are ranked by document frequency.
         rest = candidates[~seed_mask[candidates]]
@@ -533,7 +576,7 @@ def build_model_svm(
                 taxonomy_fingerprint=taxonomy.fingerprint(),
                 tokenizer=tokenizer_name,
                 trained_docs=len(labelled),
-                sources={**dict(sources), "per_class": {categories[ci].id: n for ci, n in per_class_docs.items()}},
+                sources={**dict(sources), "per_class": {categories[ci].id: -(-n // 10) * 10 for ci, n in per_class_docs.items()}},
             ),
             "algorithm": "linear-svm",
         },

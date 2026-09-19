@@ -98,3 +98,87 @@ def test_dataset_folders_map_to_categories(taxonomy, tmp_path):
     jobs, warnings = trainer.collect_dataset_folder(tmp_path, taxonomy)
     assert [job["label"] for job in jobs] == ["cooking"]
     assert any("nonsense-folder" in w for w in warnings)
+
+
+# -- vocabulary hygiene (S0-04b) ----------------------------------------------------------------------------
+
+
+def _vocabulary(taxonomy, docs, interner, **options):
+    result = trainer.train(
+        docs, taxonomy, interner, TextProcessor(segmenter=None), trainer.TrainOptions(algorithm="svm", **options)
+    )
+    return set(result.model.to_dict()["features"])
+
+
+def _extra_book(interner, name, *, body=(), plain=(), copies=1):
+    """One book (in `copies` formats) with the given body / title-author tokens, filed under cooking."""
+    return [
+        trainer.TrainingDoc(
+            doc_id=f"{name}-{n}",
+            body=trainer.Counts.from_dict(interner, {t: 2.0 for t in body}),
+            plain=trainer.Counts.from_dict(interner, {t: 2.0 for t in plain}),
+            label="cooking",
+            group_key=name,
+        )
+        for n in range(copies)
+    ]
+
+
+def test_copies_of_one_book_count_once_for_the_vocabulary(taxonomy):
+    interner = trainer.Interner()
+    docs = make_docs(interner) + _extra_book(interner, "solo", body=["zzsolotoken"], copies=2)
+
+    assert "zzsolotoken" not in _vocabulary(taxonomy, docs, interner, min_books=2)
+    assert "zzsolotoken" in _vocabulary(taxonomy, docs, interner, min_books=2, df_by_group=False)  # the old behaviour
+
+
+def test_release_settings_keep_words_that_only_a_few_books_use_out(taxonomy):
+    interner = trainer.Interner()
+    docs = make_docs(interner)
+    for n in range(3):
+        docs += _extra_book(interner, f"few{n}", body=["zzfewbooks"])
+
+    assert "zzfewbooks" in _vocabulary(taxonomy, docs, interner, min_books=2)
+    assert "zzfewbooks" not in _vocabulary(
+        taxonomy, docs, interner, min_books=trainer.RELEASE_MIN_BOOKS, min_books_private=trainer.RELEASE_MIN_BOOKS_PRIVATE
+    )
+
+
+def test_a_name_that_only_reaches_the_threshold_through_titles_needs_more_books(taxonomy):
+    interner = trainer.Interner()
+    docs = make_docs(interner)
+    for n in range(6):  # six books by one author, whose name never appears in the text
+        docs += _extra_book(interner, f"by{n}", body=["zzcommonword"], plain=["zzauthorname"])
+    for n in range(6):
+        docs += _extra_book(interner, f"tx{n}", body=["zzcommonword", "zzinthetext"])
+
+    release = dict(min_books=5, min_books_private=10)
+    vocabulary = _vocabulary(taxonomy, docs, interner, **release)
+    assert "zzauthorname" not in vocabulary  # 6 books, none of them mention it in the text
+    assert "zzinthetext" in vocabulary  # 6 books, in the text
+    assert "zzauthorname" in _vocabulary(taxonomy, docs, interner, min_books=5)  # rule off
+
+
+def test_boilerplate_is_kept_out_even_when_every_book_has_it(taxonomy):
+    interner = trainer.Interner()
+    docs = make_docs(interner)
+    for doc in docs:
+        doc.body = trainer.Counts.from_dict(interner, {**doc.body.to_dict(interner), "ebook": 3.0, "chia_se": 2.0, "project_gutenberg": 2.0})
+
+    assert not {"ebook", "chia_se", "project_gutenberg"} & _vocabulary(taxonomy, docs, interner)
+    assert {"ebook", "chia_se", "project_gutenberg"} <= _vocabulary(taxonomy, docs, interner, use_stoplist=False)
+
+
+def test_stoplist_matches_compounds_and_leaves_ordinary_words_alone():
+    from smartdoc.application.classification_stoplist import is_stopped
+
+    assert is_stopped("ebook") and is_stopped("ebook_use") and is_stopped("start_project_gutenberg")
+    assert is_stopped("chia_se") and is_stopped("thu_vien")
+    assert not is_stopped("chia") and not is_stopped("recipe") and not is_stopped("van_hoc")
+
+
+def test_per_class_counts_in_the_model_meta_are_rounded_up_to_tens(taxonomy):
+    interner = trainer.Interner()
+    result = trainer.train(make_docs(interner, per_class=13), taxonomy, interner, TextProcessor(segmenter=None), trainer.TrainOptions(algorithm="svm"))
+    counts = result.model.meta["sources"]["per_class"]
+    assert counts and all(n % 10 == 0 and n >= 10 for n in counts.values())

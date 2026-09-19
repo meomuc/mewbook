@@ -63,6 +63,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--max-per-class", type=int, default=2000, help="tối đa số sách dùng cho mỗi thể loại")
     p.add_argument("--self-train", type=int, default=0, metavar="N", help="số vòng tự học từ sách chưa có nhãn")
     p.add_argument("--report", type=Path, default=None, help="file ghi báo cáo (mặc định cạnh file mô hình)")
+    p.add_argument("--release", action="store_true", help="mô hình đi kèm ứng dụng: token phải có trong >= %d sách (>= %d nếu chỉ đến từ tiêu đề/tác giả/thẻ), để từ vựng không chứa tên riêng của thư viện huấn luyện" % (trainer.RELEASE_MIN_BOOKS, trainer.RELEASE_MIN_BOOKS_PRIVATE))
     p.add_argument("--dry-run", action="store_true", help="huấn luyện và báo cáo nhưng không ghi mô hình")
     return p.parse_args(argv)
 
@@ -164,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
         target_precision=args.target_precision, max_per_class=args.max_per_class, self_train_rounds=args.self_train,
         max_words=max_words,
     )
+    if args.release:
+        options.min_books = trainer.RELEASE_MIN_BOOKS
+        options.min_books_private = trainer.RELEASE_MIN_BOOKS_PRIVATE
     result = trainer.train(labelled, taxonomy, interner, processor, options, unlabelled=unlabelled, log=print)
     report = result.to_text(taxonomy)
     print()

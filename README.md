@@ -133,7 +133,8 @@ builds it, and you run it whenever you have collected more labelled books:
 uv run python train.py --dry-run                       # train and report, but save nothing
 uv run python train.py                                 # your library + your tags
 uv run python train.py --dataset D:\Sach\da-phan-loai   # + folders named after categories
-uv run python train.py --output builtin                # replace the model shipped with the app
+uv run python train.py --release --output builtin      # replace the model shipped with the app (higher word-frequency
+                                                       # thresholds, so no names of the training library get in)
 ```
 
 By default it writes `%APPDATA%\SmartDocLibrary\models\classifier_model.json.gz`
