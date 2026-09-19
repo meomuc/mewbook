@@ -14,6 +14,19 @@ def _wait_until(predicate, timeout: float = 5.0) -> bool:
     return predicate()
 
 
+def _write_until(predicate, path: Path, attempts: int = 3, window: float = 3.0) -> bool:
+    """Write `path`, and write it again if nothing was reported within `window` seconds.
+
+    watchdog arms the watch of a folder added at run time on its own thread, so on a starved machine (a
+    2-core CI runner) the file can be created *before* the watch exists, and that event is gone for good.
+    `window` must stay longer than the debounce (1.5 s) or every rewrite would restart the timer."""
+    for attempt in range(attempts):
+        path.write_bytes(b"fake pdf bytes %d" % attempt)
+        if _wait_until(predicate, timeout=window):
+            return True
+    return predicate()
+
+
 def test_watcher_detects_new_supported_file_after_debounce(tmp_path, app_context):
     watch_dir = tmp_path / "library"
     watch_dir.mkdir()
@@ -61,8 +74,8 @@ def test_add_folder_starts_watching_a_new_directory_after_start(tmp_path, app_co
     watcher.start()
     try:
         watcher.add_folder(str(watch_dir))
-        (watch_dir / "late.pdf").write_bytes(b"fake pdf bytes")
-        assert _wait_until(lambda: len(detected) == 1, timeout=4.0)
+        assert _write_until(lambda: len(detected) >= 1, watch_dir / "late.pdf")
+        assert {Path(p).name for p in detected} == {"late.pdf"}
     finally:
         watcher.stop()
 

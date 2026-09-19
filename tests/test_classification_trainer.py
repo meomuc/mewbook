@@ -44,6 +44,8 @@ def make_docs(interner, per_class=40, source="tag"):
 
 @pytest.mark.parametrize("algorithm", ["svm", "centroid"])
 def test_training_learns_separable_categories(taxonomy, algorithm):
+    if algorithm == "svm" and not trainer.sklearn_available():
+        pytest.skip("the SVM trainer needs scikit-learn/numpy (they come with pyvi)")
     interner = trainer.Interner()
     docs = make_docs(interner)
     result = trainer.train(
@@ -104,6 +106,8 @@ def test_dataset_folders_map_to_categories(taxonomy, tmp_path):
 
 
 def _vocabulary(taxonomy, docs, interner, **options):
+    if not trainer.sklearn_available():
+        pytest.skip("the SVM trainer needs scikit-learn/numpy (they come with pyvi)")
     result = trainer.train(
         docs, taxonomy, interner, TextProcessor(segmenter=None), trainer.TrainOptions(algorithm="svm", **options)
     )
@@ -178,6 +182,8 @@ def test_stoplist_matches_compounds_and_leaves_ordinary_words_alone():
 
 
 def test_per_class_counts_in_the_model_meta_are_rounded_up_to_tens(taxonomy):
+    if not trainer.sklearn_available():
+        pytest.skip("the SVM trainer needs scikit-learn/numpy (they come with pyvi)")
     interner = trainer.Interner()
     result = trainer.train(make_docs(interner, per_class=13), taxonomy, interner, TextProcessor(segmenter=None), trainer.TrainOptions(algorithm="svm"))
     counts = result.model.meta["sources"]["per_class"]

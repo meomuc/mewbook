@@ -17,7 +17,7 @@ powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # tests + exe + i
 ```
 - **No linter/formatter is configured** (no ruff/black/mypy). Don't add config or reformat files; match the surrounding style (lines up to ~120 chars).
 - Offscreen Qt has **no fonts installed**: font-dependent assertions need stubbing; use the real platform (unset `QT_QPA_PLATFORM`) to eyeball rendering.
-- Known env issue: `test_classification_trainer[svm]` needs numpy (comes with `pyvi`). Timing-based tests (`test_file_watcher`, `test_import_queue`) can flake under load — rerun alone before suspecting your change.
+- Known env issue: the SVM trainer tests need scikit-learn/numpy (they come with `pyvi`) and skip themselves without. The timing-based tests (`test_file_watcher`, `test_import_queue`) were made robust to a starved CPU (S1-08); if one still fails, rerun it alone before suspecting your change.
 
 ## 3. Code Style & Conventions
 - Every module: `from __future__ import annotations`, a top docstring explaining purpose and design decisions, type hints on signatures. Many modules end with a runnable `if __name__ == "__main__":` demo.
