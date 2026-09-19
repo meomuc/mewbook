@@ -237,99 +237,41 @@ redesign. `dist/` and `build_pyinstaller/` are build output, not committed.
 see AppConfig's docstring on `APP_DIR_NAME` for why the on-disk %APPDATA%
 folder itself keeps its original name across the rename.)
 
-Not done yet: **code signing** (needs a purchased code-signing certificate;
-until then Windows SmartScreen warns on first run of the installer), and the
-auto-updater (TDD-024). Also see `THIRD_PARTY_NOTICES.md` for licensing
-steps that must happen before selling closed-source copies (PyMuPDF is
-AGPL, mobi is GPL).
+Not done yet: **code signing** (needs a code-signing certificate; until then Windows SmartScreen warns on
+first run of the installer) and the auto-updater. Licensing of the bundled components is in
+`THIRD_PARTY_NOTICES.md` (PyMuPDF is AGPL, mobi is GPL); the installer's licence page shows `LICENSE`.
 
 ## Status
 
-**Milestones A–D** are done and verified by `uv run pytest` (175 tests) plus
-an end-to-end smoke test that launches the real `MainWindow`, bulk-scans a
-folder, and proves the live file watcher flows through to the UI.
+MewBook **1.0.0** is feature-complete for its first release; over a thousand tests run with `uv run pytest`,
+plus manual checks of the real window on Windows. What is in each release is in `CHANGELOG.md`; what comes next
+(open-source preparation, operations, device transfer, conversion, i18n) is planned in
+`docs/handoff/04_IMPLEMENTATION_PLAN.md`.
 
-What works: point the app at a folder (File → Thêm thư mục...), it
-watches + bulk-scans, extracts metadata/cover/text from PDF and EPUB,
-indexes into SQLite FTS5, and shows results in a grid with search
-(debounced Omnibar), sort + cover-size slider, pagination, double-click to
-open, a right-click menu (open / reveal in Explorer / edit metadata / bulk
-edit / remove from library), a filter sidebar (hashtag / author / format with live
-counts, an "Đang lọc" bar and quick-filter suggestions), Virtual Collections (saved rule-based filters) in the sidebar, a
-Settings dialog (file types, watch folders, theme, worker threads), a
-Duplicate Finder (exact content-hash matches + fuzzy title/author matches),
-and a Calibre library importer (File → Nhập từ thư viện Calibre...).
+What works: point the app at a folder (File → Thêm thư mục...) and it watches and bulk-scans it, extracts
+metadata, cover and text from PDF and EPUB, indexes into SQLite FTS5 and shows the library as a grid or list with
+debounced search, sorting, a cover-size slider and pagination. Around that: an "Đang lọc" filter bar with facet
+sidebar (hashtag / author / format, live counts) and saved collections, in-app reading of PDF, EPUB and Kindle
+files (through the `mobi` package), a right-click menu (open, reveal in Explorer, edit metadata, bulk edit,
+send to an e-reader folder, remove from library), a duplicate finder, a Calibre library importer, smart
+classification (a bundled model, run in a background process), metadata lookup and cover search (Open Library,
+Google Books, Apple Books, optional Google Images; each source can be switched off), AI summaries with the
+user's own key, anonymous community reviews (`docs/adr/0001-cloud-review-backend.md`), several themes,
+crash logs and a Windows installer.
 
-Content hashing for duplicate detection needed a schema change
-(`content_hash` column); `DatabaseManager.initialize_tables()` now migrates
-an older library.db in place (`ALTER TABLE ... ADD COLUMN`) rather than
-assuming a fresh database, since `CREATE TABLE IF NOT EXISTS` is a no-op
-against an existing table under an old schema.
+Known limitations: metadata and covers of real MOBI/AZW3 files are not parsed yet (the extractor expects a zip
+container and falls back to the file name); collections created in the UI have a single condition (the domain
+layer already supports AND/OR); the list view has no grouping; Calibre tags and ratings are not carried over; the
+installer is **not code-signed** (Windows SmartScreen warns on first run) and there is no auto-updater yet.
 
-Not yet implemented: AZW3/MOBI binary parsing (routed through the EPUB
-extractor today, which only handles zip/OPF containers and will silently
-fall back to filename-as-title for real AZW3/MOBI files), multi-rule
-collection editing (the creation dialog only supports one condition — the
-domain layer supports AND/OR multi-rule collections already, just no UI for
-it yet), grouped list view (TDD-013's "group by year/author" header rows),
-Calibre tag/rating carryover (see calibre_migrator.py's docstring), an
-installed app icon (done) but no signed installer yet, and most of
-Milestone F (AI review, semantic search, personal cloud export).
+Content hashing for duplicate detection needed a schema change (`content_hash` column);
+`DatabaseManager.initialize_tables()` migrates an older `library.db` in place (`ALTER TABLE ... ADD COLUMN`)
+rather than assuming a fresh database. Only ever append columns; see CLAUDE.md.
 
-**Milestone F, Cloud Review System (TDD-016), redesigned twice: Drive →
-Firestore → Supabase.** The original spec (a shared service account writing
-review JSON files to Google Drive) doesn't work at all: verified against
-the real API that Google has removed personal storage quota for service
-accounts, so they cannot create files even inside a folder a real person
-explicitly shared with them as Editor (sharing worked, the service account
-had real Editor permission, and file creation still failed with
-`storageQuotaExceeded`, with or without `supportsAllDrives=True`; Shared
-Drives / domain-wide delegation, Google's own suggested workarounds, both
-need a paid Workspace plan). Pivoted to Firestore, which should have had no
-such wall — but every attempt (hand-rolled REST calls, the official
-`google-cloud-firestore` Admin client library, an Editor-level IAM role, the
-full `cloud-platform` OAuth scope, a Standard-edition Native-mode database
-created specifically for this, several minutes of wait for propagation) hit
-an identical, unexplained `403 Missing or insufficient permissions`,
-pointing at something at the Google Cloud organization/project-policy level
-neither of us could see or fix from the outside.
-
-`application/cloud_reviews.py` now targets **Supabase** instead (a
-`reviews` table via its auto-generated PostgREST API, called with plain
-`requests` — no SDK). This turned out to be a better fit, not just a
-workaround: Supabase's "anon" API key is *designed* to be public and
-embedded in client apps, with access control enforced by Postgres Row
-Level Security policies on the table, not by keeping the key secret. That
-is a sounder security model for this feature than the original spec (a
-single powerful Google credential shipped inside every install, usable for
-far more than posting reviews) — no secret file to protect, no
-`.gitignore` special-casing needed, `AppConfig.supabase_url` /
-`.supabase_anon_key` are plain config values. **Verified working against a
-real Supabase project end to end** (submit → fetch round-tripped real data
-correctly, ordered newest-first). Wired into the UI as
-`presentation/review_dialog.py` (a star-rating + comment form, reachable
-from a document's right-click menu → "Xem / Viết đánh giá"); network calls
-run on a background thread and report back through plain Qt signals, not
-the EventBus.
-
-One-time setup (exact SQL in `cloud_reviews.py`'s module docstring): create
-a Supabase project, create the `reviews` table with `select`/`insert` RLS
-policies open to `anon`, and set `AppConfig.supabase_url` /
-`.supabase_anon_key`. There is deliberately no `delete` policy — the app
-has no delete-review feature, so `SupabaseReviewSync.delete_reviews()` (a
-test/cleanup helper) silently affects zero rows against a table set up
-this way; that's correct RLS behavior, not a bug.
-
-Since 1.0.0 every installation has an anonymous identity
-(`core/user_identity.py`): a random secret token, generated on first run,
-stored encrypted, and deleted by the uninstaller. Reviews are written only
-through the server-side `submit_review` function
-(`src/smartdoc/application/sql/001_reviewer_identity.sql`, which you can copy
-from Settings → "Sao chép SQL nâng cấp"). That function hashes the token
-server-side, so a nickname belongs to the first installation that used it,
-only a review's author can update it, and authorship can't be forged. There
-is still no moderation beyond that and Supabase's own rate limiting:
-reviews stay public and anonymous.
+Community reviews go through a Supabase project you run yourself (Settings → Đánh giá cộng đồng); the app works
+without it. Since 1.0.0 every installation has an anonymous identity (`core/user_identity.py`) and reviews are
+written only through the server-side `submit_review` function (`src/smartdoc/application/sql/001_reviewer_identity.sql`,
+copyable from Settings → "Sao chép SQL nâng cấp"). Reviews stay public and anonymous.
 
 ## License
 

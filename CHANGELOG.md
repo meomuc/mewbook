@@ -198,7 +198,7 @@ New features, so the next release is a MINOR bump (1.1.0).
 
 ## [1.0.0] - 2026-09-19
 
-First commercial release. From this version on, every release gets a
+First release. From this version on, every release gets a
 SemVer number (`src/smartdoc/__init__.py` is the single source of truth)
 and an entry in this file.
 
