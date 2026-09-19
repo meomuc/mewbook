@@ -17,6 +17,7 @@ from smartdoc.application.smart_classifier import AutoClassifyOnImport, SmartCla
 from smartdoc.core.app_context import AppContext
 from smartdoc.core.config import default_app_data_dir
 from smartdoc.core.diagnostics import current_log_path, install_exception_hooks, setup_logging
+from smartdoc.infrastructure.schema_migrations import SchemaError
 from smartdoc.presentation.dialog_size import DialogSizeGuard
 from smartdoc.presentation.eula_dialog import EulaDialog
 from smartdoc.presentation.main_window import MainWindow
@@ -119,7 +120,14 @@ def main() -> None:
         sys.exit(0)
     app._instance_lock = instance_lock  # held (and released on exit) by the app object
 
-    context = AppContext()
+    try:
+        context = AppContext()
+    except SchemaError as exc:
+        # A library written by a newer MewBook, or an upgrade that failed and was rolled back: say so plainly
+        # instead of the generic crash dialog. Nothing has been changed in either case.
+        logger.error("Cannot open the library: %s", exc)
+        QMessageBox.critical(None, APP_DISPLAY_NAME, str(exc))
+        sys.exit(1)
     # The ★ buttons file documents into this built-in collection -- create
     # it up front so it's visible in the sidebar before the first star.
     context.db.ensure_reading_list()

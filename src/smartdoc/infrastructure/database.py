@@ -22,6 +22,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from typing import Any
 
 from smartdoc.domain.author_names import (
@@ -35,6 +36,7 @@ from smartdoc.domain.author_names import (
 )
 from smartdoc.domain.library_filter import AUTHORS, COLLECTIONS, FORMATS, TAGS, LibraryFilter, value_key
 from smartdoc.domain.smart_collections import VirtualCollection
+from smartdoc.infrastructure import schema_migrations
 
 logger = logging.getLogger(__name__)
 
@@ -209,11 +211,20 @@ class DatabaseManager:
         self.connection.create_function("mb_has_author", 2, _mb_has_author, deterministic=True)
         self.connection.create_function("mb_has_tag", 2, _mb_has_tag, deterministic=True)
 
-    def initialize_tables(self) -> None:
+    def initialize_tables(self, before_migrate: Callable[[int, int], None] | None = None) -> None:
+        """Create/upgrade the schema. `before_migrate(from, to)` runs before the first pending versioned
+        migration and only when the database already held data (the automatic backup hooks in here)."""
         with self.write_lock:
+            schema_migrations.check_not_newer(self.connection)  # before anything is touched
+            had_data = bool(self.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone())
             self.connection.executescript(_SCHEMA)
             self.connection.commit()
             self._migrate_add_missing_columns()
+            schema_migrations.migrate(self.connection, before=before_migrate if had_data else None)
+
+    def schema_version(self) -> int:
+        """The versioned-migration level of this database (0 = the 1.0.0 baseline)."""
+        return schema_migrations.get_version(self.connection)
 
     def _migrate_add_missing_columns(self) -> None:
         """`CREATE TABLE IF NOT EXISTS` does nothing for a table that
