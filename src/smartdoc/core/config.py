@@ -132,6 +132,8 @@ class AppConfig:
     # Off by default (docs/legal/DATA_SOURCES.md): Tiki, an undocumented shop API with no published terms, and
     # Apple Books, whose terms only allow its artwork to promote the store. Users can switch either on.
     disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
+    # How many backups of library.db to keep in the "backups" folder next to it (application/backup_service.py).
+    backup_retention: int = 5
     # Whether the user has accepted the EULA/Privacy notice shown on first
     # launch (see presentation/eula_dialog.py). False on every fresh
     # install; never reset automatically once True.

@@ -71,6 +71,7 @@ from smartdoc.application.cover_search import (
 from smartdoc.application.cover_search import test_connection as test_cover_connection
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
+from smartdoc.presentation.backup_panel import BackupPanel
 from smartdoc.presentation.theme import THEMES, current_colors, resolve_font_family
 from smartdoc.presentation.theme_effects import theme_preview_pixmap
 
@@ -163,7 +164,7 @@ class SettingsDialog(QDialog):
     cover_test_finished = Signal(bool, str)  # (success, message)
     supabase_test_finished = Signal(bool, str)  # (success, message)
 
-    def __init__(self, context, parent=None, watcher=None, import_manager=None) -> None:
+    def __init__(self, context, parent=None, watcher=None, import_manager=None, initial_tab: str | None = None) -> None:
         super().__init__(parent)
         self.context = context
         self.watcher = watcher
@@ -183,6 +184,10 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_ai_tab(config), "🤖 AI Tóm tắt")
         tabs.addTab(self._build_cover_search_tab(config), "🖼️ Ảnh bìa")
         tabs.addTab(self._build_cloud_review_tab(config), "☁️ Đánh giá cộng đồng")
+        self.backup_panel = BackupPanel(context, self)
+        tabs.addTab(self.backup_panel, "💾 Sao lưu")
+        if initial_tab == "backup":
+            tabs.setCurrentWidget(self.backup_panel)
 
         self.connection_test_finished.connect(self._on_connection_test_finished)
         self.cover_test_finished.connect(self._on_cover_test_finished)
@@ -853,6 +858,7 @@ class SettingsDialog(QDialog):
         added_folders = set(new_folders) - set(config.watch_folders)
         config.watch_folders = new_folders
 
+        config.backup_retention = self.backup_panel.retention()
         config.ereader_folder_path = self._ereader_folder_path or None
         config.metadata_write_to_file_default = self.metadata_write_check.isChecked()
         config.metadata_backup_keep = self.metadata_backup_spin.value()

@@ -33,7 +33,16 @@ def _destroy_widgets_on_main_thread():
     import gc
 
     from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QApplication
 
+    # Destroy what the test left open explicitly, through Qt, on this thread, *before* the cycle collector
+    # sees it. Leaving a dialog for the collector (Python holds bound methods of it, it holds its children)
+    # ended in a native heap corruption (Windows 0xc0000374 in `Garbage-collecting`) that killed the whole run
+    # and moved around with allocation layout; deleting it here is deterministic and never reproduced it.
+    if QApplication.instance() is not None:
+        for widget in QApplication.topLevelWidgets():
+            widget.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
     gc.collect()
     if QCoreApplication.instance() is not None:
         QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)

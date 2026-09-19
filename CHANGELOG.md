@@ -128,6 +128,13 @@ New features, so the next release is a MINOR bump (1.1.0).
   exactly, and every theme is validated automatically, including WCAG
   contrast and readable text on placeholder covers.
 
+- **Library backups.** MewBook backs up `library.db` (a verified single-file copy, in a `backups` folder next to
+  it) before it upgrades an existing library's schema, and won't upgrade if the backup fails. Settings → **Sao
+  lưu** (also Tools → Sao lưu thư viện...) has **Sao lưu ngay**, the list of backups, **Khôi phục** (asks first,
+  and backs up the current library before replacing it) and how many backups to keep (default 5). A library
+  written by a newer MewBook is refused with a clear message instead of being opened half-understood. Your book
+  files are never touched.
+
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is
@@ -153,8 +160,8 @@ New features, so the next release is a MINOR bump (1.1.0).
 
 ### Fixed
 - **PDF reading is now serialised across import threads** (a lock around every PyMuPDF call), because MuPDF is
-  not thread-safe and several import workers read PDFs at once. A precaution against rare native crashes during
-  bulk imports; it was not proven to be the cause of the one crash seen in the tests.
+  not thread-safe and several import workers read PDFs at once. A precaution for bulk imports (not the cause of
+  the crash seen in the test suite, which was widgets left to Python's garbage collector).
 - **Startup crash on a `settings.json` saved with a BOM** (Notepad and Windows PowerShell 5 add one),
   and **the library being created in the current folder when `settings.json` had no `db_path`**; it now
   falls back to the app data folder like a fresh install.

@@ -343,6 +343,9 @@ class MainWindow(QMainWindow):
         smart_classify_action = QAction("✨ Phân loại thông minh danh sách đang xem...", self)
         smart_classify_action.triggered.connect(lambda: self.smart_bar.ask_and_start(self.library_view.classification_scope()))
         tools_menu.addAction(smart_classify_action)
+        backup_action = QAction("💾 Sao lưu thư viện...", self)
+        backup_action.triggered.connect(lambda: self._on_open_settings(initial_tab="backup"))
+        tools_menu.addAction(backup_action)
         tools_menu.addSeparator()
         settings_action = QAction("⚙️ Cài đặt...", self)
         settings_action.triggered.connect(self._on_open_settings)
@@ -405,8 +408,8 @@ class MainWindow(QMainWindow):
     def _on_open_about(self) -> None:
         AboutDialog(self, identity=self.context.identity).exec()
 
-    def _on_open_settings(self) -> None:
-        dialog = SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager)
+    def _on_open_settings(self, initial_tab: str | None = None) -> None:
+        dialog = SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager, initial_tab=initial_tab)
         dialog.exec()
         if dialog.appearance_changed and self._on_appearance_changed:
             self._on_appearance_changed(self)

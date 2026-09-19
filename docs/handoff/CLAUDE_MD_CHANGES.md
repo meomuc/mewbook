@@ -35,7 +35,7 @@ Thêm vào mục 3, phần Tests:
 
 ### A5 (đã áp dụng cùng S1-02)
 
-Nội dung đã đưa vào mục 4 của `CLAUDE.md`, theo thiết kế thực tế: migration đánh số trong `infrastructure/schema_migrations.py`, mỗi cái một giao dịch, không sửa migration đã phát hành, CSDL mới hơn bản đang chạy bị từ chối, `tests/data/schema_1_0_0.sql` là schema 1.0.0 đóng băng. Câu về sao lưu trước khi migrate sẽ được thêm khi S1-03 (backup) xong.
+Nội dung đã đưa vào mục 4 của `CLAUDE.md`, theo thiết kế thực tế: migration đánh số trong `infrastructure/schema_migrations.py`, mỗi cái một giao dịch, không sửa migration đã phát hành, CSDL mới hơn bản đang chạy bị từ chối, `tests/data/schema_1_0_0.sql` là schema 1.0.0 đóng băng. Câu về sao lưu trước khi migrate đã được thêm khi S1-03 (`application/backup_service.py`) xong.
 
 ## Các thay đổi khác nên cân nhắc (không nằm trong A1–A6)
 

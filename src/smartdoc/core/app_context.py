@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from smartdoc.application.backup_service import BackupService
 from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.core.config import ConfigManager
 from smartdoc.core.event_bus import EventBus
@@ -24,7 +25,9 @@ class AppContext:
         self.config = config or ConfigManager()
         self.event_bus = event_bus or EventBus()
         self.db = db or DatabaseManager(self.config.config.db_path or "library.db")
-        self.db.initialize_tables()
+        # An existing library is backed up before its schema is upgraded (S1-03); a failing backup stops the upgrade.
+        self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_retention)
+        self.db.initialize_tables(before_migrate=None if self.db.db_path == ":memory:" else self.backups.before_migration)
         # What the library is filtered by (search text + sidebar selection) --
         # one owner, one event; see core/filter_service.py.
         self.filters = FilterService(self.event_bus)
