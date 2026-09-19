@@ -166,6 +166,8 @@ New features, so the next release is a MINOR bump (1.1.0).
   own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
 
 ### Fixed
+- **"Sao chép thông tin hỗ trợ" no longer reveals your Windows account name.** The log-file path in it is now shown as
+  `%APPDATA%\SmartDocLibrary\logs\mewbook.log`, so the text is safe to paste into a public issue.
 - **PDF reading is now serialised across import threads** (a lock around every PyMuPDF call), because MuPDF is
   not thread-safe and several import workers read PDFs at once. A precaution for bulk imports (not the cause of
   the crash seen in the test suite, which was widgets left to Python's garbage collector).

@@ -8,11 +8,12 @@
   log, instead of the app silently vanishing.
 - support_info() builds the block of text behind About -> "Sao chép thông
   tin hỗ trợ": version, OS, Python/Qt versions and the anonymous install
-  ID -- never file names, API keys or library contents.
+  ID -- never file names, API keys, library contents or the Windows account name (paths are shown as %APPDATA%...).
 """
 from __future__ import annotations
 
 import logging
+import os
 import platform
 import sys
 import threading
@@ -90,6 +91,20 @@ def install_exception_hooks(show_dialog=None) -> None:
     threading.excepthook = handle_thread
 
 
+def display_path(path: Path) -> str:
+    """A path for text people paste into public issues: the user's profile folder (which holds their Windows
+    account name) is replaced by `%APPDATA%` or `~`."""
+    text = str(path)
+    for variable, label in (("APPDATA", "%APPDATA%"), ("USERPROFILE", "~")):
+        base = os.environ.get(variable)
+        if base and text.lower().startswith(base.lower()):
+            return label + text[len(base):]
+    home = str(Path.home())
+    if text.lower().startswith(home.lower()):
+        return "~" + text[len(home):]
+    return text
+
+
 def support_info(identity=None) -> str:
     try:
         from PySide6 import __version__ as pyside_version
@@ -104,6 +119,6 @@ def support_info(identity=None) -> str:
     if identity is not None:
         lines.append(f"Mã cài đặt ẩn danh: {identity.short_id}")
     if _log_path is not None:
-        lines.append(f"Log: {_log_path}")
+        lines.append(f"Log: {display_path(_log_path)}")
     return "\n".join(lines)
 

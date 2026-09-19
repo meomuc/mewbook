@@ -50,3 +50,16 @@ def test_support_info_has_version_but_no_secrets(app_context):
     assert __version__ in text
     assert app_context.identity.short_id in text
     assert app_context.identity.token not in text
+
+
+def test_paths_in_the_support_info_do_not_reveal_the_windows_account_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Users" / "someone-real" / "AppData" / "Roaming"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "Users" / "someone-real"))
+    log = tmp_path / "Users" / "someone-real" / "AppData" / "Roaming" / "SmartDocLibrary" / "logs" / "mewbook.log"
+    diagnostics._log_path = log
+
+    text = diagnostics.support_info()
+
+    assert "someone-real" not in text
+    assert "Log: %APPDATA%" in text and text.rstrip().endswith("mewbook.log")
+    assert diagnostics.display_path(tmp_path / "Users" / "someone-real" / "Documents" / "x.pdf").startswith("~")
