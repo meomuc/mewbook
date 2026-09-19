@@ -39,6 +39,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_WORDS = 3000
@@ -298,7 +300,7 @@ def _import_pymupdf():
 def _sample_pdf(path: str, max_words: int) -> TextSample:
     sample = TextSample(source="pdf")
     fitz = _import_pymupdf()
-    with fitz.open(path) as doc:
+    with pymupdf_lock, fitz.open(path) as doc:
         meta = doc.metadata or {}
         keywords = (meta.get("keywords") or "").strip()
         subject = (meta.get("subject") or "").strip()

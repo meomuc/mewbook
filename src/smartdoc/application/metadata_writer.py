@@ -37,6 +37,7 @@ from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
 from smartdoc.infrastructure.fingerprint import fingerprint_file
+from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ def _write_pdf_in_place(path: str, fields: dict[str, object]) -> None:
     import pymupdf
 
     try:
-        with pymupdf.open(path) as document:
+        with pymupdf_lock, pymupdf.open(path) as document:
             if document.needs_pass or document.is_encrypted:
                 raise MetadataWriteError("PDF được mã hóa, không thể ghi metadata.")
             if not document.can_save_incrementally():
@@ -255,7 +256,7 @@ def _write_pdf_in_place(path: str, fields: dict[str, object]) -> None:
 def read_pdf_metadata(path: str) -> dict[str, str]:
     import pymupdf
 
-    with pymupdf.open(path) as document:
+    with pymupdf_lock, pymupdf.open(path) as document:
         info = document.metadata or {}
     return {field: info[field].strip() for field in PDF_FIELDS if (info.get(field) or "").strip()}
 
@@ -286,7 +287,7 @@ class MetadataWriter:
             import pymupdf
 
             try:
-                with pymupdf.open(path) as document:
+                with pymupdf_lock, pymupdf.open(path) as document:
                     if document.needs_pass or document.is_encrypted:
                         raise MetadataWriteError("PDF được mã hóa, không thể ghi metadata.")
             except MetadataWriteError:

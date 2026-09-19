@@ -14,6 +14,8 @@ import logging
 import re
 import zipfile
 
+from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
+
 logger = logging.getLogger(__name__)
 
 CHARS_PER_PAGE = 1800
@@ -29,7 +31,7 @@ _TEXT_ENTRIES = (".xhtml", ".html", ".htm")
 def _pdf_pages(path: str) -> int | None:
     import pymupdf
 
-    with pymupdf.open(path) as document:
+    with pymupdf_lock, pymupdf.open(path) as document:
         return document.page_count if not document.needs_pass else None
 
 

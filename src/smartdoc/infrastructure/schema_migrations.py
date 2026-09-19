@@ -74,7 +74,11 @@ def latest_version(migrations: Sequence[Migration] | None = None) -> int:
 
 
 def get_version(connection: sqlite3.Connection) -> int:
-    return int(connection.execute("PRAGMA user_version").fetchone()[0])
+    cursor = connection.execute("PRAGMA user_version")
+    try:
+        return int(cursor.fetchone()[0])
+    finally:
+        cursor.close()
 
 
 def check_not_newer(connection: sqlite3.Connection, migrations: Sequence[Migration] | None = None) -> None:
@@ -107,11 +111,13 @@ def migrate(
     stop the upgrade (S1-03 uses it to take a backup; no backup, no migration)."""
     migrations = _resolve(migrations)
     _validate(migrations)
-    check_not_newer(connection, migrations)
-    todo = pending(connection, migrations)
+    current = get_version(connection)  # read once: it is also what the too-new check and `pending` need
+    if current > latest_version(migrations):
+        raise SchemaTooNewError(current, latest_version(migrations))
+    todo = [m for m in migrations if m.version > current]
     if not todo:
         return []
-    current, target = get_version(connection), todo[-1].version
+    target = todo[-1].version
     if before is not None:
         before(current, target)
     if connection.in_transaction:

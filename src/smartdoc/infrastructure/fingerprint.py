@@ -21,6 +21,7 @@ import logging
 import zipfile
 
 from smartdoc.infrastructure.file_hash import sha256_file
+from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def _pdf_fingerprint(path: str) -> str:
     import pymupdf
 
     digest = hashlib.sha256(b"pdf")
-    with pymupdf.open(path) as document:
+    with pymupdf_lock, pymupdf.open(path) as document:
         digest.update(str(document.page_count).encode())
         for index in range(min(PDF_FINGERPRINT_PAGES, document.page_count)):
             digest.update(document[index].read_contents())

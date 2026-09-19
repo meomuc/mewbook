@@ -6,6 +6,7 @@ import logging
 import fitz  # PyMuPDF
 
 from smartdoc.infrastructure.cover_manager import MAX_WIDTH, CoverCacheManager
+from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class PdfExtractor:
 
     def extract_metadata(self, file_path: str) -> dict:
         try:
-            with fitz.open(file_path) as doc:
+            with pymupdf_lock, fitz.open(file_path) as doc:
                 return self._metadata_from_doc(doc, file_path)
         except Exception:
             logger.exception("Failed to read PDF metadata: %s", file_path)
@@ -33,7 +34,7 @@ class PdfExtractor:
 
     def extract_cover(self, file_path: str, doc_id: str) -> str | None:
         try:
-            with fitz.open(file_path) as doc:
+            with pymupdf_lock, fitz.open(file_path) as doc:
                 return self._cover_from_doc(doc, doc_id)
         except Exception:
             logger.exception("Failed to render PDF cover: %s", file_path)
@@ -41,7 +42,7 @@ class PdfExtractor:
 
     def extract_text(self, file_path: str, max_pages: int = DEFAULT_MAX_PAGES) -> str:
         try:
-            with fitz.open(file_path) as doc:
+            with pymupdf_lock, fitz.open(file_path) as doc:
                 return self._text_from_doc(doc, max_pages)
         except Exception:
             logger.exception("Failed to extract PDF text: %s", file_path)
@@ -56,7 +57,7 @@ class PdfExtractor:
         not a cheap seek) is a big chunk of why bulk imports were slow.
         """
         try:
-            with fitz.open(file_path) as doc:
+            with pymupdf_lock, fitz.open(file_path) as doc:
                 metadata = self._metadata_from_doc(doc, file_path)
                 cover_path = self._cover_from_doc(doc, doc_id)
                 text = self._text_from_doc(doc, max_pages)
