@@ -233,8 +233,11 @@ def main() -> None:
         old_window.deleteLater()
 
     build_and_show_window()
-    # A report an earlier session never got an answer for (the app closed first) is asked about once the window is up.
+    # A report an earlier session never got an answer for (the app closed first) is asked about once the window is up,
+    # and reports the user approved but that could not be sent then (no network, server off) get another try. Both are
+    # cheap when there is nothing to do: a directory listing, and no connection at all.
     QTimer.singleShot(0, error_report_prompt.ask_about_waiting)
+    context.error_uploader.kick()
 
     # Books imported before fingerprints existed get theirs in the background.
     fingerprint_backfill = FingerprintBackfill(context)
@@ -249,6 +252,7 @@ def main() -> None:
     fingerprint_backfill.stop()
     auto_classifier.stop()
     smart_classifier.stop()
+    context.error_uploader.stop()  # ends a send in progress at its next step and keeps the queue (ERR-A15)
     context.shutdown()  # only now: the event loop has drained, nothing queries the database any more
     logger.info("Exiting with code %s", exit_code)
     instance_lock.unlock()

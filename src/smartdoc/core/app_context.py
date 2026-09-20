@@ -11,6 +11,7 @@ from pathlib import Path
 
 from smartdoc.application.backup_service import BackupService
 from smartdoc.application.error_reporter import ErrorReporter
+from smartdoc.application.error_uploader import ErrorUploader
 from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.application.relink_service import RelinkService
 from smartdoc.application.update_checker import UpdateChecker
@@ -48,6 +49,8 @@ class AppContext:
         # Voluntary, anonymous, previewed error reports (S1e). Collects nothing until an error happens, and only in a
         # release build; sending is a separate, opt-in step (application/error_uploader.py).
         self.error_reports = ErrorReporter(self.config, self.event_bus, self.identity, self.db)
+        # Sends what the user approved, on a background thread; makes no connection unless something was approved.
+        self.error_uploader = ErrorUploader(self.config, self.event_bus, self.error_reports)
 
     @classmethod
     def create_in_memory(cls, app_data_dir: Path) -> "AppContext":

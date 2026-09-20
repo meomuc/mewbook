@@ -122,7 +122,9 @@ class PrivacyPanel(QWidget):
         self.sent_header.setText("Mã các báo cáo đã gửi:" if self.sent_list.count() else "Mã các báo cáo đã gửi: chưa có báo cáo nào.")
         self.sent_list.setVisible(self.sent_list.count() > 0)
         waiting = len(reporter.queue.items())
-        self.waiting_label.setText(f"Đang chờ gửi hoặc chờ bạn quyết định: {waiting} báo cáo." if waiting else "Không có báo cáo nào đang chờ.")
+        text = f"Đang chờ gửi hoặc chờ bạn quyết định: {waiting} báo cáo." if waiting else "Không có báo cáo nào đang chờ."
+        status = self.context.error_uploader.status_text() if waiting else ""  # e.g. "Chưa gửi được báo cáo. Ứng dụng sẽ thử lại sau."
+        self.waiting_label.setText(f"{text} {status}".strip())
         self._update_state()
 
     def _update_state(self) -> None:

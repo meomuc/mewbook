@@ -364,3 +364,13 @@ def test_the_report_hook_of_the_app_returns_the_waiting_report(qapp, app_context
     monkeypatch.setattr(app_module, "_error_reporter", reporter)
     assert app_module._report_unhandled_exception(type(exc), exc, exc.__traceback__, "MainThread") == reporter.queue.items()[0].report.report_id
     assert erd.TITLE == "Mèo gặp lỗi bất ngờ"
+
+
+def test_the_tab_says_when_reports_could_not_be_sent(qapp, app_context, reporter):
+    _pending(reporter)
+    app_context.error_uploader.status = "retry"  # what the uploader reports after a failed attempt
+    panel = PrivacyPanel(app_context)
+    assert "Chưa gửi được báo cáo. Ứng dụng sẽ thử lại sau." in panel.waiting_label.text()
+    reporter.queue.clear()
+    panel.refresh()
+    assert "Chưa gửi được" not in panel.waiting_label.text()  # nothing waits, so nothing to worry about

@@ -160,8 +160,11 @@ New features, so the next release is a MINOR bump (1.1.0).
   **Báo lỗi…** sends a report you write yourself, with an optional scrubbed tail of the log, always after a preview.
   The same bug is asked about once a day and at most 10 reports go out a day; a crash of the classification worker
   is reported like any other error; a build run from source, or made from uncommitted changes, reports nothing.
-  Sending needs the project's report server, which is not configured yet: an approved report waits in
-  `%APPDATA%\SmartDocLibrary\reports` until it is.
+  An approved report is sent in the background to the project's report server (5-second time-out, three attempts
+  per launch, never holding up the window or closing MewBook, only over https, and only while the project's
+  `error_reports_enabled` switch is on). Until the server's address is set in the build, or while the server is off
+  or unreachable, an approved report waits in `%APPDATA%\SmartDocLibrary\reports`, Settings says so ("Chưa gửi được
+  báo cáo. Ứng dụng sẽ thử lại sau."), and no second error is shown.
 
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
