@@ -35,11 +35,12 @@ Dùng file này **cho mỗi lần phát hành**. Sao chép mục "Bản ghi phá
 - [ ] **[G]** S0 hoàn tất: `LICENSE` (AGPL-3.0), `pyproject.toml` khai báo giấy phép, `THIRD_PARTY_NOTICES.md` đã viết lại (không còn mục "Before selling closed-source copies").
 - [ ] **[G][H]** Báo cáo quét bí mật (`docs/legal/SECRET_SCAN_REPORT.md`) đã được chủ dự án xử lý: **khóa lộ đã thu hồi**, quyết định về lịch sử git đã có.
 - [ ] **[G][H]** Luật sư đã xác nhận giấy phép và thông báo (hoặc chủ dự án chấp nhận rủi ro bằng văn bản ghi trong bản ghi phát hành).
-- [ ] **[G]** Hộp thoại EULA/Quyền riêng tư và trang "Điều khoản pháp lý" đã viết lại thành thông báo AGPL + quyền riêng tư; **không còn hạn chế trái AGPL**.
+- [ ] **[G]** Hộp thoại EULA/Quyền riêng tư và trang "Điều khoản pháp lý" đã viết lại thành thông báo AGPL + quyền riêng tư; **không còn hạn chế trái AGPL**. Bản nháp `docs/legal/PRIVACY.md` và `TERMS.md` (hiển thị ở Giới thiệu, đi kèm bản dựng; `build.ps1` và CI kiểm) đã được luật sư duyệt hoặc chủ dự án chấp nhận rủi ro bằng văn bản, đã điền mọi chỗ `[CHỜ …]` và **đã xóa khung "BẢN NHÁP"**; số "Phiên bản văn bản" trong `PRIVACY.md` bằng `CONSENT_VERSION`.
 - [ ] **[G]** `packaging/build.ps1` không còn sinh `EULA.txt` theo kiểu thương mại (hoặc đã thay bằng văn bản giấy phép).
 - [ ] **[G][H]** Nguồn gốc và giấy phép tranh/logo đã xác nhận (`LICENSE-ART.md`, `PROVENANCE.md`); ảnh đóng gói không còn ô caro giả.
 - [ ] **[G]** `TRADEMARK.md` và `PARTNERS.md` có mặt.
 - [ ] **[G]** Báo lỗi (`09`): ERR-A1, A2, A3, A4, A7, A14 đạt; mặc định là "Hỏi mỗi lần"; văn bản riêng tư đã nêu dữ liệu báo lỗi và việc xử lý bằng công cụ AI; migration máy chủ đã chạy; **không có khóa `triage_*` hay khóa quản trị trong gói phát hành**.
+- [ ] **[G][H]** Máy chủ báo lỗi và đánh giá dựng xong trên dự án Supabase thật theo `docs/ERROR_OPS_RUNBOOK.md` mục 1 và `docs/MODERATION_RUNBOOK.md` mục 1 (các truy vấn kiểm tra đạt); thử tấn công E-09 (`ERROR_OPS_RUNBOOK.md` mục 2) đạt, nhất là ERR-A7 và ERR-A13; `APP_ERROR_REPORT_URL`, `APP_ERROR_REPORT_ANON_KEY` (khóa **công khai**) và `APP_PRIVACY_CONTACT` đã điền; đã có lịch sao lưu (gói Free không có sao lưu tự động).
 - [ ] **[G][H]** `docs/legal/DATA_SOURCES.md` đã xác minh; **điều khoản Tiki** đã rõ (hoặc nguồn này tắt mặc định/gỡ).
 
 ### 2b. Mỗi lần phát hành
@@ -56,6 +57,7 @@ Dùng file này **cho mỗi lần phát hành**. Sao chép mục "Bản ghi phá
 - [ ] **[CC]** Sao lưu tự động trước migration hoạt động (khi S1-03 đã có); khôi phục thử từ bản sao lưu thành công.
 - [ ] **[CC]** Nếu có SQL Supabase mới: file là `00N_*.sql` **mới** (không sửa `001_*.sql`); **tương thích ngược với bản đã phát hành** (client cũ vẫn đọc/ghi được); Cài đặt → "Sao chép SQL nâng cấp" trỏ đúng file. Nếu bắt buộc phá vỡ tương thích → đổi loại phát hành thành MAJOR (mục 1).
 - [ ] **[H]** Nếu có SQL Supabase mới: đã chạy trên dự án Supabase thật **trước** khi phát hành, và đã thử bằng bản 1.0.0 cũ.
+- [ ] **[CC]** Nếu có SQL Supabase mới: `tests/test_server_sql.py` đã chạy (cần `uv pip install pgserver psycopg2-binary`; nếu không cài, test tự bỏ qua, nên ghi rõ vào bản ghi phát hành rằng SQL **chưa** được thử trên PostgreSQL thật).
 - [ ] **[CC]** Ghi rõ mọi bước máy chủ trong `CHANGELOG.md` mục **Security** hoặc **Changed**.
 
 ## 4. Changelog, phiên bản, tài liệu
@@ -72,7 +74,7 @@ Dùng file này **cho mỗi lần phát hành**. Sao chép mục "Bản ghi phá
 - [ ] **[CC]** Quét bí mật **cây làm việc và lịch sử từ tag phát hành trước** (khóa API, khóa Supabase, `service_account*.json`, `credentials.json`, `token.json`, `.env`, `*.pem`, `*.key`, `identity.dat`, `*.db`, đường dẫn cá nhân). Báo cáo **che giá trị**. Có phát hiện → **dừng**, báo chủ dự án.
 - [ ] **[CC]** Xác nhận `.gitignore` không bị yếu đi; `*.db`, `settings.json`, khóa mã hóa không nằm trong gói phát hành.
 - [ ] **[CC]** Xác nhận khóa nhà cung cấp AI và khóa ảnh bìa vẫn **mã hóa khi lưu** (không có khóa cứng trong mã nguồn hoặc test).
-- [ ] **[CC]** Xác nhận khóa Supabase trong mã là khóa `anon` (công khai theo thiết kế), không phải khóa quản trị.
+- [ ] **[CC]** Xác nhận khóa Supabase trong mã là khóa **công khai** (`anon` hoặc `sb_publishable_…`), không phải `service_role`/`sb_secret_…`, và không có biến `TRIAGE_*` hay token `triage_*` nào trong kho, test hay bản dựng (`tools/` không nằm trong bản dựng; `build.ps1` và CI kiểm).
 - [ ] **[H]** Không có khóa quản trị Supabase, chứng chỉ ký mã hoặc mật khẩu nào trong thư mục dựng.
 
 ## 6. Kiểm thử tự động
@@ -162,7 +164,7 @@ Dựng từ **bản clone sạch** của tag/commit phát hành, **ngoài thư m
 
 ## 12. Sau phát hành
 
-- [ ] **[H]** Theo dõi báo lỗi trong 48–72 giờ đầu; đọc `%APPDATA%/SmartDocLibrary/logs/mewbook.log` do người dùng gửi (nhắc họ che thông tin cá nhân).
+- [ ] **[H]** Theo dõi báo lỗi trong 48–72 giờ đầu: nhóm lỗi trên máy chủ và bản tóm tắt của tác tử (`docs/ERROR_OPS_RUNBOOK.md` mục 3); đọc `%APPDATA%/SmartDocLibrary/logs/mewbook.log` do người dùng gửi (nhắc họ che thông tin cá nhân). Đặt `fixed_in_version` cho lỗi đã sửa.
 - [ ] **[H]** Theo dõi hạn mức và tình trạng dịch vụ Supabase; sẵn sàng dùng công tắc từ xa (S2) nếu dịch vụ review có sự cố.
 - [ ] **[CC]** Nếu phát hiện lỗi nghiêm trọng → phát hành **bản vá** theo mục 13.
 - [ ] **[CC]** Mở lại mục `## [Unreleased]` cho bản kế tiếp; cập nhật `docs/releases/X.Y.Z.md` với kết quả thực tế.

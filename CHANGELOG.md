@@ -179,16 +179,33 @@ New features, so the next release is a MINOR bump (1.1.0).
   dụng" without breaking the dialog. MewBook 1.0.0 keeps reading and writing reviews against the upgraded server (it
   only stops seeing hidden ones). `003_error_reports.sql` adds the server for the anonymous error reports above (one
   door that accepts nothing but a well-formed report, limits that switch receiving off by themselves, and two narrow
-  roles for the daily triage agent). Both scripts were run against a real PostgreSQL in the tests
+  roles for the daily triage agent). Both tables also stop taking new rows once they pass a size in megabytes
+  (`reviews_max_mb`, `error_max_mb`, 150 by default; a full-size error report is about 24 KiB, so a row count alone
+  would let a flood outgrow the free plan). Both scripts were run against a real PostgreSQL in the tests
   (`tests/test_server_sql.py`, optional: needs `pgserver` and `psycopg2-binary`).
+
+- **Privacy policy and terms of service (drafts).** `docs/legal/PRIVACY.md` and `docs/legal/TERMS.md` describe exactly what
+  each network feature sends (the review server, the anonymous error reports and the AI tool that helps read them,
+  the cover and metadata sources, the optional update check), how long it is kept (90 days for error reports), who can
+  read it and how to have it deleted (by report id). They are marked as drafts a lawyer must review, are shown in
+  Help → About (**Chính sách riêng tư**, **Điều khoản**) and are bundled with the app. The operating runbooks are
+  `docs/MODERATION_RUNBOOK.md` (hiding and blocking reviews, backups, plan limits) and `docs/ERROR_OPS_RUNBOOK.md`
+  (server set-up, attack checks, the daily triage agent).
 
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is
   no warranty, links to the source of the running version (once the public repository is set in
-  `APP_SOURCE_URL_TEMPLATE`), and its legal page has three tabs: **Quyền riêng tư**,
-  **AGPL-3.0-or-later** (the full text) and **Bên thứ ba** (third-party notices). The copyright
+  `APP_SOURCE_URL_TEMPLATE`), and its legal page has five tabs: **Tóm tắt**, **Chính sách riêng tư**,
+  **Điều khoản**, **AGPL-3.0-or-later** (the full text) and **Bên thứ ba** (third-party notices). The copyright
   line no longer says "Bảo lưu mọi quyền".
+- **The first-launch notice says what is really sent.** It is now a short summary ("Giấy phép và quyền riêng tư"): the
+  AGPL licence and no warranty, that book files never leave your computer, and one line for every feature that
+  contacts a server (cover and metadata sources, AI summary, community reviews, error reports with their 90-day
+  retention and AI-assisted analysis, the update check). The 1.0.0 text said titles and authors were synced to the
+  cloud, which is not what the review server receives (a hash of the file path, a nickname, a rating, a comment and
+  the anonymous id) and never mentioned that id. The button now reads **Tôi đã đọc, tiếp tục**; nobody who already
+  accepted is asked again.
 - **Installer and exe carry the licence.** The installer's licence page shows `LICENSE` instead
   of a generated EULA; `LICENSE`, `THIRD_PARTY_NOTICES.md` and every dependency's licence files
   (`*.dist-info`) are bundled with the app.

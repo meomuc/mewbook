@@ -14,7 +14,7 @@ Danh sách này gộp 9 câu chuẩn ở `docs/handoff/05_LEGAL_OPEN_SOURCE_CHEC
 
 6. **Thông báo bản quyền hiện tại** (`APP_COPYRIGHT = "© 2026 Anhtiensinh. Bảo lưu mọi quyền."`) mâu thuẫn với AGPL: cách viết đúng để giữ quyền tác giả mà không tuyên bố "bảo lưu mọi quyền".
 7. **Mã QR ngân hàng cá nhân trong kho mã công khai:** mã ủng hộ hiển thị tên và số tài khoản cá nhân của chủ dự án và nằm trong lịch sử git công khai. Có rủi ro pháp lý hay riêng tư nào cần cân nhắc (ví dụ lộ thông tin cá nhân, nghĩa vụ thuế với tiền ủng hộ)?
-8. **Văn bản EULA/Quyền riêng tư hiện có** thiếu mô tả về định danh ẩn danh (băm token) và nickname gửi lên máy chủ đánh giá. Nội dung tối thiểu của thông báo riêng tư cần gì?
+8. **Văn bản EULA/Quyền riêng tư hiện có** thiếu mô tả về định danh ẩn danh (băm token) và nickname gửi lên máy chủ đánh giá. Nội dung tối thiểu của thông báo riêng tư cần gì? *(Đã viết lại ngày 2026-09-20 và bổ sung `PRIVACY.md`, `TERMS.md`; các điểm còn cần ý kiến ở mục G.)*
 9. **Lịch sử git:** công việc 1.0.0 vừa được commit (commit `ad06b01`) và có `library`-derived model phân loại. Nếu chủ dự án muốn công khai, nên viết lại lịch sử hay tạo kho mới sạch? (Chủ dự án quyết định; Claude Code không tự làm.)
 10. **Nguồn gốc ảnh linh vật và logo** (nghi do công cụ tạo ảnh AI tạo ra): điều khoản công cụ, khả năng bảo hộ bản quyền, và có nên đăng ký nhãn hiệu (O11, O12).
 
@@ -41,3 +41,17 @@ Danh sách này gộp 9 câu chuẩn ở `docs/handoff/05_LEGAL_OPEN_SOURCE_CHEC
 ## F. Từ chính sách DRM (S0-09)
 
 12. **Chính sách "không hỗ trợ DRM" và rủi ro pháp lý khi công khai.** `DRM_POLICY.md` chỉ cho phép *phát hiện để từ chối*, không gỡ hay vượt DRM, và không nhúng, đóng gói hay liên kết tới công cụ gỡ DRM. Câu hỏi: (a) chính sách này có đủ để tránh trách nhiệm theo luật Việt Nam và theo các quy định chống vượt biện pháp bảo vệ kỹ thuật (ví dụ DMCA §1201 khi kho mã nằm trên nền tảng của Mỹ) không; (b) việc gọi `ebook-convert` của Calibre như tiến trình riêng, không cài plugin nào, có thể bị coi là hỗ trợ vượt DRM khi người dùng tự cài plugin bên ngoài không; (c) chép nguyên trạng một file có DRM lên thiết bị của chính người dùng có vấn đề gì không.
+
+## G. Từ báo lỗi, dịch vụ đánh giá và văn bản riêng tư (S1e, S2; 2026-09-20)
+
+Áp dụng cho `docs/legal/PRIVACY.md`, `docs/legal/TERMS.md`, thông báo lần chạy đầu (`presentation/eula_dialog.py`) và `docs/handoff/09_ERROR_REPORTING_SPEC.md` mục 9. Ba văn bản đó là **bản nháp** chờ ý kiến bên dưới.
+
+1. **Thông báo lần chạy đầu có được chặn việc chạy chương trình không?** Ứng dụng thoát nếu người dùng không bấm "Tôi đã đọc, tiếp tục" ở lần chạy đầu (giữ hành vi của 1.0.0). AGPL-3.0 nói quyền chạy chương trình không kèm điều kiện và cấm thêm hạn chế; một thông báo chỉ để đọc có xung đột không, hay nên đổi thành thông báo không chặn (đóng cửa sổ vẫn dùng được)?
+2. **Cơ sở pháp lý và hình thức đồng ý cho báo lỗi.** Mặc định "Hỏi mỗi lần", có xem trước nguyên văn, chế độ "Luôn gửi ẩn danh" do người dùng chọn, `CONSENT_VERSION` để hỏi lại khi nội dung đổi. Đã đủ để coi là đồng ý có thông tin theo luật áp dụng? Nội dung tối thiểu của `PRIVACY.md` đã đủ chưa (mục đích, thời gian lưu, nơi lưu, quyền, liên hệ, bên nhận dữ liệu)?
+3. **Mã ẩn danh có phải dữ liệu cá nhân?** Đánh giá công khai kèm bản băm SHA-256 của mã bí mật (mã ẩn danh) và mã tài liệu (MD5 của đường dẫn tệp), cộng biệt danh và nhận xét tự do; báo lỗi kèm mã máy báo lỗi (băm có muối). Nghĩa vụ theo luật bảo vệ dữ liệu cá nhân của Việt Nam (thông báo, đánh giá tác động, đầu mối) và của nơi người dùng sống (ví dụ người dùng ở EU): có phát sinh không? Chủ dự án là cá nhân, dự án miễn phí: có ngưỡng miễn trừ nào không?
+4. **Lưu dữ liệu ở nước ngoài.** Máy chủ là Supabase (khu vực chọn khi tạo dự án; nhà cung cấp hạ tầng bên dưới có thể ghi nhật ký IP). Điều kiện chuyển dữ liệu ra ngoài Việt Nam; cần thỏa thuận xử lý dữ liệu (DPA) với Supabase không?
+5. **Quyền xóa và gỡ.** (a) Xóa báo lỗi theo mã báo cáo (mã ngẫu nhiên do người dùng giữ). (b) Xóa đánh giá: vì mã ẩn danh công khai, sổ tay (`MODERATION_RUNBOOK.md` mục 5) xác minh chủ bài bằng cách nhờ họ **sửa bài trong ứng dụng để thêm một mã thử thách**; đủ chưa? (c) Thời hạn phản hồi. (d) Bản sao lưu còn dữ liệu đã xóa cho tới khi xoay vòng: chấp nhận được không, cần ghi thế nào? Ứng dụng chưa có nút "xóa bài của tôi" (`docs/handoff/DISCREPANCIES.md` mục 21).
+6. **Xử lý báo lỗi bằng dịch vụ AI của bên thứ ba.** Chủ dự án chạy tác tử Claude Code (Anthropic) mỗi ngày; dữ liệu tới đó chỉ là phần đã lọc (loại lỗi, khung ngăn xếp, khu vực, phiên bản, bộ đếm) cộng mã nguồn công khai. `PRIVACY.md` mục 7 nêu điều này. Có cần đồng ý riêng, thỏa thuận riêng, hay điều khoản của Anthropic về dữ liệu API đã đủ? Rủi ro dữ liệu cá nhân lọt qua bộ che và được gửi đi.
+7. **Thời gian lưu.** Mẫu chi tiết 90 ngày; bản tổng hợp theo lỗi (loại lỗi, số lần, số máy, phiên bản; không truy về cá nhân) giữ lâu dài; sao lưu ngắn hạn. Hợp lý không?
+8. **Điều khoản dịch vụ đánh giá (`TERMS.md`).** Giấy phép nội dung người dùng (phạm vi, thời hạn, không xung đột AGPL); trách nhiệm với nội dung người dùng và quy trình thông báo và gỡ; giới hạn trách nhiệm; luật áp dụng và nơi giải quyết tranh chấp; người dùng chưa đủ tuổi.
+9. **Sự cố lộ dữ liệu.** Nghĩa vụ và thời hạn thông báo (cơ quan, người dùng), nghĩa vụ ghi nhận việc xử lý.

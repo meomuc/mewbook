@@ -23,6 +23,9 @@ uv run smartdoc          # run the app
 uv run pytest -q         # all tests (Qt runs offscreen; the suite takes about a minute and a half)
 ```
 
+Optional: `tests/test_server_sql.py` (the Supabase SQL on a real PostgreSQL) skips itself unless you run
+`uv pip install pgserver psycopg2-binary`; change `src/smartdoc/application/sql/` only with those tests run.
+
 The project is Python 3.12, PySide6, SQLite FTS5 and PyMuPDF. `CLAUDE.md` describes the architecture and the conventions in
 detail (it is written for an AI coding assistant but is the best short description of how the code is organised); the
 essentials:

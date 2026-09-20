@@ -104,11 +104,12 @@ Khớp `THIRD_PARTY_NOTICES.md`. Việc tương thích GPLv3–AGPLv3 vẫn cầ
 - **Cập nhật:** 9 ảnh mèo nằm ở `Sample theme/cat/` (`logo.png` 5,26 MB; `cat AI`, `cat read 2`, `cat research` có tên chứa dấu cách; còn lại `cat_coffee`, `cat_dev`, `cat_read`, `cat_retire`, `cat_sad`). Chưa vào repo (`Sample theme/` được `.gitignore` cho tới khi xác nhận O12). Tên file lệch với `08` (`cat_AI.png` ↔ `cat AI.png`): BR-02 sẽ chuẩn hóa tên.
 - `resources.donate_qr_path()` trỏ `assets/donate_qr.png`. **Cập nhật:** theo yêu cầu của chủ dự án, ảnh mã QR ngân hàng (Techcombank, có tên chủ tài khoản và số tài khoản trong ảnh, phần đầu ảnh bị cắt) đã được đặt tại đó (220 KB); `MewBook.spec` đóng gói nếu file tồn tại. **Cập nhật sau S0-02:** theo chỉ đạo của chủ dự án, file đã bỏ theo dõi và bị `.gitignore` (chỉ có trên máy chủ dự án cho bản chính thức), bản trong commit `80f3439` vẫn nằm trong lịch sử. Đây là thông tin cá nhân: đã đưa vào `docs/legal/LAWYER_QUESTIONS.md` câu 7.
 
-### 16. EULA/Quyền riêng tư — ⚠️
+### 16. EULA/Quyền riêng tư — ✅ (đã viết lại 2026-09-20)
 - 4 mục: (1) người dùng chịu trách nhiệm bản quyền tài liệu, (2) dữ liệu gửi lên cloud, (3) khóa API AI lưu cục bộ, (4) donate tự nguyện. **Không** có điều khoản cấm dịch ngược, cấm phân phối hay giới hạn sử dụng: không cần "loại hạn chế".
 - Lệch: `smartdoc/__init__.py` có `APP_COPYRIGHT = "© 2026 Anhtiensinh. Bảo lưu mọi quyền."` ("All rights reserved") mâu thuẫn với AGPL. `APP_PUBLISHER = "Anhtiensinh"`. Hiển thị ở đâu cần S0-06 xác định.
 - Mục 2 liệt kê "tên sách, tác giả, điểm, nội dung review" nhưng thực tế còn gửi `user_hash` (băm token ẩn danh) và nickname (`001_reviewer_identity.sql`). Cần bổ sung khi viết lại (S0-05, S2-06).
 - Cơ chế chặn: `app.py:155` thoát nếu chưa `eula_accepted`; `AppConfig.eula_accepted` (`core/config.py:134`).
+- **Đã xử lý 2026-09-20 (S0-05 "sửa thêm", E-06, S2-06):** `EULA_TEXT` viết lại thành thông báo tóm tắt giấy phép AGPL và quyền riêng tư, nêu đúng dữ liệu của từng tính năng (kể cả mã ẩn danh, báo lỗi, xử lý bằng AI); toàn văn ở `docs/legal/PRIVACY.md` và `TERMS.md` (bản nháp chờ luật sư) hiện ở Giới thiệu. Cờ `eula_accepted` giữ nguyên. `APP_COPYRIGHT` đã sửa ở S0-06. **Còn lại:** hỏi luật sư có được chặn chạy lần đầu không (mục 22).
 
 ### 17. Donate — ⚠️
 - `presentation/status_bar_panel.py`: `_DonateTicker` cuộn chữ 42 ký tự với timer 220 ms **luôn chạy**; không có trường cấu hình để tắt (đã tìm trong `core/config.py` và `settings_dialog.py`).
@@ -182,3 +183,15 @@ Báo cáo đầy đủ: `docs/legal/MODEL_VOCAB_AUDIT.md`. Tóm tắt:
 - Thử trực tiếp (`DatabaseManager(":memory:")`, 8 luồng cùng gọi một câu đọc 3.000 lần): trên mã cũ, 7/8 luồng nhận **kết quả sai** (`None` cho hàng có thật, `IndexError`) hoặc `sqlite3.InterfaceError: bad parameter or other API misuse`. Sáu luồng chạy **các câu đọc khác nhau** cùng lúc cũng lỗi (3/6 luồng), nên không chỉ là "cùng một câu SQL".
 - **Đã sửa (phạm vi hẹp):** `find_id_by_path` (thêm ở S1-04, gọi từ mọi luồng nhập) nay giữ `write_lock`; test hồi quy `test_find_id_by_path_gives_the_right_answer_when_import_workers_call_it_at_once` thất bại trên mã cũ. Đây là nguyên nhân khiến `test_add_document_dialog.py::test_concurrent_unrelated_batch_does_not_get_this_dialogs_tags` hỏng khoảng một lần trong tám lần chạy (đã đo trên commit `f8d14d8`; sau sửa: 0/30).
 - **Chưa sửa:** các đường đọc khác, ví dụ `get_document` trong luồng nhập, hay các truy vấn của giao diện chạy song song với luồng nền. Sửa chung là quyết định thiết kế: (a) một kết nối cho mỗi luồng (WAL cho phép nhiều người đọc cùng lúc), (b) khóa mọi truy cập bằng một `RLock` (nhưng `backup_service` giữ `write_lock` suốt lần sao lưu, nên giao diện sẽ bị treo trong lúc sao lưu), (c) một khóa đọc ngắn tách khỏi `write_lock`. Đề xuất (a), làm thành một task riêng có đo hiệu năng và kiểm tra thứ tự tắt máy (`context.shutdown()` đóng kết nối).
+
+## Bổ sung: phát hiện khi viết văn bản riêng tư và sổ tay (2026-09-20)
+
+### 21. Không có cách xóa bài đánh giá của chính mình trong ứng dụng — ⚠️
+- `submit_review` cho sửa bài của mình (theo mã bí mật) nhưng không có thao tác xóa; `cloud_reviews.delete_reviews` chỉ là hàm dọn dẹp cho test và không có quyền xóa với khóa công khai. Quyền xóa của người dùng chỉ thực hiện được qua chủ dự án chạy SQL (`docs/MODERATION_RUNBOOK.md` mục 4.7 và 5). Vì mã ẩn danh là **công khai**, sổ tay xác minh chủ bài bằng cách nhờ họ sửa bài để thêm một mã thử thách.
+- **Quyết định của chủ dự án:** có thêm hàm máy chủ `delete_review(p_token, p_review_id)` (chỉ chủ bài xóa được) và nút "Xóa bài của tôi" (một migration `004_*.sql` và một thay đổi giao diện) hay giữ quy trình thủ công. Đề xuất: thêm, vì đó là quyền xóa dễ thực hiện nhất và giảm việc thủ công.
+
+### 22. Hộp thoại lần chạy đầu chặn việc chạy chương trình — ⚠️
+- `app.py` thoát nếu người dùng không bấm nút xác nhận ở lần chạy đầu. AGPL-3.0 cấm thêm hạn chế lên quyền chạy chương trình; thông báo chỉ để đọc thì có thể khác. Không đổi hành vi ở lượt này (đã giữ cờ và cách chặn của 1.0.0, nhưng đổi nút thành "Tôi đã đọc, tiếp tục" cho đúng bản chất là xác nhận đã đọc). Câu hỏi luật sư G1. Nếu luật sư khuyên bỏ chặn: đóng cửa sổ vẫn vào ứng dụng nhưng không đặt `eula_accepted` (sẽ hỏi lại mỗi lần) hoặc đặt cờ khi đóng.
+
+### 23. Hạn mức dung lượng: giới hạn theo dòng không đủ — ✅ (đã sửa)
+- Một báo lỗi đầy đủ dài khoảng 24 KiB nên trần 50.000 dòng vẫn vượt 500 MB của gói Free; bài đánh giá tạo dồn bằng nhiều mã ẩn danh giả cũng có thể đầy dần dù đã có giới hạn theo giờ. Đã thêm trần theo **MB trên đĩa** cho cả hai bảng (`error_max_mb`, `reviews_max_mb`, mặc định 150) và test trên PostgreSQL thật. Máy chủ vẫn chịu được một kẻ tấn công kiên trì ở mức: không quá `max_reviews_global_per_hour` bài mỗi giờ, và đầy thì dừng nhận; chủ dự án theo dõi hằng tháng (`MODERATION_RUNBOOK.md` mục 7).

@@ -15,7 +15,9 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Tiki (`tiki.vn/api/v2/products`) | ảnh bìa sách tiếng Việt | không | **Chưa rõ** (API nội bộ, không có điều khoản công bố) | **Tắt** |
 | Google Custom Search JSON API | ảnh bìa từ toàn web | khóa + cx của người dùng | Được phép cho khách hàng **hiện có**; **đã đóng với khách hàng mới** | Tắt (cần khóa) |
 | Nhà cung cấp AI (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, OpenRouter, Ollama) | tóm tắt sách | khóa của người dùng | Theo điều khoản từng nhà cung cấp; **nội dung sách rời khỏi máy** | Tắt (cần khóa) |
-| Supabase (dịch vụ đánh giá) | đánh giá cộng đồng | khóa anon (công khai theo thiết kế) | Do chủ dự án vận hành; xem S2 | Tắt (cần cấu hình) |
+| Supabase (dịch vụ đánh giá) | đánh giá cộng đồng | khóa công khai (publishable/anon) | Do chủ dự án vận hành (`MODERATION_RUNBOOK.md`); văn bản riêng tư/điều khoản là **bản nháp chờ luật sư** | Tắt (cần cấu hình) |
+| Supabase (máy chủ nhận báo lỗi ẩn danh) | báo lỗi tự nguyện | khóa công khai; chỉ gọi được một hàm | Do chủ dự án vận hành (`ERROR_OPS_RUNBOOK.md`); bản nháp chờ luật sư | **Hỏi mỗi lần**; chưa điền `APP_ERROR_REPORT_URL` thì không gửi |
+| Anthropic (Claude Code; tác tử phân loại của chủ dự án) | đọc báo lỗi đã lọc | khóa của chủ dự án, trên máy của chủ dự án | Theo điều khoản của Anthropic; **không chạy trên máy người dùng** | Tắt (chủ dự án tự chạy, mức L0) |
 | Nguồn thông tin bản phát hành (kiểm tra cập nhật) | báo có bản mới | không | Trang phát hành của chính dự án; chỉ đọc số phiên bản | **Tắt** (người dùng bật; cần `APP_UPDATE_FEED_URL`) |
 
 ## 2. Chi tiết từng nguồn
@@ -77,8 +79,9 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 ### 2.8 Supabase (đánh giá cộng đồng)
 
 - **Điểm cuối:** dự án Supabase do chủ dự án tạo (URL do người dùng nhập ở Cài đặt).
-- **Dữ liệu gửi đi:** mã tài liệu (`doc_id`), biệt danh, điểm, nhận xét, và mã định danh ẩn danh (băm ở máy chủ). Tệp sách không được gửi. Đặc tả: `docs/handoff/09_ERROR_REPORTING_SPEC.md` và S2.
-- **Việc cần làm:** bản nháp Privacy/Terms (S2-06); phần này không thuộc S0-08.
+- **Dữ liệu gửi đi:** mã tài liệu (`doc_id`: MD5 của đường dẫn tệp lúc nhập sách, không chứa tên sách hay tác giả), biệt danh, điểm, nhận xét, và **mã bí mật** của bản cài đặt (máy chủ chỉ lưu bản băm SHA-256 của nó, gọi là mã ẩn danh, đọc được công khai). Tệp sách không được gửi. Biệt danh, điểm, nhận xét và mã ẩn danh **hiển thị công khai**.
+- **Kiểm duyệt và giới hạn (S2):** `002_review_moderation.sql` (báo cáo bài, ẩn tự động, chặn mã ẩn danh, giới hạn theo giờ/ngày/dung lượng, bảng công tắc `service_flags`); sổ tay `docs/MODERATION_RUNBOOK.md`; sao lưu bằng `supabase db dump` (gói Free không có sao lưu tự động).
+- **Văn bản:** `docs/legal/PRIVACY.md` và `docs/legal/TERMS.md`, **bản nháp chờ luật sư** (`LAWYER_QUESTIONS.md` mục G).
 
 ### 2.9 Kiểm tra bản mới (tùy chọn, S1-05)
 
@@ -87,6 +90,22 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 - **Gửi gì:** một yêu cầu GET với `User-Agent: MewBook/<phiên bản>`. **Không** gửi mã cài đặt ẩn danh, thông tin thư viện hay cookie (có test kiểm tra). Máy chủ thấy địa chỉ IP và số phiên bản.
 - **Làm gì với kết quả:** chỉ báo "Có bản mới X" và mở trang phát hành (chỉ liên kết `https://`) khi người dùng bấm. Không tải, không cài.
 
+### 2.10 Máy chủ nhận báo lỗi ẩn danh (Supabase, E-05 và E-07)
+
+- **Điểm cuối:** `APP_ERROR_REPORT_URL` trong `smartdoc/__init__.py` (**đang để trống** cho tới khi chủ dự án chạy `003_error_reports.sql` và điền; khi trống, một báo cáo đã được đồng ý chỉ nằm chờ trong `%APPDATA%\SmartDocLibrary\reports`). Bản tự dựng để trống có thể dùng địa chỉ và khóa Supabase người dùng nhập ở Cài đặt → Đánh giá cộng đồng. Mã: `application/error_uploader.py`, `application/service_flags.py`.
+- **Khóa:** khóa **công khai** (`sb_publishable_…` hoặc `anon` cũ), gửi trong header `apikey`; nó chỉ cho gọi hàm `submit_error_report` và đọc bảng công tắc. Không bao giờ dùng khóa bí mật hay `service_role` trong ứng dụng (`RELEASE_CHECKLIST.md` mục 5).
+- **Khi nào:** chỉ sau khi người dùng đồng ý (chế độ mặc định "Hỏi mỗi lần", xem trước nguyên văn); trong luồng nền, tối đa 5 giây mỗi lần, ba lần thử mỗi lần khởi động; chỉ khi công tắc `error_reports_enabled` đang bật (đọc `service_flags`, lưu 10 phút); chỉ bản phát hành dựng từ commit sạch.
+- **Gửi gì:** đã che ở máy người dùng; danh sách đầy đủ ở `docs/handoff/09_ERROR_REPORTING_SPEC.md` mục 3 và `PRIVACY.md` mục 6.2. Không có tên/đường dẫn sách, tựa, tác giả, tên người dùng Windows, email, khóa. Địa chỉ IP **không** được lưu trong bảng (nhà cung cấp hạ tầng có thể có nhật ký riêng).
+- **Lưu và giới hạn:** mẫu chi tiết 90 ngày (`error_retention_days`), tối đa 5 mẫu mỗi lỗi mỗi ngày; hạn mức theo máy mỗi ngày, toàn dịch vụ mỗi giờ, số dòng và dung lượng, vượt thì tự tắt nhận. Xóa theo mã báo cáo: `ERROR_OPS_RUNBOOK.md` mục 4.6.
+- **Điều khoản:** của Supabase với chủ dự án (gói Free: 500 MB, không sao lưu tự động, tạm dừng sau 1 tuần không hoạt động; đọc 2026-09-20). Việc cần làm: điền URL và khóa, luật sư xem `PRIVACY.md` (lưu ở nước ngoài, khu vực đặt máy chủ).
+
+### 2.11 Tác tử phân loại hằng ngày (E-10, do chủ dự án chạy; không chạy trên máy người dùng)
+
+- **Điểm cuối:** Claude Code của Anthropic (`api.anthropic.com`) chạy trên **máy của chủ dự án**, bằng khóa Anthropic riêng của chủ dự án (`TRIAGE_ANTHROPIC_API_KEY`). Mã: `tools/triage/` (nằm ngoài gói ứng dụng, không đóng gói).
+- **Dữ liệu tới Anthropic:** chỉ **đầu vào hẹp đã lọc**: loại lỗi, khung ngăn xếp (đường dẫn tương đối trong mã, hàm, dòng), khu vực tính năng, loại tiến trình, phiên bản/mã bản dựng, bộ đếm và thời gian; cộng mã nguồn MewBook của đúng bản lỗi (mã công khai). **Không** có `user_note`, `log_tail`, báo cáo thủ công, hay thông điệp lỗi (`message_scrubbed`).
+- **Điều khoản:** theo điều khoản thương mại/API của Anthropic (chủ dự án là bên ký). Cần công khai việc này trong `PRIVACY.md` mục 7 (đã có) và hỏi luật sư (`LAWYER_QUESTIONS.md` G6).
+- **Quyền:** tác tử chạy khóa quyền (`--restricted`, chỉ đọc mã và ghi một tệp tóm tắt, không mạng, không lệnh), trong tài khoản Windows ít quyền; mức L0 chỉ báo cáo. Chi tiết: `ERROR_OPS_RUNBOOK.md` mục 6.
+
 ## 3. Dữ liệu nào rời khỏi máy, theo nguồn
 
 | Nguồn | Gửi đi |
@@ -94,7 +113,9 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Open Library, Google Books, Apple Books, Tiki | Tên sách và tác giả (đã làm sạch), ISBN nếu có; địa chỉ IP của người dùng (như mọi lời gọi HTTP) |
 | Google Custom Search | Tên sách, tác giả, khóa API và cx của người dùng |
 | Nhà cung cấp AI | Nội dung yêu cầu người dùng đã duyệt (có thể chứa trích đoạn sách), khóa API |
-| Supabase | Mã tài liệu, biệt danh, điểm, nhận xét, mã ẩn danh |
+| Supabase (đánh giá) | Mã tài liệu (băm của đường dẫn), biệt danh, điểm, nhận xét, mã bí mật (máy chủ chỉ lưu bản băm); hiển thị công khai |
+| Supabase (báo lỗi, chỉ khi người dùng đồng ý) | Báo cáo đã che: loại lỗi, khung ngăn xếp, phiên bản, hệ điều hành, mã máy báo lỗi (băm); ghi chú/nhật ký chỉ khi báo thủ công |
+| Anthropic (tác tử của chủ dự án, không phải từ máy người dùng) | Chỉ phần báo lỗi đã lọc: loại lỗi, khung ngăn xếp, khu vực, phiên bản, bộ đếm |
 | Kiểm tra bản mới (nếu bật) | Chỉ địa chỉ IP và số phiên bản MewBook |
 
 Không nguồn nào nhận tệp sách nguyên vẹn.
@@ -107,3 +128,5 @@ Còn lại:
 
 1. Cung cấp email/URL liên hệ cho `User-Agent` (Open Library yêu cầu).
 2. Thêm dòng ghi công Open Library vào hộp thoại Giới thiệu.
+3. Điền `APP_ERROR_REPORT_URL`, `APP_ERROR_REPORT_ANON_KEY` (khóa công khai), `APP_PRIVACY_CONTACT` khi máy chủ báo lỗi đã dựng (`docs/handoff/OWNER_ACTIONS.md`).
+4. Luật sư duyệt `PRIVACY.md` và `TERMS.md` (mục G của `LAWYER_QUESTIONS.md`), rồi bỏ khung "BẢN NHÁP".

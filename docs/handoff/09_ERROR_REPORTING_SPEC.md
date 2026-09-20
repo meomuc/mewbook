@@ -238,26 +238,28 @@ Lưu ý: câu "**không** chứa tên sách, đường dẫn…" là **cam kết
 
 ## 12. Nhiệm vụ (chặng S1e, bổ sung cho `04`)
 
+> **Trạng thái 2026-09-20:** [x] = xong về kỹ thuật. Chưa đánh dấu: các bước **[H]** (E-07 chạy SQL, E-09, E-12, E-13) do chủ dự án làm, xem `docs/handoff/OWNER_ACTIONS.md`.
+
 **Ứng dụng (A)**
-- [ ] **E-01 [R]** Đọc `core/diagnostics.py`, hộp thoại lỗi hiện có, cách bắt lỗi của tiến trình phân loại; ghi hiện trạng.
-- [ ] **E-02** `error_scrubber` (domain, thuần) + bộ test tiếng Việt.
-- [ ] **E-03** Hàng đợi cục bộ, fingerprint, `build_id` (phối hợp S1-10 để `build.ps1` ghi `build_id`).
-- [ ] **E-04** Hộp thoại lỗi + xem trước + Cài đặt "Quyền riêng tư và báo lỗi" + "Báo lỗi…".
-- [ ] **E-05** Uploader nền (backoff, giới hạn, cờ từ xa, không chặn thoát); test với máy chủ giả.
-- [ ] **E-06** Cập nhật `PRIVACY`/thông báo lần đầu và Giới thiệu (S0-05/S2-06); `CHANGELOG.md`.
+- [x] **E-01 [R]** Đọc `core/diagnostics.py`, hộp thoại lỗi hiện có, cách bắt lỗi của tiến trình phân loại; ghi hiện trạng.
+- [x] **E-02** `error_scrubber` (domain, thuần) + bộ test tiếng Việt.
+- [x] **E-03** Hàng đợi cục bộ, fingerprint, `build_id` (phối hợp S1-10 để `build.ps1` ghi `build_id`).
+- [x] **E-04** Hộp thoại lỗi + xem trước + Cài đặt "Quyền riêng tư và báo lỗi" + "Báo lỗi…".
+- [x] **E-05** Uploader nền (backoff, giới hạn, cờ từ xa, không chặn thoát); test với máy chủ giả.
+- [x] **E-06** Cập nhật `PRIVACY`/thông báo lần đầu và Giới thiệu (S0-05/S2-06); `CHANGELOG.md`.
 
 **Máy chủ (B)**
-- [ ] **E-07 [H]** Viết migration mới, chủ dự án chạy trên Supabase; tạo vai trò `triage_reader`/`triage_writer`, khóa cất ngoài repo.
-- [ ] **E-08** `docs/ERROR_OPS_RUNBOOK.md`.
-- [ ] **E-09 [H]** Thử tấn công cơ bản: gọi trực tiếp bằng `anon`, payload lớn, spam.
+- [ ] **E-07 [H]** Viết migration mới, chủ dự án chạy trên Supabase; tạo vai trò `triage_reader`/`triage_writer`, khóa cất ngoài repo. *(SQL `002`/`003` viết và thử trên PostgreSQL thật; chủ dự án chạy trên Supabase và tạo token: `docs/ERROR_OPS_RUNBOOK.md` mục 1 và 6.2.)*
+- [x] **E-08** `docs/ERROR_OPS_RUNBOOK.md`.
+- [ ] **E-09 [H]** Thử tấn công cơ bản: gọi trực tiếp bằng `anon`, payload lớn, spam. *(Hướng dẫn từng bước: `ERROR_OPS_RUNBOOK.md` mục 2.)*
 
 **Tác tử (C-L0)**
-- [ ] **E-10** `tools/triage/` (`fetch_groups`, `build_agent_input`, `run_daily`, phanh, `STOP`), prompt cố định.
-- [ ] **E-11** Bộ test injection và kiểm schema; chạy khô (dry-run) với dữ liệu giả.
-- [ ] **E-12 [H]** Tạo tài khoản/máy chạy riêng; cấu hình Task Scheduler; chạy thử vài ngày ở chế độ chỉ đọc.
-- [ ] **E-13 [H]** Duyệt bản tóm tắt đầu tiên; quyết định O19–O24.
+- [x] **E-10** `tools/triage/` (`fetch_groups`, `build_agent_input`, `run_daily`, phanh, `STOP`), prompt cố định.
+- [x] **E-11** Bộ test injection và kiểm schema; chạy khô (dry-run) với dữ liệu giả.
+- [ ] **E-12 [H]** Tạo tài khoản/máy chạy riêng; cấu hình Task Scheduler; chạy thử vài ngày ở chế độ chỉ đọc. *(`ERROR_OPS_RUNBOOK.md` mục 6.)*
+- [ ] **E-13 [H]** Duyệt bản tóm tắt đầu tiên; quyết định O19–O24. *(`ERROR_OPS_RUNBOOK.md` mục 6.5.)*
 
-**Cổng phát hành:** thêm vào `RELEASE_CHECKLIST.md` mục 2a: ERR-A1, A2, A3, A4, A7, A14 đạt; văn bản riêng tư đã cập nhật và được luật sư duyệt; migration đã chạy; khóa `triage_*` không có trong gói.
+**Cổng phát hành:** thêm vào `RELEASE_CHECKLIST.md` mục 2a: ERR-A1, A2, A3, A4, A7, A14 đạt; văn bản riêng tư đã cập nhật và được luật sư duyệt; migration đã chạy; khóa `triage_*` không có trong gói. *(Đã thêm vào `RELEASE_CHECKLIST.md` mục 2a, 3 và 5.)*
 
 **Sau phát hành (L1/L2):** E-14 L1 (issue, trạng thái), E-15 L2 (nhánh vá cục bộ) sau 2–4 tuần vận hành ổn định.
 

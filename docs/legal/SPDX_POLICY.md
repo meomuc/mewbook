@@ -49,4 +49,4 @@ Dòng cũ ở mục 4 về kiểm tra giấy phép phụ thuộc được giữ 
 - `packaging/build.ps1`: không còn sinh `packaging/EULA.txt`.
 - `packaging/MewBook.spec`: đóng gói `LICENSE`, `THIRD_PARTY_NOTICES.md` và (S0-06) `*.dist-info` của mọi phụ thuộc, nên giấy phép của chúng đi kèm bản dựng. Bản dựng thử có 32 thư mục `dist-info`; chỉ `loguru` và `sklearn_crfsuite` không có tệp giấy phép (đã ghi ở `LICENSE_INVENTORY.md` mục 5.7).
 - README, CLAUDE.md và CHANGELOG đã sửa cho khớp.
-- Hộp thoại EULA/Quyền riêng tư trong ứng dụng (`presentation/eula_dialog.py`) **không đổi**: nó vẫn là thông báo quyền riêng tư, chờ S2-06 (bản nháp Privacy/Terms). Hộp thoại Giới thiệu đã hiển thị AGPL (S0-06).
+- Hộp thoại EULA/Quyền riêng tư trong ứng dụng (`presentation/eula_dialog.py`) **đã viết lại ngày 2026-09-20** (S0-05 "sửa thêm", E-06): thành thông báo tóm tắt giấy phép AGPL và quyền riêng tư, khớp với `docs/legal/PRIVACY.md` và `TERMS.md` (bản nháp chờ luật sư). Hộp thoại Giới thiệu hiển thị AGPL (S0-06) và hai bản nháp đó.

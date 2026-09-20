@@ -11,7 +11,7 @@
 
 ## S0 — Chuẩn bị mở mã nguồn an toàn
 
-> **Trạng thái 2026-09-19:** S0-01 đến S0-12 và S1-01 đến S1-10 đã làm xong về kỹ thuật (đánh dấu [x]); phần còn chờ chủ dự án và luật sư nằm ở `docs/legal/LEGAL_STATUS.md`. Còn chưa làm: S1e (báo lỗi), S2, S3, S4, S5.
+> **Trạng thái 2026-09-19:** S0-01 đến S0-12 và S1-01 đến S1-10 đã làm xong về kỹ thuật (đánh dấu [x]); phần còn chờ chủ dự án và luật sư nằm ở `docs/legal/LEGAL_STATUS.md`. S1e (báo lỗi) và S2 xong về kỹ thuật ngày 2026-09-20 (xem bên dưới). Còn chưa làm: S3, S4, S5.
 
 Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật hay dữ liệu cá nhân. **Chưa công khai gì khi chưa xong S0 và chưa có chữ ký duyệt của chủ dự án.**
 
@@ -50,13 +50,15 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 
 ## S2 — An toàn dịch vụ review
 
-- [ ] **S2-01 [R]** Xác minh chính sách RLS hiện tại và hành vi `submit_review`/`review_stats` (giả định #2); tài liệu hóa hiện trạng.
-- [ ] **S2-02 [H]** Viết `002_*.sql` theo `02` mục 8 (không sửa `001_*.sql`), tương thích client 1.0.0; test kịch bản với client giả. Chủ dự án chạy SQL trên Supabase.
-- [ ] **S2-03** Client: nút Báo cáo, đọc cờ cấu hình (timeout, cache), ánh xạ mã lỗi thành thông báo tiếng Việt, suy giảm êm.
-- [ ] **S2-04** Mở rộng "Sao chép SQL nâng cấp" trong Cài đặt cho `002_*.sql`.
-- [ ] **S2-05 [H]** `docs/MODERATION_RUNBOOK.md` (thao tác kiểm duyệt bằng SQL, không có khóa trong repo), thủ tục sao lưu định kỳ dữ liệu review, kiểm tra hạn mức gói.
-- [ ] **S2-06 [H]** Bản nháp `PRIVACY` và `TERMS` (`docs/legal/`), đánh dấu **cần luật sư duyệt**; liên kết trong ứng dụng.
-- [ ] **S2-07** Test: tự ẩn khi đủ báo cáo; hạn mức; kill-switch; máy chủ không truy cập được không làm hỏng ứng dụng; client 1.0.0 vẫn đọc/ghi được.
+> **Trạng thái 2026-09-20:** S2-01 đến S2-07 xong về kỹ thuật (đánh dấu [x]). Còn chờ con người: chạy `002` trên Supabase và bật sao lưu (S2-02, S2-05), luật sư duyệt `PRIVACY`/`TERMS` (S2-06). Sổ tay: `docs/MODERATION_RUNBOOK.md`; danh sách việc của chủ dự án: `docs/handoff/OWNER_ACTIONS.md`.
+
+- [x] **S2-01 [R]** Xác minh chính sách RLS hiện tại và hành vi `submit_review`/`review_stats` (giả định #2); tài liệu hóa hiện trạng.
+- [x] **S2-02 [H]** Viết `002_*.sql` theo `02` mục 8 (không sửa `001_*.sql`), tương thích client 1.0.0; test kịch bản với client giả. Chủ dự án chạy SQL trên Supabase.
+- [x] **S2-03** Client: nút Báo cáo, đọc cờ cấu hình (timeout, cache), ánh xạ mã lỗi thành thông báo tiếng Việt, suy giảm êm.
+- [x] **S2-04** Mở rộng "Sao chép SQL nâng cấp" trong Cài đặt cho `002_*.sql`.
+- [x] **S2-05 [H]** `docs/MODERATION_RUNBOOK.md` (thao tác kiểm duyệt bằng SQL, không có khóa trong repo), thủ tục sao lưu định kỳ dữ liệu review, kiểm tra hạn mức gói.
+- [x] **S2-06 [H]** Bản nháp `PRIVACY` và `TERMS` (`docs/legal/`), đánh dấu **cần luật sư duyệt**; liên kết trong ứng dụng.
+- [x] **S2-07** Test: tự ẩn khi đủ báo cáo; hạn mức; kill-switch; máy chủ không truy cập được không làm hỏng ứng dụng; client 1.0.0 vẫn đọc/ghi được.
 
 **Thoát S2:** kiểm duyệt được nội dung xấu trong vài phút theo sổ tay; bản 1.0.0 vẫn hoạt động với máy chủ mới; điều khoản/riêng tư đã được duyệt hoặc chủ dự án chấp nhận bản nháp.
 
@@ -146,14 +148,14 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 4. Sau đó: S5, S6, macOS/Linux.
 
 ### Bổ sung sau lần rà soát sâu (cập nhật lần 2b)
-- [ ] **S0-05 (sửa thêm):** ngoài `LICENSE`/`EULA.txt`, ứng dụng **đã có hộp thoại EULA/Quyền riêng tư chặn ở lần chạy đầu** (`presentation/eula_dialog.py`, `AppConfig.eula_accepted`) và trang "Điều khoản pháp lý" trong Giới thiệu. Viết lại thành thông báo giấy phép AGPL + quyền riêng tư (giữ phần danh tính ẩn danh, nhà cung cấp AI, nguồn ảnh bìa); loại mọi hạn chế trái AGPL; luật sư duyệt. Giữ cờ cấu hình cũ để người dùng đã "đồng ý" không bị hỏi lại vô lý.
+- [x] **S0-05 (sửa thêm):** ngoài `LICENSE`/`EULA.txt`, ứng dụng **đã có hộp thoại EULA/Quyền riêng tư chặn ở lần chạy đầu** (`presentation/eula_dialog.py`, `AppConfig.eula_accepted`) và trang "Điều khoản pháp lý" trong Giới thiệu. Viết lại thành thông báo giấy phép AGPL + quyền riêng tư (giữ phần danh tính ẩn danh, nhà cung cấp AI, nguồn ảnh bìa); loại mọi hạn chế trái AGPL; luật sư duyệt. Giữ cờ cấu hình cũ để người dùng đã "đồng ý" không bị hỏi lại vô lý. *(2026-09-20: viết lại xong, có test; bản nháp `PRIVACY.md`/`TERMS.md` chờ luật sư; còn hỏi luật sư có được chặn chạy lần đầu không, `LAWYER_QUESTIONS.md` G1.)*
 - [ ] **S0-06 (sửa thêm):** thống nhất dòng ghi tác giả ở thanh trạng thái với thông báo bản quyền trong Giới thiệu.
 - [ ] **BR-00 [R]:** đọc đường ống thương hiệu hiện có trước khi làm BR-02 (`08` mục 12).
 - [ ] **S3d (bổ sung):** FR-SYN-19, gửi nhanh danh sách "★ Sẽ đọc" và chỉ báo ở thanh bên (`07` mục 3, SYN-A16).
 - [x] **S1-10 (mới):** đặt `docs/RELEASE_CHECKLIST.md` vào repo và dùng nó cho mọi lần phát hành; làm `packaging/build.ps1` phù hợp với mục 7 và 10 của danh sách (bỏ EULA thương mại, thêm bước ký tùy chọn theo biến môi trường, tạo gói mã nguồn và `SHA256SUMS.txt`). Việc tag, push và đăng bản phát hành thuộc chủ dự án.
 
 ### S1e — Báo lỗi và ghi nhận lỗi (gói trong 1.1.0; chi tiết `09` mục 12)
-- [ ] **E-01 đến E-06:** ứng dụng (đọc hiện trạng, bộ che dữ liệu, hàng đợi, hộp thoại và cài đặt, uploader, cập nhật văn bản riêng tư).
-- [ ] **E-07 đến E-09:** máy chủ (migration mới, vai trò `triage_*`, sổ tay vận hành, thử tấn công) — các bước **[H]** do chủ dự án làm.
-- [ ] **E-10 đến E-13:** tác tử `tools/triage/` ở mức **L0** (chỉ báo cáo), bộ test chống prompt injection, chạy thử vài ngày trước khi tin cậy.
+- [x] **E-01 đến E-06:** ứng dụng (đọc hiện trạng, bộ che dữ liệu, hàng đợi, hộp thoại và cài đặt, uploader, cập nhật văn bản riêng tư). *(Xong 2026-09-20.)*
+- [ ] **E-07 đến E-09:** máy chủ (migration mới, vai trò `triage_*`, sổ tay vận hành, thử tấn công) — các bước **[H]** do chủ dự án làm. *(2026-09-20: E-07 SQL và E-08 sổ tay `docs/ERROR_OPS_RUNBOOK.md` xong, SQL đã thử trên PostgreSQL thật; còn [H]: chạy SQL trên Supabase, tạo token, thử tấn công E-09 trên dự án thật.)*
+- [ ] **E-10 đến E-13:** tác tử `tools/triage/` ở mức **L0** (chỉ báo cáo), bộ test chống prompt injection, chạy thử vài ngày trước khi tin cậy. *(2026-09-20: E-10 và E-11 xong, 148 test, chưa chạy với `claude` thật; còn [H]: E-12 dựng máy/tài khoản riêng và lịch chạy, E-13 duyệt tóm tắt và quyết định O19–O24.)*
 - [ ] **E-14, E-15 (sau phát hành):** L1 (ghi nhận issue) và L2 (nhánh vá cục bộ) sau 2–4 tuần ổn định. **L3 (tự merge/phát hành) bị cấm.**

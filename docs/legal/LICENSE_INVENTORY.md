@@ -52,6 +52,9 @@ Giấy phép trong bảng này ghi theo hiểu biết chung, **chưa** đối ch
 | pytest ≥ 8 | MIT | Chỉ phát triển |
 | hatchling | MIT | Chỉ build wheel |
 | uv | Apache-2.0 hoặc MIT | Công cụ, không phân phối |
+| pgserver 0.1.4 | Apache-2.0 (văn bản `LICENSE` trong gói) | **Tùy chọn**: chỉ để chạy `tests/test_server_sql.py` (PostgreSQL nhúng). Không nằm trong `pyproject.toml`, không đóng gói, không phải phụ thuộc của dự án; cài bằng `uv pip install` khi cần |
+| psycopg2-binary 2.9.13 | LGPL kèm ngoại lệ (metadata: "LGPL with exceptions") | Như trên: chỉ để chạy test SQL, không đóng gói |
+| Claude Code (CLI) | Sản phẩm của Anthropic, theo điều khoản của họ | Chủ dự án cài trên **máy chạy tác tử** (`tools/triage/`); **không** đóng gói, không phải phụ thuộc của mã. Cờ dùng: `docs/ERROR_OPS_RUNBOOK.md` mục 6 |
 
 ## 3. Tài nguyên đóng gói
 
@@ -69,7 +72,7 @@ Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (khôn
 
 ## 4. Dịch vụ bên ngoài (không phải phụ thuộc giấy phép, ghi ở đây để đồng bộ với S0-08)
 
-Open Library, Google Books (API và Atom feed), Apple iTunes Search API, Tiki, Google Custom Search, Supabase (dịch vụ review), các nhà cung cấp AI do người dùng tự chọn (OpenAI, Gemini, Anthropic, OpenRouter, Mistral, DeepSeek, Ollama…). Điều khoản từng nguồn: `docs/legal/DATA_SOURCES.md` (S0-08, chưa làm). Tiki là **cổng chặn phát hành 1.1.0**.
+Open Library, Google Books (API và Atom feed), Apple iTunes Search API, Tiki, Google Custom Search, Supabase (dịch vụ review), các nhà cung cấp AI do người dùng tự chọn (OpenAI, Gemini, Anthropic, OpenRouter, Mistral, DeepSeek, Ollama…). Điều khoản từng nguồn: `docs/legal/DATA_SOURCES.md` (S0-08, đã làm; Tiki và Apple Books tắt mặc định). Thêm ở 1.1.0: máy chủ nhận báo lỗi (Supabase) và dịch vụ AI của tác tử phân loại (Anthropic, do chủ dự án chạy; chỉ nhận dữ liệu báo lỗi đã lọc), xem `DATA_SOURCES.md` mục 2.10 và 2.11.
 
 ## 5. Câu hỏi còn mở (cho chủ dự án và luật sư)
 

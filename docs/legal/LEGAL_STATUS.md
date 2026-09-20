@@ -1,6 +1,6 @@
 # Tổng kết checklist pháp lý và mở mã nguồn (S0-12)
 
-Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_OPEN_SOURCE_CHECKLIST.md` với những gì đã làm. Đây là bản tổng kết kỹ thuật cho chủ dự án và luật sư, **không phải tư vấn pháp lý**. Chú giải: **Xong** = phần việc kỹ thuật đã làm và kiểm; **Chờ chủ dự án** / **Chờ luật sư** = cần quyết định hoặc ý kiến của người đó; **Chưa làm** = thuộc chặng sau.
+Ngày: **2026-09-19**, cập nhật **2026-09-20** (S1e báo lỗi và S2 dịch vụ đánh giá). Đối chiếu từng mục của `docs/handoff/05_LEGAL_OPEN_SOURCE_CHECKLIST.md` với những gì đã làm. Đây là bản tổng kết kỹ thuật cho chủ dự án và luật sư, **không phải tư vấn pháp lý**. Chú giải: **Xong** = phần việc kỹ thuật đã làm và kiểm; **Chờ chủ dự án** / **Chờ luật sư** = cần quyết định hoặc ý kiến của người đó; **Chưa làm** = thuộc chặng sau.
 
 ## 1. Kết luận ngắn
 
@@ -28,7 +28,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 | Quét cây làm việc và toàn bộ lịch sử git | **Xong** (`SECRET_SCAN_REPORT.md`): không có bí mật hoạt động |
 | Dọn đường dẫn/tên cá nhân trong tài liệu và mã | **Xong** (S0-03) |
 | Thu hồi khóa đã lộ | Không có khóa lộ. Còn `service_account.json` cũ **ngoài kho** (F-08): **chờ chủ dự án** xóa và thu hồi trên Google Cloud |
-| Dữ liệu cá nhân trong lịch sử (email F-04, QR F-05, tài liệu cá nhân F-06, mô hình F-07) | **Chủ dự án chọn phương án A (2026-09-19): kho công khai mới, sạch.** Đã dựng cây sạch bằng `C:uild\make_public_tree.py` (không lịch sử; loại 5 tệp ghi chú riêng; quét sạch dấu vết cá nhân; 1019 test đạt trên chính cây đó). **Còn chờ chủ dự án**: chọn danh tính tác giả cho commit đầu, tạo kho, và ra lệnh push |
+| Dữ liệu cá nhân trong lịch sử (email F-04, QR F-05, tài liệu cá nhân F-06, mô hình F-07) | **Chủ dự án chọn phương án A (2026-09-19): kho công khai mới, sạch.** Đã dựng cây sạch bằng `C:\build\make_public_tree.py` (không lịch sử; loại 5 tệp ghi chú riêng; quét sạch dấu vết cá nhân; 1019 test đạt trên chính cây đó). **Còn chờ chủ dự án**: chọn danh tính tác giả cho commit đầu, tạo kho, và ra lệnh push |
 | `.gitignore` không bị suy yếu | **Xong**: chỉ thêm mẫu (dữ liệu ứng dụng, QR, tài liệu cá nhân, tranh mẫu) |
 
 ### 2.3 Thông báo và tuân thủ AGPL (S0-05, S0-06)
@@ -40,6 +40,7 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 | Liên kết tới **mã nguồn đúng phiên bản** | Cơ chế **xong** (`APP_SOURCE_URL_TEMPLATE` ghép với `__version__`); **chờ chủ dự án** điền URL khi kho công khai tồn tại. Chưa điền thì hộp thoại hiện dòng chữ thay cho liên kết |
 | Trình cài đặt hiển thị `LICENSE` | Đã sửa `MewBook.iss`; **chưa dựng được bộ cài** vì máy không có Inno Setup 6, nên trang giấy phép của bộ cài chưa được kiểm bằng ISCC. `LICENSE` trong bản dựng exe đã kiểm |
 | Thay `EULA.txt` tự sinh bằng văn bản AGPL | **Xong** (`build.ps1` không còn sinh) |
+| Thông báo lần chạy đầu và trang "Điều khoản pháp lý" viết lại | **Xong về kỹ thuật (2026-09-20)**: bản tóm tắt trong `eula_dialog.py` khớp mã (có test); toàn văn `docs/legal/PRIVACY.md`, `TERMS.md` hiện ở Giới thiệu. Đều là **bản nháp chờ luật sư**; còn hỏi luật sư có được *chặn* chạy lần đầu không (`LAWYER_QUESTIONS.md` G1) |
 | Tag, gói mã nguồn, checksum cho mỗi bản phát hành | Quy trình đã ghi (README, `RELEASE_CHECKLIST.md`); **chưa làm** vì chưa phát hành |
 | Thông báo bản quyền ghi tên chủ dự án và năm | Tạm thời: "© 2026 Anhtiensinh. Phần mềm tự do theo giấy phép AGPL-3.0-or-later." (bỏ "Bảo lưu mọi quyền"). Cách viết chính thức và tệp `NOTICE`: **chờ luật sư** (câu 6) |
 
@@ -71,7 +72,25 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 
 ### 2.7 Dịch vụ review (S2)
 
-**Chưa làm** (chặng S2): điều khoản và chính sách riêng tư, quy trình gỡ nội dung/xóa dữ liệu, sổ tay kiểm duyệt, sao lưu, hạn mức. Đã biết: thông báo riêng tư hiện có chưa mô tả định danh ẩn danh và nickname (câu 8 mục B); dữ liệu gửi tới Supabase đã liệt kê ở `DATA_SOURCES.md` mục 2.8 và 3.
+**Xong về kỹ thuật (2026-09-20):**
+
+| Việc | Trạng thái |
+|---|---|
+| Nút Báo cáo, ẩn tự động, chặn mã ẩn danh, giới hạn, công tắc từ xa, thông báo tiếng Việt | **Xong** (`002_review_moderation.sql`, `cloud_reviews.py`, `review_dialog.py`; 84 test SQL trên PostgreSQL thật và test client). Bản 1.0.0 vẫn dùng được với máy chủ mới |
+| Sổ tay kiểm duyệt, sao lưu, hạn mức gói | **Xong** (`docs/MODERATION_RUNBOOK.md`). Gói Free không có sao lưu tự động và tạm dừng sau 1 tuần không hoạt động (Supabase, đọc 2026-09-20) |
+| `PRIVACY.md`, `TERMS.md` | **Bản nháp xong; chờ luật sư** (`LAWYER_QUESTIONS.md` mục G) |
+| Chạy SQL trên dự án Supabase thật | **Chờ chủ dự án** (`docs/handoff/OWNER_ACTIONS.md`) |
+| Nút "xóa bài của tôi" trong ứng dụng | **Chưa có**; hiện xóa qua liên hệ (`DISCREPANCIES.md` mục 21) |
+
+### 2.8 Báo lỗi ẩn danh (S1e, `09_ERROR_REPORTING_SPEC.md`)
+
+| Việc | Trạng thái |
+|---|---|
+| Bộ che dữ liệu, hàng đợi, hộp thoại xem trước, Cài đặt "Quyền riêng tư và báo lỗi", Trợ giúp → Báo lỗi, uploader nền | **Xong** (E-01 đến E-06; có test và ảnh chụp thật). Mặc định "Hỏi mỗi lần"; bản chạy từ mã nguồn không gửi |
+| Máy chủ nhận (`003_error_reports.sql`) và hai vai trò cho tác tử | **Xong về kỹ thuật** (chạy thử trên PostgreSQL thật, gồm ERR-A7, A8, A13); **chờ chủ dự án** chạy trên Supabase, tạo token, thử tấn công E-09 (`ERROR_OPS_RUNBOOK.md` mục 1, 2) |
+| Tác tử phân loại `tools/triage/` (mức L0) | **Xong** (E-10, E-11; đầu vào hẹp, chống chèn chỉ thị, phanh; 148 test). **Chưa từng chạy với Claude Code thật** (máy này không có `claude`); **chờ chủ dự án** dựng máy/tài khoản riêng và duyệt vài bản tóm tắt đầu tiên (E-12, E-13) |
+| Văn bản riêng tư nêu báo lỗi và xử lý bằng AI | **Bản nháp xong; chờ luật sư** (G2, G4, G6, G7) |
+
 
 ## 3. Việc cần chủ dự án quyết định hoặc làm
 
@@ -85,10 +104,11 @@ Ngày: **2026-09-19**. Đối chiếu từng mục của `docs/handoff/05_LEGAL_
 8. `taxonomy.json`: có sao chép nguyên văn từ hệ phân loại ngoài không.
 9. **Cài Inno Setup 6** (hoặc chỉ máy dựng bản phát hành) để dựng và thử bộ cài; **chứng chỉ ký mã** (O9).
 10. Cách thêm SPDX cho tệp cũ (khi sửa tệp, hay một commit riêng).
+11. **Việc mới từ S1e và S2** (gộp đủ ở `docs/handoff/OWNER_ACTIONS.md`): chạy `002` và `003` trên Supabase và bật sao lưu; tạo token `triage_*`; điền `APP_ERROR_REPORT_URL`, `APP_ERROR_REPORT_ANON_KEY`, `APP_PRIVACY_CONTACT`; điền chỗ `[CHỜ CHỦ DỰ ÁN]` trong `PRIVACY.md`, `TERMS.md`; dựng và duyệt tác tử (E-12, E-13); quyết định có làm nút "xóa bài của tôi" không.
 
 ## 4. Câu hỏi gửi luật sư
 
-Danh sách gộp ở `docs/legal/LAWYER_QUESTIONS.md`: 13 câu đánh số (A: phụ thuộc, B: mã, D: mô hình, E: nguồn dữ liệu, F: DRM) cùng 9 câu chuẩn của checklist (mục C). Ưu tiên trước khi công khai: QtPdf/LGPL (1), pyvi và dữ liệu huấn luyện (2, 11), PyMuPDF "only/or later" và ranh giới GPLv3/AGPLv3 (3, 4), thông báo bản quyền (6), thông báo riêng tư cho dịch vụ review (8, 5 mục C), lịch sử git (9, 7 mục C).
+Danh sách gộp ở `docs/legal/LAWYER_QUESTIONS.md`: 13 câu đánh số (A: phụ thuộc, B: mã, D: mô hình, E: nguồn dữ liệu, F: DRM) cùng 9 câu chuẩn của checklist (mục C). Ưu tiên trước khi công khai: QtPdf/LGPL (1), pyvi và dữ liệu huấn luyện (2, 11), PyMuPDF "only/or later" và ranh giới GPLv3/AGPLv3 (3, 4), thông báo bản quyền (6), thông báo riêng tư cho dịch vụ review (8, 5 mục C), lịch sử git (9, 7 mục C), và cả mục G (báo lỗi, xử lý bằng AI, lưu ở nước ngoài, văn bản riêng tư và điều khoản, việc chặn chạy lần đầu).
 
 ## 5. Đầu ra của S0
 
@@ -102,11 +122,13 @@ Danh sách gộp ở `docs/legal/LAWYER_QUESTIONS.md`: 13 câu đánh số (A: p
 | Chính sách SPDX | `docs/legal/SPDX_POLICY.md` | Xong |
 | Thương hiệu, đối tác | `TRADEMARK.md`, `PARTNERS.md` | Bản nháp |
 | Giấy phép và thông báo | `LICENSE`, `THIRD_PARTY_NOTICES.md`, hộp thoại Giới thiệu | Xong (trừ URL mã nguồn) |
-| Điều khoản, riêng tư (bản nháp) | `docs/legal/TERMS.md`, `docs/legal/PRIVACY.md` | Chưa làm (S2-06) |
+| Điều khoản, riêng tư (bản nháp) | `docs/legal/TERMS.md`, `docs/legal/PRIVACY.md` | Bản nháp xong (S2-06, E-06); chờ luật sư |
+| Sổ tay vận hành | `docs/MODERATION_RUNBOOK.md`, `docs/ERROR_OPS_RUNBOOK.md` | Xong |
+| Việc của chủ dự án | `docs/handoff/OWNER_ACTIONS.md` | Xong (danh sách gộp) |
 | Tên gọi | `docs/NAMING.md` | Xong |
 | ADR nhà cung cấp review | `docs/adr/0001-cloud-review-backend.md` | Xong |
 | Lệch tài liệu và mã | `docs/handoff/DISCREPANCIES.md` | Xong |
-| Sửa `CLAUDE.md` | `docs/handoff/CLAUDE_MD_CHANGES.md` | A2, A3, A6 đã áp dụng; A1, A4, A5 chờ tính năng |
+| Sửa `CLAUDE.md` | `docs/handoff/CLAUDE_MD_CHANGES.md` | A2 đến A7 đã áp dụng; A1 chờ S3b-07 |
 
 ## 6. Chữ ký duyệt trước khi công khai (chưa có)
 

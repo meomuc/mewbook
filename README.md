@@ -14,6 +14,12 @@ uv run pytest
 uv run smartdoc     # launch the app
 ```
 
+Two things are optional and not part of `uv sync`: `tests/test_server_sql.py` runs the Supabase SQL
+(`src/smartdoc/application/sql/`) against a real, embedded PostgreSQL and skips itself unless you install
+`pgserver` and `psycopg2-binary` (`uv pip install pgserver psycopg2-binary`; Apache-2.0 and LGPL, test tools only, never
+shipped), and the daily error-triage agent lives in `tools/triage/`, outside the app package (see
+`docs/ERROR_OPS_RUNBOOK.md`).
+
 Or just double-click `run.bat` in the project root — it points
 `UV_PROJECT_ENVIRONMENT` at a virtualenv outside the project folder (see below),
 sets `PYTHONUTF8` and runs `uv run smartdoc` for you, and stays open on a crash so
