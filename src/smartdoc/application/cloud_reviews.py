@@ -96,6 +96,7 @@ from pathlib import Path
 import requests
 
 from smartdoc.application.service_flags import FlagSnapshot, ServiceFlags
+from smartdoc.application.supabase_keys import api_headers
 
 logger = logging.getLogger(__name__)
 
@@ -237,14 +238,10 @@ class SupabaseReviewSync:
         return self._flags.snapshot(force=force)
 
     def _headers(self, *, for_insert: bool = False) -> dict[str, str]:
-        headers = {
-            "apikey": self.anon_key,
-            "Authorization": f"Bearer {self.anon_key}",
-        }
+        # The legacy anon key (a JWT) goes in both headers; a publishable key only in `apikey` (application/supabase_keys.py).
         if for_insert:
-            headers["Content-Type"] = "application/json"
-            headers["Prefer"] = "return=representation"
-        return headers
+            return api_headers(self.anon_key, **{"Content-Type": "application/json", "Prefer": "return=representation"})
+        return api_headers(self.anon_key)
 
     def fetch_reviews(self, doc_id: str) -> list[dict]:
         url = f"{self.supabase_url}/rest/v1/{_TABLE}"

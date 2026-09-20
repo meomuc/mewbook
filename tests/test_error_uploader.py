@@ -21,7 +21,8 @@ from smartdoc.application.service_flags import ServiceFlags
 from smartdoc.core.event_bus import ErrorReportApprovedEvent
 from smartdoc.domain import error_report as er
 
-KEY = "anon-key-for-tests"
+KEY = "sb_publishable_test_key_for_the_fake_server"
+LEGACY_JWT_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoiYW5vbiJ9.c2ln"
 
 
 class FakeReportServer:
@@ -128,7 +129,7 @@ def test_an_approved_report_is_sent_exactly_as_it_was_previewed_and_then_forgott
     assert post["path"] == "/rest/v1/rpc/submit_error_report"
     sent = json.loads(post["body"].decode("utf-8"))
     assert list(sent) == ["p_report"] and sent["p_report"] == preview == report.to_payload()  # ERR-A4
-    assert post["headers"]["apikey"] == KEY and post["headers"]["authorization"] == f"Bearer {KEY}"
+    assert post["headers"]["apikey"] == KEY and "authorization" not in post["headers"]  # a publishable key is not a bearer token
     assert post["headers"]["content-type"] == "application/json" and post["headers"]["user-agent"] == f"MewBook/{__version__}"
     assert not {"cookie", "x-install-id", "x-user"} & set(post["headers"])
     assert reporter.queue.items() == [] and [r.report_id for r in reporter.sent_reports()] == [report.report_id]
@@ -405,3 +406,13 @@ def test_flags_that_were_never_read_are_unknown_not_off(server):
 def test_the_uploader_uses_a_real_requests_session_by_default(app_context, reporter):
     uploader = up.ErrorUploader(app_context.config, app_context.event_bus, reporter)
     assert isinstance(uploader._session, requests.Session) and uploader.status == up.STATUS_IDLE and uploader.status_text() == ""
+
+
+def test_a_legacy_jwt_key_is_presented_the_way_supabases_own_clients_do(app_context, reporter, server):
+    uploader = make_uploader(app_context, reporter, server)
+    uploader._builtin = (server.url, LEGACY_JWT_KEY)
+    approve_manual(reporter)
+    settle(uploader)
+    (post,) = server.posts
+    assert post["headers"]["apikey"] == LEGACY_JWT_KEY and post["headers"]["authorization"] == f"Bearer {LEGACY_JWT_KEY}"
+    assert server.gets[0]["headers"]["authorization"] == f"Bearer {LEGACY_JWT_KEY}"  # and the switches are read the same way

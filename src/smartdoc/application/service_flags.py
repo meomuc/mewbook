@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 import requests
 
 from smartdoc import APP_NAME, __version__
+from smartdoc.application.supabase_keys import api_headers
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class ServiceFlags:
             response = self._session.get(
                 f"{self._url}/rest/v1/{TABLE}",
                 params={"select": "key,value"},
-                headers={"apikey": self._key, "Authorization": f"Bearer {self._key}", "User-Agent": f"{APP_NAME}/{__version__}"},
+                headers=api_headers(self._key, **{"User-Agent": f"{APP_NAME}/{__version__}"}),
                 timeout=TIMEOUT_SECONDS,
             )
             if not response.ok:  # 404: the table is not there yet (the server was not upgraded); anything else: unknown

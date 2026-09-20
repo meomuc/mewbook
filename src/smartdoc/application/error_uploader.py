@@ -32,6 +32,7 @@ import requests
 from smartdoc import APP_ERROR_REPORT_ANON_KEY, APP_ERROR_REPORT_URL, APP_NAME, __version__
 from smartdoc.application.error_report_queue import VERDICT_DAILY_LIMIT, VERDICT_DUPLICATE, STATUS_APPROVED, QueuedReport
 from smartdoc.application.service_flags import ERROR_REPORTS_ENABLED, ServiceFlags, is_acceptable_base_url
+from smartdoc.application.supabase_keys import api_headers
 from smartdoc.core.event_bus import ErrorReportApprovedEvent
 
 logger = logging.getLogger(__name__)
@@ -257,12 +258,9 @@ class ErrorUploader:
             response = self._session.post(
                 f"{endpoint.url}/rest/v1/rpc/{RPC_FUNCTION}",
                 data=body.encode("utf-8"),
-                headers={
-                    "apikey": endpoint.anon_key,
-                    "Authorization": f"Bearer {endpoint.anon_key}",
-                    "Content-Type": "application/json",
-                    "User-Agent": f"{APP_NAME}/{__version__}",
-                },
+                headers=api_headers(
+                    endpoint.anon_key, **{"Content-Type": "application/json", "User-Agent": f"{APP_NAME}/{__version__}"}
+                ),
                 timeout=TIMEOUT_SECONDS,
             )
         except requests.RequestException as exc:
