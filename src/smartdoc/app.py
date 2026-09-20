@@ -20,6 +20,7 @@ from smartdoc.core.config import default_app_data_dir
 from smartdoc.core.diagnostics import current_log_path, install_exception_hooks, setup_logging
 from smartdoc.infrastructure.schema_migrations import SchemaError
 from smartdoc.presentation.dialog_size import DialogSizeGuard
+from smartdoc.presentation.error_report_dialog import ErrorReportPrompt
 from smartdoc.presentation.eula_dialog import EulaDialog
 from smartdoc.presentation.main_window import MainWindow
 from smartdoc.presentation.resources import app_icon_path
@@ -64,16 +65,34 @@ def _acquire_single_instance_lock(app_data_dir) -> QLockFile | None:
 
 
 _crash_dialog_open = False
+# The error reporter of the running app (core/app_context.py), set once the context exists; an error before that is
+# logged and shown, but there is nothing to report it to yet.
+_error_reporter = None
 
 
-def _show_crash_dialog(summary: str) -> None:
+def _report_unhandled_exception(exc_type, exc_value, exc_tb, thread_name: str) -> str | None:
+    """The error-report hook of core/diagnostics.py: hands the error to the reporter, which scrubs it and queues it
+    (only in a release build and never in the "never" mode). Returns the id of a report that now waits for the user's
+    answer -- the report prompt asks about it, so the plain crash dialog is not shown as well."""
+    if _error_reporter is None:
+        return None
+    return _error_reporter.capture_exception(exc_type, exc_value, exc_tb, thread_name=thread_name)
+
+
+def _show_crash_dialog(summary: str, report_id: str | None = None) -> None:
     """At most one crash dialog at a time, and never from inside the failing call.
 
     An error raised while painting (a delegate, say) repeats on every repaint. Running the
     dialog's modal loop right there made each repaint raise again and open another dialog on
     top of the last, and the window froze ("Not Responding"). Later errors are still logged
-    by the hook; they just don't stack more dialogs."""
+    by the hook; they just don't stack more dialogs.
+
+    With a `report_id` the error became a report that waits for the user's answer: the report prompt
+    (presentation/error_report_dialog.py) shows "Mèo gặp lỗi bất ngờ" for it, which says the same thing and asks
+    the question, so this plain message is skipped."""
     global _crash_dialog_open
+    if report_id is not None:
+        return
     if QApplication.instance() is None or _crash_dialog_open:
         return
     _crash_dialog_open = True
@@ -104,7 +123,7 @@ def main() -> None:
     multiprocessing.freeze_support()
     app_data_dir = default_app_data_dir()
     setup_logging(app_data_dir)
-    install_exception_hooks(show_dialog=_show_crash_dialog)
+    install_exception_hooks(show_dialog=_show_crash_dialog, on_exception=_report_unhandled_exception)
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
@@ -129,6 +148,12 @@ def main() -> None:
         logger.error("Cannot open the library: %s", exc)
         QMessageBox.critical(None, APP_DISPLAY_NAME, str(exc))
         sys.exit(1)
+    # From here on an unhandled error can become an error report (asked about, never sent unasked); the prompt
+    # is what shows the question, on the GUI thread, one dialog at a time.
+    global _error_reporter
+    _error_reporter = context.error_reports
+    error_report_prompt = ErrorReportPrompt(context)
+    app._error_report_prompt = error_report_prompt  # held by the app object for as long as the app runs
     # The ★ buttons file documents into this built-in collection -- create
     # it up front so it's visible in the sidebar before the first star.
     context.db.ensure_reading_list()
@@ -208,6 +233,8 @@ def main() -> None:
         old_window.deleteLater()
 
     build_and_show_window()
+    # A report an earlier session never got an answer for (the app closed first) is asked about once the window is up.
+    QTimer.singleShot(0, error_report_prompt.ask_about_waiting)
 
     # Books imported before fingerprints existed get theirs in the background.
     fingerprint_backfill = FingerprintBackfill(context)

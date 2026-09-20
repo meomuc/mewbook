@@ -28,3 +28,13 @@ APP_SOURCE_URL_TEMPLATE = ""
 # (application/update_checker.py). Empty until the public repository exists; set it together with the URL above.
 # Example: "https://api.github.com/repos/<owner>/<repo>/releases/latest"
 APP_UPDATE_FEED_URL = ""
+# Anonymous error reports (docs/handoff/09_ERROR_REPORTING_SPEC.md): the server that receives them is a Supabase project;
+# these are its API URL and its public "anon" key. The key is public by design (the server checks every call and the
+# anon role can only call submit_error_report; nothing is protected by hiding it). Empty until the project owner has run
+# application/sql/003_error_reports.sql: with nothing configured an approved report just waits in the local queue.
+# (A self-hosted build with these empty falls back to the Supabase URL and key set in Settings -> Đánh giá cộng đồng.)
+APP_ERROR_REPORT_URL = ""
+APP_ERROR_REPORT_ANON_KEY = ""
+# How a user asks for an error report they sent to be deleted: an e-mail address or a link to a contact form. Empty until
+# the project owner has chosen one; Settings then points at the privacy policy instead.
+APP_PRIVACY_CONTACT = ""

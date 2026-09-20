@@ -327,3 +327,12 @@ def test_the_windows_account_name_is_removed_even_when_it_stands_alone(reporter)
     assert "denied for" in reporter.preview_text(report_id) and ACCOUNT not in reporter.preview_text(report_id)
     assert COMPUTER.lower() not in reporter.preview_text(report_id).lower()
 
+
+
+def test_two_manual_reports_in_a_row_are_both_sendable(reporter):
+    first, second = reporter.build_manual("one"), reporter.build_manual("two")
+    reporter.submit(first)
+    reporter.queue.record_sent(first)
+    reporter.submit(second)  # not blocked as "the same bug as the one sent a minute ago"
+    assert reporter.queue.send_verdict(second.fingerprint_stable) == "ok"
+    assert [i.report.report_id for i in reporter.queue.approved()] == [second.report_id]

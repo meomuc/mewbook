@@ -279,3 +279,13 @@ def test_the_time_is_utc_and_rounded_to_the_minute():
     assert r.occurred_now(moment) == "2026-09-19T17:05Z"
     exc = _raise_in("x.py")
     assert _report(exc, now=moment).occurred_at == "2026-09-19T17:05Z"
+
+
+def test_every_manual_report_is_a_group_of_its_own():
+    """The same-bug-once-a-day rule must never swallow a second thing a person took the trouble to write."""
+    first = r.build_synthetic("ManualReport", "m", context=CONTEXT, source="manual", user_note="one")
+    second = r.build_synthetic("ManualReport", "m", context=CONTEXT, source="manual", user_note="two")
+    assert first.fingerprint_stable != second.fingerprint_stable and first.fingerprint_exact != second.fingerprint_exact
+    crash_a = r.build_synthetic("BrokenExecutor", "m", context=CONTEXT, source="worker", process_kind="classify_worker", feature_area="classification")
+    crash_b = r.build_synthetic("BrokenExecutor", "m", context=CONTEXT, source="worker", process_kind="classify_worker", feature_area="classification")
+    assert crash_a.fingerprint_stable == crash_b.fingerprint_stable  # a crash is the same bug each time

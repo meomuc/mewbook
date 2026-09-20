@@ -147,6 +147,22 @@ New features, so the next release is a MINOR bump (1.1.0).
   (nothing is downloaded or installed), and sends no install id or library data. (The release page address is set
   when the project's public repository exists; until then the tab says it is not configured.)
 
+- **Voluntary, anonymous error reports.** In an installed release build, when MewBook hits an error nobody handled
+  it shows **"Mèo gặp lỗi bất ngờ"** and asks whether to send an anonymous report. **Xem nội dung sẽ gửi** shows
+  exactly what would be sent, and nothing leaves your computer until you press **Gửi báo cáo** (closing the window
+  is "no"). A report holds the error type, the code lines where it happened (function names and numbers, never
+  variable values), the MewBook version and build, the operating system, the theme, a size range of your library and
+  a random id used only for error reports. It never holds file names or paths, titles, authors, book text, your
+  Windows or computer name, e-mail addresses or keys: the message is scrubbed first, using what MewBook knows about
+  your machine and every title, author and file name in your library. Settings → **Quyền riêng tư và báo lỗi**
+  chooses **Hỏi mỗi lần** (the default), **Luôn gửi ẩn danh** or **Không bao giờ** (nothing is collected, written or
+  sent), lists the ids of the reports sent (to ask for one to be deleted) and clears reports that wait. Help →
+  **Báo lỗi…** sends a report you write yourself, with an optional scrubbed tail of the log, always after a preview.
+  The same bug is asked about once a day and at most 10 reports go out a day; a crash of the classification worker
+  is reported like any other error; a build run from source, or made from uncommitted changes, reports nothing.
+  Sending needs the project's report server, which is not configured yet: an approved report waits in
+  `%APPDATA%\SmartDocLibrary\reports` until it is.
+
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is

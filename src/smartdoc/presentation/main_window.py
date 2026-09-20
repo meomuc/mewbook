@@ -37,6 +37,7 @@ from smartdoc.presentation.active_filter_bar import ActiveFilterBar
 from smartdoc.presentation.filter_chips import FilterChipBar
 from smartdoc.presentation.icon_rail_sidebar import RAIL_WIDTH, IconRailSidebar
 from smartdoc.presentation.library_view import LibraryListWidget
+from smartdoc.presentation.manual_report_dialog import ManualReportDialog
 from smartdoc.presentation.omnibar import OmnibarSearchBar
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.resources import app_icon_path, brand_logo_path
@@ -361,6 +362,9 @@ class MainWindow(QMainWindow):
         about_action = QAction("ℹ️ Giới thiệu (About)...", self)
         about_action.triggered.connect(self._on_open_about)
         help_menu.addAction(about_action)
+        report_action = QAction("🐞 Báo lỗi…", self)
+        report_action.triggered.connect(self._on_open_error_report)
+        help_menu.addAction(report_action)
 
         self._build_theme_picker()
 
@@ -418,6 +422,11 @@ class MainWindow(QMainWindow):
 
     def _on_open_about(self) -> None:
         AboutDialog(self, identity=self.context.identity).exec()
+
+    def _on_open_error_report(self) -> None:
+        dialog = ManualReportDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_open_settings(self, initial_tab: str | None = None) -> None:
         dialog = SettingsDialog(self.context, self, watcher=self.watcher, import_manager=self.import_manager, initial_tab=initial_tab)

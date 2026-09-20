@@ -369,11 +369,15 @@ def _report(
     now: datetime | None, report_id: str | None, user_note: str = "", log_tail: str = "",
 ) -> ErrorReport:
     area = feature_area if feature_area in FEATURE_AREAS else infer_feature_area(frames)
-    stable, exact = fingerprints(exception_type, frames, feature_area=area, process_kind=process_kind)
+    report_id = report_id or new_report_id()
+    # A report the user writes is never "the same bug" as another one: give it a fingerprint of its own, or every manual
+    # report would be one group on the server and the same-bug-once-a-day rule would swallow the second.
+    anchor = f"{area}:{report_id}" if source == "manual" else area
+    stable, exact = fingerprints(exception_type, frames, feature_area=anchor, process_kind=process_kind)
     terms = tuple(private_terms)
     dirs = tuple(user_dirs)
     report = ErrorReport(
-        report_id=report_id or new_report_id(),
+        report_id=report_id,
         occurred_at=occurred_now(now),
         source=source,
         process_kind=process_kind,
