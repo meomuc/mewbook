@@ -141,11 +141,18 @@ Bước này <b>bắt buộc</b> nếu bạn muốn dùng sắp xếp theo đi�
 
 grant select on review_stats to anon, authenticated;</pre>
 
-<p><b>Phần 2b — Định danh người dùng &amp; nick name duy nhất (bắt buộc từ phiên bản 1.0.0):</b><br/>
-Bấm nút <b>"📋 Sao chép SQL nâng cấp"</b> ở trên, dán vào SQL Editor và bấm <b>Run</b>. Đoạn SQL này
-thêm bảng <i>reviewers</i> (mỗi nick name thuộc về một người dùng), cột <i>user_hash</i> và hàm
-<i>submit_review</i> -- từ đây mọi bài đánh giá được gửi qua hàm này để chống giả mạo; quyền ghi
-trực tiếp của Phần 1 sẽ được thu hồi. Chạy lại nhiều lần cũng an toàn.</p>
+<p><b>Phần 2b — Định danh, kiểm duyệt và giới hạn (nâng cấp máy chủ):</b><br/>
+Bấm nút <b>"📋 Sao chép SQL nâng cấp"</b> ở trên, dán vào SQL Editor và bấm <b>Run</b>. Nút này sao chép
+<b>tất cả các bước theo thứ tự</b>, mỗi bước chạy lại nhiều lần đều an toàn và không ghi đè giá trị bạn đã chỉnh:</p>
+<ul>
+<li><b>001</b> (bắt buộc từ 1.0.0): bảng <i>reviewers</i> (mỗi nick name thuộc về một người dùng), cột <i>user_hash</i> và hàm
+<i>submit_review</i> -- mọi bài đánh giá được gửi qua hàm này để chống giả mạo; quyền ghi trực tiếp của Phần 1 bị thu hồi.</li>
+<li><b>002</b> (từ 1.1.0): kiểm duyệt và giới hạn. Người dùng báo cáo được bài đánh giá xấu (đủ 3 người báo cáo thì bài tự ẩn),
+bạn ẩn/hiện/chặn bằng SQL, có công tắc tạm ngừng đánh giá, thông báo chung và giới hạn tần suất. Bản 1.0.0 vẫn dùng được nhưng
+không còn thấy các bài đã ẩn. Hướng dẫn thao tác: <i>docs/MODERATION_RUNBOOK.md</i>.</li>
+<li><b>003</b> (từ 1.1.0): nhận báo cáo lỗi ẩn danh của người dùng và hai vai trò hẹp cho tác tử phân loại. Chỉ cần nếu bạn
+tự vận hành cả việc nhận báo cáo lỗi: <i>docs/ERROR_OPS_RUNBOOK.md</i>.</li>
+</ul>
 
 <p><b>Phần 3 — Lấy URL và key:</b></p>
 <ol>
@@ -690,7 +697,8 @@ class SettingsDialog(QDialog):
         test_row.addWidget(self.supabase_test_button)
         self.copy_upgrade_sql_button = QPushButton("📋 Sao chép SQL nâng cấp", tab)
         self.copy_upgrade_sql_button.setToolTip(
-            "Sao chép đoạn SQL bật định danh người dùng & nick name duy nhất (Phần 2b) vào clipboard."
+            "Sao chép toàn bộ SQL nâng cấp máy chủ (Phần 2b: định danh, kiểm duyệt, báo cáo lỗi) vào clipboard. "
+            "Chạy lại nhiều lần cũng an toàn."
         )
         self.copy_upgrade_sql_button.clicked.connect(self._on_copy_upgrade_sql)
         test_row.addWidget(self.copy_upgrade_sql_button)

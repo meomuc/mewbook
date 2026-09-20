@@ -30,6 +30,12 @@ def _nicknames_free(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _flags_unknown(monkeypatch):
+    """The dialog reads the server's switches on a thread; unless a test says otherwise they cannot be read."""
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.flags", lambda self, force=False: None)
+
+
 def _configure(app_context):
     app_context.config.config.supabase_url = "https://fake.supabase.co"
     app_context.config.config.supabase_anon_key = "fake-key"
@@ -296,3 +302,107 @@ def test_successful_submit_refreshes_rating_status_everywhere(qapp, app_context,
     assert stored["review_count"] == 2
     assert events
     assert "3.0" in dialog.summary_label.text()
+
+
+# --- moderation (S2-03) ------------------------------------------------------------------------------------------------------------
+
+def _loaded(qapp, app_context, monkeypatch, reviews, flags=None):
+    _configure(app_context)
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", lambda self, doc_id: list(reviews))
+    if flags is not None:
+        monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.flags", lambda self, force=False: flags)
+    dialog = ReviewDialog(app_context, _doc())
+    assert _pump_until(qapp, lambda: dialog.reviews_list.count() == max(len(reviews), 1), timeout=3.0)  # loaded (or the "be the first" row)
+    return dialog
+
+
+def _reviews(app_context):
+    return [
+        {"id": 11, "nickname": "Kevin", "rating": 5, "comment": "Hay", "user_hash": "someone-else"},
+        {"id": 12, "nickname": "Bạn", "rating": 4, "comment": "Của tôi", "user_hash": app_context.identity.user_hash},
+    ]
+
+
+def test_the_owners_banner_is_shown_as_plain_text_and_reviews_can_be_off(qapp, app_context, monkeypatch):
+    from smartdoc.application.service_flags import FlagSnapshot
+
+    flags = FlagSnapshot({"reviews_enabled": "false", "banner_message": "<b>Bảo trì</b> tới 22h"})
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context), flags)
+    assert _pump_until(qapp, lambda: not dialog.notice_label.isHidden())
+    assert dialog.banner_label.text() == "<b>Bảo trì</b> tới 22h" and not dialog.banner_label.isHidden()  # never rendered as HTML
+    assert "tạm ngừng" in dialog.notice_label.text() and dialog.reviews_list.count() == 2  # reading still works
+    assert not dialog.submit_button.isEnabled()
+    dialog.reviews_list.setCurrentRow(0)
+    assert not dialog.report_button.isEnabled()  # nor can one report while it is off
+
+
+def test_when_the_switches_cannot_be_read_nothing_is_disabled(qapp, app_context, monkeypatch):
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))  # flags() -> None from the autouse fixture
+    qapp.processEvents()
+    assert dialog.notice_label.isHidden() and dialog.banner_label.isHidden() and dialog.submit_button.isEnabled()
+
+
+def test_only_somebody_elses_review_can_be_reported(qapp, app_context, monkeypatch):
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))
+    assert not dialog.report_button.isEnabled()  # nothing selected
+    dialog.reviews_list.setCurrentRow(0)
+    assert dialog.report_button.isEnabled()
+    dialog.reviews_list.setCurrentRow(1)  # the user's own
+    assert not dialog.report_button.isEnabled()
+
+
+def test_reporting_asks_for_a_reason_sends_it_and_refreshes_the_list(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))
+    sent, thanks, fetches = [], [], []
+    monkeypatch.setattr(dialog, "_ask_report_reason", lambda: "abuse")
+    monkeypatch.setattr(
+        "smartdoc.presentation.review_dialog.SupabaseReviewSync.report_review",
+        lambda self, review_id, reason, *, user_token: sent.append((review_id, reason, user_token)) or 1,
+    )
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: thanks.append(a[2])))
+    monkeypatch.setattr(dialog, "_load_reviews_async", lambda: fetches.append(1))
+
+    dialog.reviews_list.setCurrentRow(0)
+    dialog.report_button.click()
+    assert _pump_until(qapp, lambda: len(thanks) == 1)
+    assert sent == [(11, "abuse", app_context.identity.token)] and "Cảm ơn bạn" in thanks[0] and fetches == [1]
+
+
+def test_cancelling_the_reason_reports_nothing(qapp, app_context, monkeypatch):
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))
+    monkeypatch.setattr(dialog, "_ask_report_reason", lambda: None)
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.report_review", lambda *a, **k: pytest.fail("nothing to send"))
+    dialog.reviews_list.setCurrentRow(0)
+    dialog.report_button.click()
+    qapp.processEvents()
+    assert dialog.report_button.isEnabled()
+
+
+def test_a_report_the_server_refuses_is_explained_in_plain_words(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))
+    warnings = []
+    monkeypatch.setattr(dialog, "_ask_report_reason", lambda: "spam")
+
+    def refuse(self, review_id, reason, *, user_token):
+        raise CloudReviewError("Bạn đã báo cáo bài đánh giá này rồi. Cảm ơn bạn.", code="ALREADY_REPORTED")
+
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.report_review", refuse)
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *a, **k: warnings.append(a[2])))
+    dialog.reviews_list.setCurrentRow(0)
+    dialog.report_button.click()
+    assert _pump_until(qapp, lambda: len(warnings) == 1)
+    assert "đã báo cáo" in warnings[0] and dialog.report_button.isEnabled()
+
+
+def test_the_reason_list_uses_the_servers_codes(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QInputDialog
+
+    dialog = _loaded(qapp, app_context, monkeypatch, _reviews(app_context))
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda parent, title, label, items, current, editable: ("Lộ thông tin cá nhân", True)))
+    assert dialog._ask_report_reason() == "privacy"
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a: ("", False)))
+    assert dialog._ask_report_reason() is None

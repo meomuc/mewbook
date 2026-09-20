@@ -16,6 +16,13 @@ After a successful submit the list, the average-rating summary, the
 locally cached rating stats and every open view (via LibraryUpdatedEvent)
 are refreshed immediately.
 
+Moderation (S2-03, 002_review_moderation.sql): "Báo cáo bài đã chọn..." reports somebody else's review for a reason (enough
+different reporters hide it, and the list is refreshed afterwards). The server's public switches are read once when the
+dialog opens (cached ten minutes by application/service_flags.py, on a background thread): a banner message from the owner is
+shown, and while reviews are switched off writing and reporting are disabled with a sentence saying so -- reading still
+works. If the switches cannot be read they are simply unknown and nothing is disabled; a server that is down shows
+"tạm thời không khả dụng" and never breaks the dialog.
+
 Network calls (fetch on open, submit on click) run on a plain background
 thread and report back through Qt signals -- not the EventBus/QtEventBridge
 pattern used elsewhere, since that exists for cross-module pub/sub, and
@@ -37,6 +44,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QInputDialog,
     QMessageBox,
     QPushButton,
     QStyle,
@@ -49,12 +57,14 @@ from PySide6.QtWidgets import (
 from smartdoc.application.cloud_reviews import (
     ANONYMOUS_NICKNAME,
     NICKNAME_MAX_LENGTH,
+    REPORT_REASONS,
     CloudReviewError,
     NicknameTakenError,
     SupabaseReviewSync,
     rating_summary,
     reviews_by_user,
 )
+from smartdoc.application.service_flags import REVIEWS_ENABLED, BANNER_MESSAGE
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.presentation.theme import current_colors
 
@@ -132,6 +142,8 @@ class ReviewDialog(QDialog):
     reviews_loaded = Signal(list, str)  # (reviews, error_message)
     submit_finished = Signal(list, str, bool)  # (reviews, error_message, was_update)
     nickname_taken = Signal(str)
+    flags_loaded = Signal(object)  # FlagSnapshot | None
+    report_finished = Signal(str, bool)  # (error_message, ok)
 
     def __init__(self, context, doc: dict, parent=None) -> None:
         super().__init__(parent)
@@ -155,6 +167,17 @@ class ReviewDialog(QDialog):
         self.summary_label.setTextFormat(Qt.RichText)
         self.status_label = QLabel("Đang tải đánh giá...")
         self.status_label.setWordWrap(True)
+        # A message from the project owner (service_flags.banner_message) and the notice shown while reviews are switched off.
+        self.banner_label = QLabel(self)
+        self.banner_label.setTextFormat(Qt.PlainText)
+        self.banner_label.setWordWrap(True)
+        self.banner_label.setStyleSheet(f"color: {self._accent}; font-size: 12px;")
+        self.banner_label.setVisible(False)
+        self.notice_label = QLabel(self)
+        self.notice_label.setWordWrap(True)
+        self.notice_label.setStyleSheet("color: #b45309; font-size: 12px;")
+        self.notice_label.setVisible(False)
+        self._reviews_enabled = True
         self.reviews_list = QListWidget(self)
         self.reviews_list.setVisible(False)
         self.reviews_list.setWordWrap(True)
@@ -195,10 +218,18 @@ class ReviewDialog(QDialog):
         self.submit_button = QPushButton("Gửi đánh giá", self)
         self.submit_button.clicked.connect(self._on_submit)
 
+        self.report_button = QPushButton("🚩 Báo cáo bài đã chọn...", self)
+        self.report_button.setToolTip("Báo cáo bài đánh giá spam, xúc phạm hay vi phạm. Nhiều người báo cáo thì bài bị ẩn để chủ dự án xem lại.")
+        self.report_button.setEnabled(False)
+        self.report_button.clicked.connect(self._on_report)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.summary_label)
+        layout.addWidget(self.banner_label)
+        layout.addWidget(self.notice_label)
         layout.addWidget(self.status_label)
         layout.addWidget(self.reviews_list, stretch=1)
+        layout.addWidget(self.report_button, alignment=Qt.AlignRight)
         layout.addWidget(QLabel("Viết đánh giá của bạn:"))
         layout.addWidget(self.my_review_label)
         layout.addWidget(self.nickname_edit)
@@ -210,9 +241,13 @@ class ReviewDialog(QDialog):
         self.reviews_loaded.connect(self._on_reviews_loaded)
         self.submit_finished.connect(self._on_submit_finished)
         self.nickname_taken.connect(self._on_nickname_taken)
+        self.flags_loaded.connect(self._on_flags_loaded)
+        self.report_finished.connect(self._on_report_finished)
+        self.reviews_list.itemSelectionChanged.connect(self._update_report_button)
 
         self._update_summary()
         self._load_reviews_async()
+        self._load_flags_async()
 
     # -- Rating input -------------------------------------------------------
 
@@ -285,6 +320,7 @@ class ReviewDialog(QDialog):
             stars = _FULL_STAR * review["rating"] + _EMPTY_STAR * (5 - review["rating"])
             item = QListWidgetItem(f"{stars}  {review.get('nickname', '')}\n{review.get('comment', '')}")
             item.setData(_HTML_ROLE, self._review_html(review, is_mine))
+            item.setData(Qt.UserRole, review)
             self.reviews_list.addItem(item)
 
     def _update_my_review_notice(self) -> None:
@@ -298,6 +334,78 @@ class ReviewDialog(QDialog):
             "cập nhật bài cũ hoặc tạo bài đánh giá mới."
         )
         self.my_review_label.setVisible(True)
+
+    # -- The server's switches ------------------------------------------------
+
+    def _load_flags_async(self) -> None:
+        if not self._configured:
+            return
+
+        def worker() -> None:
+            # flags() never raises: an unreachable server is "unknown" (None) and changes nothing on screen.
+            self.flags_loaded.emit(self._sync.flags())
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_flags_loaded(self, snapshot) -> None:
+        if snapshot is None:
+            return
+        banner = snapshot.text(BANNER_MESSAGE).strip()
+        self.banner_label.setText(banner)  # plain text: whatever the owner (or anybody who got hold of the table) wrote is never HTML
+        self.banner_label.setVisible(bool(banner))
+        self._reviews_enabled = snapshot.enabled(REVIEWS_ENABLED)
+        self.notice_label.setVisible(not self._reviews_enabled)
+        if not self._reviews_enabled:
+            self.notice_label.setText("Tính năng đánh giá cộng đồng đang tạm ngừng. Bạn vẫn xem được các đánh giá đã có.")
+        self.submit_button.setEnabled(self._reviews_enabled)
+        self._update_report_button()
+
+    # -- Reporting -------------------------------------------------------------
+
+    def _selected_review(self) -> dict | None:
+        item = self.reviews_list.currentItem()
+        review = item.data(Qt.UserRole) if item is not None else None
+        return review if isinstance(review, dict) and review.get("id") is not None else None
+
+    def _update_report_button(self) -> None:
+        review = self._selected_review()
+        is_mine = review is not None and bool(self._user_hash) and review.get("user_hash") == self._user_hash
+        self.report_button.setEnabled(self._configured and self._reviews_enabled and review is not None and not is_mine)
+
+    def _ask_report_reason(self) -> str | None:
+        """The reason code to report a review for, or None (cancel). Separate method so tests can answer it."""
+        labels = [label for _code, label in REPORT_REASONS]
+        chosen, ok = QInputDialog.getItem(self, "Báo cáo bài đánh giá", "Lý do báo cáo:", labels, 0, False)
+        if not ok:
+            return None
+        return next(code for code, label in REPORT_REASONS if label == chosen)
+
+    def _on_report(self) -> None:
+        review = self._selected_review()
+        if review is None:
+            return
+        reason = self._ask_report_reason()
+        if reason is None:
+            return
+        token, review_id = self.context.identity.token, review["id"]
+        self.report_button.setEnabled(False)
+
+        def worker() -> None:
+            try:
+                self._sync.report_review(review_id, reason, user_token=token)
+                self.report_finished.emit("", True)
+            except CloudReviewError as exc:
+                self.report_finished.emit(str(exc), False)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_report_finished(self, error: str, ok: bool) -> None:
+        self._update_report_button()
+        if not ok:
+            QMessageBox.warning(self, "Không báo cáo được", error)
+            return
+        QMessageBox.information(self, "Đã gửi báo cáo", "Cảm ơn bạn. Chủ dự án sẽ xem lại bài đánh giá này.")
+        self._load_reviews_async()  # if it was the report that tipped it over, the review is gone from the list now
 
     # -- Submitting ---------------------------------------------------------
 
@@ -363,7 +471,7 @@ class ReviewDialog(QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     def _reset_submit_button(self) -> None:
-        self.submit_button.setEnabled(True)
+        self.submit_button.setEnabled(self._reviews_enabled)
         self.submit_button.setText("Gửi đánh giá")
 
     def _on_nickname_taken(self, nickname: str) -> None:

@@ -166,6 +166,22 @@ New features, so the next release is a MINOR bump (1.1.0).
   or unreachable, an approved report waits in `%APPDATA%\SmartDocLibrary\reports`, Settings says so ("Chưa gửi được
   báo cáo. Ứng dụng sẽ thử lại sau."), and no second error is shown.
 
+
+- **Reporting and moderating community reviews.** In the review dialog, **🚩 Báo cáo bài đã chọn...** reports somebody
+  else's review (spam, abuse, illegal content, personal information, other). When three different people have reported
+  a review it is hidden until the project owner decides, and hidden reviews leave the list and the rating average. The
+  server side is a new `002_review_moderation.sql` (Settings → Đánh giá cộng đồng → **Sao chép SQL nâng cấp** now
+  copies every step, in order, and running one again is safe): a public switch table (`service_flags`: turn reviews
+  off for everybody, show a banner message in the review dialog, tune the limits, all without a new release), limits on
+  new reviews (10 an hour and 30 a day per installation, 2,000 characters), blocked identities and a cap on automatic
+  hiding. Every refusal from the server is now a plain Vietnamese sentence ("Bạn thao tác quá nhiều trong thời gian
+  ngắn...", "Tính năng đánh giá cộng đồng đang tạm ngừng..."), and a server that is down shows "tạm thời không khả
+  dụng" without breaking the dialog. MewBook 1.0.0 keeps reading and writing reviews against the upgraded server (it
+  only stops seeing hidden ones). `003_error_reports.sql` adds the server for the anonymous error reports above (one
+  door that accepts nothing but a well-formed report, limits that switch receiving off by themselves, and two narrow
+  roles for the daily triage agent). Both scripts were run against a real PostgreSQL in the tests
+  (`tests/test_server_sql.py`, optional: needs `pgserver` and `psycopg2-binary`).
+
 ### Changed
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is

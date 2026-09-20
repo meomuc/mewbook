@@ -341,3 +341,140 @@ def test_upgrade_sql_is_bundled_and_defines_the_server_function():
     sql = upgrade_sql()
     assert "create or replace function public.submit_review" in sql
     assert "create table if not exists public.reviewers" in sql
+
+
+# --- moderation (S2-03): the server's error codes, reporting, the switches ----------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("REVIEWS_DISABLED", "tạm ngừng"),
+        ("IDENTITY_BLOCKED", "không còn được gửi"),
+        ("RATE_LIMITED", "quá nhiều"),
+        ("COMMENT_TOO_LONG", "2.000 ký tự"),
+        ("REVIEW_NOT_FOUND", "không còn nữa"),
+        ("CANNOT_REPORT_OWN", "của chính mình"),
+        ("ALREADY_REPORTED", "đã báo cáo"),
+    ],
+)
+def test_every_server_error_code_is_told_to_the_user_in_vietnamese(sync, monkeypatch, code, expected):
+    monkeypatch.setattr(
+        "smartdoc.application.cloud_reviews.requests.post",
+        lambda url, headers, json, timeout: _FakeResponse(400, {"code": "P0001", "message": code}),
+    )
+    with pytest.raises(CloudReviewError, match=expected) as caught:
+        sync.submit_review("doc1", "Lan", 5, "x", user_token=TOKEN_A)
+    assert caught.value.code == code and code not in str(caught.value)  # the person never sees the raw code
+
+
+def test_a_server_that_is_down_is_a_plain_unavailable_message_not_a_stack_of_details(sync, monkeypatch):
+    import requests
+
+    from smartdoc.application.cloud_reviews import ReviewServiceUnavailableError
+
+    def down(url, headers, params, timeout):
+        raise requests.ConnectionError("HTTPSConnectionPool(host='x.supabase.co'): Max retries exceeded")
+
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.get", down)
+    with pytest.raises(ReviewServiceUnavailableError, match="tạm thời không khả dụng") as caught:
+        sync.fetch_reviews("doc1")
+    assert "supabase.co" not in str(caught.value)
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.get", lambda url, headers, params, timeout: _FakeResponse(503))
+    with pytest.raises(ReviewServiceUnavailableError):
+        sync.fetch_reviews("doc1")
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.post", lambda url, headers, json, timeout: _FakeResponse(502))
+    with pytest.raises(ReviewServiceUnavailableError):
+        sync.submit_review("doc1", "Lan", 5, "x", user_token=TOKEN_A)
+
+
+def test_report_review_sends_the_reason_through_the_server_function_and_returns_the_count(sync, monkeypatch):
+    seen = {}
+
+    def fake_post(url, headers, json, timeout):
+        seen.update(url=url, json=json, headers=headers)
+        return _FakeResponse(200, 2)
+
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.post", fake_post)
+    assert sync.report_review(7, "spam", user_token=TOKEN_A) == 2
+    assert seen["url"].endswith("/rest/v1/rpc/report_review")
+    assert seen["json"] == {"p_token": TOKEN_A, "p_review_id": 7, "p_reason": "spam"}
+    assert seen["headers"]["apikey"] == "fake-anon-key"
+
+
+def test_report_review_refuses_an_unknown_reason_without_asking_the_server(sync, monkeypatch):
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.post", lambda *a, **k: pytest.fail("no request expected"))
+    with pytest.raises(ValueError):
+        sync.report_review(7, "because", user_token=TOKEN_A)
+
+
+def test_report_review_errors_are_friendly(sync, monkeypatch):
+    import requests
+
+    from smartdoc.application.cloud_reviews import ReviewServiceUnavailableError
+
+    monkeypatch.setattr(
+        "smartdoc.application.cloud_reviews.requests.post",
+        lambda url, headers, json, timeout: _FakeResponse(400, {"message": "ALREADY_REPORTED"}),
+    )
+    with pytest.raises(CloudReviewError, match="đã báo cáo"):
+        sync.report_review(7, "spam", user_token=TOKEN_A)
+    monkeypatch.setattr(
+        "smartdoc.application.cloud_reviews.requests.post",
+        lambda url, headers, json, timeout: _FakeResponse(404, {"code": "PGRST202", "message": "no function"}),
+    )
+    with pytest.raises(CloudReviewError, match="002_review_moderation.sql"):
+        sync.report_review(7, "spam", user_token=TOKEN_A)  # a server that has not been upgraded says which script to run
+
+    def offline(url, headers, json, timeout):
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.post", offline)
+    with pytest.raises(ReviewServiceUnavailableError):
+        sync.report_review(7, "spam", user_token=TOKEN_A)
+
+
+def test_the_reasons_match_the_ones_the_server_accepts():
+    from smartdoc.application.cloud_reviews import REPORT_REASONS
+
+    assert [code for code, _label in REPORT_REASONS] == ["spam", "abuse", "illegal", "privacy", "other"]
+
+
+def test_the_flags_are_cached_per_client_and_never_raise(sync, monkeypatch):
+    calls = []
+
+    class Response:
+        ok = True
+        status_code = 200
+
+        def json(self):
+            return [{"key": "reviews_enabled", "value": "false"}, {"key": "banner_message", "value": "Bảo trì"}]
+
+    def fake_get(self, url, params=None, headers=None, timeout=None):
+        calls.append(url)
+        return Response()
+
+    monkeypatch.setattr("requests.Session.get", fake_get)
+    snapshot = sync.flags()
+    assert snapshot.enabled("reviews_enabled") is False and snapshot.text("banner_message") == "Bảo trì"
+    assert sync.flags() is snapshot and len(calls) == 1  # cached for ten minutes
+    assert calls[0] == "https://fake.supabase.co/rest/v1/service_flags"
+
+
+def test_upgrade_sql_serves_every_step_in_order():
+    from smartdoc.application.cloud_reviews import upgrade_sql
+
+    sql = upgrade_sql()
+    assert sql.index("001_reviewer_identity.sql") < sql.index("002_review_moderation.sql") < sql.index("003_error_reports.sql")
+    for needed in ("create or replace function public.report_review", "create table if not exists public.service_flags",
+                   "create or replace function public.submit_error_report", "create or replace function public.triage_set_status"):
+        assert needed in sql
+
+
+def test_the_connection_test_mentions_the_flags_table(sync, monkeypatch):
+    monkeypatch.setattr("smartdoc.application.cloud_reviews.requests.get", lambda url, headers, params, timeout: _FakeResponse(200, []))
+    assert "service_flags" in sync.test_connection() and "sẵn sàng" in sync.test_connection()
+    monkeypatch.setattr(
+        "smartdoc.application.cloud_reviews.requests.get",
+        lambda url, headers, params, timeout: _FakeResponse(404 if "service_flags" in url else 200, []),
+    )
+    assert "002_review_moderation.sql" in sync.test_connection()  # reviews work; the moderation step is just not run yet

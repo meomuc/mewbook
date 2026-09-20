@@ -79,6 +79,13 @@ from then on the only write path: it recomputes user_hash from the token
 server-side (so it can't be forged), rejects a nickname owned by someone
 else (NICKNAME_TAKEN) and only lets a review's owner update it. The direct
 anon INSERT policy is dropped by that script.
+
+Moderation and limits (since 1.1.0): also run src/smartdoc/application/sql/002_review_moderation.sql. It adds a public
+`service_flags` table (a kill-switch, a banner message, the limits), lets a review be hidden (by you, or automatically once
+enough different people have reported it), a `report_review` function for reporting, blocked identities and rate limits on
+`submit_review`. A 1.0.0 client keeps working against it: it simply stops seeing hidden reviews. The app reads the flags
+with one short request (cached ten minutes, never blocking) and turns every error code the server raises into a Vietnamese
+sentence -- see `friendly_error`. docs/MODERATION_RUNBOOK.md is the owner's guide.
 """
 from __future__ import annotations
 
@@ -87,6 +94,8 @@ import sys
 from pathlib import Path
 
 import requests
+
+from smartdoc.application.service_flags import FlagSnapshot, ServiceFlags
 
 logger = logging.getLogger(__name__)
 
@@ -101,30 +110,99 @@ NICKNAME_MAX_LENGTH = 40
 _MIGRATION_HINT = (
     "Máy chủ đánh giá chưa được nâng cấp cho phiên bản này. Người quản trị cần vào Cài đặt > "
     "Đánh giá cộng đồng, bấm \"Sao chép SQL nâng cấp\" rồi chạy đoạn SQL đó trong Supabase SQL Editor "
-    "(file 001_reviewer_identity.sql)."
+    "(các file 001_reviewer_identity.sql và 002_review_moderation.sql)."
 )
-UPGRADE_SQL_FILE = "001_reviewer_identity.sql"
+UPGRADE_SQL_FILE = "001_reviewer_identity.sql"  # the first step; upgrade_sql() serves every step in order
+
+REPORT_REASONS = (
+    ("spam", "Quảng cáo, spam"),
+    ("abuse", "Xúc phạm, thô tục, quấy rối"),
+    ("illegal", "Vi phạm pháp luật"),
+    ("privacy", "Lộ thông tin cá nhân"),
+    ("other", "Lý do khác"),
+)
+
+# What each error code raised by the server's functions (002_review_moderation.sql) means to a person.
+_CODE_MESSAGES = {
+    "REVIEWS_DISABLED": "Tính năng đánh giá cộng đồng đang tạm ngừng. Bạn vẫn xem được các đánh giá đã có.",
+    "IDENTITY_BLOCKED": "Mã ẩn danh của bạn không còn được gửi hoặc báo cáo đánh giá.",
+    "RATE_LIMITED": "Bạn thao tác quá nhiều trong thời gian ngắn. Hãy thử lại sau ít phút.",
+    "COMMENT_TOO_LONG": "Nội dung đánh giá quá dài (tối đa 2.000 ký tự cho bài mới).",
+    "REVIEW_NOT_OWNED": "Không thể cập nhật: bài đánh giá này không thuộc về bạn (hoặc đã bị xoá).",
+    "REVIEW_NOT_FOUND": "Bài đánh giá này không còn nữa.",
+    "CANNOT_REPORT_OWN": "Bạn không thể báo cáo bài đánh giá của chính mình.",
+    "ALREADY_REPORTED": "Bạn đã báo cáo bài đánh giá này rồi. Cảm ơn bạn.",
+    "INVALID_REASON": "Lý do báo cáo không hợp lệ.",
+    "INVALID_TOKEN": "Mã ẩn danh của cài đặt này không hợp lệ.",
+    "INVALID_RATING": "Số sao phải từ 1 đến 5.",
+    "INVALID_DOC": "Không xác định được sách cần đánh giá.",
+}
+_UNAVAILABLE = "Máy chủ đánh giá tạm thời không khả dụng. Hãy thử lại sau."
 
 
 def upgrade_sql() -> str:
-    """The server-side upgrade script (identity + unique nicknames), for
-    Settings' "copy SQL" button. Bundled next to this module -- under
-    sys._MEIPASS in a PyInstaller build (see packaging/MewBook.spec)."""
+    """Every server-side upgrade script (001 identity and nicknames, 002 moderation and limits, 003 error reports),
+    in order, for Settings' "copy SQL" button. Each is safe to run again, so one paste brings any project up to date.
+    Bundled next to this module -- under sys._MEIPASS in a PyInstaller build (see packaging/MewBook.spec)."""
     frozen_base = getattr(sys, "_MEIPASS", None)
     base = Path(frozen_base) / "smartdoc" / "application" if frozen_base else Path(__file__).parent
-    return (base / "sql" / UPGRADE_SQL_FILE).read_text(encoding="utf-8")
+    parts = []
+    for path in sorted((base / "sql").glob("*.sql")):
+        parts.append(f"-- ===== {path.name} =====\n" + path.read_text(encoding="utf-8"))
+    return "\n\n".join(parts)
 
 
 class CloudReviewError(RuntimeError):
-    """Raised for any Supabase/network failure -- callers show this to the user."""
+    """Raised for any Supabase/network failure -- callers show this to the user. `code` is the server's error code
+    when the server raised one (RATE_LIMITED, REVIEWS_DISABLED, ...), else empty."""
+
+    def __init__(self, message: str = "", *, code: str = "") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class NicknameTakenError(CloudReviewError):
     """The nickname already belongs to another installation."""
 
     def __init__(self, nickname: str) -> None:
-        super().__init__(f"Nick name \"{nickname}\" đã có người dùng. Vui lòng chọn nick name khác.")
+        super().__init__(f"Nick name \"{nickname}\" đã có người dùng. Vui lòng chọn nick name khác.", code="NICKNAME_TAKEN")
         self.nickname = nickname
+
+
+class ReviewServiceUnavailableError(CloudReviewError):
+    """The server cannot be reached or is failing: the app keeps working, reviews are just not available right now."""
+
+
+def server_code(response) -> str:
+    """The error code a server function raised (`{"message": "RATE_LIMITED", ...}`), else ""."""
+    try:
+        body = response.json()
+    except ValueError:
+        return ""
+    message = str(body.get("message", "")) if isinstance(body, dict) else ""
+    for code in list(_CODE_MESSAGES) + ["NICKNAME_TAKEN"]:
+        if code in message:
+            return code
+    return ""
+
+
+def friendly_error(response, nickname: str = "") -> CloudReviewError:
+    """A failed response as an error whose text is written for the user."""
+    code = server_code(response)
+    if code == "NICKNAME_TAKEN":
+        return NicknameTakenError(nickname)
+    if code:
+        return CloudReviewError(_CODE_MESSAGES[code], code=code)
+    try:
+        body = response.json()
+        pgrst = str(body.get("code", "")) if isinstance(body, dict) else ""
+    except ValueError:
+        pgrst = ""
+    if response.status_code == 404 or pgrst == "PGRST202":
+        return CloudReviewError(_MIGRATION_HINT, code="NOT_UPGRADED")
+    if response.status_code >= 500 or response.status_code in (408, 429):
+        return ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE")
+    return CloudReviewError(f"Không gửi được lên máy chủ đánh giá ({response.status_code}): {response.text}")
 
 
 def nickname_key(nickname: str) -> str:
@@ -149,6 +227,14 @@ class SupabaseReviewSync:
     def __init__(self, supabase_url: str, anon_key: str) -> None:
         self.supabase_url = supabase_url.rstrip("/")
         self.anon_key = anon_key
+        self._flags: ServiceFlags | None = None
+
+    def flags(self, *, force: bool = False) -> FlagSnapshot | None:
+        """The server's public switches (`reviews_enabled`, `banner_message`, ...), cached for ten minutes. None when they
+        cannot be read -- unknown, which the callers treat as "everything works" (the server has the last word)."""
+        if self._flags is None:
+            self._flags = ServiceFlags(self.supabase_url, self.anon_key)
+        return self._flags.snapshot(force=force)
 
     def _headers(self, *, for_insert: bool = False) -> dict[str, str]:
         headers = {
@@ -166,7 +252,10 @@ class SupabaseReviewSync:
         try:
             response = requests.get(url, headers=self._headers(), params=params, timeout=_TIMEOUT_SECONDS)
         except requests.RequestException as exc:
-            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
+            logger.info("Reviews not reachable: %s", type(exc).__name__)
+            raise ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE") from exc
+        if response.status_code >= 500 or response.status_code in (408, 429):
+            raise ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE")
         if not response.ok:
             raise CloudReviewError(f"Lỗi Supabase ({response.status_code}): {response.text}")
         return response.json()
@@ -185,7 +274,8 @@ class SupabaseReviewSync:
         try:
             response = requests.get(url, headers=self._headers(), params=params, timeout=_TIMEOUT_SECONDS)
         except requests.RequestException as exc:
-            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
+            logger.info("Reviewers not reachable: %s", type(exc).__name__)
+            raise ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE") from exc
         if response.status_code == 404:
             return "free"
         if not response.ok:
@@ -228,7 +318,8 @@ class SupabaseReviewSync:
                 url, headers=self._headers(for_insert=True), json=payload, timeout=_TIMEOUT_SECONDS
             )
         except requests.RequestException as exc:
-            raise CloudReviewError(f"Lỗi kết nối Supabase: {exc}") from exc
+            logger.info("Review not sent: %s", type(exc).__name__)
+            raise ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE") from exc
         if not response.ok:
             raise self._submit_error(response, nickname)
 
@@ -236,19 +327,26 @@ class SupabaseReviewSync:
 
     @staticmethod
     def _submit_error(response, nickname: str) -> CloudReviewError:
+        return friendly_error(response, nickname)
+
+    def report_review(self, review_id: int, reason: str, *, user_token: str) -> int:
+        """Reports someone else's review (server function `report_review`, 002_review_moderation.sql). Returns how many
+        different people have now reported it; enough of them hide it. Raises CloudReviewError with a message for the user
+        ("Bạn đã báo cáo bài đánh giá này rồi.", "Tính năng đánh giá đang tạm ngừng.", ...)."""
+        if reason not in dict(REPORT_REASONS):
+            raise ValueError("unknown report reason")
+        url = f"{self.supabase_url}/rest/v1/rpc/report_review"
+        payload = {"p_token": user_token, "p_review_id": review_id, "p_reason": reason}
         try:
-            body = response.json()
-            message = str(body.get("message", "")) if isinstance(body, dict) else ""
-            code = str(body.get("code", "")) if isinstance(body, dict) else ""
-        except ValueError:
-            message, code = "", ""
-        if "NICKNAME_TAKEN" in message:
-            return NicknameTakenError(nickname)
-        if "REVIEW_NOT_OWNED" in message:
-            return CloudReviewError("Không thể cập nhật: bài đánh giá này không thuộc về bạn (hoặc đã bị xoá).")
-        if response.status_code == 404 or code == "PGRST202":
-            return CloudReviewError(_MIGRATION_HINT)
-        return CloudReviewError(f"Không gửi được đánh giá lên Supabase ({response.status_code}): {response.text}")
+            response = requests.post(url, headers=self._headers(for_insert=True), json=payload, timeout=_TIMEOUT_SECONDS)
+        except requests.RequestException as exc:
+            raise ReviewServiceUnavailableError(_UNAVAILABLE, code="UNAVAILABLE") from exc
+        if not response.ok:
+            raise friendly_error(response)
+        try:
+            return int(response.json())
+        except (ValueError, TypeError):
+            return 0
 
     def fetch_all_rating_stats(self) -> dict[str, tuple[float, int]]:
         """One batch query for every document's (avg_rating, review_count)
@@ -298,7 +396,13 @@ class SupabaseReviewSync:
             self._probe(_REVIEWERS_TABLE, "Bảng 'reviewers'")
         except CloudReviewError as exc:
             raise CloudReviewError(f"Đọc đánh giá OK, nhưng {exc}\n\n→ {_MIGRATION_HINT}") from exc
-        return "Bảng 'reviews', 'reviewers' và view 'review_stats' đều hoạt động."
+        summary = "Bảng 'reviews', 'reviewers' và view 'review_stats' đều hoạt động."
+        try:
+            self._probe("service_flags", "Bảng 'service_flags'")
+        except CloudReviewError:
+            # Reviews work without it (1.0.0 servers); it only carries the moderation switches of 002_review_moderation.sql.
+            return summary + "\nChưa có bảng 'service_flags' (kiểm duyệt, công tắc tạm ngừng): chạy 002_review_moderation.sql khi cần."
+        return summary + "\nBảng 'service_flags' (kiểm duyệt) cũng sẵn sàng."
 
     def _probe(self, relation: str, label: str) -> None:
         url = f"{self.supabase_url}/rest/v1/{relation}"

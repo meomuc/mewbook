@@ -451,3 +451,15 @@ def test_saving_source_choices_updates_disabled_cover_sources(qapp, app_context)
 
     # the ticked Tiki is enabled, the unticked Apple Books disabled, and the entry without a checkbox is kept
     assert sorted(app_context.config.config.disabled_cover_sources) == ["Apple Books", "Google Images"]
+
+
+def test_the_copy_sql_button_copies_every_upgrade_step_in_order(qapp, app_context):
+    """S2-04: one paste brings a project from 1.0.0 to 1.1.0 (identity, moderation, error reports)."""
+    from PySide6.QtWidgets import QApplication
+
+    dialog = SettingsDialog(app_context)
+    dialog.copy_upgrade_sql_button.click()
+    sql = QApplication.clipboard().text()
+    assert sql.index("001_reviewer_identity.sql") < sql.index("002_review_moderation.sql") < sql.index("003_error_reports.sql")
+    assert "report_review" in sql and "submit_error_report" in sql
+    assert "kiểm duyệt" in dialog.copy_upgrade_sql_button.toolTip()
