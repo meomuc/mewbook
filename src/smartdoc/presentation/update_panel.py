@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QPushButton, QVBox
 
 from smartdoc import __version__
 from smartdoc.application.update_checker import UpdateCheckError, UpdateInfo
+from smartdoc.presentation.community import community_url, open_community_page
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,12 @@ class UpdatePanel(QWidget):
         self.check_button = QPushButton("🔄 Kiểm tra ngay", self)
         self.check_button.clicked.connect(self._on_check_now)
         row.addWidget(self.check_button)
+        # The page that announces new versions works without the update check (and before a release feed exists).
+        self.community_button = QPushButton("📣 Fanpage cộng đồng", self)
+        self.community_button.setToolTip("Mở fanpage Facebook của Mèo Mực trong trình duyệt: tin về các bản nâng cấp mới và nơi gửi góp ý.")
+        self.community_button.setEnabled(bool(community_url()))
+        self.community_button.clicked.connect(lambda _checked=False: open_community_page())
+        row.addWidget(self.community_button)
         row.addStretch(1)
         layout.addLayout(row)
 
@@ -54,7 +61,10 @@ class UpdatePanel(QWidget):
         layout.addStretch(1)
 
         if not context.updates.configured:
-            self.status_label.setText("Chưa cấu hình nguồn thông tin bản phát hành trong bản dựng này, nên chưa kiểm tra được.")
+            self.status_label.setText(
+                "Chưa cấu hình nguồn thông tin bản phát hành trong bản dựng này, nên chưa kiểm tra được."
+                + (" Tin về các bản nâng cấp mới vẫn được đăng ở fanpage cộng đồng." if community_url() else "")
+            )
             self.check_button.setEnabled(False)
             self.enable_check.setEnabled(False)
         self._done.connect(self._on_done)

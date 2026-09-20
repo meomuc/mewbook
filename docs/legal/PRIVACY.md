@@ -43,6 +43,7 @@ MewBook **không di chuyển và không xóa** tệp sách gốc. Khi gỡ cài 
 | Đánh giá cộng đồng | Khi bạn xem, gửi, sửa hoặc báo cáo một đánh giá | Xem mục 5 | Máy chủ đánh giá của dự án (Supabase) | **Tắt** (cần cấu hình máy chủ) |
 | Báo lỗi ẩn danh | Khi ứng dụng gặp lỗi bất ngờ, hoặc khi bạn bấm Trợ giúp → Báo lỗi | Xem mục 6 | Máy chủ báo lỗi của dự án (Supabase) | **Hỏi mỗi lần**; không gửi gì nếu bạn không đồng ý. Bản chạy từ mã nguồn hoặc chưa dựng sạch không gửi |
 | Kiểm tra bản mới | Khi bạn bấm "Kiểm tra ngay", hoặc mỗi ngày một lần nếu bạn bật | Một yêu cầu tới trang phát hành, kèm `User-Agent: MewBook/<phiên bản>`. **Không** kèm mã ẩn danh hay thông tin thư viện | Trang phát hành của dự án | **Tắt** |
+| Fanpage cộng đồng (Help → "Fanpage cộng đồng & tin cập nhật", Giới thiệu, Cài đặt → Cập nhật) | Chỉ khi bạn bấm liên kết | **Không gì cả từ ứng dụng.** Ứng dụng chỉ đưa địa chỉ trang cho trình duyệt mặc định của bạn; sau đó Facebook (Meta) có thể ghi nhận lượt truy cập của bạn theo chính sách của họ, không phải của MewBook | Trang Facebook của dự án | Chỉ khi bạn bấm |
 
 Mọi máy chủ nhận kết nối đều thấy **địa chỉ IP** của bạn, như mọi kết nối internet. Điều khoản và chính sách riêng tư của từng nguồn bên thứ ba là của họ; danh sách và điều kiện: `docs/legal/DATA_SOURCES.md`. Với nhà cung cấp AI, bạn là bên giao kết với họ bằng khóa của chính bạn; **dự án không nhìn thấy khóa hay nội dung đó**.
 

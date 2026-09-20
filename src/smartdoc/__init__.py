@@ -28,6 +28,9 @@ APP_SOURCE_URL_TEMPLATE = ""
 # (application/update_checker.py). Empty until the public repository exists; set it together with the URL above.
 # Example: "https://api.github.com/repos/<owner>/<repo>/releases/latest"
 APP_UPDATE_FEED_URL = ""
+# The community page (a Facebook fan page): new versions are announced there and users' feedback is read there. Opened in the
+# browser by Help -> "Fanpage cộng đồng", Help -> About and Settings -> "Cập nhật" (presentation/community.py); MewBook sends nothing.
+APP_COMMUNITY_URL = "https://www.facebook.com/meomuc.mewbook/"
 # Anonymous error reports (docs/handoff/09_ERROR_REPORTING_SPEC.md): the server that receives them is a Supabase project;
 # these are its API URL and its public "anon" key. The key is public by design (the server checks every call and the
 # anon role can only call submit_error_report; nothing is protected by hiding it). Empty until the project owner has run

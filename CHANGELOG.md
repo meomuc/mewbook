@@ -184,6 +184,11 @@ New features, so the next release is a MINOR bump (1.1.0).
   would let a flood outgrow the free plan). Both scripts were run against a real PostgreSQL in the tests
   (`tests/test_server_sql.py`, optional: needs `pgserver` and `psycopg2-binary`).
 
+- **The community fan page is one click away.** Help → **📣 Fanpage cộng đồng & tin cập nhật**, a line in Help → About and a
+  **📣 Fanpage cộng đồng** button in Settings → Cập nhật open the project's Facebook page
+  (`https://www.facebook.com/meomuc.mewbook/`, `APP_COMMUNITY_URL`) in your browser: new versions are announced there and
+  feedback is read there. It works before the optional update check has a release feed to read, and MewBook sends nothing
+  itself (it only hands the address to the browser, after your click, and only if it is a plain https address).
 - **Privacy policy and terms of service (drafts).** `docs/legal/PRIVACY.md` and `docs/legal/TERMS.md` describe exactly what
   each network feature sends (the review server, the anonymous error reports and the AI tool that helps read them,
   the cover and metadata sources, the optional update check), how long it is kept (90 days for error reports), who can

@@ -63,6 +63,7 @@ Làm theo **thứ tự**. Chi tiết và câu lệnh: `docs/MODERATION_RUNBOOK.m
 | D4 **[Q]** | Thêm dòng SPDX cho **tệp cũ**: khi sửa tệp (đề xuất) hay một commit riêng | (a) khi sửa tệp | `docs/legal/SPDX_POLICY.md` mục 2 |
 | D5 **[Q]** | **Quy tắc mới A7 trong `CLAUDE.md`** (báo lỗi tự nguyện, không telemetry, tác tử không merge/phát hành, khóa không vào kho) | Claude Code đã **thêm** theo cùng nguyên tắc với A2 đến A6; đọc và sửa/bỏ nếu bạn không đồng ý | `docs/handoff/CLAUDE_MD_CHANGES.md` |
 | D6 **[Q]** | Đăng ký **nhãn hiệu** "MewBook/Mèo Mực"; **CLA hay DCO** (hiện dùng DCO) | Hỏi luật sư (mục C câu 3 và 9) | `TRADEMARK.md`, `CONTRIBUTING.md` |
+| D8 **[Q]** | Fanpage Facebook (`APP_COMMUNITY_URL`, đã đưa vào Trợ giúp, Giới thiệu và Cài đặt → Cập nhật) có dùng làm **kênh liên hệ** ở A2 không | Dùng cho `PARTNERS.md`/`TRADEMARK.md` thì được. Cho yêu cầu xóa dữ liệu và bảo mật thì nên có **email hoặc biểu mẫu** riêng (xác minh người yêu cầu, không lộ nội dung riêng tư trên Facebook). Kiểm tra trang không lộ hồ sơ cá nhân của bạn (người quản trị, liên kết), vì bạn đang muốn danh tính công khai tách biệt | `presentation/community.py` |
 | D7 **[Q]** | Số phiên bản phát hành: `__version__` vẫn là `1.0.0`; `[Unreleased]` là bản MINOR | **1.1.0**; đặt `__version__` ở bước phát hành, không trước | `docs/RELEASE_CHECKLIST.md` mục 4 |
 
 ## E. Phát hành (khi A, B, C đã sẵn sàng)

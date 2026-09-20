@@ -38,6 +38,7 @@ from smartdoc import (
     __version__,
 )
 from smartdoc.core.diagnostics import current_log_path, support_info
+from smartdoc.presentation.community import community_url
 from smartdoc.presentation.eula_dialog import EULA_TEXT
 from smartdoc.presentation.resources import brand_logo_path, legal_file_path
 from smartdoc.presentation.theme import current_colors
@@ -143,6 +144,22 @@ class AboutDialog(QDialog):
         else:
             self.source_label.setText(f"Mã nguồn tương ứng của phiên bản {__version__} được cung cấp cùng bản phát hành.")
         layout.addWidget(self.source_label)
+
+        # Where new versions are announced and feedback is read. Same accent-coloured link as the source line above.
+        self.community_label = QLabel(page)
+        self.community_label.setAlignment(Qt.AlignCenter)
+        self.community_label.setWordWrap(True)
+        self.community_label.setStyleSheet("font-size: 11px;")
+        community = community_url()
+        if community:
+            safe = html.escape(community, quote=True)
+            link = f'<a href="{safe}"><span style="color:{current_colors().accent};">Fanpage cộng đồng Mèo Mực</span></a>'
+            self.community_label.setTextFormat(Qt.RichText)
+            self.community_label.setText(f"Tin cập nhật và góp ý: {link}")
+            self.community_label.setOpenExternalLinks(True)
+        else:
+            self.community_label.setVisible(False)
+        layout.addWidget(self.community_label)
 
         if self._identity is not None:
             id_label = QLabel(f"Mã cài đặt ẩn danh: {self._identity.short_id}", page)

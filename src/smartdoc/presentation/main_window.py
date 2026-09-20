@@ -31,6 +31,7 @@ from smartdoc.core.config import THEME_CHOICES
 from smartdoc.core.event_bus import ImportBatchCompletedEvent
 from smartdoc.presentation.about_dialog import AboutDialog
 from smartdoc.presentation.add_document_dialog import AddDocumentDialog
+from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
 from smartdoc.presentation.active_filter_bar import ActiveFilterBar
@@ -362,6 +363,10 @@ class MainWindow(QMainWindow):
         about_action = QAction("ℹ️ Giới thiệu (About)...", self)
         about_action.triggered.connect(self._on_open_about)
         help_menu.addAction(about_action)
+        community_action = QAction("📣 Fanpage cộng đồng & tin cập nhật", self)
+        community_action.setToolTip("Mở fanpage Facebook của Mèo Mực trong trình duyệt: tin về các bản nâng cấp mới và nơi gửi góp ý.")
+        community_action.triggered.connect(lambda _checked=False: open_community_page())
+        help_menu.addAction(community_action)
         report_action = QAction("🐞 Báo lỗi…", self)
         report_action.triggered.connect(self._on_open_error_report)
         help_menu.addAction(report_action)
