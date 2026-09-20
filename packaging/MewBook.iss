@@ -69,6 +69,9 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 ; below.
 Type: files; Name: "{userappdata}\{#MyDataDirName}\identity.dat"
 Type: files; Name: "{userappdata}\{#MyDataDirName}\mewbook.lock"
+; Error reports waiting to be sent (application/error_report_queue.py) and the list of what was sent: nothing of them
+; outlives the installation.
+Type: filesandordirs; Name: "{userappdata}\{#MyDataDirName}\reports"
 
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

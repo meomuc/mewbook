@@ -162,3 +162,17 @@ def test_sources_with_unclear_terms_are_disabled_by_default_and_the_choice_persi
     mgr.config.disabled_cover_sources = ["Tiki"]
     mgr.save()
     assert ConfigManager(app_data_dir=tmp_path).config.disabled_cover_sources == ["Tiki"]
+
+
+def test_error_reports_are_off_until_asked_for_and_the_choice_persists(tmp_path):
+    mgr = ConfigManager(app_data_dir=tmp_path)
+    assert (mgr.config.error_report_mode, mgr.config.error_report_consent_version, mgr.config.error_report_install_id) == ("ask", 0, "")
+
+    mgr.config.error_report_mode = "never"
+    mgr.save()
+    assert ConfigManager(app_data_dir=tmp_path).config.error_report_mode == "never"
+
+
+def test_a_mistyped_error_report_mode_falls_back_to_asking_never_to_always(tmp_path):
+    (tmp_path / "settings.json").write_text('{"error_report_mode": "alwayz"}', encoding="utf-8")
+    assert ConfigManager(app_data_dir=tmp_path).config.error_report_mode == "ask"

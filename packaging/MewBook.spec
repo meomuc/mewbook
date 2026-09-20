@@ -6,7 +6,11 @@
 # The product version comes from src/smartdoc/__init__.py (__version__, the
 # single source of truth) and is embedded as the exe's Windows version
 # resource -- right-click MewBook.exe -> Properties -> Details shows it.
+import json
+import os
 import re
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 from importlib.metadata import PackageNotFoundError
@@ -32,6 +36,33 @@ def _meta(name):
 
 VERSION = _meta('__version__')
 _nums = tuple(int(n) for n in re.match(r'(\d+)\.(\d+)\.(\d+)', VERSION).groups()) + (0,)
+
+
+def _build_id():
+    """The commit this build is made from: its first 12 hex characters, with '-dirty' appended when the working tree had
+    uncommitted changes. MEWBOOK_BUILD_ID overrides it (a build from a source archive has no .git). 'dev' when it cannot
+    be known. smartdoc/core/build_info.py reads the stamp: only a clean commit is the 'release' channel that may send
+    error reports, and the id is what lets a reported error be traced to the exact source (docs/handoff/09, ERR-A14)."""
+    override = os.environ.get('MEWBOOK_BUILD_ID', '').strip().lower()
+    if re.fullmatch(r'[0-9a-f]{7,40}(-dirty)?', override):
+        return override
+    try:
+        head = subprocess.run(['git', 'rev-parse', '--short=12', 'HEAD'], cwd=_ROOT, capture_output=True, text=True, check=True).stdout.strip()
+        dirty = subprocess.run(['git', 'status', '--porcelain'], cwd=_ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return 'dev'
+    if not re.fullmatch(r'[0-9a-f]{7,40}', head):
+        return 'dev'
+    return head + ('-dirty' if dirty else '')
+
+
+# Written next to the PyInstaller work files (git-ignored), never into the source tree, and bundled as smartdoc/data/.
+_stamp = _ROOT / 'build_pyinstaller' / 'build_info.json'
+_stamp.parent.mkdir(parents=True, exist_ok=True)
+_stamp.write_text(
+    json.dumps({'build_id': _build_id(), 'built_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}),
+    encoding='utf-8',
+)
 
 version_info = VSVersionInfo(
     ffi=FixedFileInfo(filevers=_nums, prodvers=_nums, mask=0x3F, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0),
@@ -60,6 +91,8 @@ _datas = [
     # AGPL-3.0-or-later text and the third-party notices travel with every build.
     ('../LICENSE', '.'),
     ('../THIRD_PARTY_NOTICES.md', '.'),
+    # Which commit this build is (see _build_id above).
+    (str(_stamp), 'smartdoc/data'),
 ]
 # Smart classification: the category list and the trained model (train.py
 # regenerates classifier_model.json.gz), plus the Vietnamese word segmenter's

@@ -192,6 +192,32 @@ def test_cancel_stops_the_job_and_reports_it(context, service, events, tmp_path)
     assert finished[-1].tagged < 30
 
 
+def test_a_worker_that_keeps_dying_ends_the_job_and_is_queued_as_one_error_report(context, service, events, tmp_path):
+    """S1e: the dead process leaves no stack, but the crash becomes a scrubbed report (asked about, never sent unasked) --
+    once, however many times the pool breaks."""
+    from concurrent.futures import BrokenExecutor, Future
+
+    library(context, tmp_path)
+    finished, _ = events
+    context.error_reports.enabled = True
+
+    class DyingPool:
+        def submit(self, fn, *args, **kwargs):
+            future = Future()
+            future.set_exception(BrokenExecutor("a child process terminated abruptly"))
+            return future
+
+        def shutdown(self, wait=True, cancel_futures=False):
+            pass
+
+    service._executor_factory = lambda workers, settings: DyingPool()
+    run(service, ClassifyScope())
+    assert finished and finished[-1].failed == 2  # each book was tried alone and recorded as the one that kills the worker
+    (item,) = context.error_reports.queue.items()
+    assert (item.report.source, item.report.process_kind, item.report.feature_area) == ("worker", "classify_worker", "classification")
+    assert item.status == "pending"
+
+
 def test_enqueue_runs_now_when_idle_and_after_the_current_job_when_busy(context, service, events, tmp_path):
     library(context, tmp_path)
     finished, _ = events

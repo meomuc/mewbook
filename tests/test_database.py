@@ -495,3 +495,30 @@ def test_close_waits_for_a_write_running_on_another_thread(db):
 
     with pytest.raises(sqlite3.Error):
         db.set_page_count("x", 1)  # after close a late writer gets a normal, catchable error
+
+
+def test_find_id_by_path_gives_the_right_answer_when_import_workers_call_it_at_once(db):
+    """Regression: every import worker runs this statement on the one shared connection; without the lock, threads
+    calling it together got None (or "bad parameter or other API misuse") for a path that is in the library, so a book
+    already filed could be imported again (found through a test that failed about one run in eight)."""
+    import threading
+
+    db.add_or_update_document(
+        "d1", {"title": "t", "author": "a", "file_path": r"C:\a\b.pdf", "extension": "pdf", "created_at": 0.0}, extracted_text="x"
+    )
+    problems = []
+
+    def hammer():
+        try:
+            for _ in range(1500):
+                if db.find_id_by_path(r"c:\A\B.PDF") != "d1":  # Windows paths compare case-insensitively
+                    problems.append("wrong answer")
+        except Exception as exc:  # noqa: BLE001 -- the failure is what the test reports
+            problems.append(f"{type(exc).__name__}: {exc}")
+
+    threads = [threading.Thread(target=hammer) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert problems == []

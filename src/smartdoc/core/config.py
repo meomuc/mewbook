@@ -137,6 +137,13 @@ class AppConfig:
     # Optional "newer version?" check (application/update_checker.py): off unless the user turns it on; notify-only.
     update_check_enabled: bool = False
     update_last_checked: float = 0.0
+    # Voluntary, anonymous error reports (application/error_reporter.py, docs/handoff/09): "ask" (the default) asks after
+    # each unhandled error, "always" sends without asking, "never" collects and sends nothing at all. The consent
+    # version is the wording the user agreed to when they chose "always" (a newer wording asks again). The install id is
+    # random, has nothing to do with the review identity, and only a salted hash of it is ever sent.
+    error_report_mode: str = "ask"
+    error_report_consent_version: int = 0
+    error_report_install_id: str = ""
     # Whether the user has accepted the EULA/Privacy notice shown on first
     # launch (see presentation/eula_dialog.py). False on every fresh
     # install; never reset automatically once True.
@@ -166,6 +173,7 @@ class AppConfig:
 
 
 SMART_CLASSIFY_ON_IMPORT_CHOICES = ("ask", "always", "never")
+ERROR_REPORT_MODE_CHOICES = ("ask", "always", "never")
 
 
 class ConfigManager:
@@ -205,6 +213,8 @@ class ConfigManager:
             config.theme = _LEGACY_THEME_MAP.get(config.theme, "broadsheet")
         if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
             config.smart_classify_on_import = "ask"  # a hand-edited settings.json must not disable the prompt by typo
+        if config.error_report_mode not in ERROR_REPORT_MODE_CHOICES:
+            config.error_report_mode = "ask"  # a typo must never turn into "always"
         for field_name in _ENCRYPTED_FIELDS:
             setattr(config, field_name, self._secrets.decrypt(getattr(config, field_name)))
         return config

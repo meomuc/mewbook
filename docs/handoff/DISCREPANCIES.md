@@ -174,3 +174,11 @@ Báo cáo đầy đủ: `docs/legal/MODEL_VOCAB_AUDIT.md`. Tóm tắt:
 - **Phát hiện phụ:** từ vựng có token chân trang/nguồn phát hành ebook (tên trang, mạng xã hội, "copyright"…), là tín hiệu giả và là câu hỏi nguồn gốc dữ liệu huấn luyện (đã thêm vào `LAWYER_QUESTIONS.md`, câu 11).
 - Chưa đổi mô hình hay `train.py`; chờ quyết định (mục 6 của báo cáo). Đo tác động thật cần huấn luyện lại với `--dry-run`.
 
+
+## Bổ sung: kết nối SQLite dùng chung giữa các luồng (phát hiện khi làm S1e, 2026-09-20)
+
+### 20. Đọc đồng thời trên một kết nối — ⚠️ (có từ 1.0.0; mới sửa phần hẹp)
+- `DatabaseManager` mở **một** kết nối `sqlite3` (`check_same_thread=False`) dùng chung cho luồng giao diện, các luồng nhập, bộ theo dõi thư mục, v.v. Chỉ **ghi** đi qua `write_lock`; **đọc** không có khóa.
+- Thử trực tiếp (`DatabaseManager(":memory:")`, 8 luồng cùng gọi một câu đọc 3.000 lần): trên mã cũ, 7/8 luồng nhận **kết quả sai** (`None` cho hàng có thật, `IndexError`) hoặc `sqlite3.InterfaceError: bad parameter or other API misuse`. Sáu luồng chạy **các câu đọc khác nhau** cùng lúc cũng lỗi (3/6 luồng), nên không chỉ là "cùng một câu SQL".
+- **Đã sửa (phạm vi hẹp):** `find_id_by_path` (thêm ở S1-04, gọi từ mọi luồng nhập) nay giữ `write_lock`; test hồi quy `test_find_id_by_path_gives_the_right_answer_when_import_workers_call_it_at_once` thất bại trên mã cũ. Đây là nguyên nhân khiến `test_add_document_dialog.py::test_concurrent_unrelated_batch_does_not_get_this_dialogs_tags` hỏng khoảng một lần trong tám lần chạy (đã đo trên commit `f8d14d8`; sau sửa: 0/30).
+- **Chưa sửa:** các đường đọc khác, ví dụ `get_document` trong luồng nhập, hay các truy vấn của giao diện chạy song song với luồng nền. Sửa chung là quyết định thiết kế: (a) một kết nối cho mỗi luồng (WAL cho phép nhiều người đọc cùng lúc), (b) khóa mọi truy cập bằng một `RLock` (nhưng `backup_service` giữ `write_lock` suốt lần sao lưu, nên giao diện sẽ bị treo trong lúc sao lưu), (c) một khóa đọc ngắn tách khỏi `write_lock`. Đề xuất (a), làm thành một task riêng có đo hiệu năng và kiểm tra thứ tự tắt máy (`context.shutdown()` đóng kết nối).

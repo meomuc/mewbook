@@ -7,8 +7,10 @@
   once a QApplication exists) shown as a friendly dialog pointing at the
   log, instead of the app silently vanishing.
 - support_info() builds the block of text behind About -> "Sao chép thông
-  tin hỗ trợ": version, OS, Python/Qt versions and the anonymous install
+  tin hỗ trợ": version, build id, OS, Python/Qt versions and the anonymous install
   ID -- never file names, API keys, library contents or the Windows account name (paths are shown as %APPDATA%...).
+- install_exception_hooks() also hands every unhandled error to the optional error-report hook
+  (application/error_reporter.py): scrubbed, queued and only sent with the user's consent.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, __version__
+from smartdoc.core.build_info import build_info
 
 logger = logging.getLogger("smartdoc")
 
@@ -63,29 +66,54 @@ def _platform_line() -> str:
     return f"{platform.system()} {platform.release()} {platform.version()}; Python {platform.python_version()}"
 
 
-def install_exception_hooks(show_dialog=None) -> None:
+def install_exception_hooks(show_dialog=None, on_exception=None) -> None:
     """Routes uncaught exceptions to the log. `show_dialog(summary)` is
-    called on the main thread for main-thread crashes, if given."""
+    called on the main thread for main-thread crashes, if given.
+
+    `on_exception(exc_type, exc_value, exc_tb, thread_name)` is the error-report hook (application/error_reporter.py,
+    docs/handoff/09): it runs for main-thread *and* background-thread errors, after they are logged, and returns the id
+    of a report that now waits for the user's decision, or None. When there is such a report the report prompt asks
+    about it, so `show_dialog` is called with that id (`show_dialog(summary, report_id)`) and the plain crash message
+    is not shown a second time. Nothing here adds an `except Exception` around handled errors: only what nobody
+    caught gets here."""
+
+    def report(exc_type, exc_value, exc_tb, thread_name: str) -> str | None:
+        if on_exception is None:
+            return None
+        try:
+            return on_exception(exc_type, exc_value, exc_tb, thread_name)
+        except Exception:  # noqa: BLE001 -- never let the crash reporter itself crash
+            logger.exception("Could not report the error")
+            return None
 
     def handle(exc_type, exc_value, exc_tb) -> None:
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_tb)
             return
         logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+        report_id = report(exc_type, exc_value, exc_tb, threading.current_thread().name)
         if show_dialog is not None:
             try:
-                show_dialog(f"{exc_type.__name__}: {exc_value}")
+                summary = f"{exc_type.__name__}: {exc_value}"
+                if report_id is None:
+                    show_dialog(summary)
+                else:
+                    show_dialog(summary, report_id)
             except Exception:  # noqa: BLE001 -- never let the crash reporter itself crash
                 logger.exception("Could not show the crash dialog")
 
     def handle_thread(args: threading.ExceptHookArgs) -> None:
         if args.exc_type is SystemExit:
             return
+        thread_name = getattr(args.thread, "name", "?")
         logger.critical(
             "Uncaught exception in thread %s",
-            getattr(args.thread, "name", "?"),
+            thread_name,
             exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
         )
+        # A background error has never had a dialog of its own; when it becomes a report waiting for the user, the
+        # report prompt (subscribed to ErrorReportPendingEvent) asks about it on the GUI thread.
+        report(args.exc_type, args.exc_value, args.exc_traceback, thread_name)
 
     sys.excepthook = handle
     threading.excepthook = handle_thread
@@ -115,6 +143,7 @@ def support_info(identity=None) -> str:
         f"OS: {platform.system()} {platform.release()} ({platform.version()}) {platform.machine()}",
         f"Python: {platform.python_version()} · PySide6: {pyside_version}",
         f"Frozen build: {'yes' if getattr(sys, 'frozen', False) else 'no'}",
+        f"Build: {build_info().build_id} ({build_info().channel})",
     ]
     if identity is not None:
         lines.append(f"Mã cài đặt ẩn danh: {identity.short_id}")

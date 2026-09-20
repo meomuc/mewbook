@@ -424,6 +424,9 @@ class SmartClassifyService:
                         crashes += 1
                         lost = [chunk] + [in_flight.pop(f) for f in list(in_flight)]
                         logger.warning("classification worker crashed (%d/%d)", crashes, MAX_WORKER_CRASHES)
+                        # Nothing of the dead process survives, so the report has no stack -- only that it happened.
+                        # Scrubbed, queued and asked about like any other error (application/error_reporter.py).
+                        self.context.error_reports.capture_worker_crash("The classification worker process ended abnormally")
                         _shutdown_executor(executor, kill=True)
                         if crashes >= MAX_WORKER_CRASHES:
                             error = "Bộ phân loại bị dừng đột ngột nhiều lần; đã ngắt. Xem file nhật ký để biết chi tiết."

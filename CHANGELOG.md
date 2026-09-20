@@ -173,6 +173,11 @@ New features, so the next release is a MINOR bump (1.1.0).
 ### Fixed
 - **"Sao chép thông tin hỗ trợ" no longer reveals your Windows account name.** The log-file path in it is now shown as
   `%APPDATA%\SmartDocLibrary\logs\mewbook.log`, so the text is safe to paste into a public issue.
+- **A book that was already in the library could be imported again during a busy import.** The check "is this path
+  already filed?" (added for relinked books) ran on several import threads at once over the one shared database
+  connection and could answer "no" or fail with "bad parameter or other API misuse"; it now takes the database lock
+  (found through a test that failed about one run in eight; other read paths share the weakness, see the note in
+  `docs/handoff/DISCREPANCIES.md`).
 - **PDF reading is now serialised across import threads** (a lock around every PyMuPDF call), because MuPDF is
   not thread-safe and several import workers read PDFs at once. A precaution for bulk imports (not the cause of
   the crash seen in the test suite, which was widgets left to Python's garbage collector).

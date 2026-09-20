@@ -86,6 +86,19 @@ if (-not $SkipTests) {
 
 uv run --no-sync pyinstaller --noconfirm --distpath "$root\dist" --workpath "$root\build_pyinstaller" "$PSScriptRoot\MewBook.spec"
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
+
+# The build must carry the id of the commit it was made from (MewBook.spec stamps it): error reports name it and it is
+# how a reported error is traced to the exact source (docs/handoff/09, ERR-A14). A release must match HEAD exactly.
+$stampFile = "$root\dist\MewBook\_internal\smartdoc\data\build_info.json"
+if (-not (Test-Path $stampFile)) { throw 'The build carries no smartdoc\data\build_info.json.' }
+$buildId = (Get-Content $stampFile -Raw | ConvertFrom-Json).build_id
+$head = (git rev-parse --short=12 HEAD)
+if ($Release -and $buildId -ne $head) { throw "The build id '$buildId' does not match the commit '$head'." }
+if ($buildId -eq 'dev' -or $buildId -like '*-dirty') {
+    Write-Warning "Build id '$buildId': a developer build. It works, but it will not send error reports (only a clean commit does)."
+} else {
+    Write-Host "Build id: $buildId" -ForegroundColor Cyan
+}
 Invoke-Sign "$root\dist\MewBook\MewBook.exe"  # before the installer, so the installer packs the signed exe
 
 $installer = "$root\dist\installer\MewBook-Setup-$version.exe"

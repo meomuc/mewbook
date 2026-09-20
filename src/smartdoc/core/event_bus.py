@@ -61,6 +61,21 @@ class UpdateAvailableEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class ErrorReportPendingEvent(BaseEvent):
+    """An unhandled error was turned into a scrubbed report that waits for the user's decision (mode "ask").
+    Published from whatever thread the error happened on -- the prompt subscribes through QtEventBridge."""
+
+    report_id: str = ""
+
+
+@dataclass(frozen=True)
+class ErrorReportApprovedEvent(BaseEvent):
+    """A queued error report may be sent (the user said yes, or the mode is "always"): wakes the uploader."""
+
+    report_id: str = ""
+
+
+@dataclass(frozen=True)
 class LibraryFilesMissingEvent(BaseEvent):
     """A check of the library's files found `count` books whose file is gone (0 = all present)."""
 

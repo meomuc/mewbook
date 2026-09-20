@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from smartdoc.application.backup_service import BackupService
+from smartdoc.application.error_reporter import ErrorReporter
 from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.application.relink_service import RelinkService
 from smartdoc.application.update_checker import UpdateChecker
@@ -44,6 +45,9 @@ class AppContext:
         # Anonymous per-install identity (see core/user_identity.py) --
         # used to own reviews/nicknames without any sign-up.
         self.identity = UserIdentity.load_or_create(self.config.app_data_dir, self.config.secrets)
+        # Voluntary, anonymous, previewed error reports (S1e). Collects nothing until an error happens, and only in a
+        # release build; sending is a separate, opt-in step (application/error_uploader.py).
+        self.error_reports = ErrorReporter(self.config, self.event_bus, self.identity, self.db)
 
     @classmethod
     def create_in_memory(cls, app_data_dir: Path) -> "AppContext":

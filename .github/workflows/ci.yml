@@ -59,7 +59,11 @@ jobs:
             $_.Extension -in '.db', '.key' -or $_.Name -like '*.db-*'
           }
           if ($forbidden) { $forbidden | ForEach-Object { Write-Error "Forbidden file in the bundle: $($_.FullName)" }; exit 1 }
-          Write-Host "Bundle looks right: $((Get-ChildItem $bundle -Recurse -File | Measure-Object).Count) files"
+          # The build names the commit it was made from (error reports carry it; docs/handoff/09, ERR-A14).
+          $stamp = (Get-Content (Join-Path $bundle '_internal\smartdoc\data\build_info.json') -Raw | ConvertFrom-Json).build_id
+          $head = (git rev-parse --short=12 HEAD)
+          if ($stamp -ne $head) { throw "The build id '$stamp' does not match the commit '$head'." }
+          Write-Host "Bundle looks right: $((Get-ChildItem $bundle -Recurse -File | Measure-Object).Count) files, build $stamp"
       # Starts the real exe with an empty, throw-away profile and checks it is still running 20 seconds later.
       # continue-on-error: a GUI start-up on a hosted runner has failed for reasons unrelated to the code before.
       - name: Smoke test (the exe starts and stays up)

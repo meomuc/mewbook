@@ -348,9 +348,13 @@ class DatabaseManager:
 
     def find_id_by_path(self, file_path: str) -> str | None:
         """The book already filed under this path (Windows paths compare case-insensitively), or None."""
-        row = self.connection.execute(
-            "SELECT id FROM documents WHERE file_path = ? COLLATE NOCASE LIMIT 1", (file_path,)
-        ).fetchone()
+        # Under the lock although it only reads: every import worker runs this same statement on the one shared
+        # connection, and two threads executing the same SQL at once intermittently fail with "bad parameter or other
+        # API misuse" (it made test_concurrent_unrelated_batch... fail about one run in eight).
+        with self.write_lock:
+            row = self.connection.execute(
+                "SELECT id FROM documents WHERE file_path = ? COLLATE NOCASE LIMIT 1", (file_path,)
+            ).fetchone()
         return row["id"] if row else None
 
     def relocate_document(self, doc_id: str, new_path: str, file_size: int | None = None) -> bool:
@@ -816,6 +820,21 @@ class DatabaseManager:
 
     def list_document_ids(self) -> list[str]:
         return [row["id"] for row in self.connection.execute("SELECT id FROM documents")]
+
+    def library_private_terms(self, limit: int = 20_000) -> list[str]:
+        """Titles, author names and file names (with and without extension) of the newest `limit` books: the strings an
+        error report must never contain. application/error_reporter.py hands them to the scrubber, which removes them
+        wherever they occur -- even bare, with no path or extension around them to give them away."""
+        terms: set[str] = set()
+        rows = self.connection.execute("SELECT title, author, file_path FROM documents ORDER BY created_at DESC LIMIT ?", (limit,))
+        for title, author, file_path in rows:
+            file_name = re.split(r"[\\/]", file_path or "")[-1]
+            stem = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
+            for text in (title, *split_author_names(author), author, file_name, stem):
+                text = (text or "").strip()
+                if len(text) >= 4:  # a three-letter title ("Cha") would blank out ordinary words
+                    terms.add(text)
+        return sorted(terms)
 
     # Everything the duplicate finder shows or compares -- deliberately *not*
     # `content`, the full extracted text of each book: SELECT * pulled every
