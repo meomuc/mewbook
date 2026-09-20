@@ -54,3 +54,6 @@ settings.json
 # repo: packaging/MewBook.spec bundles it only if the file exists, and the
 # popup falls back to plain text without it (see donate_dialog.py).
 src/smartdoc/presentation/assets/donate_qr.png
+
+# Draft daily error-triage summaries (tools/triage): local until the owner decides to keep one.
+docs/triage/
