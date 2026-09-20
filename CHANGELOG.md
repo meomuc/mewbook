@@ -228,8 +228,7 @@ New features, so the next release is a MINOR bump (1.1.0).
 - **A book that was already in the library could be imported again during a busy import.** The check "is this path
   already filed?" (added for relinked books) ran on several import threads at once over the one shared database
   connection and could answer "no" or fail with "bad parameter or other API misuse"; it now takes the database lock
-  (found through a test that failed about one run in eight; other read paths share the weakness, see the note in
-  `docs/handoff/DISCREPANCIES.md`).
+  (found through a test that failed about one run in eight; other read paths share the weakness and remain an open design question).
 - **PDF reading is now serialised across import threads** (a lock around every PyMuPDF call), because MuPDF is
   not thread-safe and several import workers read PDFs at once. A precaution for bulk imports (not the cause of
   the crash seen in the test suite, which was widgets left to Python's garbage collector).

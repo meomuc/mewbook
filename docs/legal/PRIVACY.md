@@ -1,6 +1,6 @@
 # Chính sách quyền riêng tư của MewBook ("Mèo Mực")
 
-> **BẢN NHÁP, CẦN LUẬT SƯ DUYỆT.** Văn bản này do Claude Code soạn theo đúng những gì mã nguồn làm ở phiên bản 1.1.0 (ngày 2026-09-20), **không phải tư vấn pháp lý** và chưa được luật sư xem. Các chỗ ghi `[CHỜ CHỦ DỰ ÁN: …]` là thông tin chỉ chủ dự án có. Trước khi phát hành, chủ dự án cần: điền các chỗ trống, cho luật sư duyệt (hoặc chấp nhận rủi ro bằng văn bản trong bản ghi phát hành), rồi **xóa khung nhắc này** và ghi ngày hiệu lực. Danh sách câu hỏi cho luật sư: `docs/legal/LAWYER_QUESTIONS.md` (mục G).
+> **BẢN NHÁP, CẦN LUẬT SƯ DUYỆT.** Văn bản này do Claude Code soạn theo đúng những gì mã nguồn làm ở phiên bản 1.1.0 (ngày 2026-09-20), **không phải tư vấn pháp lý** và chưa được luật sư xem. Các chỗ ghi `[CHỜ CHỦ DỰ ÁN: …]` là thông tin chỉ chủ dự án có. Trước khi phát hành, chủ dự án cần: điền các chỗ trống, cho luật sư duyệt (hoặc chấp nhận rủi ro bằng văn bản trong bản ghi phát hành), rồi **xóa khung nhắc này** và ghi ngày hiệu lực. Các điểm cần luật sư trả lời được liệt kê ở mục 11 cuối văn bản.
 >
 > Phiên bản văn bản: **1** (khớp `CONSENT_VERSION` trong `application/error_reporter.py`; khi nội dung về báo lỗi đổi đáng kể, tăng số này để ứng dụng hỏi lại người dùng).
 
@@ -8,7 +8,7 @@
 
 - MewBook chạy **trên máy của bạn**. Thư viện, tệp sách, thẻ, bộ sưu tập và cài đặt nằm trên máy bạn. **Tệp sách của bạn không bao giờ được tải lên bất kỳ máy chủ nào.**
 - Không có quảng cáo, không có theo dõi, không có phân tích sử dụng (analytics), không có tài khoản.
-- Ứng dụng chỉ gửi dữ liệu ra ngoài khi **bạn dùng một tính năng cần mạng** (mục 4). Ba trong số đó **tắt mặc định**: tóm tắt AI, kiểm tra bản mới, và các nguồn ảnh bìa bạn tắt đi.
+- Ứng dụng chỉ gửi dữ liệu ra ngoài khi **bạn dùng một tính năng cần mạng** (mục 4). Nhiều tính năng **tắt mặc định**: tóm tắt AI, đánh giá cộng đồng, kiểm tra bản mới, và hai nguồn ảnh bìa (Apple Books, Tiki).
 - **Báo lỗi ẩn danh là tự nguyện:** mặc định ứng dụng **hỏi mỗi lần**, cho bạn **xem trước từng byte** sẽ gửi, và không gửi gì nếu bạn không đồng ý. Bạn có thể chọn "Không bao giờ".
 - **Đánh giá cộng đồng** hiển thị công khai biệt danh, điểm và nhận xét bạn viết, cùng một mã ẩn danh của bản cài đặt.
 - Bạn có thể yêu cầu xóa báo lỗi bạn đã gửi theo **mã báo cáo**, và yêu cầu gỡ đánh giá của mình (mục 9).
@@ -116,4 +116,4 @@ Khi nội dung về dữ liệu gửi đi thay đổi đáng kể, phiên bản 
 
 ## 11. Những điều chưa chắc, chờ luật sư
 
-Xem `docs/legal/LAWYER_QUESTIONS.md` mục G: cơ sở pháp lý và hình thức đồng ý; lưu dữ liệu ở nước ngoài; nghĩa vụ theo luật bảo vệ dữ liệu cá nhân của Việt Nam (thông báo, đánh giá tác động, đại diện); xử lý yêu cầu xóa và xác minh chủ bài; việc mã ẩn danh công khai có được coi là dữ liệu cá nhân không; gửi dữ liệu đã lọc tới dịch vụ AI; thời gian lưu 90 ngày; người dùng dưới độ tuổi cần cha mẹ đồng ý.
+Cần luật sư xem: cơ sở pháp lý và hình thức đồng ý; lưu dữ liệu ở nước ngoài; nghĩa vụ theo luật bảo vệ dữ liệu cá nhân của Việt Nam (thông báo, đánh giá tác động, đại diện); xử lý yêu cầu xóa và xác minh chủ bài; việc mã ẩn danh công khai có được coi là dữ liệu cá nhân không; gửi dữ liệu đã lọc tới dịch vụ AI; thời gian lưu 90 ngày; người dùng dưới độ tuổi cần cha mẹ đồng ý.

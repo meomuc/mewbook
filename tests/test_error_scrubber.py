@@ -95,7 +95,7 @@ def test_two_names_on_one_line_are_both_removed():
 
 def test_email_url_and_ip_addresses_are_replaced():
     scrubbed = s.scrub_text(
-        "mail nguyen.van.anh+sách@gmail.com; GET https://user:pass@example.org/a/b?token=xyz HTTP; from 192.168.0.12 and 2001:db8::1"
+        "mail nguyen.van.anh+sách@mail.invalid; GET https://user:pass@example.org/a/b?token=xyz HTTP; from 192.168.0.12 and 2001:db8::1"
     )
     assert scrubbed == "mail <EMAIL>; GET <URL> HTTP; from <IP> and <IP>"
 
@@ -285,8 +285,8 @@ def test_the_standard_library_is_named_by_its_relative_path():
 def test_a_message_full_of_private_data_leaves_nothing_behind():
     """ERR-A3: Windows account name, a Vietnamese title, an absolute path, an e-mail and a key in one message."""
     message = (
-        f"{ACCOUNT} <nguyen.van.anh@gmail.com> could not import {BOOK_PATH}: "
+        f"{ACCOUNT} <nguyen.van.anh@mail.invalid> could not import {BOOK_PATH}: "
         f"'{TITLE}' has key {KEY}, doc 3f2b1c0d9e8a7b6c5d4e3f2a1b0c9d8e, from 10.1.2.3 via https://x.example/y?u={ACCOUNT}"
     )
     scrubbed = s.scrub_text(message, private_terms=[ACCOUNT, TITLE], user_dirs=[HOME], max_length=1000)
-    assert _leaks(scrubbed, PRIVATE_WORDS + ("gmail", "abcdefghij", "3f2b1c0d", "10.1.2.3", "example")) == [], scrubbed
+    assert _leaks(scrubbed, PRIVATE_WORDS + ("mail.invalid", "abcdefghij", "3f2b1c0d", "10.1.2.3", "example")) == [], scrubbed

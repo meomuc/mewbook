@@ -1,6 +1,6 @@
 # Điều khoản sử dụng dịch vụ của MewBook ("Mèo Mực")
 
-> **BẢN NHÁP, CẦN LUẬT SƯ DUYỆT.** Văn bản này do Claude Code soạn theo cách dịch vụ thực sự hoạt động ở phiên bản 1.1.0 (ngày 2026-09-20), **không phải tư vấn pháp lý** và chưa được luật sư xem. Chỗ ghi `[CHỜ CHỦ DỰ ÁN: …]` là thông tin chỉ chủ dự án có; chỗ ghi `[CHỜ LUẬT SƯ: …]` là điểm cần ý kiến pháp lý. Trước khi phát hành: điền, cho luật sư duyệt (hoặc chấp nhận rủi ro bằng văn bản trong bản ghi phát hành), rồi xóa khung nhắc này và ghi ngày hiệu lực. Câu hỏi cho luật sư: `docs/legal/LAWYER_QUESTIONS.md` (mục G).
+> **BẢN NHÁP, CẦN LUẬT SƯ DUYỆT.** Văn bản này do Claude Code soạn theo cách dịch vụ thực sự hoạt động ở phiên bản 1.1.0 (ngày 2026-09-20), **không phải tư vấn pháp lý** và chưa được luật sư xem. Chỗ ghi `[CHỜ CHỦ DỰ ÁN: …]` là thông tin chỉ chủ dự án có; chỗ ghi `[CHỜ LUẬT SƯ: …]` là điểm cần ý kiến pháp lý. Trước khi phát hành: điền, cho luật sư duyệt (hoặc chấp nhận rủi ro bằng văn bản trong bản ghi phát hành), rồi xóa khung nhắc này và ghi ngày hiệu lực. Mọi điểm cần luật sư đều được đánh dấu `[CHỜ LUẬT SƯ: …]` ngay trong văn bản.
 
 ## 1. Phạm vi: các điều khoản này KHÔNG hạn chế quyền của bạn với phần mềm
 
@@ -50,7 +50,7 @@ Dịch vụ có giới hạn số bài mới mỗi giờ và mỗi ngày cho m�
 
 ## 8. Ủng hộ tự nguyện (Donate)
 
-Ứng dụng miễn phí. Chức năng "Ủng hộ tác giả" là tự nguyện, để giúp duy trì dự án; **không phải điều kiện** để dùng phần mềm hay mở khóa tính năng, và không tạo quyền lợi hay nghĩa vụ nào khác. **[CHỜ LUẬT SƯ: nghĩa vụ thuế đối với tiền ủng hộ (`LAWYER_QUESTIONS.md`, câu 7).]**
+Ứng dụng miễn phí. Chức năng "Ủng hộ tác giả" là tự nguyện, để giúp duy trì dự án; **không phải điều kiện** để dùng phần mềm hay mở khóa tính năng, và không tạo quyền lợi hay nghĩa vụ nào khác. **[CHỜ LUẬT SƯ: nghĩa vụ thuế đối với tiền ủng hộ.]**
 
 ## 9. Thay đổi
 

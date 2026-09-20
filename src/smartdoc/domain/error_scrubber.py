@@ -65,7 +65,7 @@ _NAME_BOUNDARY = set("\r\n'\"`<>|*?")
 
 _URL_CHAR = r"""(?:<PRIVATE>|[^\s<>"'`])"""
 _URL = re.compile(rf"(?i)(?<![\w])(?:[a-z][a-z0-9+.\-]{{1,15}}://|www\.){_URL_CHAR}+")
-# "file:///C:/Users/x/a b.pdf" is a path in URL clothing and may hold raw spaces: drop the scheme, let the path rules cut it.
+# "file:///C:/Users/someone/a b.pdf" is a path in URL clothing and may hold raw spaces: drop the scheme, let the path rules cut it.
 _FILE_URL = re.compile(r"(?i)\bfile:///(?=[A-Za-z]:)|\bfile://(?=/)")
 _MAIL_LOCAL = r"(?:<PRIVATE>|[\w.%+\-])"
 _MAIL_DOMAIN = r"(?:<PRIVATE>|[\w\-])"
@@ -365,7 +365,7 @@ def scrub_path(path: str) -> str:
 
 if __name__ == "__main__":
     sample = (
-        r"Không mở được C:\Users\Nguyễn Văn Ánh\Documents\Sách hay\Đắc nhân tâm.epub vì bị khóa; "
+        r"Không mở được C:\Users\someone\Documents\Sách hay\Đắc nhân tâm.epub vì bị khóa; "
         "liên hệ nguyen.van.anh@example.com, key=sk-abcdefghijklmnopqrstuvwxyz012345, IP 192.168.0.12"
     )
     print(scrub_text(sample))

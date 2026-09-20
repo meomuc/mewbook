@@ -223,8 +223,8 @@ def test_the_work_area_may_not_be_inside_onedrive(tmp_path):
     with pytest.raises(cfg.TriageConfigError, match="OneDrive"):
         cfg.from_environment(_env(tmp_path, TRIAGE_HOME=str(tmp_path / "OneDrive" / "triage")))
     with pytest.raises(cfg.TriageConfigError, match="OneDrive"):
-        cfg.from_environment(_env(tmp_path, TRIAGE_REPO="E:/Onedrive/APP/repo"))
-    assert cfg.is_in_onedrive(Path("E:/Onedrive/x")) and not cfg.is_in_onedrive(Path("C:/triage/x"))
+        cfg.from_environment(_env(tmp_path, TRIAGE_REPO="D:/OneDrive/APP/repo"))
+    assert cfg.is_in_onedrive(Path("D:/OneDrive/x")) and not cfg.is_in_onedrive(Path("C:/triage/x"))
 
 
 def test_l1_and_a_loopback_server_are_accepted(tmp_path):

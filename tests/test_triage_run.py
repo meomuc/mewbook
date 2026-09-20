@@ -554,7 +554,7 @@ def test_an_unknown_or_malformed_build_id_is_refused(config, repo):
 
 def test_the_work_area_must_not_be_in_onedrive(repo, build_id):
     with pytest.raises(wt.WorktreeError, match="OneDrive"):
-        wt.Worktree(repo, Path("E:/Onedrive/triage"), build_id, "x")
+        wt.Worktree(repo, Path("D:/OneDrive/triage"), build_id, "x")
 
 
 def test_a_leftover_worktree_of_a_dead_run_is_replaced(config, repo, build_id):

@@ -148,13 +148,13 @@ def test_the_report_holds_nothing_the_machine_knows_to_be_private(reporter, app_
     app_context.config.config.watch_folders = [r"D:\Sách hay"]
     message = (
         f"{ACCOUNT}@{COMPUTER} cannot open {HOME}\\Documents\\Sách hay\\{TITLE}.epub: '{TITLE}' by {AUTHOR}; "
-        f"mail nguyen.van.anh@gmail.com key {KEY} token {app_context.identity.token}; scanned D:\\Sách hay"
+        f"mail nguyen.van.anh@mail.invalid key {KEY} token {app_context.identity.token}; scanned D:\\Sách hay"
     )
     report_id = _capture(reporter, _crash(message))
     stored = (reporter.queue.directory / f"{report_id}.json").read_text(encoding="utf-8")
     preview = reporter.preview_text(report_id)
     for text in (stored, preview):
-        for private in (ACCOUNT, "Nguyễn", "Ánh", COMPUTER, TITLE, "nhân", AUTHOR, "Carnegie", "Sách", "gmail", KEY, app_context.identity.token,
+        for private in (ACCOUNT, "Nguyễn", "Ánh", COMPUTER, TITLE, "nhân", AUTHOR, "Carnegie", "Sách", "mail.invalid", KEY, app_context.identity.token,
                         app_context.identity.user_hash, "Documents"):
             assert private not in text, f"{private!r} leaked into {text[:400]}"
 
@@ -284,13 +284,13 @@ def test_a_worker_crash_is_a_report_without_a_stack(reporter, events):
 # --- a report the user writes ---------------------------------------------------------------------------------------------------------
 
 def test_a_manual_report_is_previewed_first_and_scrubbed(reporter, events):
-    note = f"Tôi là {ACCOUNT}, mở {TITLE}.epub thì treo. Mail nguyen@gmail.com"
+    note = f"Tôi là {ACCOUNT}, mở {TITLE}.epub thì treo. Mail nguyen@mail.invalid"
     report = reporter.build_manual(note)
     assert reporter.queue.items() == [] and events["approved"] == []  # nothing is queued before "Gửi"
     payload = report.to_payload()
     assert payload["source"] == "manual" and payload["exception_type"] == "ManualReport"
     text = json.dumps(payload, ensure_ascii=False)
-    assert ACCOUNT not in text and TITLE not in text and "gmail" not in text and "treo" in text
+    assert ACCOUNT not in text and TITLE not in text and "mail.invalid" not in text and "treo" in text
     reporter.submit(report)
     assert reporter.queue.get(report.report_id).status == STATUS_APPROVED and events["approved"] == [report.report_id]
 

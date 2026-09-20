@@ -180,12 +180,12 @@ Xóa mọi bài của một mã ẩn danh: `delete from public.reviews where use
 
 ## 5. Yêu cầu từ bên ngoài (gỡ nội dung, xóa dữ liệu của tôi)
 
-Đây là **quy trình đề xuất**, chưa được luật sư duyệt. Thời hạn và nghĩa vụ theo luật Việt Nam (và luật nơi người yêu cầu sống) là câu hỏi đang chờ luật sư: `docs/legal/LAWYER_QUESTIONS.md`, câu 5 và 6 mục C.
+Đây là **quy trình đề xuất**, chưa được luật sư duyệt. Thời hạn và nghĩa vụ theo luật Việt Nam (và luật nơi người yêu cầu sống) là câu hỏi đang chờ luật sư.
 
 1. **Tiếp nhận.** Yêu cầu tới qua kênh liên hệ ghi trong chính sách riêng tư (`APP_PRIVACY_CONTACT`). Ghi ngày giờ, người yêu cầu, bài nào, lý do.
 2. **Ẩn ngay** bài bị nêu (mục 4.2). Đó là biện pháp đảo ngược được, làm trong vài phút.
 3. **Xác minh.** Bài đánh giá thật sự có vi phạm không? Nếu yêu cầu nhân danh chủ quyền (bản quyền, nhãn hiệu), cần thông tin đủ để xác định họ là ai và bài nào. Nếu chưa rõ, **hỏi luật sư**.
-4. **Xác minh chủ bài** khi ai đó nói "đây là bài của tôi, hãy xóa mọi bài của tôi". Mã ẩn danh (`user_hash`) hiện công khai nên **biết mã không chứng minh được là chủ**. Cách chứng minh không cần mã mới: đưa cho họ một mã thử thách ngẫu nhiên (ví dụ `XOA-7f3a`) và nhờ họ **sửa bài của mình trong ứng dụng**, thêm mã đó vào cuối nhận xét rồi gửi (ứng dụng chỉ cho chủ bài sửa; sửa bài không bị hạn mức chặn). Khi thấy mã trong `select comment from public.reviews where id = …`, họ đã chứng minh mình giữ khóa của mã ẩn danh đó. Khi đó xóa theo mục 4.7. Ứng dụng hiện **chưa có nút xóa bài của chính mình**: đây là điểm nên cân nhắc thêm (xem `docs/handoff/OWNER_ACTIONS.md`).
+4. **Xác minh chủ bài** khi ai đó nói "đây là bài của tôi, hãy xóa mọi bài của tôi". Mã ẩn danh (`user_hash`) hiện công khai nên **biết mã không chứng minh được là chủ**. Cách chứng minh không cần mã mới: đưa cho họ một mã thử thách ngẫu nhiên (ví dụ `XOA-7f3a`) và nhờ họ **sửa bài của mình trong ứng dụng**, thêm mã đó vào cuối nhận xét rồi gửi (ứng dụng chỉ cho chủ bài sửa; sửa bài không bị hạn mức chặn). Khi thấy mã trong `select comment from public.reviews where id = …`, họ đã chứng minh mình giữ khóa của mã ẩn danh đó. Khi đó xóa theo mục 4.7. Ứng dụng hiện **chưa có nút xóa bài của chính mình**: đây là điểm nên cân nhắc thêm.
 5. **Quyết định**: xóa hẳn, giữ ẩn, hay hiện lại và bỏ qua yêu cầu. Trả lời người yêu cầu bằng văn bản ngắn.
 6. **Ghi nhật ký** (mục 8), kể cả khi từ chối.
 

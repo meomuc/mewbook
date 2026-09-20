@@ -81,7 +81,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 - **Điểm cuối:** dự án Supabase do chủ dự án tạo (URL do người dùng nhập ở Cài đặt).
 - **Dữ liệu gửi đi:** mã tài liệu (`doc_id`: MD5 của đường dẫn tệp lúc nhập sách, không chứa tên sách hay tác giả), biệt danh, điểm, nhận xét, và **mã bí mật** của bản cài đặt (máy chủ chỉ lưu bản băm SHA-256 của nó, gọi là mã ẩn danh, đọc được công khai). Tệp sách không được gửi. Biệt danh, điểm, nhận xét và mã ẩn danh **hiển thị công khai**.
 - **Kiểm duyệt và giới hạn (S2):** `002_review_moderation.sql` (báo cáo bài, ẩn tự động, chặn mã ẩn danh, giới hạn theo giờ/ngày/dung lượng, bảng công tắc `service_flags`); sổ tay `docs/MODERATION_RUNBOOK.md`; sao lưu bằng `supabase db dump` (gói Free không có sao lưu tự động).
-- **Văn bản:** `docs/legal/PRIVACY.md` và `docs/legal/TERMS.md`, **bản nháp chờ luật sư** (`LAWYER_QUESTIONS.md` mục G).
+- **Văn bản:** `docs/legal/PRIVACY.md` và `docs/legal/TERMS.md`, **bản nháp chờ luật sư** (báo lỗi, xử lý bằng AI, lưu ở nước ngoài).
 
 ### 2.9 Kiểm tra bản mới (tùy chọn, S1-05)
 
@@ -103,7 +103,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 
 - **Điểm cuối:** Claude Code của Anthropic (`api.anthropic.com`) chạy trên **máy của chủ dự án**, bằng khóa Anthropic riêng của chủ dự án (`TRIAGE_ANTHROPIC_API_KEY`). Mã: `tools/triage/` (nằm ngoài gói ứng dụng, không đóng gói).
 - **Dữ liệu tới Anthropic:** chỉ **đầu vào hẹp đã lọc**: loại lỗi, khung ngăn xếp (đường dẫn tương đối trong mã, hàm, dòng), khu vực tính năng, loại tiến trình, phiên bản/mã bản dựng, bộ đếm và thời gian; cộng mã nguồn MewBook của đúng bản lỗi (mã công khai). **Không** có `user_note`, `log_tail`, báo cáo thủ công, hay thông điệp lỗi (`message_scrubbed`).
-- **Điều khoản:** theo điều khoản thương mại/API của Anthropic (chủ dự án là bên ký). Cần công khai việc này trong `PRIVACY.md` mục 7 (đã có) và hỏi luật sư (`LAWYER_QUESTIONS.md` G6).
+- **Điều khoản:** theo điều khoản thương mại/API của Anthropic (chủ dự án là bên ký). Cần công khai việc này trong `PRIVACY.md` mục 7 (đã có) và luật sư xem việc này.
 - **Quyền:** tác tử chạy khóa quyền (`--restricted`, chỉ đọc mã và ghi một tệp tóm tắt, không mạng, không lệnh), trong tài khoản Windows ít quyền; mức L0 chỉ báo cáo. Chi tiết: `ERROR_OPS_RUNBOOK.md` mục 6.
 
 ## 3. Dữ liệu nào rời khỏi máy, theo nguồn
@@ -128,5 +128,5 @@ Còn lại:
 
 1. Cung cấp email/URL liên hệ cho `User-Agent` (Open Library yêu cầu).
 2. Thêm dòng ghi công Open Library vào hộp thoại Giới thiệu.
-3. Điền `APP_ERROR_REPORT_URL`, `APP_ERROR_REPORT_ANON_KEY` (khóa công khai), `APP_PRIVACY_CONTACT` khi máy chủ báo lỗi đã dựng (`docs/handoff/OWNER_ACTIONS.md`).
-4. Luật sư duyệt `PRIVACY.md` và `TERMS.md` (mục G của `LAWYER_QUESTIONS.md`), rồi bỏ khung "BẢN NHÁP".
+3. Điền `APP_ERROR_REPORT_URL`, `APP_ERROR_REPORT_ANON_KEY` (khóa công khai), `APP_PRIVACY_CONTACT` khi máy chủ báo lỗi đã dựng.
+4. Luật sư duyệt `PRIVACY.md` và `TERMS.md`, rồi bỏ khung "BẢN NHÁP".

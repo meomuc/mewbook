@@ -13,7 +13,7 @@ The wording is a short summary that must stay true to what the code does:
 docs/legal/PRIVACY.md and docs/legal/TERMS.md hold the full drafts (shown in
 Help -> About), tests/test_eula_dialog.py pins the facts this text states. It
 takes no right away from the AGPL licence -- whether a notice may *block*
-running the program at all is a question for the lawyer (LAWYER_QUESTIONS G).
+running the program at all is an open question for the lawyer.
 
 EULA_TEXT is also reused verbatim by presentation/about_dialog.py's first legal
 tab, so the wording only lives in one place.
