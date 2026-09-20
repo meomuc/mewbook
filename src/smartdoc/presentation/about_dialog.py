@@ -1,7 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Help -> About dialog: app identity, the licence (AGPL-3.0-or-later) with a link to the source of
-this exact version, and a legal page with three texts: the Privacy notice (eula_dialog.py's
-EULA_TEXT, the single source for that wording, reused verbatim), the LICENSE and the third-party
-notices (read from the files bundled with the app -- see resources.legal_file_path()).
+this exact version, and a legal page with five texts: the short notice (eula_dialog.py's EULA_TEXT, the
+single source for that wording, reused verbatim), the full privacy policy and terms (docs/legal/PRIVACY.md and
+TERMS.md, shown as Markdown), the LICENSE and the third-party notices (all read from the files bundled with the
+app -- see resources.legal_file_path()).
 """
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -182,23 +185,29 @@ class AboutDialog(QDialog):
         self.legal_text_area.setReadOnly(True)
         self.legal_text_area.setPlainText(EULA_TEXT)
 
-        # The three texts are read lazily: LICENSE is 35 KB, no reason to load it before it is asked for.
+        # The texts are read lazily: LICENSE is 35 KB, no reason to load it before it is asked for. The second element
+        # says whether the text is Markdown (the two drafts have headings, lists and tables; the others are plain).
         self._legal_sources = {
-            "privacy": lambda: EULA_TEXT,
-            "license": lambda: read_legal_file("LICENSE"),
-            "notices": lambda: read_legal_file("THIRD_PARTY_NOTICES.md"),
+            "privacy": (lambda: EULA_TEXT, False),
+            "policy": (lambda: read_legal_file("docs/legal/PRIVACY.md"), True),
+            "terms": (lambda: read_legal_file("docs/legal/TERMS.md"), True),
+            "license": (lambda: read_legal_file("LICENSE"), False),
+            "notices": (lambda: read_legal_file("THIRD_PARTY_NOTICES.md"), False),
         }
-        tabs = QHBoxLayout()
+        # Two rows: five tabs do not fit side by side in this narrow dialog.
+        tabs = QGridLayout()
         self._legal_group = QButtonGroup(page)
         self._legal_group.setExclusive(True)
-        for key, label in (("privacy", "Quyền riêng tư"), ("license", APP_LICENSE_ID), ("notices", "Bên thứ ba")):
+        labels = (("privacy", "Tóm tắt"), ("policy", "Chính sách riêng tư"), ("terms", "Điều khoản"),
+                  ("license", APP_LICENSE_ID), ("notices", "Bên thứ ba"))
+        for index, (key, label) in enumerate(labels):
             button = QPushButton(label, page)
             button.setCheckable(True)
             button.setChecked(key == "privacy")
             button.clicked.connect(lambda _checked=False, k=key: self._show_legal_text(k))
             self._legal_group.addButton(button)
             setattr(self, f"{key}_tab", button)
-            tabs.addWidget(button)
+            tabs.addWidget(button, index // 3, index % 3)
         layout.addLayout(tabs)
         layout.addWidget(self.legal_text_area, stretch=1)
 
@@ -209,7 +218,11 @@ class AboutDialog(QDialog):
         return page
 
     def _show_legal_text(self, key: str) -> None:
-        self.legal_text_area.setPlainText(self._legal_sources[key]())
+        load, is_markdown = self._legal_sources[key]
+        if is_markdown:
+            self.legal_text_area.setMarkdown(load())
+        else:
+            self.legal_text_area.setPlainText(load())
 
     def _on_copy_support_info(self) -> None:
         QApplication.clipboard().setText(support_info(self._identity))

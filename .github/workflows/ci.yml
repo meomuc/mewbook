@@ -50,9 +50,12 @@ jobs:
         shell: pwsh
         run: |
           $bundle = 'dist\MewBook'
-          foreach ($needed in 'MewBook.exe', '_internal\LICENSE', '_internal\THIRD_PARTY_NOTICES.md') {
+          foreach ($needed in 'MewBook.exe', '_internal\LICENSE', '_internal\THIRD_PARTY_NOTICES.md',
+                              '_internal\docs\legal\PRIVACY.md', '_internal\docs\legal\TERMS.md') {
             if (-not (Test-Path (Join-Path $bundle $needed))) { throw "Missing from the bundle: $needed" }
           }
+          # The triage agent (tools/triage) holds the operator's keys at run time and is never part of the app (ERR-A14).
+          if (Test-Path (Join-Path $bundle '_internal\tools')) { throw 'tools/ must not be inside the bundle.' }
           # Nothing personal or secret may ride along (docs/RELEASE_CHECKLIST.md section 7). certifi's cacert.pem is the public CA list.
           $forbidden = Get-ChildItem $bundle -Recurse -File | Where-Object {
             $_.Name -match '^(settings\.json|identity\.dat|\.secret\.key|\.env|credentials.*|token\.json|service_account.*|donate_qr\.png)$' -or

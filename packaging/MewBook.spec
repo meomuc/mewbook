@@ -91,6 +91,9 @@ _datas = [
     # AGPL-3.0-or-later text and the third-party notices travel with every build.
     ('../LICENSE', '.'),
     ('../THIRD_PARTY_NOTICES.md', '.'),
+    # The full privacy policy and terms, shown in Help -> About (presentation/about_dialog.py reads them at docs/legal/).
+    ('../docs/legal/PRIVACY.md', 'docs/legal'),
+    ('../docs/legal/TERMS.md', 'docs/legal'),
     # Which commit this build is (see _build_id above).
     (str(_stamp), 'smartdoc/data'),
 ]

@@ -87,6 +87,11 @@ if (-not $SkipTests) {
 uv run --no-sync pyinstaller --noconfirm --distpath "$root\dist" --workpath "$root\build_pyinstaller" "$PSScriptRoot\MewBook.spec"
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
 
+foreach ($needed in 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'docs\legal\PRIVACY.md', 'docs\legal\TERMS.md') {
+    if (-not (Test-Path "$root\dist\MewBook\_internal\$needed")) { throw "Missing from the bundle: $needed" }
+}
+if (Test-Path "$root\dist\MewBook\_internal\tools") { throw 'tools\ (the triage agent) must not be inside the bundle.' }
+
 # The build must carry the id of the commit it was made from (MewBook.spec stamps it): error reports name it and it is
 # how a reported error is traced to the exact source (docs/handoff/09, ERR-A14). A release must match HEAD exactly.
 $stampFile = "$root\dist\MewBook\_internal\smartdoc\data\build_info.json"
