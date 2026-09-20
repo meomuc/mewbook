@@ -307,6 +307,18 @@ def test_new_reviews_are_rate_limited_per_hour_per_day_and_globally_but_edits_ar
     assert db_002.message("select * from public.submit_review(%s,'d12','Zed',5,'x',null)", (new_token(),)) == "RATE_LIMITED"  # everybody
 
 
+def test_a_reviews_table_over_its_share_of_the_plan_takes_no_new_review_but_allows_edits(db_002):
+    """The hourly limits cannot stop a slow flood by themselves; the size limit (megabytes on disk) can."""
+    token = new_token()
+    row = submit(db_002, token, doc="d0")
+    db_002.flag("reviews_max_mb", "0")  # any table is at least this big
+    assert db_002.message("select * from public.submit_review(%s,'d1','Mai',5,'x',null)", (new_token(),)) == "REVIEWS_DISABLED"
+    assert submit(db_002, token, doc="d0", comment="sửa", review_id=row["id"])["comment"] == "sửa"  # an edit adds no row
+    assert len(visible(db_002, "d0")) == 1  # and reading is unaffected
+    db_002.flag("reviews_max_mb", "150")
+    assert submit(db_002, new_token(), nick="Mai", doc="d1")["nickname"] == "Mai"  # room again
+
+
 def test_a_review_older_than_the_window_does_not_count(db_002):
     token = new_token()
     for i in range(10):
@@ -472,6 +484,17 @@ def test_a_table_that_would_outgrow_the_plan_switches_receiving_off(db_003):
     send(db_003, make_payload("r2", install=f"{2:064x}"))
     assert db_003.one("select count(*) from public.error_reports") == 2
     assert db_003.one("select value from public.service_flags where key = 'error_reports_enabled'") == "false"
+
+
+def test_a_table_over_its_size_in_megabytes_switches_receiving_off_even_below_the_row_limit(db_003):
+    """A full-size report is about 24 KiB, so the row limit alone would let the table outgrow the free plan."""
+    assert db_003.one("select value from public.service_flags where key = 'error_max_mb'") == "150"
+    db_003.flag("error_max_mb", "0")  # any table is at least this big
+    tripping = make_payload("mb0", install=f"{0:064x}")
+    assert send(db_003, tripping) == tripping["report_id"]  # accepted, so the flip is kept, but not stored
+    assert db_003.one("select value from public.service_flags where key = 'error_reports_enabled'") == "false"
+    assert db_003.one("select count(*) from public.error_reports") == 0
+    assert refused(db_003, make_payload("mb1")) == "REPORTS_DISABLED"
 
 
 def test_the_owner_can_switch_reports_off_and_the_app_can_see_it(db_003):

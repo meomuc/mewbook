@@ -20,7 +20,8 @@
 --   * blocked_identities   -- user_hash values that may no longer post or report.
 --   * submit_review        -- same signature; now also refuses when reviews are switched off (REVIEWS_DISABLED), for a
 --                             blocked identity (IDENTITY_BLOCKED), and past the per-identity and global limits
---                             (RATE_LIMITED); a NEW review over max_comment_length is refused (COMMENT_TOO_LONG).
+--                             (RATE_LIMITED); a NEW review over max_comment_length is refused (COMMENT_TOO_LONG), and so
+--                             is any NEW review once the reviews table is over reviews_max_mb (REVIEWS_DISABLED).
 --   * report_review        -- the way a user reports a review (see the MODERATION_RUNBOOK for what you do with reports).
 --
 -- Error codes the app maps to Vietnamese messages: REVIEWS_DISABLED, IDENTITY_BLOCKED, RATE_LIMITED, COMMENT_TOO_LONG,
@@ -57,7 +58,8 @@ insert into public.service_flags (key, value) values
   ('max_reports_per_day',       '20'),
   ('max_auto_hides_per_hour',   '20'),
   ('max_comment_length',        '2000'),
-  ('max_nickname_length',       '40')
+  ('max_nickname_length',       '40'),
+  ('reviews_max_mb',            '150')
 on conflict (key) do nothing;
 
 -- Readers for the switches. Internal: only the functions below (which run with their owner's rights) call them.
@@ -238,6 +240,11 @@ begin
     end if;
     if char_length(coalesce(p_comment, '')) > public.flag_int('max_comment_length', 2000) then
       raise exception 'COMMENT_TOO_LONG';
+    end if;
+    -- The hourly limits above still let a determined flood fill a free plan in a couple of weeks; a table that has used up its
+    -- share of the plan (in megabytes on disk) takes no NEW review until you make room or raise the limit.
+    if pg_total_relation_size('public.reviews') >= public.flag_int('reviews_max_mb', 150)::bigint * 1024 * 1024 then
+      raise exception 'REVIEWS_DISABLED';
     end if;
   end if;
 

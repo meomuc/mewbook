@@ -28,6 +28,9 @@
 --   error_max_per_install_per_day   20     per installation (a salted hash the app makes up; not the review identity)
 --   error_max_global_per_hour       300    over it, error_reports_enabled is switched OFF automatically and the app backs off
 --   error_max_rows                  50000  over it, the same: stop receiving before the free plan's quota is hit
+--   error_max_mb                    150    over it (the table's real size on disk), the same. The row limit alone is not
+--                                          enough: a full-size report is about 24 KiB, so 50 000 of them are more than the
+--                                          free plan's 500 MB. After a purge the file stays big until `vacuum full`.
 --   error_samples_per_group_per_day 5      only 5 detailed samples per bug per day are kept; further ones just count
 --   error_retention_days            90     purge_error_reports() deletes detailed samples older than this
 --   accept_dev_reports              false  reports from developer builds are refused
@@ -45,6 +48,7 @@ insert into public.service_flags (key, value) values
   ('error_max_per_install_per_day',   '20'),
   ('error_max_global_per_hour',       '300'),
   ('error_max_rows',                  '50000'),
+  ('error_max_mb',                    '150'),
   ('error_samples_per_group_per_day', '5'),
   ('error_retention_days',            '90')
 on conflict (key) do nothing;
@@ -300,7 +304,8 @@ begin
   -- the table must not outgrow the plan
   v_max := public.flag_int('error_max_rows', 50000);
   select count(*) into v_n from (select 1 from public.error_reports limit v_max) as capped;
-  if v_n >= v_max then
+  if v_n >= v_max
+     or pg_total_relation_size('public.error_reports') >= public.flag_int('error_max_mb', 150)::bigint * 1024 * 1024 then
     update public.service_flags set value = 'false', updated_at = now() where key = 'error_reports_enabled';
     return v_id::text;
   end if;
