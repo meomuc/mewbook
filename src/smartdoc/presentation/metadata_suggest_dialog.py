@@ -31,9 +31,11 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from smartdoc.application.metadata_applier import MetadataApplier, MetadataApplyError
@@ -53,6 +55,13 @@ FIELD_LABELS = {
     "description": "Mô tả",
 }
 _FIELD_ORDER = tuple(FIELD_LABELS)
+
+# Said whenever the choice to write into the book file is offered: this is the one action here that changes the
+# user's own file, so it is stated plainly and in the first line.
+_WRITE_WARNING = (
+    "Khi chọn, thông tin mới sẽ được ghi đè trực tiếp lên file sách. "
+    "Nếu không chọn, chỉ thư viện thay đổi và file sách giữ nguyên."
+)
 _MAX_CELL_CHARS = 90
 
 _COL_CHECK, _COL_FIELD, _COL_CURRENT, _COL_SUGGESTED = range(4)
@@ -129,10 +138,23 @@ class MetadataSuggestDialog(QDialog):
         header.setSectionResizeMode(_COL_SUGGESTED, QHeaderView.Stretch)
         self.table.itemChanged.connect(lambda _item: self._update_apply_enabled())
 
-        self.write_check = QCheckBox("Ghi vào file gốc", self)
+        self.write_check = QCheckBox("Ghi đè lên file sách gốc", self)
         self.write_hint = QLabel("", self)
         self.write_hint.setWordWrap(True)
         self.write_hint.setStyleSheet("color: palette(mid);")
+        # How many copies of the old file are kept before it is changed. The same number as in Settings.
+        self.backup_spin = QSpinBox(self)
+        self.backup_spin.setRange(1, 20)
+        self.backup_spin.setValue(max(1, int(self.context.config.config.metadata_backup_keep)))
+        self.backup_spin.setToolTip("Mỗi lần ghi đè, file cũ được cất lại trước. Số này là số bản cất lại cho mỗi sách.")
+        self.backup_row = QWidget(self)
+        backup_layout = QHBoxLayout(self.backup_row)
+        backup_layout.setContentsMargins(24, 0, 0, 0)
+        backup_layout.addWidget(QLabel("Trước khi ghi đè, giữ lại tối đa"))
+        backup_layout.addWidget(self.backup_spin)
+        backup_layout.addWidget(QLabel("bản sao lưu file cũ cho mỗi sách."))
+        backup_layout.addStretch(1)
+        self.write_check.toggled.connect(lambda _checked: self._update_backup_row())
         self._setup_write_option()
 
         self.apply_button = QPushButton("Áp dụng", self)
@@ -156,6 +178,7 @@ class MetadataSuggestDialog(QDialog):
         layout.addWidget(self.table, stretch=1)
         layout.addWidget(self.write_check)
         layout.addWidget(self.write_hint)
+        layout.addWidget(self.backup_row)
         layout.addLayout(button_row)
 
         self.lookup_finished.connect(self._on_lookup_finished)
@@ -171,7 +194,10 @@ class MetadataSuggestDialog(QDialog):
         if not writable:
             self.write_check.setChecked(False)
             self.write_check.setEnabled(False)
-            self.write_hint.setText(f"Định dạng .{extension or '?'} chưa hỗ trợ ghi thông tin vào file: chỉ cập nhật trong thư viện.")
+            self.write_hint.setText(
+                f"Định dạng .{extension or '?'} chưa cho ghi thông tin vào file, nên chỉ thư viện thay đổi; file sách giữ nguyên."
+            )
+            self._update_backup_row()
             return
         self.write_check.setChecked(bool(self.context.config.config.metadata_write_to_file_default))
         if len(writable) == len(_FIELD_ORDER):
@@ -179,7 +205,12 @@ class MetadataSuggestDialog(QDialog):
         else:
             names = ", ".join(FIELD_LABELS[f] for f in writable)
             detail = f"Định dạng .{extension} chỉ ghi được: {names}. Phần còn lại chỉ lưu trong thư viện."
-        self.write_hint.setText(f"{detail} Ứng dụng sao lưu file trước khi ghi và bạn có thể hoàn tác.")
+        self.write_hint.setText(f"{_WRITE_WARNING} {detail} Nếu ghi nhầm, bấm \"Hoàn tác\" để trả file về như cũ.")
+        self._update_backup_row()
+
+    def _update_backup_row(self) -> None:
+        """The backup count only matters while overwriting the file is switched on."""
+        self.backup_row.setEnabled(self.write_check.isEnabled() and self.write_check.isChecked())
 
     # -- search -----------------------------------------------------------------------
 
@@ -303,6 +334,8 @@ class MetadataSuggestDialog(QDialog):
             return
         candidate = self._candidates[row]
         write = self.write_check.isEnabled() and self.write_check.isChecked()
+        if write:
+            self._remember_backup_count()
         QApplication.setOverrideCursor(Qt.WaitCursor)  # writing a large book file can take a moment
         try:
             result = self._applier.apply(
@@ -324,21 +357,29 @@ class MetadataSuggestDialog(QDialog):
             return
         QApplication.restoreOverrideCursor()
 
-        lines = [f"Đã cập nhật {len(result.changed_fields)} trường trong thư viện."]
+        lines = [f"Đã cập nhật {len(result.changed_fields)} mục thông tin trong thư viện."]
         if result.written_fields:
-            lines.append(f"Đã ghi {len(result.written_fields)} trường vào file gốc (có sao lưu, có thể hoàn tác).")
+            lines.append(f"Đã ghi đè {len(result.written_fields)} mục thông tin lên file sách gốc (file cũ đã được sao lưu, có thể hoàn tác).")
         if result.index_only_fields:
             names = ", ".join(FIELD_LABELS[f] for f in result.index_only_fields)
             lines.append(f"Chỉ lưu trong thư viện (định dạng file không hỗ trợ): {names}.")
         if result.locked_fields:
             names = ", ".join(FIELD_LABELS[f] for f in result.locked_fields)
-            lines.append(f"Giữ nguyên các trường bạn đã tự sửa: {names}.")
+            lines.append(f"Giữ nguyên những mục bạn đã tự sửa: {names}.")
         if result.file_error:
-            QMessageBox.warning(self, "Chưa ghi được vào file", "\n".join(lines) + "\n\nKhông ghi được vào file gốc: " + result.file_error)
+            QMessageBox.warning(self, "Chưa ghi được vào file", "\n".join(lines) + "\n\nChưa ghi được vào file sách gốc: " + result.file_error)
         else:
             QMessageBox.information(self, "Đã cập nhật", "\n".join(lines))
         self.applied = True
         self.accept()
+
+    def _remember_backup_count(self) -> None:
+        """Uses the number in the box for this write and keeps it as the setting (Settings shows the same one)."""
+        keep = self.backup_spin.value()
+        self.context.config.config.metadata_backup_keep = keep
+        writer = getattr(self._applier, "writer", None)
+        if writer is not None:
+            writer.keep_backups = max(1, keep)
 
     def _on_undo(self) -> None:
         confirm = QMessageBox.question(

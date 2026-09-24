@@ -13,13 +13,13 @@ gợi ý, tên tab) rồi tìm các từ trong danh sách `INTERNAL_TERMS`. Màn
 | # | Khu vực / màn hình | Đã rà | Đã sửa | Ghi chú |
 |---|---|---|---|---|
 | 1 | Cài đặt → Quản lý File: định dạng quét, thư mục theo dõi, thư mục máy đọc sách | ✅ | ✅ | "Tìm metadata" → "Tìm thông tin sách"; "tick" → "chọn". Bố cục ở task 3-4. |
-| 2 | Cài đặt → Quản lý File: mục "Tìm thông tin sách" (ghi vào file gốc, số bản sao lưu) | ✅ | ⏳ task 11 | Viết lại lời giải thích. |
+| 2 | Cài đặt → Quản lý File: mục "Tìm thông tin sách" (ghi vào file gốc, số bản sao lưu) | ✅ | ✅ | Nói rõ "ghi đè lên file sách gốc"; số bản sao lưu mặc định 1. |
 | 3 | Cài đặt → Hiệu năng | ✅ | ⏳ task 12 | Còn "luồng", "Worker Threads", "lõi CPU", "debounce". |
 | 4 | Hộp thoại lấy API: Cài đặt → AI Tóm tắt (nhãn, gợi ý từng nhà cung cấp) | ✅ | ⏳ task 13 | "Model", "base URL" → lời thường. |
 | 5 | Hộp thoại lấy API: hướng dẫn Google (ảnh bìa) | ✅ | ⏳ task 13 | Các bước đánh số, một hành động mỗi bước. |
 | 6 | Hộp thoại lấy API: hướng dẫn máy chủ đánh giá cộng đồng | ✅ | Giữ | Dành cho người tự dựng máy chủ: đoạn SQL và tên bảng là thứ họ phải sao chép, nên là ngoại lệ bắt buộc. |
 | 7 | Hộp thoại Tìm thông tin sách: tiêu đề, cột, kết quả, lỗi | ✅ | ✅ | "Trường" → "Thông tin"; lỗi thô `{exc}` → câu dễ hiểu (chi tiết vẫn ghi nhật ký). |
-| 8 | Hộp thoại Tìm thông tin sách: phần ghi vào file gốc | ✅ | ⏳ task 11 | |
+| 8 | Hộp thoại Tìm thông tin sách: phần ghi vào file gốc | ✅ | ✅ | Cảnh báo ghi đè ở dòng đầu; ô số bản sao lưu ngay trong hộp thoại. |
 | 9 | Thông báo hệ thống: gửi tới máy đọc sách | ✅ | ✅ | "xem log" → chỉ đường tới Thư mục nhật ký. |
 | 10 | Thông báo hệ thống: nhập từ Calibre | ✅ | ✅ | "hàng đợi xử lý" → "danh sách chờ". |
 | 11 | Thông báo hệ thống: sắp xếp theo đánh giá | ✅ | ✅ | "Đồng bộ đánh giá thất bại" → "Chưa lấy được điểm đánh giá". |

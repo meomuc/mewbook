@@ -158,7 +158,7 @@ class AppConfig:
     # library index is updated, the file is left alone unless the user opts in
     # each time), and how many pre-write backups of a book file to keep.
     metadata_write_to_file_default: bool = False
-    metadata_backup_keep: int = 3
+    metadata_backup_keep: int = 1  # was 3 before 1.1.0; a value already saved in settings.json is kept
     # Smart classification (application/smart_classifier.py). What to do when
     # new documents are added: "ask" pops up a small question after each
     # import, "always" classifies quietly, "never" doesn't offer at all.

@@ -176,3 +176,11 @@ def test_error_reports_are_off_until_asked_for_and_the_choice_persists(tmp_path)
 def test_a_mistyped_error_report_mode_falls_back_to_asking_never_to_always(tmp_path):
     (tmp_path / "settings.json").write_text('{"error_report_mode": "alwayz"}', encoding="utf-8")
     assert ConfigManager(app_data_dir=tmp_path).config.error_report_mode == "ask"
+
+
+def test_a_fresh_install_keeps_one_backup_per_book_but_a_saved_number_is_respected(tmp_path):
+    assert ConfigManager(app_data_dir=tmp_path / "new").config.metadata_backup_keep == 1
+
+    (tmp_path / "old").mkdir()
+    (tmp_path / "old" / "settings.json").write_text(json.dumps({"metadata_backup_keep": 3}), encoding="utf-8")
+    assert ConfigManager(app_data_dir=tmp_path / "old").config.metadata_backup_keep == 3  # an existing choice stays

@@ -439,7 +439,7 @@ def test_saving_without_touching_fonts_keeps_them_unset(qapp, app_context):
 
 def test_metadata_write_options_default_off_and_are_saved(qapp, app_context):
     dialog = SettingsDialog(app_context)
-    assert not dialog.metadata_write_check.isChecked() and dialog.metadata_backup_spin.value() == 3
+    assert not dialog.metadata_write_check.isChecked() and dialog.metadata_backup_spin.value() == 1
 
     dialog.metadata_write_check.setChecked(True)
     dialog.metadata_backup_spin.setValue(7)

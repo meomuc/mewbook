@@ -201,6 +201,10 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **Book-information search says outright that it can overwrite the book file, and lets you choose how many backups
+  to keep.** The option is now "Ghi đè lên file sách gốc", with a first line stating what it does and what happens
+  when it is left off. Next to it is a box for how many copies of the old file are kept before each overwrite
+  (default 1, was 3; a number you already saved is kept), the same number as in Settings.
 - **Plainer wording in the file settings, the book-information search and system messages.** "Tìm metadata" is now
   "Tìm thông tin sách" (menu, window and settings), the table header "Trường" reads "Thông tin", and messages no
   longer say "log", "hàng đợi" or show a raw error text; they say what happened and where the log folder is. The

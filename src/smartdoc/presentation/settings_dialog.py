@@ -264,15 +264,15 @@ class SettingsDialog(QDialog):
         layout.addLayout(ereader_row)
 
         layout.addWidget(QLabel("🔎 Tìm thông tin sách:"))
-        self.metadata_write_check = QCheckBox("Mặc định chọn \"Ghi vào file gốc\" khi cập nhật thông tin sách (EPUB/PDF)", tab)
+        self.metadata_write_check = QCheckBox("Mặc định ghi đè lên file sách gốc khi cập nhật thông tin sách (EPUB/PDF)", tab)
         self.metadata_write_check.setToolTip(
-            "Tắt (khuyến nghị): chỉ cập nhật thư viện, file sách giữ nguyên trừ khi bạn tick từng lần. "
-            "Khi ghi vào file, ứng dụng luôn sao lưu file trước và bạn có thể hoàn tác."
+            "Tắt (nên để vậy): chỉ thư viện thay đổi, file sách giữ nguyên trừ khi bạn chọn ghi đè từng lần. "
+            "Khi ghi đè, ứng dụng luôn cất file cũ lại trước và bạn có thể hoàn tác."
         )
         self.metadata_write_check.setChecked(config.metadata_write_to_file_default)
         layout.addWidget(self.metadata_write_check)
         backup_row = QHBoxLayout()
-        backup_row.addWidget(QLabel("Số bản sao lưu file giữ lại cho mỗi sách:"))
+        backup_row.addWidget(QLabel("Số bản sao lưu file cũ giữ lại cho mỗi sách (mặc định 1):"))
         self.metadata_backup_spin = QSpinBox(tab)
         self.metadata_backup_spin.setRange(1, 20)
         self.metadata_backup_spin.setValue(config.metadata_backup_keep)
