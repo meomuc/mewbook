@@ -566,7 +566,7 @@ def test_single_selection_metadata_search_action_opens_the_suggestion_dialog(qap
         "smartdoc.presentation.library_view.MetadataSuggestDialog",
         lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
     )
-    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Tìm metadata"))
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Tìm thông tin sách"))
 
     widget._show_context_menu(position)
 

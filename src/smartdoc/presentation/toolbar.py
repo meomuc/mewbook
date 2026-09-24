@@ -141,7 +141,7 @@ class LibraryToolbar(QWidget):
         self.sort_combo.setEnabled(True)
         self.setToolTip("")
         if error:
-            QMessageBox.warning(self, "Đồng bộ đánh giá thất bại", error)
+            QMessageBox.warning(self, "Chưa lấy được điểm đánh giá", error)
             return
         self.context.event_bus.publish(SortChangedEvent(order_by=order_by))
 

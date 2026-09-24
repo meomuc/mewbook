@@ -1394,7 +1394,7 @@ class LibraryListWidget(QWidget):
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
         cover_search_action = menu.addAction("Tìm ảnh bìa...")
-        metadata_search_action = menu.addAction("🔎 Tìm metadata...")
+        metadata_search_action = menu.addAction("🔎 Tìm thông tin sách...")
         ai_summary_action = menu.addAction("🤖 Tóm tắt AI...")
         smart_classify_action = menu.addAction("✨ Phân loại thông minh")
         menu.addSeparator()
@@ -1582,7 +1582,7 @@ class LibraryListWidget(QWidget):
                 self,
                 "Gửi tới máy đọc sách",
                 f"Đã gửi {len(succeeded)}/{len(paths)} file tới \"{target}\".\n"
-                f"{len(failed)} file gửi thất bại (xem log để biết chi tiết).",
+                f"{len(failed)} file chưa gửi được. Chi tiết nằm trong nhật ký lỗi (Trợ giúp → Giới thiệu → Thư mục nhật ký).",
             )
         else:
             QMessageBox.information(

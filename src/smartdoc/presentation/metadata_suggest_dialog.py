@@ -89,7 +89,7 @@ class MetadataSuggestDialog(QDialog):
         self._candidates: list = []
         self._search_number = 0
 
-        self.setWindowTitle(f"Tìm metadata: {doc.get('title', '')}")
+        self.setWindowTitle(f"Tìm thông tin sách: {doc.get('title', '')}")
         self.resize(820, 620)
 
         self.title_edit = QLineEdit(doc.get("title", "") or "", self)
@@ -117,7 +117,7 @@ class MetadataSuggestDialog(QDialog):
         self.candidate_list.currentRowChanged.connect(self._show_candidate)
 
         self.table = QTableWidget(0, 4, self)
-        self.table.setHorizontalHeaderLabels(["", "Trường", "Hiện tại", "Đề xuất"])
+        self.table.setHorizontalHeaderLabels(["", "Thông tin", "Hiện tại", "Đề xuất"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -171,14 +171,14 @@ class MetadataSuggestDialog(QDialog):
         if not writable:
             self.write_check.setChecked(False)
             self.write_check.setEnabled(False)
-            self.write_hint.setText(f"Định dạng .{extension or '?'} chưa hỗ trợ ghi metadata vào file: chỉ cập nhật thư viện.")
+            self.write_hint.setText(f"Định dạng .{extension or '?'} chưa hỗ trợ ghi thông tin vào file: chỉ cập nhật trong thư viện.")
             return
         self.write_check.setChecked(bool(self.context.config.config.metadata_write_to_file_default))
         if len(writable) == len(_FIELD_ORDER):
-            detail = "Ghi được tất cả các trường."
+            detail = "Ghi được tất cả thông tin."
         else:
             names = ", ".join(FIELD_LABELS[f] for f in writable)
-            detail = f"Định dạng .{extension} chỉ ghi được: {names}. Các trường còn lại chỉ lưu trong thư viện."
+            detail = f"Định dạng .{extension} chỉ ghi được: {names}. Phần còn lại chỉ lưu trong thư viện."
         self.write_hint.setText(f"{detail} Ứng dụng sao lưu file trước khi ghi và bạn có thể hoàn tác.")
 
     # -- search -----------------------------------------------------------------------
@@ -186,7 +186,7 @@ class MetadataSuggestDialog(QDialog):
     def _start_search(self, *, include_internet: bool) -> None:
         title, author = self.title_edit.text().strip(), self.author_edit.text().strip()
         if not title:
-            QMessageBox.warning(self, "Thiếu tiêu đề", "Vui lòng nhập tiêu đề để tìm metadata.")
+            QMessageBox.warning(self, "Thiếu tiêu đề", "Vui lòng nhập tiêu đề để tìm thông tin sách.")
             return
         self._search_number += 1
         number = self._search_number
@@ -229,13 +229,13 @@ class MetadataSuggestDialog(QDialog):
 
         parts = []
         if self._candidates:
-            parts.append(f"Tìm thấy {len(self._candidates)} kết quả -- chọn một kết quả rồi tick những trường muốn cập nhật.")
+            parts.append(f"Tìm thấy {len(self._candidates)} kết quả -- chọn một kết quả rồi đánh dấu những thông tin muốn cập nhật.")
         else:
-            parts.append("Không tìm thấy metadata phù hợp. Hãy sửa tiêu đề/tác giả rồi tìm lại.")
+            parts.append("Không tìm thấy thông tin phù hợp. Hãy sửa tiêu đề hoặc tác giả rồi tìm lại.")
         if not result.searched_internet:
             parts.append("Chưa tìm trên internet.")
         if result.errors:
-            parts.append("Lỗi một số nguồn: " + "; ".join(result.errors))
+            parts.append("Một số nơi tìm chưa trả lời được: " + "; ".join(result.errors))
         self.status_label.setText(" ".join(parts))
         if self._candidates:
             # Start on the best real lookup result; what the file itself says (tier 0) is
@@ -315,7 +315,12 @@ class MetadataSuggestDialog(QDialog):
         except Exception as exc:  # noqa: BLE001
             QApplication.restoreOverrideCursor()
             logger.exception("Applying metadata failed")
-            QMessageBox.critical(self, "Lỗi", f"Không cập nhật được: {exc}")
+            QMessageBox.critical(
+                self,
+                "Không cập nhật được",
+                "Có lỗi khi cập nhật thông tin sách. Hãy thử lại; nếu vẫn lỗi, mở Trợ giúp → Giới thiệu → "
+                "Thư mục nhật ký để gửi cho nhà phát triển.",
+            )
             return
         QApplication.restoreOverrideCursor()
 

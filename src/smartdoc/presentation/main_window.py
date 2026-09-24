@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Không tìm thấy thư viện Calibre", str(exc))
             return
         QMessageBox.information(
-            self, "Nhập từ Calibre", f"Đã đưa {count} sách vào hàng đợi xử lý. Thư viện Calibre gốc không bị thay đổi."
+            self, "Nhập từ Calibre", f"Đã đưa {count} sách vào danh sách chờ thêm vào thư viện. Thư viện Calibre gốc không bị thay đổi."
         )
 
     def _on_send_to_ereader(self) -> None:

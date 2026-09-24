@@ -263,8 +263,8 @@ class SettingsDialog(QDialog):
         ereader_row.addWidget(choose_ereader_button)
         layout.addLayout(ereader_row)
 
-        layout.addWidget(QLabel("🔎 Tìm metadata:"))
-        self.metadata_write_check = QCheckBox("Mặc định tick \"Ghi vào file gốc\" khi áp dụng metadata (EPUB/PDF)", tab)
+        layout.addWidget(QLabel("🔎 Tìm thông tin sách:"))
+        self.metadata_write_check = QCheckBox("Mặc định chọn \"Ghi vào file gốc\" khi cập nhật thông tin sách (EPUB/PDF)", tab)
         self.metadata_write_check.setToolTip(
             "Tắt (khuyến nghị): chỉ cập nhật thư viện, file sách giữ nguyên trừ khi bạn tick từng lần. "
             "Khi ghi vào file, ứng dụng luôn sao lưu file trước và bạn có thể hoàn tác."
