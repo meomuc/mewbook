@@ -135,9 +135,9 @@ export default function App() {
 
       {/* Header */}
       <header className={`sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-700 ${isDark ? "bg-[#2B211E]/80 border-[#4A3A34]" : "bg-[#FFF8F0]/80 border-[#E9DCC6]"}`} style={{ paddingTop: 'var(--safe-area-inset-top, 0px)' }}>
-        <div className="mx-auto max-w-[1120px] px-5 md:px-8 h-[64px] flex items-center justify-between">
+        <div className="mx-auto max-w-[1120px] px-5 md:px-8 h-[96px] flex items-center justify-between">
           <a href="#" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#FF8C42] p-1 flex items-center justify-center shadow-[0_4px_12px_rgba(255,140,66,0.3)]">
+            <div className="w-[83px] h-[83px] rounded-full bg-[#FF8C42] p-1 flex items-center justify-center shadow-[0_4px_12px_rgba(255,140,66,0.3)]">
               <img src={logoUrl} alt="Mèo Mực logo" className="w-full h-full object-contain rounded-full" />
             </div>
             <span className="display font-bold text-[18px] tracking-tight">Mèo Mực <span className="font-medium opacity-70">— MewBook</span></span>
