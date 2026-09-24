@@ -86,6 +86,8 @@ version_info = VSVersionInfo(
 _datas = [
     ('../src/smartdoc/presentation/assets/app_icon.ico', 'smartdoc/presentation/assets'),
     ('../src/smartdoc/presentation/assets/brand_logo.png', 'smartdoc/presentation/assets'),
+    # The mascot pictures + manifest (presentation/brand.py).
+    ('../src/smartdoc/presentation/assets/brand/*', 'smartdoc/presentation/assets/brand'),
     # Supabase upgrade SQL, served by Settings -> "Sao chép SQL nâng cấp".
     ('../src/smartdoc/application/sql/*.sql', 'smartdoc/application/sql'),
     # AGPL-3.0-or-later text and the third-party notices travel with every build.

@@ -66,6 +66,7 @@ Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (khôn
 | Phân loại (taxonomy) | `src/smartdoc/data/taxonomy.json` | Do dự án soạn | Chủ dự án là tác giả. Xác nhận không sao chép nguyên văn từ nguồn ngoài (mục 5, câu 4) |
 | Mô hình tách từ | `collect_data_files('pyvi')` | Gói `pyvi` (MIT) | Nguồn dữ liệu huấn luyện của mô hình CRF **chưa rõ** (mục 5, câu 2) |
 | Biểu tượng ứng dụng | `presentation/assets/app_icon.ico` | Sinh từ `brand_logo.png` bằng `packaging/process_brand_icon.py` | **Nguồn gốc ảnh chưa xác nhận (O12)** |
+| Ảnh linh vật (7 vai trò) | `presentation/assets/brand/*.png` | Sinh từ `Sample theme/cat/` bằng `tools/prepare_brand_assets.py`; chủ dự án xác nhận `logo.png` là logo chính thức (2026-09-24) | Nguồn gốc/điều khoản công cụ tạo ảnh vẫn cần chốt (O12) trước khi công khai kho mã |
 | Logo thương hiệu | `presentation/assets/brand_logo.png` | Ảnh mèo do chủ dự án cung cấp; dấu hiệu do công cụ tạo ảnh AI tạo ra (theo `08` mục 8) | **Chưa xác nhận điều khoản công cụ tạo ảnh (O12)**; giấy phép tranh: O11 |
 | Mã QR ủng hộ | `presentation/assets/donate_qr.png` (chỉ đóng gói nếu file tồn tại) | Mã ngân hàng cá nhân của tác giả | **Hiện không có trong repo.** Quyết định của chủ dự án có đưa vào kho công khai không |
 | Ảnh xem trước theme | thư mục `Sample theme/` | Tên `Gemini_Generated_Image_*` (công cụ tạo ảnh AI) | **Không** đóng gói, chưa theo dõi bởi git. Nếu công khai, cần xác nhận O12 |

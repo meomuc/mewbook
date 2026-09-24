@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **Official Mèo Mực logo and mascot artwork.** The app icon, the sidebar logo and the About logo are now the
+  official cat-reading-a-book logo, and seven mascot pictures (reading, thinking, searching, waiting, done, sad,
+  developer) ship with the app, ready for the empty and waiting screens. Built by `tools/prepare_brand_assets.py`.
 - **Cover dialog: paste an image link or choose an image from your computer.** Besides searching
   the internet, the cover dialog now has a box for an image URL (**"Tải về"**) and a
   **"Chọn ảnh từ máy..."** button. The image is checked (a real image, at most 15 MB), shown

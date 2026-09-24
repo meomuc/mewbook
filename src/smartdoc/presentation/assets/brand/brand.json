@@ -1,0 +1,9 @@
+{
+  "logo":      {"file": "logo",      "kind": "cutout", "label": "Mèo Mực đang đọc sách"},
+  "thinking":  {"file": "thinking",  "kind": "cutout", "label": "Mèo Mực đang suy nghĩ"},
+  "searching": {"file": "searching", "kind": "cutout", "label": "Mèo Mực đang tìm kiếm"},
+  "waiting":   {"file": "waiting",   "kind": "scene",  "label": "Mèo Mực đang chờ bên tách cà phê"},
+  "done":      {"file": "done",      "kind": "scene",  "label": "Mèo Mực nằm thư giãn, mọi việc đã xong"},
+  "sad":       {"file": "sad",       "kind": "scene",  "label": "Mèo Mực buồn dưới mưa"},
+  "dev":       {"file": "dev",       "kind": "cutout", "label": "Mèo Mực đang gõ code"}
+}
