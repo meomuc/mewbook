@@ -604,3 +604,59 @@ def test_the_link_wording_is_shortened_before_it_is_moved_below_the_name(qapp, a
 
     assert panel.author_works_label.text() == short
     assert panel.author_works_label.geometry().left() >= panel.author_edit.geometry().right()
+
+# --- editable vs. read-only fields look different, without relying on colour ---
+
+
+def _all_editable(panel):
+    return (panel.title_edit, panel.author_edit, panel.tags_edit)
+
+
+def _all_read_only(panel):
+    return (panel.format_size_label, panel.bibliography_label, panel.dates_label)
+
+
+def test_editable_fields_share_one_outlined_style_with_a_pencil(qapp, app_context):
+    from smartdoc.presentation.theme import current_colors
+
+    panel = DocumentDetailPanel(app_context)
+    for field in _all_editable(panel):
+        assert "border: 1px solid" in field.styleSheet()  # an outline: a shape, not just a colour
+        assert field.property("editable") is True
+        assert len(field.actions()) == 1  # the pencil
+        assert not field.actions()[0].icon().isNull()
+        assert "sửa" in field.actions()[0].toolTip()
+    # the same outline rule everywhere: one consistent look
+    outline = f"border: 1px solid {current_colors().border}; border-radius: 4px; padding: 4px 6px;"
+    assert all(outline in field.styleSheet() for field in _all_editable(panel))
+
+
+def test_read_only_lines_have_no_outline_no_pencil_and_a_grey_band(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    for label in _all_read_only(panel):
+        assert "border: none" in label.styleSheet()
+        assert "background: rgba(" in label.styleSheet()  # the faint band
+        assert "1px solid" not in label.styleSheet()
+        assert label.property("editable") is False
+
+
+def test_no_field_is_both_editable_and_read_only_in_style(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    editable = {field.styleSheet() for field in _all_editable(panel)}
+    read_only = {label.styleSheet() for label in _all_read_only(panel)}
+    assert not any("border: none" in css for css in editable)
+    assert not any("border: 1px" in css for css in read_only)
+
+
+def test_read_only_lines_say_so_in_a_tooltip(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    assert "không sửa được" in panel.format_size_label.toolTip()
+    assert "không sửa được" in panel.bibliography_label.toolTip()
+
+
+def test_editable_fields_are_still_editable_and_read_only_ones_are_plain_labels(qapp, app_context):
+    from PySide6.QtWidgets import QLabel, QLineEdit
+
+    panel = DocumentDetailPanel(app_context)
+    assert all(isinstance(f, QLineEdit) and not f.isReadOnly() for f in _all_editable(panel))
+    assert all(type(label) is QLabel for label in _all_read_only(panel))

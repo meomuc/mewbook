@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QFontMetrics, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QBoxLayout,
     QFrame,
@@ -53,6 +53,8 @@ COVER_WIDTH = 280
 # panel's heading; the author and everything else use the size as-is.
 _TITLE_STEP_PX = 4
 _AUTHOR_STEP_PX = 1
+# Extra width an editable field needs beyond its text: border, padding, the pencil icon and the cursor.
+_EDITABLE_EXTRA_PX = 44
 PANEL_MIN_WIDTH = 320
 
 
@@ -125,6 +127,52 @@ def _rounded(pixmap: QPixmap, radius: int) -> QPixmap:
     painter.drawPixmap(0, 0, pixmap)
     painter.end()
     return result
+
+
+def _rgba(color: str, alpha: float) -> str:
+    c = QColor(color)
+    return f"rgba({c.red()}, {c.green()}, {c.blue()}, {alpha})"
+
+
+def editable_field_css(colors, font_css: str = "", text_color: str | None = None) -> str:
+    """Every field you can change here looks the same: a thin outline that turns to the accent while you type, and
+    a pencil at the right end (see _add_pencil). The outline and the pencil are shapes, so the difference from a
+    read-only line holds even for someone who cannot tell colours apart."""
+    text = text_color or colors.panel_text
+    return (
+        f"QLineEdit {{ {font_css} color: {text}; background: transparent; border: 1px solid {colors.border};"
+        f" border-radius: 4px; padding: 4px 6px; }}"
+        f" QLineEdit:hover {{ border: 1px solid {colors.muted_text}; }}"
+        f" QLineEdit:focus {{ border: 1px solid {colors.accent}; }}"
+    )
+
+
+def readonly_field_css(colors) -> str:
+    """Read-only lines: no outline, no pencil, a faint grey band behind the text."""
+    return (
+        f"color: {colors.panel_text}; font-size: 13px; background: {_rgba(colors.panel_text, 0.06)};"
+        " border: none; border-radius: 4px; padding: 4px 8px;"
+    )
+
+
+def _pencil_icon(color: str) -> QIcon:
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setPen(QColor(color))
+    font = QFont()
+    font.setPixelSize(14)
+    painter.setFont(font)
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, "✎")
+    painter.end()
+    return QIcon(pixmap)
+
+
+def _add_pencil(edit: QLineEdit, colors) -> None:
+    """Marks a line edit as editable: a pencil inside its right end."""
+    action = edit.addAction(_pencil_icon(colors.muted_text), QLineEdit.TrailingPosition)
+    action.setToolTip("Bấm vào ô để sửa")
+    edit.setProperty("editable", True)
 
 
 def _content_text_color(config, fallback: str) -> str:
@@ -259,9 +307,13 @@ class DocumentDetailPanel(QWidget):
         self.title_edit = QLineEdit(self._content)
         self.title_edit.setPlaceholderText("Tiêu đề...")
         self.title_edit.setStyleSheet(
-            f"{_content_font_css(app_config, bold=True, extra_px=_TITLE_STEP_PX)} "
-            f"color: {_content_text_color(app_config, colors.panel_text)}; border: none; background: transparent;"
+            editable_field_css(
+                colors,
+                _content_font_css(app_config, bold=True, extra_px=_TITLE_STEP_PX),
+                _content_text_color(app_config, colors.panel_text),
+            )
         )
+        _add_pencil(self.title_edit, colors)
         self._content_layout.addWidget(self.title_edit)
         if colors.text_glow:
             glow = QGraphicsDropShadowEffect(self.title_edit)
@@ -281,9 +333,13 @@ class DocumentDetailPanel(QWidget):
         self.author_edit = QLineEdit(self._author_row)
         self.author_edit.setPlaceholderText("Tác giả...")
         self.author_edit.setStyleSheet(
-            f"{_content_font_css(app_config, extra_px=_AUTHOR_STEP_PX)} "
-            f"color: {_content_text_color(app_config, colors.panel_text)}; border: none; background: transparent;"
+            editable_field_css(
+                colors,
+                _content_font_css(app_config, extra_px=_AUTHOR_STEP_PX),
+                _content_text_color(app_config, colors.panel_text),
+            )
         )
+        _add_pencil(self.author_edit, colors)
         self.author_edit.textChanged.connect(lambda _text: self._layout_author_row())
 
         # -- "(N other books by this author)" -- a link beside the author's name rather than
@@ -343,11 +399,8 @@ class DocumentDetailPanel(QWidget):
 
         self.tags_edit = QLineEdit(self._content)
         self.tags_edit.setPlaceholderText("Thêm #tag, cách nhau bởi dấu phẩy (VD: Python, AI)...")
-        self.tags_edit.setStyleSheet(
-            f"QLineEdit {{ background: {colors.surface}; color: {colors.panel_text}; border: 1px solid {colors.border};"
-            f" border-radius: 3px; padding: 7px 10px; }}"
-            f" QLineEdit:focus {{ border: 1px solid {colors.accent}; }}"
-        )
+        self.tags_edit.setStyleSheet(editable_field_css(colors))
+        _add_pencil(self.tags_edit, colors)
         self.tags_edit.editingFinished.connect(lambda: self._save_field("tags", self.tags_edit.text()))
         self._content_layout.addWidget(self.tags_edit)
 
@@ -419,8 +472,9 @@ class DocumentDetailPanel(QWidget):
     def _info_label(self) -> QLabel:
         label = QLabel(self._content)
         label.setWordWrap(True)
-        colors = current_colors()
-        label.setStyleSheet(f"color: {colors.panel_text}; font-size: 13px;")
+        label.setStyleSheet(readonly_field_css(current_colors()))
+        label.setToolTip("Thông tin đọc từ file, không sửa được ở đây")
+        label.setProperty("editable", False)
         return label
 
     # ── State transitions ────────────────────────────────────────────
@@ -499,7 +553,7 @@ class DocumentDetailPanel(QWidget):
 
         self._show_bibliography(doc)
         self.dates_label.setText(
-            f"📅  Thêm: {_format_date(doc.get('created_at'))}  ·  ✏️  Sửa: {_format_date(doc.get('updated_at'))}"
+            f"📅  Thêm: {_format_date(doc.get('created_at'))}  ·  🕒  Sửa: {_format_date(doc.get('updated_at'))}"
         )
         self.dates_label.setToolTip(
             f"Thêm: {_format_datetime(doc.get('created_at'))}\nSửa: {_format_datetime(doc.get('updated_at'))}"
@@ -663,7 +717,7 @@ class DocumentDetailPanel(QWidget):
         edit.ensurePolished()  # so font() reflects the stylesheet, not the default
         link.ensurePolished()
         text = edit.text() or edit.placeholderText()
-        name_width = QFontMetrics(edit.font()).horizontalAdvance(text) + 16  # cursor + margins
+        name_width = QFontMetrics(edit.font()).horizontalAdvance(text) + _EDITABLE_EXTRA_PX  # border, padding, pencil, cursor
         room = self._author_row.width() - name_width - self._author_layout.spacing()
         side_by_side = False
         if not link.isHidden() and self._author_row.width() > 0:

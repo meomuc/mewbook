@@ -201,6 +201,10 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **Detail panel: you can now tell at a glance what you can edit.** The title, author and hashtag boxes have a thin
+  outline and a pencil at the right end; the lines the app fills in itself (format and size, publisher and year, dates)
+  have no outline and sit on a faint grey band. The difference is in the shape, not only the colour. The "modified"
+  date lost its pencil so the pencil means one thing.
 - **The bottom status bar is now three clear zones, with icons instead of sentences.** Left, "Thư viện": document
   counts, the chosen collection, watched folders, and a running import or auto-classification (`⏳ 12/40`). Middle,
   "Hệ thống & kết nối": community reviews, AI and the network, one small icon each. Right: the donate line, a link to
