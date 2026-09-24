@@ -91,3 +91,55 @@ def test_changing_pages_drops_decodes_queued_for_the_old_page(qapp, tmp_path):
 
     assert model._cover_loader._pending == set()
     model._cover_loader.wait_for_done()
+
+
+def _center_red(model, row=0):
+    icon = model.data(model.index(row, 0), Qt.DecorationRole)
+    image = icon.pixmap(60, 84).toImage()
+    return image.pixelColor(image.width() // 2, image.height() // 2).red()
+
+
+def _replace_cover(path, color):
+    """Overwrites a cover the way CoverCacheManager does: same file name, new content."""
+    Image.new("RGB", (300, 420), color).save(path, "WEBP")
+    stat = path.stat()
+    import os
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))  # never the same timestamp twice
+
+
+def test_a_replaced_cover_file_shows_the_new_image_after_the_next_reload(qapp, tmp_path):
+    """Regression: covers are saved as <doc_id>.webp, so changing a cover keeps the same path. The models
+    cached the decoded icon by path and kept showing the old cover until the app was restarted."""
+    for model_cls in (LibraryModel, LibraryTableModel):
+        folder = tmp_path / model_cls.__name__
+        folder.mkdir()
+        docs = _docs(folder, 1)
+        model = model_cls()
+        model.set_documents(docs)
+        model.data(model.index(0, 0), Qt.DecorationRole)
+        assert _pump_until(qapp, lambda: _center_red(model) > 150)  # the first (red) cover is on screen
+
+        _replace_cover(folder / "c0.webp", (20, 30, 220))  # new cover: blue, same path
+        model.set_documents(_docs_same_path(docs))  # what LibraryView.reload() does after LibraryUpdatedEvent
+        model.data(model.index(0, 0), Qt.DecorationRole)
+        assert _pump_until(qapp, lambda: _center_red(model) < 100), model_cls.__name__
+
+
+def test_replacing_one_cover_leaves_the_other_documents_cached(qapp, tmp_path):
+    docs = _docs(tmp_path, 2)
+    model = LibraryModel()
+    model.set_documents(docs)
+    for row in range(2):
+        model.data(model.index(row, 0), Qt.DecorationRole)
+    assert _pump_until(qapp, lambda: _center_red(model, 0) > 150 and _center_red(model, 1) > 150)
+    untouched = model._icon_cache[(docs[1]["cover_path"], "pdf")]
+
+    _replace_cover(tmp_path / "c0.webp", (20, 30, 220))
+    model.set_documents(_docs_same_path(docs))
+
+    assert model._icon_cache[(docs[1]["cover_path"], "pdf")] is untouched
+    assert (docs[0]["cover_path"], "pdf") not in model._icon_cache
+
+
+def _docs_same_path(docs):
+    return [dict(doc) for doc in docs]

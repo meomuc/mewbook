@@ -8,6 +8,7 @@ yet.
 from __future__ import annotations
 
 import math
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -235,19 +236,42 @@ class _AsyncCoverMixin:
         self._icon_cache: dict[tuple[str | None, str], QIcon] = {}
         self._placeholder_cache: dict[tuple[str | None, str], QIcon] = {}
         self._failed_covers: set[str] = set()
+        self._cover_stamps: dict[str, tuple[int, int] | None] = {}  # cover path -> (mtime, size) last seen
         self._rows_by_cover: dict[str, list[int]] = {}
         self._cover_loader = CoverLoader(self)
         self._cover_loader.loaded.connect(self._on_cover_loaded)
 
     def _index_covers(self) -> None:
         """Call whenever _documents is replaced: maps each cover back to the
-        rows showing it, and drops decode requests for the old rows."""
+        rows showing it, drops decode requests for the old rows, and forgets
+        the decoded icon of any cover file that changed on disk."""
         self._rows_by_cover = {}
         for row, doc in enumerate(self._documents):
             cover_path = doc.get("cover_path")
             if cover_path:
                 self._rows_by_cover.setdefault(cover_path, []).append(row)
         self._cover_loader.cancel_pending()
+        self._evict_replaced_covers()
+
+    def _evict_replaced_covers(self) -> None:
+        """A cover is saved as <doc_id>.webp, so choosing a new cover for a book rewrites the *same path*: the
+        icon caches (keyed by path) would go on showing the old picture until the app restarted. The file's
+        modification time and size tell a replaced cover apart; only that path is evicted, so every other
+        document keeps its decoded icon. Runs once per reload (a stat per visible cover), never in data()."""
+        for cover_path in self._rows_by_cover:
+            try:
+                stat = os.stat(cover_path)
+                stamp: tuple[int, int] | None = (stat.st_mtime_ns, stat.st_size)
+            except OSError:
+                stamp = None
+            known = self._cover_stamps.get(cover_path, stamp)
+            self._cover_stamps[cover_path] = stamp
+            if stamp == known:
+                continue
+            self._failed_covers.discard(cover_path)
+            for cache in (self._icon_cache, self._placeholder_cache):
+                for key in [k for k in cache if k[0] == cover_path]:
+                    del cache[key]
 
     def _cover_decoration(self, doc: dict) -> QIcon:
         cover_path = doc.get("cover_path")
