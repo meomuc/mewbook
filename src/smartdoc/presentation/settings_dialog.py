@@ -73,6 +73,7 @@ from smartdoc.core.event_bus import AiConnectionChangedEvent
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
 from smartdoc.presentation.backup_panel import BackupPanel
+from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.theme import THEMES, current_colors, resolve_font_family
 from smartdoc.presentation.privacy_panel import PrivacyPanel
 from smartdoc.presentation.update_panel import UpdatePanel
@@ -174,6 +175,8 @@ class SettingsDialog(QDialog):
     cover_test_finished = Signal(bool, str)  # (success, message)
     supabase_test_finished = Signal(bool, str)  # (success, message)
 
+    FOLDER_LIST_MAX_ROWS = 5  # the watched-folders box grows up to this many rows, then scrolls
+
     def __init__(self, context, parent=None, watcher=None, import_manager=None, initial_tab: str | None = None) -> None:
         super().__init__(parent)
         self.context = context
@@ -222,17 +225,21 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         layout.addWidget(QLabel("Định dạng quét tự động:"))
+        # The formats sit side by side and wrap onto a new line when the window is narrow.
+        self.extension_flow = FlowWidget(tab, h_spacing=16, v_spacing=6)
         self._extension_checkboxes: dict[str, QCheckBox] = {}
         for extension in KNOWN_EXTENSIONS:
-            checkbox = QCheckBox(extension.upper())
+            checkbox = QCheckBox(extension.upper(), self.extension_flow)
             checkbox.setChecked(extension in config.allowed_extensions)
             self._extension_checkboxes[extension] = checkbox
-            layout.addWidget(checkbox)
+        self.extension_flow.set_widgets(list(self._extension_checkboxes.values()))
+        layout.addWidget(self.extension_flow)
 
         layout.addWidget(QLabel("Thư mục đang theo dõi:"))
         self.folder_list = QListWidget(tab)
         self.folder_list.addItems(config.watch_folders)
-        layout.addWidget(self.folder_list, stretch=1)
+        self._fit_folder_list()
+        layout.addWidget(self.folder_list)
 
         folder_buttons = QHBoxLayout()
         add_button = QPushButton("Thêm thư mục...")
@@ -273,6 +280,7 @@ class SettingsDialog(QDialog):
         backup_row.addStretch(1)
         layout.addLayout(backup_row)
 
+        layout.addStretch(1)  # spare height stays at the bottom instead of stretching the folder box
         return tab
 
     def _build_theme_tab(self, config) -> QWidget:
@@ -844,10 +852,19 @@ class SettingsDialog(QDialog):
             self.context.config.config.last_used_directory = folder
             if not self.folder_list.findItems(folder, Qt.MatchExactly):
                 self.folder_list.addItem(folder)
+                self._fit_folder_list()
 
     def _on_remove_folder(self) -> None:
         for item in self.folder_list.selectedItems():
             self.folder_list.takeItem(self.folder_list.row(item))
+        self._fit_folder_list()
+
+    def _fit_folder_list(self) -> None:
+        """The watched-folders box is as tall as its folders (at least one row, at most FOLDER_LIST_MAX_ROWS);
+        beyond that it scrolls, so a long list can never push the other settings off the screen."""
+        rows = min(max(self.folder_list.count(), 1), self.FOLDER_LIST_MAX_ROWS)
+        row_height = self.folder_list.sizeHintForRow(0) if self.folder_list.count() else self.folder_list.fontMetrics().height() + 4
+        self.folder_list.setFixedHeight(rows * row_height + 2 * self.folder_list.frameWidth())
 
     def _on_choose_ereader_folder(self) -> None:
         start_dir = self._ereader_folder_path or self.context.config.config.last_used_directory or ""

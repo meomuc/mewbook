@@ -479,3 +479,79 @@ def test_the_copy_sql_button_copies_every_upgrade_step_in_order(qapp, app_contex
     assert sql.index("001_reviewer_identity.sql") < sql.index("002_review_moderation.sql") < sql.index("003_error_reports.sql")
     assert "report_review" in sql and "submit_error_report" in sql
     assert "kiểm duyệt" in dialog.copy_upgrade_sql_button.toolTip()
+
+
+# --- Cài đặt -> Quản lý file: format chips in a wrapping row; the folder box sized to its content ---
+
+
+def test_extension_checkboxes_sit_in_one_row_when_there_is_room(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.resize(700, 600)
+    dialog.show()
+    qapp.processEvents()
+
+    boxes = list(dialog._extension_checkboxes.values())
+    assert len({box.geometry().top() for box in boxes}) == 1  # side by side, not a column
+    assert len({box.geometry().left() for box in boxes}) == len(boxes)
+
+
+def test_extension_checkboxes_wrap_inside_the_frame_when_the_window_is_narrow(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.resize(700, 600)
+    dialog.show()
+    qapp.processEvents()
+    flow = dialog.extension_flow
+    one_box_width = max(box.sizeHint().width() for box in dialog._extension_checkboxes.values())
+
+    # The dialog cannot shrink below its own minimum width, so squeeze the row itself: room for two chips per line.
+    flow.setFixedWidth(one_box_width * 2 + 16)
+    qapp.processEvents()
+
+    boxes = list(dialog._extension_checkboxes.values())
+    assert len({box.geometry().top() for box in boxes}) > 1  # wrapped onto more lines
+    assert all(flow.rect().contains(box.geometry()) for box in boxes)  # none spills out of the frame
+
+
+def _folder_box_height(qapp, app_context, count):
+    app_context.config.config.watch_folders = [rf"D:\Books{i}" for i in range(count)]
+    dialog = SettingsDialog(app_context)
+    dialog.resize(700, 700)
+    dialog.show()
+    qapp.processEvents()
+    return dialog.folder_list.height(), dialog
+
+
+def test_folder_box_grows_with_the_number_of_folders_then_stops_and_scrolls(qapp, app_context):
+    heights = {n: _folder_box_height(qapp, app_context, n)[0] for n in (1, 3, 5, 9)}
+
+    assert heights[1] < heights[3] < heights[5]  # fits the real count
+    assert heights[9] == heights[5]  # capped at five rows
+    _, dialog = _folder_box_height(qapp, app_context, 9)
+    assert dialog.folder_list.verticalScrollBar().maximum() > 0  # the rest scrolls
+    _, few = _folder_box_height(qapp, app_context, 3)
+    assert few.folder_list.verticalScrollBar().maximum() == 0  # nothing to scroll
+
+
+def test_folder_box_follows_added_and_removed_folders(qapp, app_context):
+    before, dialog = _folder_box_height(qapp, app_context, 1)
+    for i in range(3):
+        dialog.folder_list.addItem(rf"E:\More{i}")
+        dialog._fit_folder_list()
+    qapp.processEvents()
+    assert dialog.folder_list.height() > before
+
+    qapp.processEvents()
+    grown = dialog.folder_list.height()
+    for _ in range(3):  # the list selects one folder at a time
+        dialog.folder_list.setCurrentRow(0)
+        dialog._on_remove_folder()
+    qapp.processEvents()
+    assert dialog.folder_list.height() < grown
+
+
+def test_a_full_folder_box_does_not_push_the_other_settings_off_the_window(qapp, app_context):
+    _, few = _folder_box_height(qapp, app_context, 1)
+    _, many = _folder_box_height(qapp, app_context, 40)
+    # 40 folders may add at most four more rows over the one-folder layout, never 40 rows.
+    row = many.folder_list.sizeHintForRow(0)
+    assert many.sizeHint().height() - few.sizeHint().height() <= row * 5

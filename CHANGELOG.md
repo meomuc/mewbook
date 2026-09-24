@@ -201,6 +201,9 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **Settings → Quản lý File tidier.** The file formats to scan sit in one row (and wrap onto a new line in a narrow
+  window), and the "Thư mục đang theo dõi" box is only as tall as its folders: one to five rows, then it scrolls, so a
+  long list no longer pushes the other settings out of the window.
 - **MewBook is free software under the AGPL-3.0-or-later.** The repository now has a `LICENSE`
   (AGPL-3.0) and `pyproject.toml` declares it. Help → About states the licence and that there is
   no warranty, links to the source of the running version (once the public repository is set in
