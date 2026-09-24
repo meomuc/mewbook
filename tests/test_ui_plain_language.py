@@ -31,6 +31,8 @@ INTERNAL_TERMS = {
     r"\bfile config\b": "(bỏ)",
     r"\bexception\b": "lỗi",
     r"\btrường\b": "thông tin",
+    r"\bmodel\b": "mẫu AI",
+    r"\bcx\b": "Search Engine ID",
 }
 
 
@@ -76,6 +78,18 @@ def test_the_performance_tab_uses_plain_words_and_explains_every_option(qapp, ap
     for hint in (dialog.worker_hint, dialog.debounce_hint):
         assert "Tăng lên thì" in hint.text() and "Giảm xuống thì" in hint.text()
         assert hint.wordWrap()
+
+
+@pytest.mark.parametrize("tab_name", ["AI Tóm tắt", "Ảnh bìa"])
+def test_the_key_tabs_use_plain_words(qapp, app_context, tab_name):
+    """The AI and cover-search tabs (where the API-key guides live). The community-review tab is left out on
+    purpose: it is for whoever runs the server, and the SQL and table names there are what they must copy."""
+    dialog = SettingsDialog(app_context)
+    tabs = dialog.extension_flow.window().findChild(QTabWidget)
+    tab = next(tabs.widget(i) for i in range(tabs.count()) if tab_name in tabs.tabText(i))
+    dialog.ai_provider_combo.setCurrentIndex(dialog.ai_provider_combo.findData("ollama"))  # show a real guide too
+
+    assert _offences(_texts(tab)) == []
 
 
 def test_the_metadata_dialog_uses_plain_words(qapp, app_context):

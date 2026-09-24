@@ -55,7 +55,7 @@ from PySide6.QtWidgets import (
 from smartdoc.application.ai_summary import (
     DEFAULT_MODELS,
     OLLAMA_DEFAULT_BASE_URL,
-    PROVIDER_GUIDES,
+    provider_guide_html,
     AISummaryError,
     provider_requires_key,
     test_connection,
@@ -85,30 +85,43 @@ from smartdoc.presentation.theme_effects import theme_preview_pixmap
 # the API key), and getting either half subtly wrong fails in ways that
 # don't obviously point back at the step that caused them.
 _COVER_SEARCH_SETUP_GUIDE = """
-<b>Hướng dẫn lấy API key &amp; Search Engine ID (miễn phí, ~5 phút)</b>
+<b>Cách lấy khóa tìm ảnh bìa của Google (miễn phí, khoảng 5 phút)</b>
+<p>Bạn cần hai thứ: <b>Search Engine ID</b> (Phần 1) và <b>API key</b> (Phần 2). Tên các nút bên dưới là tiếng Anh
+vì đó là chữ trên trang của Google.</p>
 
-<p><b>Phần 1 — Tạo công cụ tìm kiếm để lấy Search Engine ID (cx):</b></p>
+<p><b>Phần 1 — Lấy Search Engine ID:</b></p>
 <ol>
-<li>Mở <a href="https://programmablesearchengine.google.com/controlpanel/create">programmablesearchengine.google.com/controlpanel/create</a> và đăng nhập bằng tài khoản Google.</li>
-<li>Ở ô <i>"Name"</i>: đặt tên bất kỳ, ví dụ <i>MewBook Cover Search</i>.</li>
-<li>Chọn <b>"Search the entire web"</b> (tìm toàn bộ web) — không chọn "Search specific sites", nếu không sẽ gần như không tìm được bìa nào.</li>
-<li>Bật công tắc <b>"Image search"</b> (tìm kiếm hình ảnh). <b>Bắt buộc</b> — nếu tắt, ứng dụng sẽ báo lỗi 400.</li>
-<li>Bấm <b>"Create"</b>.</li>
-<li>Ở màn hình tiếp theo bấm <b>"Customize"</b>, tìm dòng <b>"Search engine ID"</b> và sao chép chuỗi đó → dán vào ô <b>Search Engine ID</b> ở trên.</li>
+<li>Mở trang <a href="https://programmablesearchengine.google.com/controlpanel/create">programmablesearchengine.google.com/controlpanel/create</a>.</li>
+<li>Đăng nhập bằng tài khoản Google của bạn.</li>
+<li>Ở ô <b>"Name"</b>, gõ tên bất kỳ, ví dụ <i>Bìa sách</i>.</li>
+<li>Chọn <b>"Search the entire web"</b> (tìm trên toàn bộ web).</li>
+<li>Bật công tắc <b>"Image search"</b> (tìm ảnh). Bước này bắt buộc, nếu bỏ qua sẽ không tìm được ảnh.</li>
+<li>Bấm nút <b>"Create"</b>.</li>
+<li>Bấm nút <b>"Customize"</b>.</li>
+<li>Tìm dòng <b>"Search engine ID"</b> và sao chép dãy chữ số đó.</li>
+<li>Quay lại cửa sổ này và dán vào ô <b>Search Engine ID</b> ở trên.</li>
 </ol>
 
 <p><b>Phần 2 — Lấy API key:</b></p>
 <ol>
-<li>Mở <a href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com">console.cloud.google.com/apis/library/customsearch.googleapis.com</a> (cùng tài khoản Google).</li>
-<li>Nếu chưa có project: bấm <b>"Create project"</b> ở góc trên, đặt tên bất kỳ, rồi chọn project vừa tạo.</li>
-<li>Bấm nút <b>"Enable"</b> để bật <b>Custom Search API</b> cho project đó. <b>Bắt buộc</b> — nếu bỏ qua, ứng dụng sẽ báo lỗi 403.</li>
-<li>Vào <a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a> → bấm <b>"+ Create credentials"</b> → chọn <b>"API key"</b>.</li>
-<li>Sao chép key vừa hiện ra → dán vào ô <b>API key</b> ở trên.</li>
+<li>Mở trang <a href="https://console.cloud.google.com/apis/library/customsearch.googleapis.com">console.cloud.google.com/apis/library/customsearch.googleapis.com</a> (cùng tài khoản Google).</li>
+<li>Nếu trang bắt tạo dự án: bấm <b>"Create project"</b>.</li>
+<li>Gõ tên bất kỳ cho dự án, rồi bấm <b>"Create"</b>.</li>
+<li>Bấm nút <b>"Enable"</b>. Bước này bắt buộc, nếu bỏ qua sẽ không dùng được.</li>
+<li>Mở trang <a href="https://console.cloud.google.com/apis/credentials">console.cloud.google.com/apis/credentials</a>.</li>
+<li>Bấm <b>"+ Create credentials"</b>.</li>
+<li>Chọn <b>"API key"</b>.</li>
+<li>Sao chép khóa vừa hiện ra.</li>
+<li>Quay lại cửa sổ này và dán vào ô <b>API key</b> ở trên.</li>
 </ol>
 
-<p><b>Phần 3 — Kiểm tra:</b> bấm nút <b>"🔌 Kiểm tra kết nối"</b> ở trên. Nếu báo thành công là xong; nếu báo lỗi, thông báo sẽ chỉ rõ bước nào ở trên cần xem lại.</p>
+<p><b>Phần 3 — Kiểm tra:</b></p>
+<ol>
+<li>Bấm nút <b>"🔌 Kiểm tra kết nối"</b> ở trên.</li>
+<li>Nếu báo thành công là xong. Nếu báo lỗi, câu báo lỗi cho biết phải làm lại bước nào ở trên.</li>
+</ol>
 
-<p><i>Hạn mức miễn phí: 100 lượt tìm kiếm/ngày. Hết hạn mức, tính năng tìm ảnh bìa vẫn chạy bình thường bằng Open Library + Google Books.</i></p>
+<p><i>Miễn phí 100 lượt tìm mỗi ngày. Hết lượt, ứng dụng vẫn tìm ảnh bìa bằng các nguồn khác.</i></p>
 """
 
 
@@ -509,10 +522,10 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(tab)
 
         note = QLabel(
-            "AI Tóm tắt đọc nội dung tài liệu (nếu có) và tạo phần giới thiệu, ý chính, "
-            "tóm tắt hoặc nhận xét (chọn kiểu khi tạo) bằng API key của chính bạn -- "
-            "hoặc miễn phí hoàn toàn với Groq/OpenRouter/Gemini, hay Ollama chạy ngay trên máy. Ứng dụng không đi kèm hay chuyển tiếp key của ai khác; mọi yêu cầu "
-            "gọi thẳng từ máy bạn đến nhà cung cấp bạn chọn.",
+            "AI Tóm tắt giúp viết phần giới thiệu, ý chính hoặc nhận xét về một cuốn sách. Để dùng, bạn cần một \"API key\": "
+            "một chuỗi ký tự giống mật khẩu, do nhà cung cấp AI cấp cho bạn. Có nơi cho dùng miễn phí (Groq, OpenRouter, Gemini), "
+            "và Ollama chạy ngay trên máy bạn, không cần khóa. Ứng dụng không đi kèm khóa của ai khác; "
+            "mọi yêu cầu đi thẳng từ máy bạn đến nhà cung cấp bạn chọn.",
             tab,
         )
         note.setWordWrap(True)
@@ -548,8 +561,8 @@ class SettingsDialog(QDialog):
         # Optional model override -- providers retire/rename models every
         # few months, so this lets the user move on without an app update.
         self.ai_model_edit = QLineEdit(config.ai_model or "", tab)
-        self.ai_model_edit.setToolTip("Để trống để dùng model mặc định của nhà cung cấp.")
-        form.addRow("Model:", self.ai_model_edit)
+        self.ai_model_edit.setToolTip("Để trống để dùng mẫu AI mặc định của nhà cung cấp.")
+        form.addRow("Mẫu AI (để trống nếu không rõ):", self.ai_model_edit)
 
         self.ai_base_url_edit = QLineEdit(config.ai_base_url or "", tab)
         self.ai_base_url_edit.setPlaceholderText(OLLAMA_DEFAULT_BASE_URL)
@@ -653,7 +666,7 @@ class SettingsDialog(QDialog):
         form.addRow("API key:", key_row)
 
         self.google_image_cx_edit = QLineEdit(config.google_image_search_cx or "", tab)
-        self.google_image_cx_edit.setPlaceholderText("Search Engine ID (cx)")
+        self.google_image_cx_edit.setPlaceholderText("Dán Search Engine ID vào đây...")
         form.addRow("Search Engine ID:", self.google_image_cx_edit)
 
         layout.addLayout(form)
@@ -789,8 +802,8 @@ class SettingsDialog(QDialog):
 
     def _update_ai_provider_guide(self) -> None:
         provider_id = self.ai_provider_combo.currentData()
-        guide = PROVIDER_GUIDES.get(provider_id, "")
-        self.ai_provider_guide_label.setText(f"💡 {guide}" if guide else "")
+        self.ai_provider_guide_label.setTextFormat(Qt.RichText)
+        self.ai_provider_guide_label.setText(provider_guide_html(provider_id))
         # Built in field order, so the key/model widgets may not exist yet
         # on the very first call from _build_ai_tab.
         if hasattr(self, "ai_model_edit"):

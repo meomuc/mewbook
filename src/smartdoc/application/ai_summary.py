@@ -19,6 +19,7 @@ explicitly to let the model work from the whole thing instead.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 import requests
@@ -103,38 +104,129 @@ def build_system_prompt(
 
 _SYSTEM_PROMPT = build_system_prompt()
 
-# Where to get a key for each provider -- shown in Settings' "AI Tóm tắt"
-# tab and appended to connection-test failures, so a wrong/missing key
-# comes with a way to actually fix it rather than just an error string.
-PROVIDER_GUIDES = {
+# How to get a key for each provider -- shown in Settings' "AI Tóm tắt" tab as numbered steps (one action each,
+# for someone who has never seen these websites) and, flattened into one line, appended to connection-test
+# failures, so a wrong or missing key comes with a way to actually fix it rather than just an error string.
+# The button names inside quotes are the providers' own (English) captions: the user has to find exactly those.
+PROVIDER_COST_NOTES = {
+    "gemini": "Miễn phí, có giới hạn số lượt mỗi ngày.",
+    "openai": "Có tính phí: cần thêm thẻ thanh toán.",
+    "anthropic": "Có tính phí: cần nạp tiền vào tài khoản trước.",
+    "groq": "Miễn phí, không cần thẻ thanh toán, rất nhanh.",
+    "openrouter": "Có nhiều mẫu AI miễn phí (tên có đuôi \":free\").",
+    "deepseek": "Giá rất rẻ, cần nạp một ít tiền trước.",
+    "mistral": "Có gói thử miễn phí.",
+    "ollama": "Miễn phí, chạy ngay trên máy bạn, không cần khóa và không gửi dữ liệu ra ngoài.",
+}
+
+_PASTE_KEY_STEPS = (
+    "Quay lại cửa sổ này và bấm vào ô \"API key\".",
+    "Dán khóa vào ô đó (bấm Ctrl+V).",
+    "Bấm nút \"Kiểm tra kết nối\".",
+)
+
+PROVIDER_STEPS = {
     "gemini": (
-        "Lấy API key miễn phí tại aistudio.google.com/apikey (đăng nhập bằng tài khoản Google, "
-        "bấm \"Create API key\")."
+        "Mở trang aistudio.google.com/apikey.",
+        "Đăng nhập bằng tài khoản Google của bạn.",
+        "Bấm nút \"Create API key\".",
+        "Bấm biểu tượng sao chép bên cạnh khóa vừa hiện ra.",
+        *_PASTE_KEY_STEPS,
     ),
     "openai": (
-        "Lấy API key tại platform.openai.com/api-keys (cần thêm phương thức thanh toán trong tài khoản "
-        "OpenAI trước, ở phần Billing)."
+        "Mở trang platform.openai.com/settings/organization/billing.",
+        "Đăng nhập vào tài khoản của bạn.",
+        "Thêm cách thanh toán (bắt buộc, dịch vụ này tính phí).",
+        "Mở trang platform.openai.com/api-keys.",
+        "Bấm nút \"Create new secret key\".",
+        "Bấm nút \"Create secret key\" ở cửa sổ hiện ra.",
+        "Bấm biểu tượng sao chép cạnh khóa. Khóa chỉ hiện một lần, hãy sao chép ngay.",
+        *_PASTE_KEY_STEPS,
     ),
     "anthropic": (
-        "Lấy API key tại console.anthropic.com/settings/keys (cần nạp credit trong tài khoản Anthropic trước)."
+        "Mở trang console.anthropic.com và đăng nhập.",
+        "Nạp một ít tiền vào tài khoản ở mục \"Plans & Billing\" (bắt buộc).",
+        "Mở trang console.anthropic.com/settings/keys.",
+        "Bấm nút \"Create Key\".",
+        "Gõ tên bất kỳ vào ô tên, ví dụ MewBook.",
+        "Bấm nút \"Add\".",
+        "Bấm biểu tượng sao chép cạnh khóa vừa hiện ra.",
+        *_PASTE_KEY_STEPS,
     ),
     "groq": (
-        "MIỄN PHÍ, rất nhanh: lấy API key tại console.groq.com/keys (đăng nhập bằng Google/GitHub, không cần "
-        "thẻ thanh toán; có giới hạn số lượt/phút)."
+        "Mở trang console.groq.com/keys.",
+        "Đăng nhập bằng tài khoản Google hoặc GitHub.",
+        "Bấm nút \"Create API Key\".",
+        "Gõ tên bất kỳ vào ô tên, ví dụ MewBook.",
+        "Bấm nút \"Submit\".",
+        "Bấm nút \"Copy\" để sao chép khóa.",
+        *_PASTE_KEY_STEPS,
     ),
     "openrouter": (
-        "Một key dùng được hàng trăm model, có nhiều model MIỄN PHÍ (tên kết thúc bằng \":free\"): lấy key tại "
-        "openrouter.ai/keys."
+        "Mở trang openrouter.ai/keys.",
+        "Đăng nhập bằng tài khoản Google hoặc GitHub.",
+        "Bấm nút \"Create Key\".",
+        "Gõ tên bất kỳ vào ô tên, ví dụ MewBook.",
+        "Bấm nút \"Create\".",
+        "Bấm biểu tượng sao chép cạnh khóa vừa hiện ra.",
+        *_PASTE_KEY_STEPS,
+        "Muốn dùng miễn phí: ở ô \"Mẫu AI\", chọn một mẫu có đuôi \":free\".",
     ),
-    "deepseek": "Giá rất rẻ: lấy API key tại platform.deepseek.com/api_keys (cần nạp một ít credit).",
+    "deepseek": (
+        "Mở trang platform.deepseek.com và đăng nhập.",
+        "Nạp một ít tiền vào tài khoản (bắt buộc, chỉ vài chục nghìn đồng là dùng được lâu).",
+        "Mở trang platform.deepseek.com/api_keys.",
+        "Bấm nút \"Create new API key\".",
+        "Gõ tên bất kỳ vào ô tên, ví dụ MewBook.",
+        "Bấm biểu tượng sao chép cạnh khóa vừa hiện ra.",
+        *_PASTE_KEY_STEPS,
+    ),
     "mistral": (
-        "Có gói thử nghiệm MIỄN PHÍ: lấy API key tại console.mistral.ai/api-keys (chọn gói \"Experiment\")."
+        "Mở trang console.mistral.ai/api-keys và đăng nhập.",
+        "Khi được hỏi chọn gói, chọn gói \"Experiment\" (gói thử miễn phí).",
+        "Bấm nút \"Create new key\".",
+        "Bấm biểu tượng sao chép cạnh khóa vừa hiện ra.",
+        *_PASTE_KEY_STEPS,
     ),
     "ollama": (
-        "MIỄN PHÍ, chạy hoàn toàn trên máy bạn, không cần key và không gửi dữ liệu ra ngoài: cài Ollama từ "
-        "ollama.com, rồi chạy lệnh \"ollama pull qwen2.5\" (hoặc model khác) trước khi dùng."
+        "Mở trang ollama.com và tải bản cài cho Windows.",
+        "Cài đặt và mở Ollama (biểu tượng sẽ hiện ở góc phải thanh tác vụ).",
+        "Mở cửa sổ dòng lệnh: bấm phím Windows, gõ cmd, rồi nhấn Enter.",
+        "Gõ ollama pull qwen2.5 rồi nhấn Enter.",
+        "Chờ tải xong (vài phút, tùy đường truyền).",
+        "Quay lại cửa sổ này. Ô \"API key\" để trống, Ollama không cần khóa.",
+        "Bấm nút \"Kiểm tra kết nối\".",
     ),
 }
+
+
+def provider_guide_text(provider: str | None) -> str:
+    """The steps on one line, for messages that cannot show a list (a connection-test failure)."""
+    steps = PROVIDER_STEPS.get(provider or "")
+    if not steps:
+        return ""
+    numbered = " ".join(f"{i}) {step}" for i, step in enumerate(steps, start=1))
+    return f"{PROVIDER_COST_NOTES[provider]} Cách lấy: {numbered}"
+
+
+_ADDRESS = re.compile(r"\b((?:[a-z0-9-]+\.)+(?:com|ai)(?:/[\w./-]*[\w/-])?)(?=[.\s,)]|$)")
+
+
+def _linkify(text: str) -> str:
+    return _ADDRESS.sub(r"<a href='https://\1'>\1</a>", text)
+
+
+def provider_guide_html(provider: str | None) -> str:
+    """The same steps as a numbered list, addresses clickable (Settings shows this)."""
+    steps = PROVIDER_STEPS.get(provider or "")
+    if not steps:
+        return ""
+    items = "".join(f"<li>{_linkify(step)}</li>" for step in steps)
+    return f"<p><b>{PROVIDER_COST_NOTES[provider]}</b><br/>Các bước lấy khóa:</p><ol>{items}</ol>"
+
+
+# Kept for callers that want the one-line form by provider.
+PROVIDER_GUIDES = {name: provider_guide_text(name) for name in PROVIDER_STEPS}
 
 # Default model per provider -- overridable in Settings (AppConfig.ai_model)
 # since providers retire/rename models every few months.

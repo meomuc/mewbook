@@ -15,8 +15,8 @@ gợi ý, tên tab) rồi tìm các từ trong danh sách `INTERNAL_TERMS`. Màn
 | 1 | Cài đặt → Quản lý File: định dạng quét, thư mục theo dõi, thư mục máy đọc sách | ✅ | ✅ | "Tìm metadata" → "Tìm thông tin sách"; "tick" → "chọn". Bố cục ở task 3-4. |
 | 2 | Cài đặt → Quản lý File: mục "Tìm thông tin sách" (ghi vào file gốc, số bản sao lưu) | ✅ | ✅ | Nói rõ "ghi đè lên file sách gốc"; số bản sao lưu mặc định 1. |
 | 3 | Cài đặt → Hiệu năng | ✅ | ✅ | Mỗi tùy chọn có một dòng "tăng lên thì… / giảm xuống thì…"; bỏ "luồng", "Worker Threads", "lõi CPU". |
-| 4 | Hộp thoại lấy API: Cài đặt → AI Tóm tắt (nhãn, gợi ý từng nhà cung cấp) | ✅ | ⏳ task 13 | "Model", "base URL" → lời thường. |
-| 5 | Hộp thoại lấy API: hướng dẫn Google (ảnh bìa) | ✅ | ⏳ task 13 | Các bước đánh số, một hành động mỗi bước. |
+| 4 | Hộp thoại lấy API: Cài đặt → AI Tóm tắt (nhãn, gợi ý từng nhà cung cấp) | ✅ | ✅ | Giải thích "API key" là gì; "Model" → "Mẫu AI"; mỗi nhà cung cấp có các bước đánh số. |
+| 5 | Hộp thoại lấy API: hướng dẫn Google (ảnh bìa) | ✅ | ✅ | 9 bước ngắn cho Search Engine ID và 9 bước cho khóa; bỏ "(cx)" và mã lỗi 400/403. |
 | 6 | Hộp thoại lấy API: hướng dẫn máy chủ đánh giá cộng đồng | ✅ | Giữ | Dành cho người tự dựng máy chủ: đoạn SQL và tên bảng là thứ họ phải sao chép, nên là ngoại lệ bắt buộc. |
 | 7 | Hộp thoại Tìm thông tin sách: tiêu đề, cột, kết quả, lỗi | ✅ | ✅ | "Trường" → "Thông tin"; lỗi thô `{exc}` → câu dễ hiểu (chi tiết vẫn ghi nhật ký). |
 | 8 | Hộp thoại Tìm thông tin sách: phần ghi vào file gốc | ✅ | ✅ | Cảnh báo ghi đè ở dòng đầu; ô số bản sao lưu ngay trong hộp thoại. |

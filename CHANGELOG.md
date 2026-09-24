@@ -201,6 +201,10 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **The "how to get an API key" guides are now short numbered steps.** Each AI provider (Gemini, OpenAI, Anthropic,
+  Groq, OpenRouter, DeepSeek, Mistral, Ollama) says first whether it is free or paid, then lists one action per step,
+  from opening the page to pasting the key and pressing "Kiểm tra kết nối". The Google cover-search guide got the same
+  treatment (nine short steps for the Search Engine ID and for the key). "Model" reads "Mẫu AI".
 - **Settings → Hiệu năng explained in everyday words.** "Worker Threads", "luồng" and "lõi CPU" are gone. Each option
   now has a short line saying what happens if you raise it and what happens if you lower it.
 - **Book-information search says outright that it can overwrite the book file, and lets you choose how many backups

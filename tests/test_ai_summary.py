@@ -318,3 +318,47 @@ def test_probe_ollama_true_only_when_the_server_answers(monkeypatch):
 
     monkeypatch.setattr(ai_summary.requests, "get", refuse)
     assert ai_summary.probe_ollama() is False  # never raises
+
+
+# --- the key guides: numbered steps, one action each (Week 1, task 13) ---
+
+
+def test_every_provider_has_numbered_steps_a_beginner_can_follow():
+    import re
+
+    from smartdoc.application.ai_summary import PROVIDER_COST_NOTES, PROVIDER_STEPS, provider_guide_html
+
+    assert set(PROVIDER_STEPS) == set(PROVIDER_COST_NOTES)
+    for provider, steps in PROVIDER_STEPS.items():
+        assert 4 <= len(steps) <= 10, provider
+        for step in steps:
+            assert step.endswith("."), (provider, step)  # a sentence
+            assert len(step) <= 150, (provider, step)  # short enough to be one thing to do
+            assert step.count(" rồi ") <= 1, (provider, step)  # not a chain of actions
+        html = provider_guide_html(provider)
+        assert "<ol>" in html and html.count("<li>") == len(steps)  # numbered by the list itself, in order
+        assert re.search(r"<b>[^<]+</b>", html)  # the cost (free / paid) is said first
+
+
+def test_key_based_guides_end_by_pasting_the_key_and_testing_the_connection():
+    from smartdoc.application.ai_summary import PROVIDER_STEPS
+
+    for provider, steps in PROVIDER_STEPS.items():
+        assert "Kiểm tra kết nối" in steps[-1] or "Kiểm tra kết nối" in steps[-2], provider
+        if provider != "ollama":
+            assert any("Ctrl+V" in step for step in steps), provider  # says how to paste
+
+
+def test_guide_addresses_become_links_and_ollama_lists_its_command():
+    from smartdoc.application.ai_summary import provider_guide_html, provider_guide_text
+
+    assert "<a href='https://aistudio.google.com/apikey'>aistudio.google.com/apikey</a>" in provider_guide_html("gemini")
+    assert "ollama pull qwen2.5" in provider_guide_html("ollama")
+    assert provider_guide_html(None) == "" and provider_guide_text("nope") == ""
+
+
+def test_the_one_line_form_used_in_connection_errors_keeps_the_numbering():
+    from smartdoc.application.ai_summary import provider_guide_text
+
+    text = provider_guide_text("groq")
+    assert "1) " in text and "2) " in text and text.startswith("Miễn phí")
