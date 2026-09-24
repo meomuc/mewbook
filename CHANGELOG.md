@@ -201,6 +201,14 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **The bottom status bar is now three clear zones, with icons instead of sentences.** Left, "Thư viện": document
+  counts, the chosen collection, watched folders, and a running import or auto-classification (`⏳ 12/40`). Middle,
+  "Hệ thống & kết nối": community reviews, AI and the network, one small icon each. Right: the donate line, a link to
+  the fan page and the author's name. Hover an icon for a short explanation; the sign next to it has a different
+  shape for each state (✓ working, ○ not set up, ✕ a problem), so it can be read without telling colours apart. In a
+  narrow window the moving text steps aside instead of covering other items.
+- **The donate line is slower and friendlier.** It moves at a pace that lets you read a whole line, pauses while the
+  mouse is over it, and rotates three short messages instead of repeating one long one.
 - **Settings → Quản lý File tidier.** The file formats to scan sit in one row (and wrap onto a new line in a narrow
   window), and the "Thư mục đang theo dõi" box is only as tall as its folders: one to five rows, then it scrolls, so a
   long list no longer pushes the other settings out of the window.
