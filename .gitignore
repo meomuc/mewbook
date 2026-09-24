@@ -71,3 +71,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 node_modules/
+
+# Installer output copies and social-media artwork: large binaries, not source
+# (provenance of the artwork is unconfirmed, same as Sample theme/ above).
+Setup/
+Social/

@@ -33,6 +33,7 @@ smartdoc = "smartdoc.app:main"
 dev = [
     "pyinstaller>=6.22.3",
     "pytest>=8.0",
+    "ruff>=0.6",
 ]
 
 [tool.uv]
@@ -52,3 +53,13 @@ packages = ["src/smartdoc"]
 testpaths = ["tests"]
 # So tests can share helpers as `tests._metadata_helpers` under plain `pytest` (not only `python -m pytest`).
 pythonpath = ["."]
+
+# Lint only (no formatter: the code base is not reformatted). Rules match CLAUDE.md:
+# pyflakes/pycodestyle errors plus BLE (broad `except` needs `# noqa: BLE001 -- reason`).
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "BLE"]
+ignore = ["E501"]
