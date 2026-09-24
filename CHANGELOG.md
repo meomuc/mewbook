@@ -201,6 +201,8 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **Settings → Hiệu năng explained in everyday words.** "Worker Threads", "luồng" and "lõi CPU" are gone. Each option
+  now has a short line saying what happens if you raise it and what happens if you lower it.
 - **Book-information search says outright that it can overwrite the book file, and lets you choose how many backups
   to keep.** The option is now "Ghi đè lên file sách gốc", with a first line stating what it does and what happens
   when it is left off. Next to it is a box for how many copies of the old file are kept before each overwrite

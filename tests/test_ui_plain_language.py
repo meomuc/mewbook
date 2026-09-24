@@ -66,6 +66,18 @@ def test_the_files_tab_of_settings_uses_plain_words(qapp, app_context):
     assert _offences(_texts(file_tab)) == []
 
 
+def test_the_performance_tab_uses_plain_words_and_explains_every_option(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    tabs = dialog.extension_flow.window().findChild(QTabWidget)
+    performance = next(tabs.widget(i) for i in range(tabs.count()) if "Hiệu năng" in tabs.tabText(i))
+
+    assert _offences(_texts(performance)) == []
+    # every option carries one line of ordinary words: what happens if it goes up, and what if it goes down
+    for hint in (dialog.worker_hint, dialog.debounce_hint):
+        assert "Tăng lên thì" in hint.text() and "Giảm xuống thì" in hint.text()
+        assert hint.wordWrap()
+
+
 def test_the_metadata_dialog_uses_plain_words(qapp, app_context):
     doc = {"id": "d1", "title": "Sách", "author": "Ai đó", "file_path": "a.epub", "extension": "epub"}
     dialog = MetadataSuggestDialog(app_context, doc)

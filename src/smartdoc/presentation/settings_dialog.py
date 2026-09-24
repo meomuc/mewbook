@@ -396,13 +396,23 @@ class SettingsDialog(QDialog):
 
         cpu_count = os.cpu_count() or 1
         active = self.import_manager.active_worker_count() if self.import_manager else 0
-        self.performance_status_label = QLabel(f"Đang chạy: {active} luồng  •  Số lõi CPU khả dụng: {cpu_count}")
+        self.performance_status_label = QLabel(
+            f"Lúc này đang xử lý {active} sách cùng lúc. Máy của bạn làm tốt nhất khoảng {cpu_count} việc cùng lúc."
+        )
+        self.performance_status_label.setWordWrap(True)
         form.addRow(self.performance_status_label)
 
         self.worker_spin = QSpinBox(tab)
         self.worker_spin.setRange(1, 32)
         self.worker_spin.setValue(config.worker_thread_count)
-        form.addRow("Số luồng nạp file tối đa (Worker Threads):", self.worker_spin)
+        form.addRow("Số sách xử lý cùng lúc khi nhập:", self.worker_spin)
+        self.worker_hint = self._performance_hint(
+            tab,
+            "Khi nhập nhiều sách một lúc, ứng dụng làm song song ngần này cuốn. "
+            "Tăng lên thì nhập xong nhanh hơn, nhưng máy có thể nóng và chậm hơn trong lúc nhập. "
+            "Giảm xuống thì nhập lâu hơn, nhưng máy êm hơn và bạn vẫn dùng mượt các việc khác.",
+        )
+        form.addRow(self.worker_hint)
 
         self.debounce_spin = QDoubleSpinBox(tab)
         # No real upper limit -- just a very large ceiling so the widget has
@@ -412,9 +422,24 @@ class SettingsDialog(QDialog):
         self.debounce_spin.setSingleStep(0.5)
         self.debounce_spin.setSuffix(" giây")
         self.debounce_spin.setValue(config.watch_debounce_seconds)
-        form.addRow("Thời gian chờ trước khi quét file mới:", self.debounce_spin)
+        form.addRow("Chờ bao lâu rồi mới thêm sách mới:", self.debounce_spin)
+        self.debounce_hint = self._performance_hint(
+            tab,
+            "Khi có file mới được chép vào thư mục theo dõi, ứng dụng chờ ngần này giây để file chép xong rồi mới thêm vào thư viện. "
+            "Tăng lên thì ít gặp file chép dở, nhưng sách mới hiện ra chậm hơn. "
+            "Giảm xuống thì sách mới hiện ra nhanh hơn, nhưng có thể gặp file chưa chép xong.",
+        )
+        form.addRow(self.debounce_hint)
 
         return tab
+
+    @staticmethod
+    def _performance_hint(parent: QWidget, text: str) -> QLabel:
+        """The plain-words line under a performance option: what raising it does, and what lowering it does."""
+        hint = QLabel(text, parent)
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: palette(mid);")
+        return hint
 
     _ON_IMPORT_LABELS = (
         ("ask", "Hỏi tôi mỗi lần thêm file/thư mục"),
