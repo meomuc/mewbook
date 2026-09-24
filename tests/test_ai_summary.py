@@ -297,3 +297,24 @@ def test_style_length_and_language_shape_the_system_prompt(monkeypatch):
 
 def test_default_style_stays_spoiler_free():
     assert "KHÔNG được tiết lộ" in build_system_prompt()
+
+
+def test_probe_ollama_true_only_when_the_server_answers(monkeypatch):
+    import requests
+
+    from smartdoc.application import ai_summary
+
+    class _Reply:
+        def __init__(self, ok):
+            self.ok = ok
+
+    monkeypatch.setattr(ai_summary.requests, "get", lambda url, timeout: _Reply(True))
+    assert ai_summary.probe_ollama() is True
+    monkeypatch.setattr(ai_summary.requests, "get", lambda url, timeout: _Reply(False))
+    assert ai_summary.probe_ollama("http://localhost:1") is False
+
+    def refuse(url, timeout):
+        raise requests.ConnectionError("down")
+
+    monkeypatch.setattr(ai_summary.requests, "get", refuse)
+    assert ai_summary.probe_ollama() is False  # never raises

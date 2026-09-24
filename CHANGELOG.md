@@ -231,6 +231,9 @@ New features, so the next release is a MINOR bump (1.1.0).
   own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
 
 ### Fixed
+- **The status bar now shows Ollama as connected.** "AI Tóm tắt" only looked for an API key, which Ollama does not
+  have, so it always read "Chưa cấu hình". It now checks that Ollama really answers: right after "Kiểm tra kết nối",
+  and again every 30 seconds, so switching Ollama off shows "Chưa kết nối" at the next check.
 - **A new cover now shows in the list and the grid straight away.** After choosing a different cover in the detail
   panel, the Grid and List views kept the old picture until the app was restarted; now only that book's cover is
   refreshed, and the other books keep theirs.

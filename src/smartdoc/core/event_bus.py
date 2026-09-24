@@ -53,6 +53,14 @@ class LibraryUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class AiConnectionChangedEvent(BaseEvent):
+    """The result of a real connection check of the local AI (Ollama), so the status bar need not wait for its next
+    scheduled check. Only Ollama has this: the other providers count as connected once they have a key."""
+
+    connected: bool
+
+
+@dataclass(frozen=True)
 class UpdateAvailableEvent(BaseEvent):
     """The update check found a newer MewBook (`version`, and `url` of its release page)."""
 

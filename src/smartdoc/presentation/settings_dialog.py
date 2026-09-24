@@ -69,6 +69,7 @@ from smartdoc.application.cover_search import (
     CoverSearchError,
 )
 from smartdoc.application.cover_search import test_connection as test_cover_connection
+from smartdoc.core.event_bus import AiConnectionChangedEvent
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
 from smartdoc.presentation.backup_panel import BackupPanel
@@ -779,6 +780,7 @@ class SettingsDialog(QDialog):
         self.test_connection_button.setEnabled(False)
         self.test_connection_button.setText("Đang kiểm tra...")
         self.connection_status_label.setText("Đang kết nối, vui lòng đợi...")
+        self._tested_provider = provider
 
         model = self.ai_model_edit.text().strip() or None
         base_url = self.ai_base_url_edit.text().strip() or None
@@ -793,6 +795,9 @@ class SettingsDialog(QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_connection_test_finished(self, success: bool, message: str) -> None:
+        if getattr(self, "_tested_provider", None) == "ollama":
+            # The status bar shows the local AI as connected only after a real check, so tell it the result now.
+            self.context.event_bus.publish(AiConnectionChangedEvent(connected=success))
         self.test_connection_button.setEnabled(True)
         self.test_connection_button.setText("🔌 Kiểm tra kết nối")
         self.connection_status_label.setText(message)

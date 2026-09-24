@@ -262,6 +262,22 @@ def test_test_connection_failure_updates_status_label(qapp, app_context):
     assert "bad key" in dialog.connection_status_label.text()
 
 
+def test_ollama_connection_result_is_published_for_the_status_bar(qapp, app_context):
+    from smartdoc.core.event_bus import AiConnectionChangedEvent
+
+    seen = []
+    app_context.event_bus.subscribe(AiConnectionChangedEvent, seen.append)
+    dialog = SettingsDialog(app_context)
+
+    dialog._tested_provider = "ollama"
+    dialog._on_connection_test_finished(True, "ok")
+    dialog._on_connection_test_finished(False, "down")
+    dialog._tested_provider = "gemini"  # key-based providers do not report
+    dialog._on_connection_test_finished(True, "ok")
+
+    assert [e.connected for e in seen] == [True, False]
+
+
 def test_content_font_tab_defaults_to_no_change(qapp, app_context):
     dialog = SettingsDialog(app_context)
     dialog._on_save()

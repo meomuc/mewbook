@@ -8,12 +8,21 @@ reacts to, so the counts here never lag behind what's on screen.
 """
 from __future__ import annotations
 
+import threading
+
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QLabel, QStatusBar
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
-from smartdoc.core.event_bus import FilterChangedEvent, LibraryFilesMissingEvent, LibraryUpdatedEvent, UpdateAvailableEvent
+from smartdoc.application.ai_summary import probe_ollama, provider_requires_key
+from smartdoc.core.event_bus import (
+    AiConnectionChangedEvent,
+    FilterChangedEvent,
+    LibraryFilesMissingEvent,
+    LibraryUpdatedEvent,
+    UpdateAvailableEvent,
+)
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.theme import current_colors
@@ -78,11 +87,18 @@ class _DonateTicker(QLabel):
 
 class StatusBarPanel(QStatusBar):
     relink_requested = Signal()  # the "N sách không tìm thấy file. Tìm lại?" label was clicked
+    _ollama_probed = Signal(bool)  # the background check finished (emitted from a worker thread)
+
+    # Ollama has no key to look for, so "connected" has to be observed: asked again this often, so switching
+    # Ollama off (or on) is noticed without touching Settings.
+    OLLAMA_POLL_MS = 30_000
 
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
         self.context = context
         self._active_collection_ids: tuple[str, ...] = ()
+        self._ollama_up: bool | None = None  # None = not checked yet
+        self._ollama_probe_running = False
 
         colors = current_colors()
         # A top border so the bar reads as its own strip, separated from
@@ -132,6 +148,13 @@ class StatusBarPanel(QStatusBar):
         self._bridge.subscribe(context.event_bus, FilterChangedEvent)
         self._bridge.subscribe(context.event_bus, LibraryFilesMissingEvent)
         self._bridge.subscribe(context.event_bus, UpdateAvailableEvent)
+        self._bridge.subscribe(context.event_bus, AiConnectionChangedEvent)
+
+        self._ollama_probed.connect(self._on_ollama_probed)
+        self._ollama_timer = QTimer(self)
+        self._ollama_timer.setInterval(self.OLLAMA_POLL_MS)
+        self._ollama_timer.timeout.connect(self._start_ollama_probe)
+        self._ollama_timer.start()
 
         self.refresh()
 
@@ -146,6 +169,8 @@ class StatusBarPanel(QStatusBar):
             self._show_missing(event.count)
         elif isinstance(event, UpdateAvailableEvent):
             self._show_update(event.version, event.url)
+        elif isinstance(event, AiConnectionChangedEvent):
+            self._set_ollama_up(event.connected)
         else:
             self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
 
@@ -194,16 +219,47 @@ class StatusBarPanel(QStatusBar):
         cloud_ok = bool(config.supabase_url and config.supabase_anon_key)
         self.cloud_label.setText(self._status_html("☁️", "Review", cloud_ok))
 
-        ai_ok = bool(config.ai_provider and config.ai_api_key)
-        self.ai_label.setText(self._status_html("🤖", "AI Tóm tắt", ai_ok))
+        if config.ai_provider and not provider_requires_key(config.ai_provider):
+            # A local AI (Ollama): connected means "answers right now", not "has a key".
+            if self._ollama_up is None:
+                self._start_ollama_probe()
+            self.ai_label.setText(self._status_html("🤖", "AI Tóm tắt", bool(self._ollama_up), missing_text="✗ Chưa kết nối"))
+        else:
+            ai_ok = bool(config.ai_provider and config.ai_api_key)
+            self.ai_label.setText(self._status_html("🤖", "AI Tóm tắt", ai_ok))
 
-    def _status_html(self, icon: str, function_name: str, connected: bool) -> str:
+    def _start_ollama_probe(self) -> None:
+        config = self.context.config.config
+        if not config.ai_provider or provider_requires_key(config.ai_provider) or self._ollama_probe_running:
+            return
+        self._ollama_probe_running = True
+        base_url = config.ai_base_url
+
+        def worker() -> None:
+            up = probe_ollama(base_url)
+            try:
+                self._ollama_probed.emit(up)
+            except RuntimeError:
+                pass  # the window was closed while the check was running
+
+        threading.Thread(target=worker, name="ollama-probe", daemon=True).start()
+
+    def _on_ollama_probed(self, up: bool) -> None:
+        self._ollama_probe_running = False
+        self._set_ollama_up(up)
+
+    def _set_ollama_up(self, up: bool) -> None:
+        if up != self._ollama_up:
+            self._ollama_up = up
+            self.refresh()
+
+    def _status_html(self, icon: str, function_name: str, connected: bool, *, missing_text: str = "✗ Chưa cấu hình") -> str:
         """Icon, then the feature name (muted -- what it is), then the
         status (colored/bold -- whether it's on) -- so the two don't read
         as one flat run of text."""
         colors = current_colors()
         status_color = _STATUS_OK_COLOR if connected else _STATUS_MISSING_COLOR
-        status_text = "✓ Đã kết nối" if connected else "✗ Chưa cấu hình"
+        status_text = "✓ Đã kết nối" if connected else missing_text
         return (
             f'{icon} <span style="color:{colors.muted_text};">{function_name}</span>'
             f'  <span style="color:{status_color}; font-weight:600;">{status_text}</span>'

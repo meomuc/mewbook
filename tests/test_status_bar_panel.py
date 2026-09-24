@@ -155,3 +155,66 @@ def test_a_burst_of_library_updates_refreshes_only_once(qapp, app_context, monke
 
     assert _pump_until(qapp, lambda: len(calls) >= 1)
     assert len(calls) == 1
+
+
+# --- AI status for a local AI (Ollama): "connected" must be observed, not inferred from an API key ---
+
+
+def _ollama_panel(app_context, monkeypatch, *, up):
+    """A panel configured for Ollama whose background check answers `up` (a mutable one-item list)."""
+    from smartdoc.presentation import status_bar_panel
+
+    monkeypatch.setattr(status_bar_panel, "probe_ollama", lambda base_url=None: up[0])
+    app_context.config.config.ai_provider = "ollama"
+    app_context.config.config.ai_api_key = None
+    return StatusBarPanel(app_context)
+
+
+def test_ollama_running_shows_ai_as_connected_without_any_key(qapp, app_context, monkeypatch):
+    """Regression: the label was "connected" only when an API key existed, so Ollama (no key) never was."""
+    panel = _ollama_panel(app_context, monkeypatch, up=[True])
+
+    assert _pump_until(qapp, lambda: "Đã kết nối" in panel.ai_label.text())
+
+
+def test_ollama_switched_off_is_noticed_at_the_next_check(qapp, app_context, monkeypatch):
+    up = [True]
+    panel = _ollama_panel(app_context, monkeypatch, up=up)
+    assert _pump_until(qapp, lambda: "Đã kết nối" in panel.ai_label.text())
+
+    up[0] = False
+    panel._start_ollama_probe()  # what the 30 s timer does
+
+    assert _pump_until(qapp, lambda: "Chưa kết nối" in panel.ai_label.text())
+    assert "Đã kết nối" not in panel.ai_label.text()
+
+
+def test_ollama_that_is_not_running_shows_not_connected(qapp, app_context, monkeypatch):
+    panel = _ollama_panel(app_context, monkeypatch, up=[False])
+
+    assert _pump_until(qapp, lambda: not panel._ollama_probe_running)
+    assert "Chưa kết nối" in panel.ai_label.text()
+
+
+def test_a_successful_connection_test_updates_the_status_at_once(qapp, app_context, monkeypatch):
+    from smartdoc.core.event_bus import AiConnectionChangedEvent
+
+    panel = _ollama_panel(app_context, monkeypatch, up=[False])
+    assert _pump_until(qapp, lambda: not panel._ollama_probe_running)
+
+    app_context.event_bus.publish(AiConnectionChangedEvent(connected=True))
+
+    assert _pump_until(qapp, lambda: "Đã kết nối" in panel.ai_label.text())
+    app_context.event_bus.publish(AiConnectionChangedEvent(connected=False))
+    assert _pump_until(qapp, lambda: "Chưa kết nối" in panel.ai_label.text())
+
+
+def test_key_based_providers_still_go_by_the_key(qapp, app_context):
+    app_context.config.config.ai_provider = "gemini"
+    app_context.config.config.ai_api_key = None
+    panel = StatusBarPanel(app_context)
+    assert "Chưa cấu hình" in panel.ai_label.text()
+
+    app_context.config.config.ai_api_key = "k"
+    panel.refresh()
+    assert "Đã kết nối" in panel.ai_label.text()

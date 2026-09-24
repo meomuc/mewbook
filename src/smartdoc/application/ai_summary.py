@@ -241,6 +241,20 @@ def generate_summary(provider: str, api_key: str | None, doc: dict, **options) -
     return generate_summary_from_content(provider, api_key, build_request_content(doc), **options)
 
 
+_PROBE_TIMEOUT_SECONDS = 2.0
+
+
+def probe_ollama(base_url: str | None = None, *, timeout: float = _PROBE_TIMEOUT_SECONDS) -> bool:
+    """A quick "is Ollama running right now?" check (no model is loaded, no text is generated): asks the
+    server for its model list. Used by the status bar, which asks again every so often, so it must stay cheap
+    and must never raise."""
+    url = f"{(base_url or OLLAMA_DEFAULT_BASE_URL).rstrip('/')}/api/tags"
+    try:
+        return requests.get(url, timeout=timeout).ok
+    except requests.RequestException:
+        return False
+
+
 def test_connection(provider: str, api_key: str | None, *, model: str | None = None, base_url: str | None = None) -> None:
     """Makes a minimal real request to verify the provider/key actually
     work together. Raises AISummaryError (with that provider's setup guide
