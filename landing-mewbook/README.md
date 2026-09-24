@@ -22,6 +22,15 @@ declines or the request fails, the local clock decides (night after 18:00). Pick
 | `versions` | `CHANGELOG.md` released sections + `__version__`; download link = `meta.downloadUrl` (Google Drive folder) |
 | `roadmap`  | `docs/ROADMAP.md` |
 | `bugs`     | `docs/KNOWN_ISSUES.md` (open), `### Fixed` of released versions ("Đã sửa"), and GitHub Issues labelled `bug` when `--repo owner/name` or `MEWBOOK_GITHUB_REPO` is set |
+| `gallery`  | the app's themes (`presentation/theme.py`) against the pictures in `public/assets/gallery/` |
+
+**Interface check (every run).** The script fingerprints each theme (its definition plus the fonts/colours it uses,
+comments ignored) and each picture file, and compares them with what `content.json → gallery` recorded:
+- a picture replaced on disk: the entry is refreshed and its URL gets `?v=<hash>`, so browsers load the new one;
+- a picture file with no entry: added to the gallery automatically (named after the theme if it is `<theme key>.webp`);
+- a theme with no picture ("new"), or a theme that changed while its picture did not ("changed"): a warning, and the
+  item is listed in `content.json → pendingShots`. Save a new picture as `public/assets/gallery/<theme key>.webp`
+  (keys: `broadsheet woodshelf inkynight healing retro_tech japandi zen_dark`) and run the script again.
 
 `packaging\build.ps1 -Release` runs the script with `--commit` at the end, so every release build updates the site
 content. Set `"auto": false` on a version to keep its hand-written Vietnamese bullets (CHANGELOG entries are English).
