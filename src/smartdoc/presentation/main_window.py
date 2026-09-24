@@ -33,6 +33,7 @@ from smartdoc.presentation.about_dialog import AboutDialog
 from smartdoc.presentation.add_document_dialog import AddDocumentDialog
 from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.detail_panel import DocumentDetailPanel
+from smartdoc.presentation.dialog_size import fit_window_to_screen
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
 from smartdoc.presentation.active_filter_bar import ActiveFilterBar
 from smartdoc.presentation.filter_chips import FilterChipBar
@@ -83,8 +84,10 @@ class MainWindow(QMainWindow):
         # restart (theme.py can't live-restyle already-built stylesheets).
         self._on_appearance_changed = on_appearance_changed
 
+        self._fitted_to_screen = False
         self.setWindowTitle(APP_DISPLAY_NAME)
         self.resize(1400, 800)
+        fit_window_to_screen(self)  # a small screen gets a smaller window, never one over the taskbar
         self.setAcceptDrops(True)
         icon_path = app_icon_path()
         if icon_path.exists():
@@ -546,6 +549,12 @@ class MainWindow(QMainWindow):
         if self.smart_classifier.running:
             work.append("phân loại thông minh")
         return work
+
+    def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        super().showEvent(event)
+        if not self._fitted_to_screen:
+            self._fitted_to_screen = True  # once: the frame is only known now, and the user may move it later
+            fit_window_to_screen(self)
 
     def closeEvent(self, event) -> None:
         work = self._running_work()

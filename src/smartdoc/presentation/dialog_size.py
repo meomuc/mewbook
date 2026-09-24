@@ -19,7 +19,7 @@ popup) keeps it -- this only ever tightens the bound, never loosens it.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject
+from PySide6.QtCore import QEvent, QObject, QRect
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLayout
 
 # Fractions of the *available* screen area (i.e. excluding the taskbar).
@@ -64,6 +64,41 @@ def constrain_to_screen(widget) -> None:
     )
     if widget.width() > max_width or widget.height() > max_height:
         widget.resize(min(widget.width(), max_width), min(widget.height(), max_height))
+
+
+# Room kept for the window's own frame (title bar and borders) when Qt cannot tell yet how big it is -- a window
+# that was never shown has no frame measured. Generous on purpose: too small a window is harmless, one over
+# the taskbar is not.
+_DEFAULT_FRAME_WIDTH = 16
+_DEFAULT_FRAME_HEIGHT = 48
+
+
+def _usable_area(window) -> QRect:
+    """The part of the window's screen the taskbar does not cover (a seam so tests can pose as any display)."""
+    screen = window.screen() or QApplication.primaryScreen()
+    return screen.availableGeometry() if screen is not None else QRect(0, 0, 1280, 720)
+
+
+def fit_window_to_screen(window) -> None:
+    """Keeps a top-level window (main window, reader) inside the usable area of its screen: shrinks it if its
+    size, frame included, is larger than that area, and moves it back if any part sits over the taskbar.
+    A window that already fits is left exactly as it is."""
+    area = _usable_area(window)
+    frame, geometry = window.frameGeometry(), window.geometry()
+    extra_w = frame.width() - geometry.width() or _DEFAULT_FRAME_WIDTH
+    extra_h = frame.height() - geometry.height() or _DEFAULT_FRAME_HEIGHT
+    width = min(window.width(), area.width() - extra_w)
+    height = min(window.height(), area.height() - extra_h)
+    if (width, height) != (window.width(), window.height()):
+        window.setMinimumSize(min(window.minimumWidth(), width), min(window.minimumHeight(), height))
+        window.resize(width, height)
+
+    frame = window.frameGeometry()
+    frame_w, frame_h = max(frame.width(), width + extra_w), max(frame.height(), height + extra_h)
+    x = min(max(frame.x(), area.left()), area.right() + 1 - frame_w)
+    y = min(max(frame.y(), area.top()), area.bottom() + 1 - frame_h)
+    if (x, y) != (frame.x(), frame.y()):
+        window.move(x, y)
 
 
 def _wrap_long_labels(widget, max_width: int) -> None:

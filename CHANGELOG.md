@@ -234,6 +234,9 @@ New features, so the next release is a MINOR bump (1.1.0).
   own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
 
 ### Fixed
+- **The main window and the reader no longer cover the taskbar.** They opened at a fixed 1400x800 and 900x1000, more
+  than a laptop screen has above its taskbar; both now shrink to fit the usable screen area and are pulled back if
+  any part would sit over the taskbar.
 - **The status bar now shows Ollama as connected.** "AI Tóm tắt" only looked for an API key, which Ollama does not
   have, so it always read "Chưa cấu hình". It now checks that Ollama really answers: right after "Kiểm tra kết nối",
   and again every 30 seconds, so switching Ollama off shows "Chưa kết nối" at the next check.

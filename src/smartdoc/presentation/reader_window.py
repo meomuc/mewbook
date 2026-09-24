@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.infrastructure.epub_reader import EpubDocument, EpubReadError
+from smartdoc.presentation.dialog_size import fit_window_to_screen
 from smartdoc.presentation.file_actions import FileActionEngine
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,8 @@ class ReaderWindow(QMainWindow):
         self.file_actions = FileActionEngine(context)
         self.setWindowTitle(doc.get("title") or "Đọc tài liệu")
         self.resize(900, 1000)
+        self._fitted_to_screen = False
+        fit_window_to_screen(self)  # 1000 px tall is more than a laptop screen has above its taskbar
         # Evenly-sized, comfortably-padded toolbar controls: the default Qt
         # tool button hugs its label, so a row of mixed-length Vietnamese
         # labels ("Vừa trang" vs "Toàn màn hình") came out visually ragged
@@ -190,6 +193,12 @@ class ReaderWindow(QMainWindow):
             self._build_mobi_reader(file_path)
         else:
             self._build_fallback(file_path)
+
+    def showEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        super().showEvent(event)
+        if not self._fitted_to_screen:
+            self._fitted_to_screen = True
+            fit_window_to_screen(self)
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- Qt override
         epub_doc = getattr(self, "_epub_doc", None)
