@@ -81,12 +81,14 @@ const weatherConfig: Record<WeatherKey, {
 // versions / roadmap / bugs are generated into content.json by scripts/update-content.js; edit them there.
 type Version = { ver: string; date: string; tag: string; tagColor: string; bullets: string[]; download?: { win?: string; size?: string } };
 type RoadmapItem = { title: string; desc: string; eta: string };
+type Shot = { src: string; title: string; caption: string; w: number; h: number };
 type Bug = { id: string; desc: string; status: string; priority: string; color: string };
 
 const meta = content.meta;
 const versions = content.versions as Version[];
 const roadmap = content.roadmap as RoadmapItem[];
 const bugs = content.bugs as Bug[];
+const gallery = (content as { gallery?: Shot[] }).gallery ?? [];
 const donate = content.donate as { momo?: string; bank?: string; buymeacoffee?: string; qr?: string };
 const latest: Version | undefined = versions[0];
 const latestSize = latest?.download?.size;
@@ -99,6 +101,7 @@ export default function App() {
   const [weather, setWeather] = useState<WeatherKey>(themeFromClock);
   const [auto, setAuto] = useState(true);
   const [qrMissing, setQrMissing] = useState(false);
+  const [shot, setShot] = useState<number | null>(null); // gallery lightbox: index of the open picture
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const cfg = weatherConfig[weather];
   const isDark = weather === "dem";
@@ -114,6 +117,17 @@ export default function App() {
     detectWeather().then(key => { if (key && !cancelled) setWeather(prev => (autoRef.current ? key : prev)); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (shot === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShot(null);
+      else if (e.key === "ArrowRight") setShot(i => (i === null ? i : (i + 1) % gallery.length));
+      else if (e.key === "ArrowLeft") setShot(i => (i === null ? i : (i - 1 + gallery.length) % gallery.length));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [shot]);
 
   const pick = (k: WeatherKey) => { setAuto(false); setWeather(k); };
 
@@ -146,6 +160,7 @@ export default function App() {
           <nav className="hidden md:flex items-center gap-6 text-[14px] font-medium">
             {[
               { id: "tinh-nang", label: "Tính năng" },
+              { id: "giao-dien", label: "Giao diện" },
               { id: "phien-ban", label: "Phiên bản" },
               { id: "lo-trinh", label: "Lộ trình" },
               { id: "loi", label: "Lỗi" },
@@ -192,6 +207,7 @@ export default function App() {
             <div className="flex gap-4 text-[14px] font-medium pt-2">
               {[
                 { id: "tinh-nang", label: "Tính năng" },
+              { id: "giao-dien", label: "Giao diện" },
                 { id: "phien-ban", label: "Phiên bản" },
                 { id: "lo-trinh", label: "Lộ trình" },
                 { id: "loi", label: "Lỗi" },
@@ -397,6 +413,48 @@ export default function App() {
           ))}
         </div>
       </section>
+
+      {/* Gallery: pictures live in content.json -> gallery; files in public/assets/gallery */}
+      {gallery.length > 0 && (
+        <section id="giao-dien" className="mx-auto max-w-[1120px] px-5 md:px-8 pb-16">
+          <div className="mb-6">
+            <h2 className="display text-[28px] md:text-[34px] font-bold leading-tight">Giao diện của Mèo <span className="opacity-60 font-medium text-[18px]">— chọn theo tâm trạng.</span></h2>
+            <p className={`mt-2 text-[14px] ${cfg.textMuted}`}>Mỗi giao diện có màu, phông chữ và cách bày kệ sách riêng. Bấm vào ảnh để xem lớn.</p>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            {gallery.map((g, i) => (
+              <button
+                key={g.src}
+                onClick={() => setShot(i)}
+                className={`group text-left rounded-[20px] overflow-hidden border transition hover:-translate-y-0.5 ${isDark ? "bg-[#3A2E2A] border-[#4A3A34]" : "bg-white border-[#F0E2C8] shadow-[0_8px_24px_rgba(90,62,54,0.06)] hover:shadow-[0_12px_32px_rgba(90,62,54,0.1)]"}`}
+              >
+                <div className="aspect-[16/10] overflow-hidden bg-black/5">
+                  <img src={g.src} alt={g.title} loading="lazy" width={g.w} height={g.h} className="w-full h-full object-cover object-top group-hover:scale-[1.03] transition duration-500" />
+                </div>
+                <div className="p-3">
+                  <div className="font-bold text-[13px]">{g.title}</div>
+                  <div className={`text-[11px] leading-snug mt-0.5 ${cfg.textMuted}`}>{g.caption}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {shot !== null && gallery[shot] && (
+        <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 md:p-8" onClick={() => setShot(null)} role="dialog" aria-label={gallery[shot].title}>
+          <img src={gallery[shot].src} alt={gallery[shot].title} className="max-h-[80vh] max-w-full rounded-[16px] shadow-2xl" onClick={e => e.stopPropagation()} />
+          <div className="mt-4 text-center text-white" onClick={e => e.stopPropagation()}>
+            <div className="font-bold text-[15px]">{gallery[shot].title}</div>
+            <div className="text-[12px] opacity-70">{gallery[shot].caption} • {shot + 1}/{gallery.length}</div>
+            <div className="mt-3 flex justify-center gap-3">
+              <button onClick={() => setShot((shot - 1 + gallery.length) % gallery.length)} className="px-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-[13px] font-semibold">← Trước</button>
+              <button onClick={() => setShot(null)} className="px-4 py-1.5 rounded-full bg-[#FF8C42] text-[13px] font-semibold">Đóng</button>
+              <button onClick={() => setShot((shot + 1) % gallery.length)} className="px-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-[13px] font-semibold">Sau →</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Versions */}
       <section id="phien-ban" className={`border-y ${isDark ? "bg-[#352A27] border-[#4A3A34]" : "bg-[#FFF8F0] border-[#F0E2C8]"} py-14`}>

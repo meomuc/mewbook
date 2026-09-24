@@ -62,5 +62,63 @@
     "momo": "",
     "bank": "",
     "buymeacoffee": ""
-  }
+  },
+  "gallery": [
+    {
+      "src": "/assets/gallery/ke-sach-go.webp",
+      "title": "Kệ sách gỗ",
+      "caption": "Sáng, ấm như một thư viện gỗ óc chó",
+      "w": 1600,
+      "h": 996
+    },
+    {
+      "src": "/assets/gallery/chua-lanh.webp",
+      "title": "Không gian chữa lành",
+      "caption": "Xanh lá dịu, dành cho những buổi đọc chậm",
+      "w": 1600,
+      "h": 970
+    },
+    {
+      "src": "/assets/gallery/japandi.webp",
+      "title": "Japandi",
+      "caption": "Tối giản, yên tĩnh, nhiều khoảng thở",
+      "w": 1600,
+      "h": 977
+    },
+    {
+      "src": "/assets/gallery/to-bao-som.webp",
+      "title": "Tờ báo sớm",
+      "caption": "Giấy báo cũ và chữ serif quen thuộc",
+      "w": 1600,
+      "h": 1049
+    },
+    {
+      "src": "/assets/gallery/muc-dem.webp",
+      "title": "Mực đêm",
+      "caption": "Nền tối cho những đêm đọc khuya",
+      "w": 1600,
+      "h": 977
+    },
+    {
+      "src": "/assets/gallery/zen-dark.webp",
+      "title": "Zen dark mode",
+      "caption": "Tối xanh rêu, dịu mắt",
+      "w": 1600,
+      "h": 978
+    },
+    {
+      "src": "/assets/gallery/hoai-niem.webp",
+      "title": "Hoài niệm kỹ thuật số",
+      "caption": "Cảm giác terminal cho người thích gõ phím",
+      "w": 1600,
+      "h": 985
+    },
+    {
+      "src": "/assets/gallery/cai-dat-ai.webp",
+      "title": "Cài đặt AI tóm tắt",
+      "caption": "Dùng khóa của bạn, hoặc Ollama chạy ngay trên máy",
+      "w": 754,
+      "h": 775
+    }
+  ]
 }

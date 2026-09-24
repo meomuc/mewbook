@@ -4,3 +4,7 @@ dist/
 
 # The author's personal bank QR (copied from the app's donate_qr.png, itself gitignored). Deployed with the build, never committed.
 public/assets/donate-qr.png
+
+# App interface pictures for the gallery: provenance not yet confirmed (docs/handoff/DISCREPANCIES.md, item 15), so
+# like the QR they are deployed with the build but never committed.
+public/assets/gallery/
