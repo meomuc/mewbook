@@ -87,7 +87,7 @@ const meta = content.meta;
 const versions = content.versions as Version[];
 const roadmap = content.roadmap as RoadmapItem[];
 const bugs = content.bugs as Bug[];
-const donate = content.donate as { momo?: string; bank?: string; buymeacoffee?: string };
+const donate = content.donate as { momo?: string; bank?: string; buymeacoffee?: string; qr?: string };
 const latest: Version | undefined = versions[0];
 const latestSize = latest?.download?.size;
 
@@ -98,6 +98,7 @@ export default function App() {
   // The weather starts from the visitor's real weather (see weather.ts); picking one by hand switches auto off.
   const [weather, setWeather] = useState<WeatherKey>(themeFromClock);
   const [auto, setAuto] = useState(true);
+  const [qrMissing, setQrMissing] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const cfg = weatherConfig[weather];
   const isDark = weather === "dem";
@@ -479,7 +480,7 @@ export default function App() {
             </div>
           ))}
           <div className={`px-5 py-3 text-[11px] flex items-center gap-2 ${cfg.textMuted} ${isDark ? "bg-[#2B211E]" : "bg-[#FFF8F0]"}`}>
-            <AlertCircle className="w-4 h-4" /> Nếu bạn gặp lỗi, nhắn cho Mèo qua <a href={meta.fanpageUrl} target="_blank" rel="noopener" className="underline decoration-dotted">fanpage Facebook</a>, Mèo sẽ đọc mỗi tối trước khi ngủ.
+            <AlertCircle className="w-4 h-4 shrink-0" /> <span>Nếu bạn gặp lỗi, nhắn cho Mèo qua <a href={meta.fanpageUrl} target="_blank" rel="noopener" className="underline decoration-dotted">fanpage Facebook</a>, Mèo sẽ đọc mỗi tối trước khi ngủ.</span>
           </div>
         </div>
       </section>
@@ -533,13 +534,17 @@ export default function App() {
                 </div>
               </div>
 
-              {/* QR placeholder */}
-              <div className={`mt-4 rounded-[16px] p-4 border-dashed border-2 grid place-items-center h-[120px] text-center ${isDark ? "border-[#4A3A34] text-[#C4A997] bg-[#2B211E]" : "border-[#E9DCC6] text-[#9A7E6E] bg-[#FFF8F0]"}`}>
-                <div>
-                  <div className="w-10 h-10 mx-auto rounded-[8px] bg-[#5A3E36] mb-2 grid place-items-center text-white text-[10px]">QR</div>
+              {/* Donate QR: the image is deployed with the build but never committed (see .gitignore); without it, a note. */}
+              {donate.qr && !qrMissing ? (
+                <div className={`mt-4 rounded-[16px] p-4 border text-center ${isDark ? "border-[#4A3A34] bg-[#2B211E]" : "border-[#F0E2C8] bg-white shadow-sm"}`}>
+                  <img src={donate.qr} alt="Mã QR ủng hộ Mèo Mực (VietQR)" onError={() => setQrMissing(true)} className="mx-auto w-full max-w-[260px] rounded-[12px]" />
+                  <div className={`mt-2 text-[11px] ${cfg.textMuted}`}>Quét bằng app ngân hàng bất kỳ. Cảm ơn bạn đã mời Mèo cà phê ☕</div>
+                </div>
+              ) : (
+                <div className={`mt-4 rounded-[16px] p-4 border-dashed border-2 grid place-items-center h-[120px] text-center ${isDark ? "border-[#4A3A34] text-[#C4A997] bg-[#2B211E]" : "border-[#E9DCC6] text-[#9A7E6E] bg-[#FFF8F0]"}`}>
                   <div className="text-[11px]">Mã QR ủng hộ sẽ có ở đây<br />Mèo đang vẽ...</div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

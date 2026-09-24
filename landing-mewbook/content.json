@@ -58,6 +58,7 @@
     }
   ],
   "donate": {
+    "qr": "/assets/donate-qr.png",
     "momo": "",
     "bank": "",
     "buymeacoffee": ""
