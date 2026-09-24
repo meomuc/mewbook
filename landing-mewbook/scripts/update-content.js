@@ -5,7 +5,7 @@
  *
  *   versions  <- CHANGELOG.md (released sections) + __version__ in src/smartdoc/__init__.py; the download link
  *                is meta.downloadUrl; the installer size is read from dist/installer/ when it exists
- *   roadmap   <- docs/ROADMAP.md            (`- [planned|doing|done] Title | description | when`)
+ *   roadmap   <- docs/ROADMAP.md            (`- [next|planned|doing|done] Title | description | when`)
  *   bugs      <- GitHub Issues labelled "bug" (only when a repo is given), docs/KNOWN_ISSUES.md (open),
  *                and the `### Fixed` sections of released CHANGELOG.md versions ("Đã sửa")
  *
@@ -108,7 +108,7 @@ export function parseChangelog(text) {
 export function parseRoadmap(text) {
   const items = [];
   for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/^- \[(planned|doing|done)\]\s+(.+)$/);
+    const m = line.match(/^- \[(next|planned|doing|done)\]\s+(.+)$/);
     if (!m) continue;
     const [title, desc = "", eta = ""] = m[2].split("|").map((s) => s.trim());
     if (m[1] !== "done" && title) items.push({ title, desc, eta, status: m[1] });

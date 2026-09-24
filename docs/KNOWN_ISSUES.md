@@ -8,4 +8,4 @@ Delete a line here once the fix is released; it then appears in the table as "Đ
 
 `status` is `open` (shown "Đang xử lý") or `investigating` (shown "Đang tìm hiểu"); `priority` is Cao, Vừa or Thấp.
 
-- [investigating] Nhiều luồng nhập sách đọc chung một kết nối CSDL, có thể lỗi hiếm khi nhập rất nhiều sách cùng lúc | Vừa
+- [investigating] Hiếm khi báo lỗi khi nhập rất nhiều sách cùng một lúc; nhập lại là được. Mèo đang tìm cách sửa gọn | Vừa

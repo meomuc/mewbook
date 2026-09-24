@@ -80,13 +80,18 @@ const weatherConfig: Record<WeatherKey, {
 
 // versions / roadmap / bugs are generated into content.json by scripts/update-content.js; edit them there.
 type Version = { ver: string; date: string; tag: string; tagColor: string; bullets: string[]; download?: { win?: string; size?: string } };
-type RoadmapItem = { title: string; desc: string; eta: string };
+type RoadmapItem = { title: string; desc: string; eta: string; status: string };
+type Announcement = { date: string; title: string; text: string };
 type Shot = { src: string; title: string; caption: string; w: number; h: number };
 type Bug = { id: string; desc: string; status: string; priority: string; color: string };
 
 const meta = content.meta;
 const versions = content.versions as Version[];
 const roadmap = content.roadmap as RoadmapItem[];
+const nextRelease = roadmap.filter(r => r.status === "next"); // "Đang phát triển": the next release, plans that may change
+const laterPlans = roadmap.filter(r => r.status !== "next");
+// Hand-written notices, newest first (content.json -> announcements; the updater leaves them alone).
+const announcements = ((content as { announcements?: Announcement[] }).announcements ?? []);
 const bugs = content.bugs as Bug[];
 const gallery = (content as { gallery?: Shot[] }).gallery ?? [];
 const donate = content.donate as { momo?: string; bank?: string; buymeacoffee?: string; qr?: string };
@@ -466,6 +471,21 @@ export default function App() {
                 <span className={`text-[11px] px-2 py-1 rounded-full border ${isDark ? "border-[#4A3A34] text-[#C4A997]" : "border-[#E9DCC6] bg-white text-[#8B6B5E]"}`}>Tự cập nhật theo mỗi bản phát hành</span>
               </div>
 
+              {announcements.length > 0 && (
+                <div className="mb-8 space-y-3" id="thong-bao">
+                  <div className={`text-[11px] font-semibold uppercase tracking-wider ${cfg.textMuted}`}>Cập nhật và thông báo</div>
+                  {announcements.map(a => (
+                    <div key={a.date + a.title} className={`rounded-[16px] p-4 border ${isDark ? "bg-[#3A2E2A] border-[#4A3A34]" : "bg-white border-[#F0E2C8] shadow-sm"}`}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[14px]">{a.title}</span>
+                        <span className={`text-[11px] ${cfg.textMuted}`}>{formatDate(a.date)}</span>
+                      </div>
+                      <p className={`mt-1.5 text-[13px] leading-relaxed ${cfg.textMuted}`}>{a.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="relative pl-8">
                 <div className={`absolute left-[11px] top-2 bottom-2 w-[2px] ${isDark ? "bg-[#4A3A34]" : "bg-[#F0E2C8]"}`} />
                 {versions.map(v => (
@@ -492,8 +512,27 @@ export default function App() {
             <div id="lo-trinh" className={`rounded-[20px] p-5 border ${isDark ? "bg-[#3A2E2A] border-[#4A3A34]" : "bg-white border-[#F0E2C8] shadow-sm"}`}>
               <h3 className="font-bold text-[16px] mb-1">Sắp tới Mèo sẽ làm</h3>
               <p className={`text-[12px] mb-4 ${cfg.textMuted}`}>Mèo làm chậm thôi, nhưng chắc. Không hứa nhiều.</p>
+              {nextRelease.length > 0 && (
+                <div className="mb-5" id="dang-phat-trien">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span className="font-bold text-[14px]">Đang phát triển — dự kiến bản kế tiếp</span>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full border ${isDark ? "border-[#4A3A34] text-[#C4A997]" : "border-[#E9DCC6] bg-white text-[#8B6B5E]"}`}>kế hoạch, có thể thay đổi</span>
+                  </div>
+                  <div className="space-y-3">
+                    {nextRelease.map(r => (
+                      <div key={r.title} className={`rounded-[14px] p-3 flex justify-between gap-3 ${isDark ? "bg-[#2B211E] border border-[#4A3A34]" : "bg-[#FFF8F0] border border-[#F5E6CC]"}`}>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-[13px]">{r.title}</div>
+                          <div className={`text-[12px] ${cfg.textMuted}`}>{r.desc}</div>
+                        </div>
+                        <span className={`text-[11px] px-2 py-1 rounded-full h-fit shrink-0 ${isDark ? "bg-[#3A2E2A] text-[#C4A997]" : "bg-white text-[#8B6B5E] border border-[#F0E2C8]"}`}>{r.eta}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-3">
-                {roadmap.map(r => (
+                {laterPlans.map(r => (
                   <div key={r.title} className={`rounded-[14px] p-3 flex justify-between gap-3 ${isDark ? "bg-[#2B211E] border border-[#4A3A34]" : "bg-[#FFF8F0] border border-[#F5E6CC]"}`}>
                     <div>
                       <div className="font-semibold text-[13px]">{r.title}</div>

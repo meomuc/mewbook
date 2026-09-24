@@ -46,6 +46,11 @@ test("headline prefers the bold lead, else the first sentence", () => {
   assert.ok(headline(`**${"x".repeat(300)}.**`).length <= 120);
 });
 
+test("parseRoadmap keeps the next-release group apart from the rest", () => {
+  const items = parseRoadmap("- [next] N | d | Kế hoạch\n- [planned] P");
+  assert.deepEqual(items.map((i) => [i.title, i.status]), [["N", "next"], ["P", "planned"]]);
+});
+
 test("parseRoadmap skips done items and tolerates missing columns", () => {
   const items = parseRoadmap("- [planned] A | desc | Q1\n- [done] B | x | y\n- [doing] C\nnoise");
   assert.deepEqual(items, [

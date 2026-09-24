@@ -46,12 +46,54 @@
       "desc": "Chuyển ngôn ngữ ngay trong Cài đặt",
       "eta": "Kế hoạch",
       "status": "planned"
+    },
+    {
+      "title": "Xử lý file trùng lặp an toàn hơn",
+      "desc": "Có khu vực lưu tạm trước khi xóa thật, và tự xóa hẳn sau một thời gian do bạn đặt",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "Gom sách về một thư mục",
+      "desc": "Bạn chọn thư mục, rồi chọn sao chép hoặc di chuyển",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "Chọn nơi lưu bản sao lưu thư viện",
+      "desc": "Đặt thư mục sao lưu theo ý bạn",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "\"Tìm ảnh bìa\" thành \"Tìm thêm thông tin\"",
+      "desc": "Tìm cả ảnh bìa lẫn phần mô tả sách, có thêm nút mở tìm kiếm trên Internet",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "Cập nhật thông tin sách theo yêu cầu",
+      "desc": "Bạn bấm là cập nhật, không chỉ chờ chạy nền tự động",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "Tóm tắt AI chỉ dùng thông tin nhận diện sách",
+      "desc": "Tên, tác giả, nhà xuất bản, năm, dịch giả... và không còn trích đoạn nội dung dài",
+      "eta": "Kế hoạch",
+      "status": "next"
+    },
+    {
+      "title": "Gợi ý hashtag khi gõ",
+      "desc": "Gõ vài chữ là thấy gợi ý",
+      "eta": "Kế hoạch",
+      "status": "next"
     }
   ],
   "bugs": [
     {
-      "id": "#CA74",
-      "desc": "Nhiều luồng nhập sách đọc chung một kết nối CSDL, có thể lỗi hiếm khi nhập rất nhiều sách cùng lúc",
+      "id": "#955A",
+      "desc": "Hiếm khi báo lỗi khi nhập rất nhiều sách cùng một lúc; nhập lại là được. Mèo đang tìm cách sửa gọn",
       "status": "Đang tìm hiểu",
       "priority": "Vừa",
       "color": "bg-zinc-400"
@@ -143,5 +185,12 @@
       "imgHash": "5e17ebdea9"
     }
   ],
-  "pendingShots": []
+  "pendingShots": [],
+  "announcements": [
+    {
+      "date": "2026-09-25",
+      "title": "Mèo vừa dọn nhà, mọi thứ dễ nhìn hơn",
+      "text": "Bìa sách mới hiện ngay trong danh sách. Thanh dưới cùng gọn lại: chỉ có biểu tượng, rê chuột là thấy lời giải thích. Cửa sổ không còn che thanh tác vụ. Ô nào sửa được nhìn là biết. Phần Cài đặt và các bước lấy khóa AI được viết lại bằng lời dễ hiểu."
+    }
+  ]
 }
