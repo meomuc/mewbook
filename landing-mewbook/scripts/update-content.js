@@ -11,6 +11,9 @@
  *
  *   node scripts/update-content.js [--dry-run] [--commit] [--repo owner/name] [--download-url URL]
  *
+ *   gallery   <- the app's themes (presentation/theme.py) against public/assets/gallery/: a new theme, a changed theme
+ *                or a replaced/added picture is detected on every run (see syncGallery)
+ *
  * --commit stages content.json only and commits it as "chore: auto update content from GitHub" when it changed.
  * GitHub is optional (this project has no public remote yet): pass --repo or set MEWBOOK_GITHUB_REPO, and
  * GITHUB_TOKEN to lift the anonymous rate limit. A GitHub failure never stops the update: the local sources win.
@@ -19,13 +22,15 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const LANDING = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO_ROOT = path.resolve(LANDING, "..");
 const CONTENT_FILE = path.join(LANDING, "content.json");
+const GALLERY_DIR = path.join(LANDING, "public", "assets", "gallery");
+const GALLERY_EXT = [".webp", ".png", ".jpg", ".jpeg"];
 const COMMIT_MESSAGE = "chore: auto update content from GitHub";
 
 const MAX_BULLETS = 3;
@@ -129,6 +134,113 @@ function bugRow({ id, desc, status, priority, url }) {
   const row = { id, desc, status, priority, color: STATUS_COLOR[status] };
   if (url) row.github_url = url;
   return row;
+}
+
+const sha = (data) => createHash("sha1").update(data).digest("hex").slice(0, 10);
+
+/** Drops a trailing "# comment" (a "#" with an even number of quotes before it), so a comment edit is no change. */
+const stripComment = (line) => {
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "#" && (line.slice(0, i).match(/["']/g) ?? []).length % 2 === 0) return line.slice(0, i).trimEnd();
+  }
+  return line;
+};
+
+/** The text of `NAME = <value>` at module level (a value may span lines until its brackets balance). */
+function constantSource(src, name) {
+  const lines = src.split(/\r?\n/);
+  const at = lines.findIndex((l) => l.startsWith(`${name} =`));
+  if (at < 0) return "";
+  const out = [];
+  let depth = 0;
+  for (let i = at; i < lines.length; i++) {
+    const line = stripComment(lines[i]);
+    out.push(line);
+    depth += (line.match(/[([{]/g) ?? []).length - (line.match(/[)\]}]/g) ?? []).length;
+    if (depth <= 0) break;
+  }
+  return out.join("\n");
+}
+
+/**
+ * presentation/theme.py -> { key: { name, hash } }. The hash covers the theme's definition and every module
+ * constant it references (fonts, shared colours), comments ignored, so any visible change of a theme changes it.
+ */
+export function parseThemes(src) {
+  const blocks = {};
+  for (const m of src.matchAll(/^([A-Z][A-Z0-9_]*)\s*=\s*ThemeColors\(/gm)) {
+    const end = src.indexOf("\n)", m.index);
+    if (end > 0) blocks[m[1]] = src.slice(m.index, end + 2).split(/\r?\n/).map(stripComment).join("\n");
+  }
+  const dict = src.match(/^THEMES[^=\n]*=\s*\{([\s\S]*?)\n\}/m);
+  const themes = {};
+  for (const e of dict ? dict[1].matchAll(/"(\w+)":\s*([A-Z][A-Z0-9_]*)/g) : []) {
+    const block = blocks[e[2]];
+    if (!block) continue;
+    const refs = [...new Set(block.match(/\b_?[A-Z][A-Z0-9_]{2,}\b/g) ?? [])].filter((r) => r !== e[2]);
+    const shared = refs.map((r) => constantSource(src, r)).join("\n");
+    themes[e[1]] = { name: block.match(/display_name\s*=\s*"([^"]+)"/)?.[1] ?? e[1], hash: sha(block + shared) };
+  }
+  return themes;
+}
+
+const fileHash = (file) => sha(readFileSync(path.join(GALLERY_DIR, file)));
+const prettyName = (file) => path.parse(file).name.replace(/[-_]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/**
+ * Keeps `gallery` in step with the app's themes and the picture files. Each entry remembers `themeHash` (the theme
+ * as it was when its picture was accepted) and `imgHash` (the picture file). On every run:
+ *   - a picture file that changed              -> entry refreshed, its src gets ?v=<hash> so browsers reload it
+ *   - a picture file with no entry             -> entry added (a theme's own name/key is used when it matches a theme)
+ *   - a theme with no picture                  -> pendingShots "new" (a new theme was added to the app)
+ *   - a theme changed but its picture did not  -> pendingShots "changed" (the old picture no longer matches)
+ *   - an entry whose theme was removed         -> warning (the entry is kept until you delete it)
+ * Returns { gallery, pendingShots, report }; the report lines are printed by main().
+ */
+export function syncGallery(gallery, themes, files, hashOf) {
+  const report = [];
+  const entries = gallery.map((g) => ({ ...g }));
+  const fileOf = (g) => g.src.split("?")[0].split("/").pop();
+  const referenced = new Set(entries.map(fileOf));
+
+  for (const file of files) {
+    if (referenced.has(file)) continue;
+    const key = path.parse(file).name;
+    const theme = themes[key];
+    entries.push({ src: `/assets/gallery/${file}`, title: theme?.name ?? prettyName(file), caption: "", ...(theme ? { theme: key } : {}) });
+    report.push(`gallery: new picture ${file}${theme ? ` for theme "${theme.name}"` : ""}, added`);
+  }
+
+  for (const g of entries) {
+    const file = fileOf(g);
+    if (!files.includes(file)) {
+      report.push(`gallery: picture ${file} is missing on disk, entry kept`);
+      continue;
+    }
+    const imgHash = hashOf(file);
+    const theme = g.theme ? themes[g.theme] : undefined;
+    if (g.theme && !theme) report.push(`gallery: theme "${g.theme}" no longer exists in the app, remove its entry when ready`);
+    if (g.imgHash && g.imgHash !== imgHash) {
+      report.push(`gallery: picture ${file} was replaced, refreshed`);
+      if (theme) g.themeHash = theme.hash; // a new picture is the owner's confirmation that it shows the current theme
+    }
+    if (theme && !g.themeHash) g.themeHash = theme.hash; // first run: today's theme is the baseline
+    g.imgHash = imgHash;
+    g.src = `/assets/gallery/${file}?v=${imgHash}`;
+  }
+
+  const pendingShots = [];
+  for (const [key, theme] of Object.entries(themes)) {
+    const entry = entries.find((g) => g.theme === key);
+    if (!entry) pendingShots.push({ theme: key, name: theme.name, reason: "new" });
+    else if (entry.themeHash !== theme.hash) pendingShots.push({ theme: key, name: theme.name, reason: "changed" });
+  }
+  for (const p of pendingShots) {
+    report.push(p.reason === "new"
+      ? `gallery: NEW theme "${p.name}" has no picture: save one as public/assets/gallery/${p.theme}.webp`
+      : `gallery: theme "${p.name}" CHANGED since its picture was taken: replace public/assets/gallery/${fileOf(entries.find((g) => g.theme === p.theme))}`);
+  }
+  return { gallery: entries, pendingShots, report };
 }
 
 function currentVersion() {
@@ -237,12 +349,22 @@ async function main() {
   const latest = currentVersion();
   const sections = parseChangelog(readText("CHANGELOG.md") ?? "");
 
+  const themeSrc = readText("src", "smartdoc", "presentation", "theme.py");
+  const themes = themeSrc ? parseThemes(themeSrc) : {};
+  const files = existsSync(GALLERY_DIR)
+    ? readdirSync(GALLERY_DIR).filter((f) => GALLERY_EXT.includes(path.extname(f).toLowerCase())).sort()
+    : [];
+  const synced = syncGallery(existing.gallery ?? [], themes, files, fileHash);
+  synced.report.forEach((line) => (line.includes("NEW") || line.includes("CHANGED") ? warn(line) : log(line)));
+
   const roadmapText = readText("docs", "ROADMAP.md");
   const content = {
     ...existing,
     meta: { ...meta, latest, downloadUrl },
     versions: buildVersions(sections, latest, existing.versions ?? [], downloadUrl),
     roadmap: roadmapText ? parseRoadmap(roadmapText) : existing.roadmap ?? [],
+    gallery: synced.gallery,
+    pendingShots: synced.pendingShots,
     bugs: await buildBugs(sections, value("--repo") ?? process.env.MEWBOOK_GITHUB_REPO),
   };
   const out = `${JSON.stringify(content, null, 2)}\n`;
