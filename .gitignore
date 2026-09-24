@@ -57,3 +57,17 @@ src/smartdoc/presentation/assets/donate_qr.png
 
 # Draft daily error-triage summaries (tools/triage): local until the owner decides to keep one.
 docs/triage/
+
+# Tool caches, IDE folders, local environment variants and dependency folders
+# (defense in depth: none of these belong in the repo).
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.vscode/
+.idea/
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+node_modules/
