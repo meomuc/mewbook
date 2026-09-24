@@ -8,7 +8,8 @@
 # -Release refuses to go on unless the tests run, the working tree is clean (so the source package matches what
 # was built) and Inno Setup is installed. It then writes dist\release\ with the installer, the AGPL source
 # package (git archive of the tag vX.Y.Z, or of HEAD if the tag does not exist yet) and SHA256SUMS.txt computed
-# after signing. Tagging, pushing and publishing stay a manual step: docs\RELEASE_CHECKLIST.md.
+# after signing, then refreshes and commits the landing page content (landing-mewbook\scripts\update-content.js).
+# Tagging, pushing and publishing stay a manual step: docs\RELEASE_CHECKLIST.md.
 #
 # Signing is optional. Set these in YOUR session (nothing is stored in the repo or printed):
 #   MEWBOOK_SIGN_PFX, MEWBOOK_SIGN_PFX_PASSWORD   a .pfx certificate file and its password, or
@@ -134,6 +135,16 @@ if ($Release) {
         '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
     } | Set-Content -Encoding ASCII "$out\SHA256SUMS.txt"
     Write-Host "Release files: dist\release\ (installer, MewBook-$version-source.zip, SHA256SUMS.txt)" -ForegroundColor Green
+
+    # Refresh the landing page (versions, roadmap, bugs) and commit landing-mewbook\content.json only. Never fails a
+    # release: without Node.js, or if the script errors, the release files above are still good.
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    if ($node) {
+        & $node.Source "$root\landing-mewbook\scripts\update-content.js" --commit
+        if ($LASTEXITCODE -ne 0) { Write-Warning 'Landing page content update failed (release files are fine): run "npm run update-content:commit" in landing-mewbook.' }
+    } else {
+        Write-Warning 'Node.js not found: landing page content not updated. Run "npm run update-content:commit" in landing-mewbook.'
+    }
 }
 
 if ($script:unsigned.Count -gt 0) {

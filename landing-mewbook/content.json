@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "latest": "1.0.0",
+    "downloadUrl": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d",
+    "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/"
+  },
+  "versions": [
+    {
+      "ver": "v1.0.0",
+      "date": "2026-09-19",
+      "tag": "Mới",
+      "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
+      "bullets": [
+        "Bản phát hành đầu tiên cho Windows, miễn phí, mã nguồn mở",
+        "Tìm ảnh bìa từ nhiều nguồn, xếp theo độ khớp với tên sách",
+        "AI tóm tắt sách bằng khóa của bạn: Gemini, Groq, OpenRouter, Mistral, DeepSeek hoặc Ollama chạy ngay trên máy"
+      ],
+      "link": "",
+      "download": {
+        "win": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d"
+      }
+    }
+  ],
+  "roadmap": [
+    {
+      "title": "Gửi sách tới máy đọc sách",
+      "desc": "Chọn bộ sưu tập, Mèo chép sang thẻ nhớ hoặc máy Boox qua USB",
+      "eta": "Sắp tới",
+      "status": "planned"
+    },
+    {
+      "title": "Tìm không dấu & sửa mã hóa cũ",
+      "desc": "Gõ \"nguyen nhat anh\" vẫn ra Nguyễn Nhật Ánh; sửa tên sách TCVN3/VNI",
+      "eta": "Kế hoạch",
+      "status": "planned"
+    },
+    {
+      "title": "Chuyển đổi định dạng sách",
+      "desc": "Chuyển giữa các định dạng ebook, chỉ với file không có DRM",
+      "eta": "Kế hoạch",
+      "status": "planned"
+    },
+    {
+      "title": "Giao diện tiếng Anh",
+      "desc": "Chuyển ngôn ngữ ngay trong Cài đặt",
+      "eta": "Kế hoạch",
+      "status": "planned"
+    }
+  ],
+  "bugs": [
+    {
+      "id": "#CA74",
+      "desc": "Nhiều luồng nhập sách đọc chung một kết nối CSDL, có thể lỗi hiếm khi nhập rất nhiều sách cùng lúc",
+      "status": "Đang tìm hiểu",
+      "priority": "Vừa",
+      "color": "bg-zinc-400"
+    }
+  ],
+  "donate": {
+    "momo": "",
+    "bank": "",
+    "buymeacoffee": ""
+  }
+}
