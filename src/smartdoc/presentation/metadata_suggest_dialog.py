@@ -312,7 +312,7 @@ class MetadataSuggestDialog(QDialog):
             QApplication.restoreOverrideCursor()
             QMessageBox.warning(self, "Không cập nhật được", str(exc))
             return
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             QApplication.restoreOverrideCursor()
             logger.exception("Applying metadata failed")
             QMessageBox.critical(
