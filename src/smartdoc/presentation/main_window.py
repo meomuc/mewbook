@@ -97,6 +97,8 @@ class MainWindow(QMainWindow):
         self.library_view = LibraryListWidget(context, import_manager=import_manager)
         self.library_view.set_view_mode(config.view_mode)
         self.detail_panel = DocumentDetailPanel(context)
+        self.detail_panel.close_requested.connect(lambda: self.app_toolbar.detail_button.setChecked(False))
+        self.detail_panel.ereader_requested.connect(self._on_send_to_ereader)
 
         # The menu bar is hidden but alive: its actions carry the shortcuts and feed the toolbar's menus.
         self._build_menu()

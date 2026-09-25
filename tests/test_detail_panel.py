@@ -1,8 +1,6 @@
 """Tests for the Document Detail Side Panel."""
 import time
 
-from PySide6.QtCore import QSize
-
 from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
 from smartdoc.presentation.detail_panel import (
     DocumentDetailPanel,
@@ -116,7 +114,7 @@ def test_set_document_none_returns_to_empty(qapp, app_context):
 def test_panel_shows_rating_info(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(avg_rating=3.8, review_count=5))
-    assert "3.8" in panel.rating_label.text()
+    assert "3,8" in panel.rating_label.text() and "5 đánh giá" in panel.rating_label.text()
 
 
 def test_panel_shows_format_and_size(qapp, app_context):
@@ -127,29 +125,17 @@ def test_panel_shows_format_and_size(qapp, app_context):
     assert "MB" in text
 
 
-def test_panel_shows_tags_as_badges(qapp, app_context):
+def test_panel_shows_tags_as_removable_chips(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(tags="AI,ML,Deep Learning"))
-    assert not panel._tags_container.isHidden()
-    # Count the tag badges in the flow layout
-    assert panel._tags_layout.count() == 3
+    assert panel.tag_editor.tags() == ["AI", "ML", "Deep Learning"]
+    assert len(panel.tag_editor._chips) == 3
+    assert [chip.label.text() for chip in panel.tag_editor._chips] == ["#AI", "#ML", "#Deep Learning"]
 
 
-def test_panel_shows_tags_hashtag_styled(qapp, app_context):
-    from PySide6.QtWidgets import QLabel
-
+def test_tags_section_header_is_hashtag(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
-    panel.set_document(_sample_doc(tags="Python,AI"))
-
-    labels = panel._tags_container.findChildren(QLabel)
-    texts = {label.text() for label in labels}
-    assert "#Python" in texts
-    assert "#AI" in texts
-
-
-def test_tags_section_header_is_hashtag_not_the_loai(qapp, app_context):
-    panel = DocumentDetailPanel(app_context)
-    assert panel.tags_title_label.text().casefold() == "hashtag"  # shown as an upper-case section heading
+    assert panel.tags_title_label.text() == "Hashtag"
 
 
 def test_title_and_author_use_content_font_settings_not_app_font(qapp, app_context):
@@ -158,24 +144,9 @@ def test_title_and_author_use_content_font_settings_not_app_font(qapp, app_conte
 
     panel = DocumentDetailPanel(app_context)
 
-    assert "28px" in panel.title_edit.styleSheet()  # the heading: content size + _TITLE_STEP_PX
-    assert "#00ff00" in panel.title_edit.styleSheet()
-    assert "25px" in panel.author_edit.styleSheet()  # content size + _AUTHOR_STEP_PX
-    assert "#00ff00" in panel.author_edit.styleSheet()
-
-
-def test_hashtag_labels_use_content_font_size_but_keep_accent_color(qapp, app_context):
-    app_context.config.config.content_font_size = 20
-
-    panel = DocumentDetailPanel(app_context)
-    panel.set_document(_sample_doc(tags="Python"))
-
-    from smartdoc.presentation.detail_panel import _HashtagLabel
-
-    hashtag_labels = panel._tags_container.findChildren(_HashtagLabel)
-    assert len(hashtag_labels) == 1
-    assert "20px" in hashtag_labels[0].styleSheet()
-    assert "color:" in hashtag_labels[0].styleSheet()  # still colored (accent), not content_text_color
+    assert panel.title_edit.font().pixelSize() == 27  # the heading: content size + _TITLE_STEP_PX
+    assert panel.author_edit.font().pixelSize() == 24
+    assert "#00ff00" in panel.title_edit.styleSheet() and "#00ff00" in panel.author_edit.styleSheet()
 
 
 def test_clicking_a_hashtag_replaces_the_whole_filter_with_that_tag(qapp, app_context):
@@ -190,10 +161,25 @@ def test_clicking_a_hashtag_replaces_the_whole_filter_with_that_tag(qapp, app_co
     assert app_context.filters.current == LibraryFilter(tags=("Python",))
 
 
-def test_panel_hides_tags_when_none(qapp, app_context):
+def test_a_book_without_hashtags_shows_only_the_add_control(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc(tags=""))
-    assert panel._tags_container.isHidden()
+    assert panel.tag_editor.tags() == [] and not panel.tag_editor.add_button.isHidden()
+
+
+def test_hashtags_are_added_and_removed_in_place_and_saved(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "A", "author": "B", "file_path": "a.pdf", "tags": "x", "created_at": 1.0})
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(dict(app_context.db.get_document("d1")))
+
+    panel.tag_editor.add_button.click()
+    panel.tags_edit.setText("#Python, AI, x")  # "x" is already there: not added twice
+    panel.tags_edit.returnPressed.emit()
+    assert app_context.db.get_document("d1")["tags"] == "x,Python,AI"
+
+    panel.tag_editor._chips[0].remove_button.click()
+    assert app_context.db.get_document("d1")["tags"] == "Python,AI"
 
 
 def test_panel_shows_generate_link_when_no_summary_yet(qapp, app_context):
@@ -203,7 +189,7 @@ def test_panel_shows_generate_link_when_no_summary_yet(qapp, app_context):
     # yet -- that link is how the user creates one in the first place.
     assert not panel.summary_title_label.isHidden()
     assert panel.summary_label.isHidden()
-    assert "Tạo tóm tắt AI" in panel.ai_summary_action_label.text()
+    assert "Tạo tóm tắt" in panel.ai_summary_action_label.text()
 
 
 def test_panel_shows_ai_summary_when_present(qapp, app_context):
@@ -288,22 +274,6 @@ def test_refresh_button_does_nothing_without_a_selected_document(qapp, app_conte
     panel = DocumentDetailPanel(app_context)
     panel.refresh_label.clicked.emit()  # must not raise
     assert panel._empty_label.isHidden() is False
-
-
-def test_clickable_action_labels_are_visually_distinct_from_status_labels(qapp, app_context):
-    """rating_label/path_label are clickable actions; format_size_label/
-    dates_label are plain read-only status --
-    they must not share the same text color, or there's no visual way to
-    tell which is which."""
-    panel = DocumentDetailPanel(app_context)
-    panel.set_document(_sample_doc())
-
-    action_colors = {panel.rating_label.styleSheet(), panel.path_label.styleSheet()}
-    status_colors = {
-        panel.format_size_label.styleSheet(),
-        panel.dates_label.styleSheet(),
-    }
-    assert action_colors.isdisjoint(status_colors)
 
 
 def test_truncated_file_path_shows_tooltip(qapp, app_context):
@@ -415,7 +385,7 @@ def test_author_link_lists_own_and_coauthored_works(qapp, app_context):
     app_context.event_bus.subscribe(FilterChangedEvent, lambda e: events.append(e))
 
     panel.set_document(app_context.db.get_document("d1"))
-    assert "1 tài liệu cùng tác giả" in panel.author_works_label.text()  # d2; not d1 itself
+    assert panel.author_works_label.text() == "Còn 1 tài liệu cùng tác giả"  # d2; not d1 itself
 
     panel.author_works_label.clicked.emit()
     qapp.processEvents()
@@ -434,7 +404,7 @@ def test_author_link_for_a_coauthored_book_covers_every_author(qapp, app_context
     panel = DocumentDetailPanel(app_context)
     panel.set_document(app_context.db.get_document("d1"))
 
-    assert "1 tài liệu cùng tác giả" in panel.author_works_label.text()  # d2 shares Lê B; d1 is this book
+    assert panel.author_works_label.text() == "Còn 1 tài liệu cùng tác giả"  # d2 shares Lê B; d1 is this book
 
 
 def test_author_link_hidden_for_unknown_author(qapp, app_context):
@@ -450,18 +420,16 @@ def test_author_link_hidden_for_unknown_author(qapp, app_context):
 # ── Bibliographic fields and hand-typed locks ────────────────────────
 
 
-def test_bibliography_line_shows_publisher_year_language_and_isbn_only_when_present(qapp, app_context):
+def test_bibliography_rows_show_the_values_or_a_dash(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
 
     panel.set_document(_sample_doc())
-    assert panel.bibliography_label.isHidden()
+    assert (panel.publisher_label.text(), panel.year_label.text(), panel.isbn_label.text()) == ("—", "—", "—")
 
     panel.set_document(_sample_doc(publisher="NXB Trẻ", pub_year=2006, language="vi", isbn="9786040123456"))
-    assert not panel.bibliography_label.isHidden()
-    assert panel.bibliography_label.text() == "📚  NXB Trẻ · 2006 · VI · ISBN 9786040123456"
-
-    panel.set_document(_sample_doc(publisher="NXB Trẻ"))
-    assert panel.bibliography_label.text() == "📚  NXB Trẻ"
+    assert panel.publisher_label.text() == "NXB Trẻ"
+    assert panel.year_label.text() == "2006, Tiếng Việt"
+    assert panel.isbn_label.text() == "9786040123456"
 
 
 def test_editing_a_field_inline_locks_it_against_metadata_suggestions(qapp, app_context):
@@ -485,7 +453,7 @@ def test_added_and_modified_dates_share_one_row_with_the_exact_time_in_the_toolt
     panel.set_document(_sample_doc(created_at=1700000000.0, updated_at=1700003600.0))
 
     text = panel.dates_label.text()
-    assert "Thêm:" in text and "Sửa:" in text and chr(10) not in text
+    assert text.count("/") == 4 and " · " in text and chr(10) not in text  # two dd/mm/yyyy dates, no time
     added_line = panel.dates_label.toolTip().splitlines()[0]
     assert ":" in added_line.split("Thêm:")[1]  # the full date + time is one hover away
 
@@ -540,38 +508,6 @@ def test_a_cloud_only_file_is_not_opened_to_count_pages(qapp, app_context, monke
     assert started == []
 
 
-def test_author_and_the_other_books_link_share_one_row_when_they_fit(qapp, app_context):
-    for doc_id in ("d1", "d2", "d3"):
-        app_context.db.add_or_update_document(
-            doc_id, {"title": doc_id, "author": "Trần A", "file_path": f"{doc_id}.pdf", "created_at": 1.0}
-        )
-    panel = DocumentDetailPanel(app_context)
-    panel.resize(900, 700)  # generous: offscreen Qt has no fonts and measures text far wider than a real one
-    panel.show()
-    panel.set_document(app_context.db.get_document("d1"))
-    qapp.processEvents()
-
-    assert panel.author_works_label.text() == "(có 2 tài liệu cùng tác giả)"
-    assert panel.author_edit.text() == "Trần A"
-    assert panel.author_works_label.geometry().left() > panel.author_edit.geometry().right() - 1  # beside, not below
-    assert panel.author_works_label.geometry().top() < panel.author_edit.geometry().bottom()
-
-
-def test_the_link_drops_below_a_long_author_name_instead_of_squeezing_it(qapp, app_context):
-    long_name = "Nguyễn Thị Hồng Ngọc Diệp Hách Na Na Đồ Hồng Trần"
-    for doc_id in ("d1", "d2"):
-        app_context.db.add_or_update_document(
-            doc_id, {"title": doc_id, "author": long_name, "file_path": f"{doc_id}.pdf", "created_at": 1.0}
-        )
-    panel = DocumentDetailPanel(app_context)
-    panel.resize(340, 700)
-    panel.show()
-    panel.set_document(app_context.db.get_document("d1"))
-    qapp.processEvents()
-
-    assert panel.author_works_label.geometry().top() >= panel.author_edit.geometry().bottom()
-
-
 def test_a_book_with_no_other_books_by_its_author_shows_no_link(qapp, app_context):
     app_context.db.add_or_update_document(
         "d1", {"title": "t", "author": "Chỉ Một Cuốn", "file_path": "a.pdf", "created_at": 1.0}
@@ -581,82 +517,85 @@ def test_a_book_with_no_other_books_by_its_author_shows_no_link(qapp, app_contex
     assert panel.author_works_label.isHidden()
 
 
-def test_the_link_wording_is_shortened_before_it_is_moved_below_the_name(qapp, app_context, monkeypatch):
-    from smartdoc.presentation import detail_panel
-
-    for doc_id in ("d1", "d2"):
-        app_context.db.add_or_update_document(
-            doc_id, {"title": doc_id, "author": "Trần A", "file_path": f"{doc_id}.pdf", "created_at": 1.0}
-        )
-    panel = DocumentDetailPanel(app_context)
-    panel.resize(600, 700)
-    panel.show()
-    panel.set_document(app_context.db.get_document("d1"))
-    qapp.processEvents()
-    full, medium, short = detail_panel._others_texts(1)
-    assert panel.author_works_label.text() == full
-
-    # Offscreen text measures every character the same, so narrow the row until only the short form fits.
-    metrics_width = panel.author_works_label.fontMetrics().horizontalAdvance
-    name_room = panel.author_edit.width() + panel._author_layout.spacing()
-    panel._author_row.setFixedWidth(name_room + metrics_width(short) + 4)
-    panel._layout_author_row()
-
-    assert panel.author_works_label.text() == short
-    assert panel.author_works_label.geometry().left() >= panel.author_edit.geometry().right()
-
 # --- editable vs. read-only fields look different, without relying on colour ---
 
 
-def _all_editable(panel):
-    return (panel.title_edit, panel.author_edit, panel.tags_edit)
+def test_editable_fields_are_dashed_frames_with_a_pen_and_read_only_rows_are_plain(qapp, app_context):
+    from PySide6.QtWidgets import QLabel
 
-
-def _all_read_only(panel):
-    return (panel.format_size_label, panel.bibliography_label, panel.dates_label)
-
-
-def test_editable_fields_share_one_outlined_style_with_a_pencil(qapp, app_context):
-    from smartdoc.presentation.theme import current_colors
+    from smartdoc.presentation.editable_field import EditableField
 
     panel = DocumentDetailPanel(app_context)
-    for field in _all_editable(panel):
-        assert "border: 1px solid" in field.styleSheet()  # an outline: a shape, not just a colour
-        assert field.property("editable") is True
-        assert len(field.actions()) == 1  # the pencil
-        assert not field.actions()[0].icon().isNull()
-        assert "sửa" in field.actions()[0].toolTip()
-    # the same outline rule everywhere: one consistent look
-    outline = f"border: 1px solid {current_colors().border}; border-radius: 4px; padding: 4px 6px;"
-    assert all(outline in field.styleSheet() for field in _all_editable(panel))
+    for field in (panel.title_field, panel.author_field):
+        assert isinstance(field, EditableField) and field.property("editable") is True
+        assert len(field.edit.actions()) == 1 and not field.edit.actions()[0].icon().isNull()  # the pen
+        assert "sửa" in field.edit.actions()[0].toolTip()
+    assert panel.tag_editor.property("editable") is True
+    for label in (panel.format_size_label, panel.publisher_label, panel.year_label, panel.isbn_label, panel.dates_label):
+        assert type(label) is QLabel and label.property("editable") is False
+        assert "không sửa được" in label.toolTip()
 
 
-def test_read_only_lines_have_no_outline_no_pencil_and_a_grey_band(qapp, app_context):
-    panel = DocumentDetailPanel(app_context)
-    for label in _all_read_only(panel):
-        assert "border: none" in label.styleSheet()
-        assert "background: rgba(" in label.styleSheet()  # the faint band
-        assert "1px solid" not in label.styleSheet()
-        assert label.property("editable") is False
-
-
-def test_no_field_is_both_editable_and_read_only_in_style(qapp, app_context):
-    panel = DocumentDetailPanel(app_context)
-    editable = {field.styleSheet() for field in _all_editable(panel)}
-    read_only = {label.styleSheet() for label in _all_read_only(panel)}
-    assert not any("border: none" in css for css in editable)
-    assert not any("border: 1px" in css for css in read_only)
-
-
-def test_read_only_lines_say_so_in_a_tooltip(qapp, app_context):
-    panel = DocumentDetailPanel(app_context)
-    assert "không sửa được" in panel.format_size_label.toolTip()
-    assert "không sửa được" in panel.bibliography_label.toolTip()
-
-
-def test_editable_fields_are_still_editable_and_read_only_ones_are_plain_labels(qapp, app_context):
-    from PySide6.QtWidgets import QLabel, QLineEdit
+def test_editable_field_paints_differently_at_rest_and_while_editing(qapp, app_context):
+    from PySide6.QtGui import QImage
 
     panel = DocumentDetailPanel(app_context)
-    assert all(isinstance(f, QLineEdit) and not f.isReadOnly() for f in _all_editable(panel))
-    assert all(type(label) is QLabel for label in _all_read_only(panel))
+    panel.resize(340, 700)
+    panel.show()
+    panel.set_document(_sample_doc())
+    qapp.processEvents()
+    field = panel.title_field
+
+    def outline():
+        image = QImage(field.size(), QImage.Format_ARGB32)
+        image.fill(0)
+        field.render(image)
+        y = field.height() // 2
+        return [image.pixel(x, y) for x in range(field.width())]
+
+    at_rest = outline()
+    panel.title_edit.setFocus()
+    qapp.processEvents()
+    assert at_rest != outline()
+
+
+def test_the_four_actions_and_the_close_button_exist(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    names = [b.text() for b in (panel.star_button, panel.cover_search_label, panel.metadata_button, panel.ereader_button)]
+    assert names == ["Sẽ đọc", "Đổi bìa", "Tìm thông tin", "Gửi máy đọc"]
+    closed, sent = [], []
+    panel.close_requested.connect(lambda: closed.append(1))
+    panel.ereader_requested.connect(lambda: sent.append(1))
+    panel.close_label.clicked.emit()
+    panel.ereader_button.click()
+    assert closed == [1] and sent == [1]
+
+
+def test_the_star_button_files_the_book_into_the_reading_list_and_back(qapp, app_context):
+    app_context.db.add_or_update_document("d1", {"title": "A", "author": "B", "file_path": "a.pdf", "created_at": 1.0})
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(dict(app_context.db.get_document("d1")))
+    assert panel.star_button.text() == "Sẽ đọc"
+
+    panel.star_button.click()
+    assert "d1" in app_context.db.reading_list_ids() and panel.star_button.text() == "Đã trong Sẽ đọc"
+
+    panel.star_button.click()
+    assert "d1" not in app_context.db.reading_list_ids()
+
+
+def test_the_find_information_button_opens_the_metadata_dialog(qapp, app_context, monkeypatch):
+    opened = []
+
+    class _FakeDialog:
+        def __init__(self, context, doc, parent=None):
+            opened.append(doc["id"])
+
+        def exec(self):
+            return 0
+
+    monkeypatch.setattr("smartdoc.presentation.detail_panel.MetadataSuggestDialog", _FakeDialog)
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+    panel.metadata_button.click()
+    assert opened == ["d1"]

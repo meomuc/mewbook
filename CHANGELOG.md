@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 5: the detail panel.** The cover with a "Bấm để đọc" pill sits beside four actions
+  (★ Sẽ đọc, Đổi bìa, Tìm thông tin, Gửi máy đọc); title and author are editable fields (dashed outline and a pen; a
+  solid outline with a soft ring while you type) with the link "Còn N tài liệu cùng tác giả"; a read-only table shows
+  format and size, publisher, year and language, ISBN, added/modified dates, rating and the file location; hashtags are
+  chips you remove with × and add with "+ thêm"; the AI summary has its own card with "Tạo lại". The panel's × closes it.
 - **New "Kệ sách" look, step 4: the bookshelf.** The cover grid is now real shelves: each row stands on a board, with a
   label on the left that follows the sort ("HÔM NAY · 5 sách mới thêm", "A", "5★"...). Covers keep their true
   proportions, show a format chip (PDF/EPUB/...), a ★ for the reading list, "Chưa có bìa" with the title for a book
