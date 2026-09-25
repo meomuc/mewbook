@@ -204,6 +204,12 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **The "Đánh giá cộng đồng" settings tab is gone.** It asked for a server address and key and showed database code to
+  copy. A connection that was already saved is kept, and the status-bar icon and the review window now say the
+  feature is not switched on in this build instead of pointing to a tab that no longer exists.
+- **Screens no longer show commands, script names or code.** The Ollama guide describes downloading an AI model instead
+  of dictating a command line, the smart-classification tab describes the training tool instead of naming its script,
+  and the error dialog no longer prints the log file's path (it says where to find the log folder).
 - **The project is credited to its "tác giả" (author), not a "developer".** The status bar now reads "Tác giả:
   AnhTienSinh", Help → About says "Tác giả: …", and the error messages ask you to send the log "cho tác giả".
 - **The "how to get an API key" guides are now short numbered steps.** Each AI provider (Gemini, OpenAI, Anthropic,
@@ -265,6 +271,9 @@ New features, so the next release is a MINOR bump (1.1.0).
   own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
 
 ### Fixed
+- **Settings and other dialogs no longer open with their top cut off.** A tall dialog centred over a large window could
+  have its title bar and first tabs above the display; dialogs are now moved back on screen when they open and again if
+  they grow a moment later.
 - **The status bar's icons no longer sway while the donate line scrolls.** The line's box changed width with the
   characters showing and pushed the connection icons back and forth; it is now a box of constant width. The counts on
   the left are separate, evenly spaced items (📚 ✅ ⚠️ 👁), the three connection icons share one slot width so they

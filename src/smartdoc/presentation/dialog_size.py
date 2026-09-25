@@ -19,7 +19,7 @@ popup) keeps it -- this only ever tightens the bound, never loosens it.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QRect
+from PySide6.QtCore import QEvent, QObject, QRect, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLayout
 
 # Fractions of the *available* screen area (i.e. excluding the taskbar).
@@ -27,6 +27,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QLabel, QLayout
 # maximized window rather than as a dialog.
 _MAX_WIDTH_RATIO = 0.80
 _MAX_HEIGHT_RATIO = 0.85
+_REFIT_PENDING = "smartdoc_refit_pending"
 
 
 def constrain_to_screen(widget) -> None:
@@ -119,7 +120,26 @@ class DialogSizeGuard(QObject):
         # app, and Show events are a vanishingly small fraction of them.
         if event.type() == QEvent.Show and isinstance(watched, QDialog):
             constrain_to_screen(watched)
+            # Then bring it fully on screen: centred over a large main window, a tall dialog could have its top edge
+            # (title bar and first tabs) above the display. Done once the window has settled, when its frame is known.
+            fit_window_to_screen(watched)
+            QTimer.singleShot(0, lambda dialog=watched: fit_window_to_screen(dialog))
+        elif event.type() == QEvent.Resize and isinstance(watched, QDialog) and watched.isVisible():
+            # A dialog often grows a moment after it is shown (its tabs settle), which can push its top edge back
+            # above the display: look again, once per burst of resizes.
+            if not watched.property(_REFIT_PENDING):
+                watched.setProperty(_REFIT_PENDING, True)
+                QTimer.singleShot(0, lambda dialog=watched: self._refit(dialog))
         return False  # never consume the event -- this only observes
+
+    @staticmethod
+    def _refit(dialog) -> None:
+        try:
+            dialog.setProperty(_REFIT_PENDING, False)
+            if dialog.isVisible():
+                fit_window_to_screen(dialog)
+        except RuntimeError:
+            pass  # the dialog was destroyed before the timer fired
 
 
 if __name__ == "__main__":

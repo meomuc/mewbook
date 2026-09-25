@@ -72,3 +72,57 @@ def test_a_dialogs_own_smaller_maximum_is_never_loosened(qapp):
     assert dialog.maximumWidth() == 320
     assert dialog.maximumHeight() == 420
     dialog.close()
+
+
+# --- a dialog opens fully on screen (its top was cut off above the display) ---
+
+
+def test_a_tall_dialog_is_brought_fully_onto_the_screen(qapp, monkeypatch):
+    from PySide6.QtCore import QRect
+    from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
+
+    from smartdoc.presentation import dialog_size
+
+    area = QRect(0, 0, 1400, 700)
+    monkeypatch.setattr(dialog_size, "_usable_area", lambda window: area)
+    guard = DialogSizeGuard()
+    qapp.installEventFilter(guard)
+    try:
+        dialog = QDialog()
+        QVBoxLayout(dialog).addWidget(QWidget())
+        dialog.resize(600, 900)  # taller than the screen ...
+        dialog.move(300, -120)  # ... and started with its top above the display
+        dialog.show()
+        qapp.processEvents()
+        frame = dialog.frameGeometry()
+        assert frame.top() >= area.top() and frame.bottom() <= area.bottom(), frame
+    finally:
+        qapp.removeEventFilter(guard)
+        dialog.deleteLater()
+
+
+def test_a_dialog_that_grows_after_it_is_shown_is_brought_back_on_screen(qapp, monkeypatch):
+    """Regression: the Settings dialog grew a moment after opening and its top edge (title bar and tabs) ended up above the display."""
+    from PySide6.QtCore import QRect
+
+    from smartdoc.presentation import dialog_size
+
+    area = QRect(0, 0, 1400, 800)
+    monkeypatch.setattr(dialog_size, "_usable_area", lambda window: area)
+    guard = DialogSizeGuard()
+    qapp.installEventFilter(guard)
+    try:
+        dialog = QDialog()
+        QVBoxLayout(dialog).addWidget(QLabel("x"))
+        dialog.resize(500, 300)
+        dialog.show()
+        qapp.processEvents()
+        dialog.move(300, 250)
+        dialog.resize(500, 780)  # the late growth: now 250 + 780 runs below the usable area
+        for _ in range(3):
+            qapp.processEvents()
+        frame = dialog.frameGeometry()
+        assert frame.top() >= area.top() and frame.bottom() <= area.bottom(), frame
+    finally:
+        qapp.removeEventFilter(guard)
+        dialog.deleteLater()

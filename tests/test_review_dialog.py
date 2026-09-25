@@ -53,7 +53,7 @@ def test_missing_service_account_shows_message_and_does_not_hit_network(qapp, ap
     dialog = ReviewDialog(app_context, _doc())
 
     assert called == []
-    assert "Chưa cấu hình" in dialog.status_label.text()
+    assert "chưa được bật" in dialog.status_label.text()
 
 
 def test_loads_existing_reviews_on_open(qapp, app_context, monkeypatch):

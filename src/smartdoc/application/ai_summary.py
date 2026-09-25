@@ -191,9 +191,8 @@ PROVIDER_STEPS = {
     "ollama": (
         "Mở trang ollama.com và tải bản cài cho Windows.",
         "Cài đặt và mở Ollama (biểu tượng sẽ hiện ở góc phải thanh tác vụ).",
-        "Mở cửa sổ dòng lệnh: bấm phím Windows, gõ cmd, rồi nhấn Enter.",
-        "Gõ ollama pull qwen2.5 rồi nhấn Enter.",
-        "Chờ tải xong (vài phút, tùy đường truyền).",
+        "Trong Ollama, chọn tải một mẫu AI nhỏ về máy, ví dụ mẫu \"qwen2.5\" (trang ollama.com có hướng dẫn tải từng bước).",
+        "Chờ Ollama tải xong (vài phút, tùy đường truyền).",
         "Quay lại cửa sổ này. Ô \"API key\" để trống, Ollama không cần khóa.",
         "Bấm nút \"Kiểm tra kết nối\".",
     ),

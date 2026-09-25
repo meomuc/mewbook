@@ -331,38 +331,6 @@ def test_performance_tab_shows_zero_active_when_no_import_manager(qapp, app_cont
     assert "0" in dialog.performance_status_label.text()
 
 
-def test_cloud_review_tab_starts_unconfigured_and_saves(qapp, app_context):
-    dialog = SettingsDialog(app_context)
-    assert dialog.supabase_url_edit.text() == ""
-    assert dialog.supabase_key_edit.text() == ""
-
-    dialog.supabase_url_edit.setText("https://demo.supabase.co/")
-    dialog.supabase_key_edit.setText("anon-key-123")
-    dialog._on_save()
-
-    # The trailing slash is stripped -- cloud_reviews builds URLs by
-    # appending "/rest/v1/...", so leaving it would produce a double slash.
-    assert app_context.config.config.supabase_url == "https://demo.supabase.co"
-    assert app_context.config.config.supabase_anon_key == "anon-key-123"
-
-
-def test_cloud_review_tab_preloads_existing_config(qapp, app_context):
-    app_context.config.config.supabase_url = "https://saved.supabase.co"
-    app_context.config.config.supabase_anon_key = "saved-key"
-
-    dialog = SettingsDialog(app_context)
-
-    assert dialog.supabase_url_edit.text() == "https://saved.supabase.co"
-    assert dialog.supabase_key_edit.text() == "saved-key"
-
-
-def test_supabase_test_result_is_shown_in_the_status_label(qapp, app_context):
-    dialog = SettingsDialog(app_context)
-    dialog._on_supabase_test_finished(False, "❌ View 'review_stats' không tồn tại")
-    assert "review_stats" in dialog.supabase_test_status_label.text()
-    assert "crimson" in dialog.supabase_test_status_label.styleSheet()
-
-
 def test_cover_test_result_is_shown_in_the_status_label(qapp, app_context):
     dialog = SettingsDialog(app_context)
     dialog._on_cover_test_finished(True, "✅ Kết nối thành công!")
@@ -469,18 +437,6 @@ def test_saving_source_choices_updates_disabled_cover_sources(qapp, app_context)
     assert sorted(app_context.config.config.disabled_cover_sources) == ["Apple Books", "Google Images"]
 
 
-def test_the_copy_sql_button_copies_every_upgrade_step_in_order(qapp, app_context):
-    """S2-04: one paste brings a project from 1.0.0 to 1.1.0 (identity, moderation, error reports)."""
-    from PySide6.QtWidgets import QApplication
-
-    dialog = SettingsDialog(app_context)
-    dialog.copy_upgrade_sql_button.click()
-    sql = QApplication.clipboard().text()
-    assert sql.index("001_reviewer_identity.sql") < sql.index("002_review_moderation.sql") < sql.index("003_error_reports.sql")
-    assert "report_review" in sql and "submit_error_report" in sql
-    assert "kiểm duyệt" in dialog.copy_upgrade_sql_button.toolTip()
-
-
 # --- Cài đặt -> Quản lý file: format chips in a wrapping row; the folder box sized to its content ---
 
 
@@ -555,3 +511,27 @@ def test_a_full_folder_box_does_not_push_the_other_settings_off_the_window(qapp,
     # 40 folders may add at most four more rows over the one-folder layout, never 40 rows.
     row = many.folder_list.sizeHintForRow(0)
     assert many.sizeHint().height() - few.sizeHint().height() <= row * 5
+
+
+# --- the community-review tab is gone; what was saved stays ---
+
+
+def test_settings_have_no_community_review_tab(qapp, app_context):
+    from PySide6.QtWidgets import QTabWidget
+
+    dialog = SettingsDialog(app_context)
+    tabs = dialog.findChild(QTabWidget)
+    names = [tabs.tabText(i) for i in range(tabs.count())]
+    assert not any("Đánh giá cộng đồng" in name for name in names), names
+    assert not hasattr(dialog, "supabase_url_edit") and not hasattr(dialog, "copy_upgrade_sql_button")
+
+
+def test_saving_settings_keeps_an_existing_community_review_connection(qapp, app_context):
+    app_context.config.config.supabase_url = "https://saved.supabase.co"
+    app_context.config.config.supabase_anon_key = "saved-key"
+
+    dialog = SettingsDialog(app_context)
+    dialog._on_save()
+
+    assert app_context.config.config.supabase_url == "https://saved.supabase.co"
+    assert app_context.config.config.supabase_anon_key == "saved-key"

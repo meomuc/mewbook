@@ -33,6 +33,7 @@ INTERNAL_TERMS = {
     r"\btrường\b": "thông tin",
     r"\bmodel\b": "mẫu AI",
     r"\bcx\b": "Search Engine ID",
+    r"train\.py|ollama pull|\.sql\b|\bSQL\b|settings\.json|%APPDATA%|docs/|\.md\b|\bcmd\b": "một mô tả bằng lời (không đưa lệnh, tên file, đường dẫn)",
 }
 
 
@@ -108,6 +109,7 @@ def test_the_metadata_dialog_uses_plain_words(qapp, app_context):
         "src/smartdoc/presentation/main_window.py",
         "src/smartdoc/presentation/toolbar.py",
         "src/smartdoc/presentation/metadata_suggest_dialog.py",
+        "src/smartdoc/app.py",
     ],
 )
 def test_message_boxes_avoid_internal_terms(source):
@@ -140,3 +142,16 @@ def test_the_author_is_called_the_author_not_a_developer():
     banned = re.compile(r"phát triển bởi|nhà phát triển|\bDev:", re.IGNORECASE)
     hits = [f"{path.name}: {m.group(0)}" for path in sources for m in banned.finditer(path.read_text(encoding="utf-8"))]
     assert hits == []
+
+
+def test_no_settings_tab_shows_commands_file_names_or_code(qapp, app_context):
+    """Every tab of Settings (except the ones for the people who run their own server, which is gone): no command
+    lines, script or file names, folder paths of the program or SQL, only descriptions in words."""
+    dialog = SettingsDialog(app_context)
+    tabs = dialog.extension_flow.window().findChild(QTabWidget)
+    code = re.compile(r"train\.py|ollama pull|\.sql\b|\bSQL\b|settings\.json|%APPDATA%|docs/|\.md\b|\bcmd\b|<pre>", re.IGNORECASE)
+    for i in range(tabs.count()):
+        tab = tabs.widget(i)
+        for text in _texts(tab):
+            assert not code.search(text), (tabs.tabText(i), text[:100])
+    assert not any("Đánh giá cộng đồng" in tabs.tabText(i) for i in range(tabs.count()))

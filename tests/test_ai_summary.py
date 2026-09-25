@@ -353,7 +353,8 @@ def test_guide_addresses_become_links_and_ollama_lists_its_command():
     from smartdoc.application.ai_summary import provider_guide_html, provider_guide_text
 
     assert "<a href='https://aistudio.google.com/apikey'>aistudio.google.com/apikey</a>" in provider_guide_html("gemini")
-    assert "ollama pull qwen2.5" in provider_guide_html("ollama")
+    ollama = provider_guide_html("ollama")
+    assert "qwen2.5" in ollama and "ollama pull" not in ollama  # described, not dictated as a command
     assert provider_guide_html(None) == "" and provider_guide_text("nope") == ""
 
 

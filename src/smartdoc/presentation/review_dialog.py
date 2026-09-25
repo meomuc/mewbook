@@ -263,7 +263,7 @@ class ReviewDialog(QDialog):
 
     def _load_reviews_async(self) -> None:
         if not self._configured:
-            self.status_label.setText("Chưa cấu hình đánh giá cộng đồng (thiếu Supabase URL/key).")
+            self.status_label.setText("Đánh giá cộng đồng chưa được bật trong bản này.")
             return
 
         def worker() -> None:

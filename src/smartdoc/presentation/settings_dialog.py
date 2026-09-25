@@ -60,7 +60,6 @@ from smartdoc.application.ai_summary import (
     provider_requires_key,
     test_connection,
 )
-from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync, upgrade_sql
 from smartdoc.application.cover_search import (
     SOURCE_APPLE_BOOKS,
     SOURCE_GOOGLE_BOOKS,
@@ -125,68 +124,9 @@ vì đó là chữ trên trang của Google.</p>
 """
 
 
-_CLOUD_REVIEW_SETUP_GUIDE = """
-<b>Hướng dẫn thiết lập Supabase cho đánh giá cộng đồng (miễn phí, ~5 phút)</b>
-
-<p><b>Phần 1 — Tạo project và bảng đánh giá:</b></p>
-<ol>
-<li>Mở <a href="https://supabase.com/dashboard">supabase.com/dashboard</a>, đăng nhập và bấm <b>"New project"</b> (chọn gói Free).</li>
-<li>Vào mục <b>SQL Editor</b> ở menu bên trái → bấm <b>"New query"</b>, dán đoạn sau rồi bấm <b>Run</b>:</li>
-</ol>
-<pre>create table reviews (
-  id bigint generated always as identity primary key,
-  doc_id text not null,
-  nickname text not null default 'Ẩn danh',
-  rating int2 not null check (rating between 1 and 5),
-  comment text not null default '',
-  created_at timestamptz not null default now()
-);
-
-alter table reviews enable row level security;
-create policy "Allow public read" on reviews for select using (true);
-create policy "Allow public insert" on reviews for insert with check (true);</pre>
-
-<p><b>Phần 2 — Tạo view cho sắp xếp "Được đánh giá cao nhất":</b><br/>
-Bước này <b>bắt buộc</b> nếu bạn muốn dùng sắp xếp theo điểm đánh giá. Thiếu nó, ứng dụng sẽ báo lỗi
-<i>"Could not find the table 'public.review_stats'"</i>. Vẫn trong SQL Editor, chạy tiếp:</p>
-<pre>create view review_stats as
-  select doc_id, avg(rating)::float8 as avg_rating, count(*) as review_count
-  from reviews
-  group by doc_id;
-
-grant select on review_stats to anon, authenticated;</pre>
-
-<p><b>Phần 2b — Định danh, kiểm duyệt và giới hạn (nâng cấp máy chủ):</b><br/>
-Bấm nút <b>"📋 Sao chép SQL nâng cấp"</b> ở trên, dán vào SQL Editor và bấm <b>Run</b>. Nút này sao chép
-<b>tất cả các bước theo thứ tự</b>, mỗi bước chạy lại nhiều lần đều an toàn và không ghi đè giá trị bạn đã chỉnh:</p>
-<ul>
-<li><b>001</b> (bắt buộc từ 1.0.0): bảng <i>reviewers</i> (mỗi nick name thuộc về một người dùng), cột <i>user_hash</i> và hàm
-<i>submit_review</i> -- mọi bài đánh giá được gửi qua hàm này để chống giả mạo; quyền ghi trực tiếp của Phần 1 bị thu hồi.</li>
-<li><b>002</b> (từ 1.1.0): kiểm duyệt và giới hạn. Người dùng báo cáo được bài đánh giá xấu (đủ 3 người báo cáo thì bài tự ẩn),
-bạn ẩn/hiện/chặn bằng SQL, có công tắc tạm ngừng đánh giá, thông báo chung và giới hạn tần suất. Bản 1.0.0 vẫn dùng được nhưng
-không còn thấy các bài đã ẩn. Hướng dẫn thao tác: <i>docs/MODERATION_RUNBOOK.md</i>.</li>
-<li><b>003</b> (từ 1.1.0): nhận báo cáo lỗi ẩn danh của người dùng và hai vai trò hẹp cho tác tử phân loại. Chỉ cần nếu bạn
-tự vận hành cả việc nhận báo cáo lỗi: <i>docs/ERROR_OPS_RUNBOOK.md</i>.</li>
-</ul>
-
-<p><b>Phần 3 — Lấy URL và key:</b></p>
-<ol>
-<li>Vào <b>Project Settings</b> (biểu tượng bánh răng) → <b>API Keys</b>.</li>
-<li>Sao chép <b>Project URL</b> (dạng <i>https://xxxxx.supabase.co</i>) → dán vào ô <b>Supabase URL</b> ở trên.</li>
-<li>Sao chép key <b>"anon" / "public"</b> → dán vào ô <b>Anon key</b> ở trên.
-<br/><b>Lưu ý:</b> tuyệt đối không dùng key <i>"service_role"</i> — key đó bỏ qua mọi lớp bảo vệ của database.
-Key "anon" được thiết kế để nhúng công khai trong ứng dụng, quyền truy cập do các chính sách RLS ở Phần 1 kiểm soát.</li>
-</ol>
-
-<p><b>Phần 4 — Kiểm tra:</b> bấm <b>"🔌 Kiểm tra kết nối"</b> ở trên. Nút này kiểm tra riêng bảng
-<i>reviews</i>, view <i>review_stats</i> và bảng <i>reviewers</i>, nên nếu thiếu bước nào thông báo sẽ chỉ rõ đúng bước đó.</p>
-"""
-
-
 class SettingsDialog(QDialog):
     connection_test_finished = Signal(bool, str)  # (success, message)
     cover_test_finished = Signal(bool, str)  # (success, message)
-    supabase_test_finished = Signal(bool, str)  # (success, message)
 
     FOLDER_LIST_MAX_ROWS = 5  # the watched-folders box grows up to this many rows, then scrolls
 
@@ -209,7 +149,6 @@ class SettingsDialog(QDialog):
         tabs.addTab(self._build_smart_classify_tab(config), "✨ Phân loại")
         tabs.addTab(self._build_ai_tab(config), "🤖 AI Tóm tắt")
         tabs.addTab(self._build_cover_search_tab(config), "🖼️ Ảnh bìa")
-        tabs.addTab(self._build_cloud_review_tab(config), "☁️ Đánh giá cộng đồng")
         self.backup_panel = BackupPanel(context, self)
         tabs.addTab(self.backup_panel, "💾 Sao lưu")
         self.update_panel = UpdatePanel(context, self)
@@ -223,7 +162,6 @@ class SettingsDialog(QDialog):
 
         self.connection_test_finished.connect(self._on_connection_test_finished)
         self.cover_test_finished.connect(self._on_cover_test_finished)
-        self.supabase_test_finished.connect(self._on_supabase_test_finished)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
         buttons.accepted.connect(self._on_save)
@@ -495,7 +433,7 @@ class SettingsDialog(QDialog):
 
         note = QLabel(
             "Việc phân loại chạy nền ở mức ưu tiên thấp và chỉ bắt đầu khi bạn yêu cầu, nên không làm chậm ứng dụng. "
-            "Mô hình được huấn luyện riêng bằng train.py (xem README), không huấn luyện trong ứng dụng.",
+            "Mô hình được huấn luyện riêng bằng công cụ đi kèm mã nguồn (xem hướng dẫn của dự án), không huấn luyện trong ứng dụng.",
             tab,
         )
         note.setWordWrap(True)
@@ -506,7 +444,7 @@ class SettingsDialog(QDialog):
     def _smart_classify_model_text(self) -> str:
         path = resolve_model_path(self.context.config.app_data_dir)
         if path is None:
-            return "Chưa có mô hình phân loại. Chạy train.py để tạo mô hình từ thư viện của bạn."
+            return "Chưa có mô hình phân loại. Hãy tạo mô hình từ thư viện của bạn bằng công cụ huấn luyện (xem hướng dẫn của dự án)."
         meta = read_model_meta(path) or {}
         trained_at = str(meta.get("trained_at", ""))[:10]
         docs = meta.get("trained_docs")
@@ -699,106 +637,6 @@ class SettingsDialog(QDialog):
         layout.addWidget(guide_scroll, stretch=1)
 
         return tab
-
-    def _build_cloud_review_tab(self, config) -> QWidget:
-        """Supabase setup for the community review feature. Previously the
-        only way to configure this was to hand-edit settings.json -- the
-        status bar would just say "Chưa cấu hình" with nowhere in the app
-        to actually fix it."""
-        tab = QWidget(self)
-        layout = QVBoxLayout(tab)
-
-        note = QLabel(
-            "Đánh giá cộng đồng (tùy chọn) -- cho phép bạn xem và gửi đánh giá sao/nhận xét "
-            "dùng chung với người khác, qua Supabase. Chỉ tên sách, tác giả, điểm và nội dung "
-            "đánh giá được đồng bộ; file tài liệu luôn nằm 100% trên máy bạn.",
-            tab,
-        )
-        note.setWordWrap(True)
-        layout.addWidget(note)
-
-        form = QFormLayout()
-        self.supabase_url_edit = QLineEdit(config.supabase_url or "", tab)
-        self.supabase_url_edit.setPlaceholderText("https://xxxxx.supabase.co")
-        form.addRow("Supabase URL:", self.supabase_url_edit)
-
-        self.supabase_key_edit = QLineEdit(config.supabase_anon_key or "", tab)
-        self.supabase_key_edit.setEchoMode(QLineEdit.Password)
-        self.supabase_key_edit.setPlaceholderText("Dán anon / public key vào đây...")
-        show_button = QToolButton(tab)
-        show_button.setText("👁")
-        show_button.setCheckable(True)
-        show_button.setToolTip("Hiện/ẩn key")
-        show_button.toggled.connect(
-            lambda checked: self.supabase_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
-        )
-        key_row = QHBoxLayout()
-        key_row.addWidget(self.supabase_key_edit)
-        key_row.addWidget(show_button)
-        form.addRow("Anon key:", key_row)
-        layout.addLayout(form)
-
-        test_row = QHBoxLayout()
-        self.supabase_test_button = QPushButton("🔌 Kiểm tra kết nối", tab)
-        self.supabase_test_button.clicked.connect(self._on_test_supabase_connection)
-        test_row.addWidget(self.supabase_test_button)
-        self.copy_upgrade_sql_button = QPushButton("📋 Sao chép SQL nâng cấp", tab)
-        self.copy_upgrade_sql_button.setToolTip(
-            "Sao chép toàn bộ SQL nâng cấp máy chủ (Phần 2b: định danh, kiểm duyệt, báo cáo lỗi) vào clipboard. "
-            "Chạy lại nhiều lần cũng an toàn."
-        )
-        self.copy_upgrade_sql_button.clicked.connect(self._on_copy_upgrade_sql)
-        test_row.addWidget(self.copy_upgrade_sql_button)
-        test_row.addStretch(1)
-        layout.addLayout(test_row)
-
-        self.supabase_test_status_label = QLabel(tab)
-        self.supabase_test_status_label.setWordWrap(True)
-        layout.addWidget(self.supabase_test_status_label)
-
-        guide = QLabel(_CLOUD_REVIEW_SETUP_GUIDE, tab)
-        guide.setWordWrap(True)
-        guide.setTextFormat(Qt.RichText)
-        guide.setOpenExternalLinks(True)
-        guide.setTextInteractionFlags(Qt.TextBrowserInteraction)  # so the SQL can be selected/copied
-        guide.setStyleSheet("color: palette(mid);")
-        guide_scroll = QScrollArea(tab)
-        guide_scroll.setWidgetResizable(True)
-        guide_scroll.setWidget(guide)
-        guide_scroll.setMinimumHeight(180)
-        layout.addWidget(guide_scroll, stretch=1)
-
-        return tab
-
-    def _on_test_supabase_connection(self) -> None:
-        url = self.supabase_url_edit.text().strip()
-        key = self.supabase_key_edit.text().strip()
-
-        self.supabase_test_button.setEnabled(False)
-        self.supabase_test_button.setText("Đang kiểm tra...")
-        self.supabase_test_status_label.setText("Đang kết nối tới Supabase, vui lòng đợi...")
-
-        def worker() -> None:
-            try:
-                summary = SupabaseReviewSync(url, key).test_connection()
-                self.supabase_test_finished.emit(True, f"✅ Kết nối thành công! {summary}")
-            except CloudReviewError as exc:
-                self.supabase_test_finished.emit(False, f"❌ {exc}")
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _on_copy_upgrade_sql(self) -> None:
-        QApplication.clipboard().setText(upgrade_sql())
-        self.supabase_test_status_label.setText(
-            "📋 Đã sao chép SQL nâng cấp -- dán vào Supabase SQL Editor và bấm Run."
-        )
-        self.supabase_test_status_label.setStyleSheet("")
-
-    def _on_supabase_test_finished(self, success: bool, message: str) -> None:
-        self.supabase_test_button.setEnabled(True)
-        self.supabase_test_button.setText("🔌 Kiểm tra kết nối")
-        self.supabase_test_status_label.setText(message)
-        self.supabase_test_status_label.setStyleSheet(f"color: {'green' if success else 'crimson'};")
 
     def _update_ai_provider_guide(self) -> None:
         provider_id = self.ai_provider_combo.currentData()
@@ -1007,8 +845,7 @@ class SettingsDialog(QDialog):
             name for name, box in self._cover_source_checkboxes.items() if not box.isChecked()
         ]
 
-        config.supabase_url = self.supabase_url_edit.text().strip().rstrip("/") or None
-        config.supabase_anon_key = self.supabase_key_edit.text().strip() or None
+        # The community-review connection has no settings tab any more: whatever is already saved is left as it is.
 
         self.context.config.save()
 

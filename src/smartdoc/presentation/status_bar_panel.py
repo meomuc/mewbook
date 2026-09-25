@@ -445,9 +445,9 @@ class StatusBarPanel(QStatusBar):
         config = self.context.config.config
         cloud_ok = bool(config.supabase_url and config.supabase_anon_key)
         if cloud_ok:
-            self.cloud_label.set_state(STATE_OK, "Đánh giá cộng đồng: đã thiết lập, bạn có thể xem và viết đánh giá")
+            self.cloud_label.set_state(STATE_OK, "Đánh giá cộng đồng: đang bật, bạn có thể xem và viết đánh giá")
         else:
-            self.cloud_label.set_state(STATE_OFF, "Đánh giá cộng đồng: chưa thiết lập (vào Cài đặt để bật)")
+            self.cloud_label.set_state(STATE_OFF, "Đánh giá cộng đồng: chưa được bật trong bản này")
 
         self._refresh_ai()
         self._refresh_network()
