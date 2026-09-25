@@ -1,7 +1,7 @@
 # MewBook roadmap (public)
 
 The landing page's "Sắp tới Mèo sẽ làm" list is generated from this file by
-`landing-mewbook/scripts/update-content.js` on every release build. One item per line:
+`website/scripts/update-content.js` on every release build. One item per line:
 
     - [status] Title | short description | when
 

@@ -1,7 +1,7 @@
 # MewBook known issues (public)
 
 The landing page's "Lỗi & tình trạng xử lý" table is generated from this file (open issues) and from the
-`### Fixed` sections of `CHANGELOG.md` (fixed ones) by `landing-mewbook/scripts/update-content.js`.
+`### Fixed` sections of `CHANGELOG.md` (fixed ones) by `website/scripts/update-content.js`.
 Delete a line here once the fix is released; it then appears in the table as "Đã sửa". One issue per line:
 
     - [status] Description | priority

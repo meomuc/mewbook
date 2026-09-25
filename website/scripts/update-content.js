@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * Refreshes landing-mewbook/content.json (versions, roadmap, bugs) from the project's own sources of truth.
+ * Refreshes website/content.json (versions, roadmap, bugs) from the project's own sources of truth.
  * packaging/build.ps1 -Release runs it after a release build, so the site follows every release.
  *
  *   versions  <- CHANGELOG.md (released sections) + __version__ in src/smartdoc/__init__.py; the download link
