@@ -24,26 +24,22 @@ from smartdoc.presentation.error_report_dialog import ErrorReportPrompt
 from smartdoc.presentation.eula_dialog import EulaDialog
 from smartdoc.presentation.main_window import MainWindow
 from smartdoc.presentation.resources import app_icon_path
-from smartdoc.presentation.theme import app_stylesheet, apply_theme, theme_font
+from smartdoc.presentation.theme import apply_theme, theme_font
+from smartdoc.presentation.theme_manager import theme_manager
 
 
 def _apply_appearance(app: QApplication, context: AppContext) -> None:
     colors = apply_theme(app, context.config.config.theme)
+    manager = theme_manager()
+    manager.apply(app, context.config.config.theme)  # palette + base stylesheet + fonts; also re-run on a theme switch
     font_family = context.config.config.font_family
-    if font_family:
-        font = QFont(font_family)
-    else:
-        # Default to the theme's own typeface (serif for most, monospace
-        # for Retro-Tech, light sans for Japandi -- see
-        # ThemeColors.font_families) rather than the bare OS default, while
-        # leaving the user's own override in Settings completely intact.
+    # The design's own typeface (Be Vietnam Pro) unless the user picked one in Settings; the legacy per-theme font
+    # stack (theme_font) is only the fallback if the bundled font failed to load.
+    font = QFont(font_family or manager.font_family("ui"))
+    if not font_family and font.family() != manager.font_family("ui"):
         font = theme_font(colors)
     font.setPointSize(context.config.config.font_size)
     app.setFont(font)
-    # Button/tooltip look for themes that restyle them; empty (Qt's own
-    # look) for the original themes. Always set, so switching back from
-    # such a theme clears it.
-    app.setStyleSheet(app_stylesheet(colors))
 
 
 logger = logging.getLogger(__name__)

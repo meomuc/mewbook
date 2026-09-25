@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 1: colours and typefaces.** All seven themes now come from one token file and one
+  stylesheet template (`presentation/theme_manager.py`), so buttons, inputs, menus and scroll bars share the same
+  sizes and colours, and switching theme restyles the app at once without a restart. MewBook ships Be Vietnam Pro,
+  Lora and Montserrat (free SIL OFL fonts) so it looks the same on every computer.
 - **The official website, https://meomuc.github.io/, is one click away.** Help → "Trang web chính thức", Help → About
   ("Trang web chính thức: …") and Settings → Cập nhật ("🌐 Trang web chính thức") open it in the browser, and the installer
   lists it as the publisher, support and updates address. Opening it is always your click; MewBook sends nothing.

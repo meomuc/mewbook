@@ -18,6 +18,7 @@ audit, with the reasoning and the open questions, is in
 | PyMuPDF | 1.28.2 | **AGPL-3.0** or Artifex commercial license (MewBook uses the AGPL option) |
 | mobi | 0.4.1 | **GPL-3.0-only** |
 | Pillow | 12.3.0 | MIT-CMU (HPND) |
+| Fonts: Be Vietnam Pro, Lora, Montserrat, Playfair Display, Oswald (bundled in `presentation/assets/fonts`, licence texts beside them) | google/fonts | SIL OFL 1.1 |
 | watchdog | 6.0.0 | Apache-2.0 |
 | requests | 2.34.2 | Apache-2.0 |
 | urllib3 | 2.8.0 | MIT |

@@ -58,7 +58,7 @@ Giấy phép trong bảng này ghi theo hiểu biết chung, **chưa** đối ch
 
 ## 3. Tài nguyên đóng gói
 
-Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (không có font nào được đóng gói):
+Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (từ giao diện "Kệ sách" có 5 phông OFL được đóng gói, xem hàng cuối):
 
 | Tài nguyên | Đường dẫn | Nguồn gốc/giấy phép | Trạng thái |
 |---|---|---|---|
@@ -69,6 +69,7 @@ Theo `packaging/MewBook.spec`, các tài nguyên sau được đóng gói (khôn
 | Ảnh linh vật (7 vai trò) | `presentation/assets/brand/*.png` | Sinh từ `Sample theme/cat/` bằng `tools/prepare_brand_assets.py`; chủ dự án xác nhận `logo.png` là logo chính thức (2026-09-24) | Nguồn gốc/điều khoản công cụ tạo ảnh vẫn cần chốt (O12) trước khi công khai kho mã |
 | Logo thương hiệu | `presentation/assets/brand_logo.png` | Ảnh mèo do chủ dự án cung cấp; dấu hiệu do công cụ tạo ảnh AI tạo ra (theo `08` mục 8) | **Chưa xác nhận điều khoản công cụ tạo ảnh (O12)**; giấy phép tranh: O11 |
 | Mã QR ủng hộ | `presentation/assets/donate_qr.png` (chỉ đóng gói nếu file tồn tại) | Mã ngân hàng cá nhân của tác giả | **Hiện không có trong repo.** Quyết định của chủ dự án có đưa vào kho công khai không |
+| Phông chữ (Be Vietnam Pro, Lora, Montserrat, Playfair Display, Oswald) | `presentation/assets/fonts/*.ttf` (kèm `OFL_*.txt`) | Tải từ github.com/google/fonts (thư mục `ofl/`), SIL Open Font License 1.1 | Được phép nhúng và phát hành cùng ứng dụng; giữ nguyên văn giấy phép cạnh phông, không bán phông riêng lẻ, không dùng tên phông đã đăng ký (Reserved Font Name) cho bản sửa |
 | Ảnh xem trước theme | thư mục `Sample theme/` | Tên `Gemini_Generated_Image_*` (công cụ tạo ảnh AI) | **Không** đóng gói, chưa theo dõi bởi git. Nếu công khai, cần xác nhận O12 |
 
 ## 4. Dịch vụ bên ngoài (không phải phụ thuộc giấy phép, ghi ở đây để đồng bộ với S0-08)

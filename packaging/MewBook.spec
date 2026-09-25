@@ -88,6 +88,9 @@ _datas = [
     ('../src/smartdoc/presentation/assets/brand_logo.png', 'smartdoc/presentation/assets'),
     # The mascot pictures + manifest (presentation/brand.py).
     ('../src/smartdoc/presentation/assets/brand/*', 'smartdoc/presentation/assets/brand'),
+    # "Kệ sách" design: bundled OFL typefaces (+ their licences) and the token/QSS files (presentation/theme_manager.py).
+    ('../src/smartdoc/presentation/assets/fonts/*', 'smartdoc/presentation/assets/fonts'),
+    ('../src/smartdoc/presentation/styles/*', 'smartdoc/presentation/styles'),
     # Supabase upgrade SQL, served by Settings -> "Sao chép SQL nâng cấp".
     ('../src/smartdoc/application/sql/*.sql', 'smartdoc/application/sql'),
     # AGPL-3.0-or-later text and the third-party notices travel with every build.
