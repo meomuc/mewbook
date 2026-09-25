@@ -218,3 +218,52 @@ def test_pending_count_reports_files_queued_or_in_progress(manager, tmp_path):
 
     assert 0 <= manager.pending_count() <= 3  # workers may already have finished some
     assert _wait_until(lambda: manager.pending_count() == 0)  # and it settles back to idle
+
+
+def test_watcher_files_are_reported_as_one_batch_after_a_quiet_moment(tmp_path, app_context, manager, monkeypatch):
+    from smartdoc.application import import_queue
+
+    monkeypatch.setattr(import_queue, "WATCH_BATCH_QUIET_SECONDS", 0.4)
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+    for index in range(3):
+        pdf = tmp_path / f"w{index}.pdf"
+        _make_pdf(pdf, f"Watched {index}", "Author", "content")
+        app_context.event_bus.publish(FileDetectedEvent(file_path=str(pdf)))
+
+    assert _wait_until(lambda: len(batches) == 1, timeout=6.0)
+    time.sleep(0.6)  # no second summary for the same burst
+    assert len(batches) == 1
+    assert (batches[0].success, batches[0].duplicate, batches[0].failed) == (3, 0, 0)
+
+
+def test_a_batch_lists_the_files_that_failed(tmp_path, app_context, manager):
+    bad = tmp_path / "notes.txt"
+    bad.write_text("not a book")
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+
+    manager.add_files([str(bad)])
+    assert _wait_until(lambda: len(batches) == 1)
+    assert batches[0].failed_paths == (str(bad),)
+
+
+def test_stop_button_drops_the_waiting_files_and_reports_what_was_done(tmp_path, app_context):
+    manager = ImportQueueManager(app_context, num_workers=1)  # not started: every file is still waiting
+    batches: list[ImportBatchCompletedEvent] = []
+    progress: list[tuple[int, int]] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+    app_context.event_bus.subscribe(ImportProgressEvent, lambda e: progress.append((e.done, e.total)))
+    paths = []
+    for index in range(3):
+        pdf = tmp_path / f"s{index}.pdf"
+        _make_pdf(pdf, f"S {index}", "Author", "content")
+        paths.append(str(pdf))
+    manager.add_files(paths)
+    assert manager.pending_count() == 3
+
+    assert manager.cancel_pending() == 3
+
+    assert manager.pending_count() == 0
+    assert len(batches) == 1 and (batches[0].success, batches[0].failed) == (0, 0)
+    assert progress[-1] == (0, 0)

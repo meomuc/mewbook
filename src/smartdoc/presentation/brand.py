@@ -52,3 +52,20 @@ def image_path(role: str, device_pixel_ratio: float = 1.0) -> Path | None:
     suffix = "@2x" if device_pixel_ratio > 1.0 else ""
     path = assets_dir() / "brand" / f"{entry['file']}{suffix}.png"
     return path if path.exists() else None
+
+
+def mascot_pixmap(role: str, height: int, device_pixel_ratio: float = 1.0):
+    """The mascot for `role` scaled to `height` px (sharp on high-DPI screens), or None when it is unknown or its
+    file is missing. Imported lazily so this module stays importable without Qt."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPixmap
+
+    path = image_path(role, device_pixel_ratio)
+    if path is None:
+        return None
+    pixmap = QPixmap(str(path))
+    if pixmap.isNull():
+        return None
+    scaled = pixmap.scaledToHeight(int(height * max(1.0, device_pixel_ratio)), Qt.SmoothTransformation)
+    scaled.setDevicePixelRatio(max(1.0, device_pixel_ratio))
+    return scaled

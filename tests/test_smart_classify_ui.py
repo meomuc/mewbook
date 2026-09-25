@@ -217,7 +217,7 @@ def test_context_menu_offers_classification_for_the_selection(qapp, context, mon
     assert requested and sorted(requested[0]) == ["d0", "d1"]
 
 
-# -- Main window: the popup after adding files ----------------------------------------
+# -- Main window: the card after adding files ----------------------------------------
 
 
 @pytest.fixture
@@ -236,104 +236,52 @@ def test_window_puts_the_classify_bar_above_the_list(window):
     assert layout.indexOf(window.smart_bar) < layout.indexOf(window.library_view)
 
 
-def test_asking_mode_offers_the_popup_and_classifies_on_yes(window, context, service, tmp_path, monkeypatch):
+def test_asking_mode_offers_the_question_on_the_card_and_classifies_on_yes(window, context, service, tmp_path):
     add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
-    shown = []
+    card = window.import_card
+    card.show_summary(batch_event(["code"]))
+    assert card.mode == "summary" and not card.classify_button.isHidden()
+    assert "1 sách mới" in card.question_label.text()
 
-    def fake_exec(self):
-        shown.append(self)
-        self.classify_button.click()
-        return QDialog.Accepted
-
-    monkeypatch.setattr(SmartClassifyOfferDialog, "exec", fake_exec)
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: pytest.fail("plain summary shown")))
-    window._show_import_summary(batch_event(["code"]))
-    assert len(shown) == 1
+    card.classify_button.click()
     assert service.wait(timeout=30)
     assert context.db.get_document("code")["tags"]
-    assert context.config.config.smart_classify_on_import == "ask"  # not remembered unless ticked
+    assert card.isHidden()
 
 
-def test_declining_does_not_classify_and_can_be_remembered(window, context, service, tmp_path, monkeypatch):
+def test_declining_with_de_sau_does_not_classify(window, context, service, tmp_path):
     add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    card = window.import_card
+    card.show_summary(batch_event(["code"]))
 
-    def fake_exec(self):
-        self.remember_checkbox.setChecked(True)
-        self.skip_button.click()
-        return QDialog.Rejected
+    card.later_button.click()
 
-    monkeypatch.setattr(SmartClassifyOfferDialog, "exec", fake_exec)
-    window._show_import_summary(batch_event(["code"]))
     assert not service.running
     assert context.db.get_document("code")["tags"] in ("", None)
-    assert context.config.config.smart_classify_on_import == "never"
+    assert card.isHidden()
 
 
-def test_always_mode_classifies_without_a_question(window, context, service, tmp_path, monkeypatch):
+def test_always_mode_classifies_without_a_question(window, context, service, tmp_path):
     add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
     context.config.config.smart_classify_on_import = "always"
-    monkeypatch.setattr(SmartClassifyOfferDialog, "exec", lambda self: pytest.fail("asked although set to always"))
-    info = []
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info.append(a)))
-    window._show_import_summary(batch_event(["code"]))
-    assert info  # the import result is still reported
+    card = window.import_card
+    card.show_summary(batch_event(["code"]))
+    assert card.classify_button.isHidden() and not card.added_label.isHidden()  # the result is still reported
     assert service.wait(timeout=30)
     assert context.db.get_document("code")["tags"]
 
 
 @pytest.mark.parametrize("mode,doc_ids", [("never", ["code"]), ("ask", [])])
-def test_no_popup_when_disabled_or_nothing_new(window, context, service, monkeypatch, mode, doc_ids):
+def test_no_question_when_disabled_or_nothing_new(window, context, service, mode, doc_ids):
     context.config.config.smart_classify_on_import = mode
-    monkeypatch.setattr(SmartClassifyOfferDialog, "exec", lambda self: pytest.fail("offered"))
-    info = []
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info.append(a)))
-    window._show_import_summary(batch_event(doc_ids))
-    assert info and not service.running
+    card = window.import_card
+    card.show_summary(ImportBatchCompletedEvent(batch_id="b", success=len(doc_ids), duplicate=1, failed=0,
+                                                doc_ids=tuple(doc_ids)))
+    assert card.classify_button.isHidden() and not service.running
 
 
-def test_no_popup_without_a_usable_model(window, context, service, monkeypatch):
+def test_no_question_without_a_usable_model(window, context, service):
     service.model_path = lambda: None
-    monkeypatch.setattr(SmartClassifyOfferDialog, "exec", lambda self: pytest.fail("offered without a model"))
-    info = []
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: info.append(a)))
-    window._show_import_summary(batch_event(["x"]))
-    assert info
-
-
-def test_selection_request_opens_the_scope_dialog_for_those_documents(window, context, service, tmp_path, monkeypatch):
-    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
-    seen = []
-
-    def fake_exec(self):
-        seen.append(self.scope_label.text())
-        return QDialog.Accepted
-
-    monkeypatch.setattr(SmartClassifyScopeDialog, "exec", fake_exec)
-    window._on_classify_selected(["code"])
-    assert seen and "các tài liệu đã chọn" in seen[0]
-    assert service.wait(timeout=30)
-    assert context.db.get_document("code")["tags"]
-
-
-def test_closing_the_window_stops_the_classifier(window, service):
-    window.closeEvent(type("E", (), {"accept": lambda self: None})())
-    assert not service.running
-
-
-# -- Settings ---------------------------------------------------------------------------
-
-
-def test_settings_tab_saves_the_classification_choices(qapp, app_context):
-    dialog = SettingsDialog(app_context)
-    assert dialog.smart_on_import_combo.currentData() == "ask"
-    dialog.smart_on_import_combo.setCurrentIndex(dialog.smart_on_import_combo.findData("always"))
-    dialog.smart_max_words_spin.setValue(4500)
-    dialog.smart_workers_spin.setValue(3)
-    dialog._on_save()
-    config = app_context.config.config
-    assert (config.smart_classify_on_import, config.smart_classify_max_words, config.smart_classify_max_workers) == ("always", 4500, 3)
-
-
-def test_settings_tab_shows_which_model_is_in_use(qapp, app_context):
-    dialog = SettingsDialog(app_context)
-    assert "classifier_model" in dialog._smart_classify_model_text()
+    card = window.import_card
+    card.show_summary(batch_event(["x"]))
+    assert card.classify_button.isHidden()

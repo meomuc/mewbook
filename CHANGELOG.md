@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 6: adding books without pop-ups.** While books are added a card at the top of the library
+  shows "Đang thêm sách…", a progress bar, "Đã xong 280 / 450", a rough time left and a **Dừng** button (stopping keeps
+  the books already added). When it is done ONE summary card replaces it: ✓ thêm mới · ○ trùng — bỏ qua · ■ lỗi (with a
+  list of the files), "File gốc vẫn ở nguyên chỗ cũ", and the question "Phân loại N sách mới này?" (Để sau / Phân loại
+  ngay). Dragging files or folders over the window shows a "Thả vào đây để thêm vào thư viện" cover. Books that the
+  watched folders find are grouped: a burst of new files gives one summary after 5 seconds of quiet. Importing from
+  Calibre uses the same card and only reads Calibre's `metadata.db`.
 - **New "Kệ sách" look, step 5: the detail panel.** The cover with a "Bấm để đọc" pill sits beside four actions
   (★ Sẽ đọc, Đổi bìa, Tìm thông tin, Gửi máy đọc); title and author are editable fields (dashed outline and a pen; a
   solid outline with a soft ring while you type) with the link "Còn N tài liệu cùng tác giả"; a read-only table shows

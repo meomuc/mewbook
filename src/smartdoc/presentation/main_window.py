@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
 from smartdoc import APP_DISPLAY_NAME, APP_NAME
 from smartdoc.application.calibre_migrator import CalibreImporter
 from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
-from smartdoc.core.event_bus import ImportBatchCompletedEvent
 from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.about_dialog import AboutDialog
 from smartdoc.presentation.active_filter_bar import ActiveFilterBar
@@ -36,18 +35,18 @@ from smartdoc.presentation.app_toolbar import COMPACT_BELOW, AppToolbar
 from smartdoc.presentation.community import open_community_page, open_website
 from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.dialog_size import fit_window_to_screen
+from smartdoc.presentation.drop_overlay import DropOverlay
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
+from smartdoc.presentation.import_card import ImportStatusCard
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.manual_report_dialog import ManualReportDialog
 from smartdoc.presentation.omnibar import OmnibarSearchBar
-from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.relink_dialog import RelinkDialog
 from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.sidebar import LibrarySidebar
 from smartdoc.presentation.sidebar_shell import SidebarShell
 from smartdoc.presentation.smart_classify_bar import SmartClassifyBar
-from smartdoc.presentation.smart_classify_dialogs import SmartClassifyOfferDialog
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
 from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
@@ -117,6 +116,9 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         main_layout.addWidget(self.app_toolbar)
+        # How adding books is going (progress, then ONE summary) -- a card here, never a pop-up.
+        self.import_card = ImportStatusCard(context, import_manager, self.smart_classifier)
+        main_layout.addWidget(self.import_card)
         self.smart_bar = SmartClassifyBar(context, self.smart_classifier, self.library_view.classification_scope)
         main_layout.addWidget(self.smart_bar)
         # What the list is filtered by, with a one-click way out; hidden when nothing is.
@@ -145,9 +147,7 @@ class MainWindow(QMainWindow):
         status_bar.relink_requested.connect(self._on_open_relink)
         self.setStatusBar(status_bar)
 
-        self._bridge = QtEventBridge(self)
-        self._bridge.event_received.connect(self._on_bridged_event)
-        self._bridge.subscribe(context.event_bus, ImportBatchCompletedEvent)
+        self.drop_overlay = DropOverlay(self)  # not a child of the splitter: it would become a pane of it
 
     def _apply_window_style(self, _key: str = "") -> None:
         tm = theme_manager()
@@ -396,45 +396,15 @@ class MainWindow(QMainWindow):
         importer = CalibreImporter(self.context, self.import_manager)
         try:
             count = importer.import_library(folder)
-        except FileNotFoundError as exc:
-            QMessageBox.warning(self, "Không tìm thấy thư viện Calibre", str(exc))
+        except FileNotFoundError:
+            self.import_card.show_notice("Thư mục này không phải thư viện Calibre (không thấy metadata.db).")
             return
-        QMessageBox.information(
-            self, "Nhập từ Calibre", f"Đã đưa {count} sách vào danh sách chờ thêm vào thư viện. Thư viện Calibre gốc không bị thay đổi."
-        )
+        if count == 0:
+            self.import_card.show_notice("Không tìm thấy sách nào để thêm trong thư viện Calibre này.")
+        # Otherwise the progress card appears by itself; the Calibre library is only read, never changed.
 
     def _on_send_to_ereader(self) -> None:
         self.library_view.send_selected_to_ereader()
-
-    def _on_bridged_event(self, event) -> None:
-        if isinstance(event, ImportBatchCompletedEvent):
-            self._show_import_summary(event)
-
-    def _show_import_summary(self, event: ImportBatchCompletedEvent) -> None:
-        summary = (
-            f"Thêm thành công: {event.success}\n"
-            f"Đã có trong thư viện (bỏ qua): {event.duplicate}\n"
-            f"Thất bại: {event.failed}"
-        )
-        mode = self.context.config.config.smart_classify_on_import
-        new_ids = list(event.doc_ids)
-        can_classify = bool(new_ids) and mode != "never" and self.smart_classifier.availability()[0]
-        if not can_classify or mode == "always":
-            QMessageBox.information(self, "Kết quả thêm file", summary)
-            if can_classify:
-                self.smart_classifier.enqueue(new_ids)
-            return
-
-        # One compact popup carries both the import result and the question,
-        # instead of a summary box followed by a second box.
-        dialog = SmartClassifyOfferDialog(len(new_ids), summary, self)
-        dialog.exec()
-        wants = dialog.wants_classification()
-        if dialog.remember_choice():
-            self.context.config.config.smart_classify_on_import = "always" if wants else "never"
-            self.context.config.save()
-        if wants:
-            self.smart_classifier.enqueue(new_ids)
 
     def _on_classify_selected(self, doc_ids: list) -> None:
         scope = ClassifyScope(doc_ids=tuple(doc_ids), description=f"{len(doc_ids):,} tài liệu đã chọn")
@@ -443,8 +413,14 @@ class MainWindow(QMainWindow):
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+            self.drop_overlay.show_over(self._splitter.geometry())
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        self.drop_overlay.hide()
+        super().dragLeaveEvent(event)
 
     def dropEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
+        self.drop_overlay.hide()
         if not self.import_manager:
             return
         paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]

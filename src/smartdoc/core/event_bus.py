@@ -169,6 +169,8 @@ class ImportBatchCompletedEvent(BaseEvent):
     # Ids of the documents this batch newly added (`success` of them) -- what
     # the "classify these new documents?" offer acts on.
     doc_ids: tuple[str, ...] = ()
+    # The files that could not be imported (`failed` of them), for the "xem danh sách" list on the summary card.
+    failed_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -39,6 +39,9 @@ from smartdoc.infrastructure.pdf_extractor import PdfExtractor
 logger = logging.getLogger(__name__)
 
 _EPUB_LIKE_EXTENSIONS = {"epub", "azw3", "mobi"}
+# Files the folder watcher finds are grouped into one batch until this long passes without a new one, so a
+# copy of 300 books yields one summary ("412 thêm mới") instead of 300 (or none).
+WATCH_BATCH_QUIET_SECONDS = 5.0
 _SENTINEL = None
 
 
@@ -50,6 +53,9 @@ class _BatchProgress:
     duplicate: int = 0
     failed: int = 0
     doc_ids: list[str] = field(default_factory=list)  # the ones that were newly added
+    failed_paths: list[str] = field(default_factory=list)  # the files that could not be imported, for the list
+    # A batch the watcher is still adding files to: it completes only after it is closed (see _close_watch_batch).
+    is_open: bool = False
 
 
 class ImportQueueManager:
@@ -74,11 +80,76 @@ class ImportQueueManager:
         # live file watcher) are never batch-tracked or summarized.
         self._batches: dict[str, _BatchProgress] = {}
         self._batches_lock = threading.Lock()
+        self._watch_batch_id: str | None = None
+        self._watch_timer: threading.Timer | None = None
 
         context.event_bus.subscribe(FileDetectedEvent, self._on_file_detected)
 
     def _on_file_detected(self, event: FileDetectedEvent) -> None:
-        self.add_file(event.file_path)
+        self._add_to_watch_batch(event.file_path)
+
+    def _add_to_watch_batch(self, path: str) -> None:
+        """Files found by the folder watcher share one open batch; it closes (and reports once) after
+        WATCH_BATCH_QUIET_SECONDS without a new file."""
+        with self._batches_lock:
+            batch_id = self._watch_batch_id
+            if batch_id is None or batch_id not in self._batches:
+                batch_id = uuid.uuid4().hex
+                self._batches[batch_id] = _BatchProgress(total=0, is_open=True)
+                self._watch_batch_id = batch_id
+            self._batches[batch_id].total += 1  # counted before it is queued, so it cannot complete early
+            if self._watch_timer is not None:
+                self._watch_timer.cancel()
+            timer = threading.Timer(WATCH_BATCH_QUIET_SECONDS, self._close_watch_batch, args=(batch_id,))
+            timer.daemon = True
+            self._watch_timer = timer
+            timer.start()
+        self.add_file(path, batch_id)
+
+    def _close_watch_batch(self, batch_id: str) -> None:
+        finished: _BatchProgress | None = None
+        with self._batches_lock:
+            batch = self._batches.get(batch_id)
+            if self._watch_batch_id == batch_id:
+                self._watch_batch_id = None
+            if batch is None:
+                return
+            batch.is_open = False
+            if batch.done >= batch.total:
+                finished = self._batches.pop(batch_id)
+        if finished is not None:
+            self._publish_batch(batch_id, finished)
+
+    def cancel_pending(self) -> int:
+        """"Dừng": drops every file still waiting in the queue (the ones being processed right now finish). Books
+        already added stay; batches that become complete report what was done. Returns how many were dropped."""
+        dropped: list[tuple[str, str | None]] = []
+        while True:
+            try:
+                item = self._queue.get_nowait()
+            except queue.Empty:
+                break
+            if item is _SENTINEL:
+                self._queue.put(item)  # a stop request is not ours to swallow
+                break
+            dropped.append(item)
+            self._queue.task_done()
+        with self._progress_lock:
+            self._total = max(self._done, self._total - len(dropped))
+            done, total = self._done, self._total
+        finished: list[tuple[str, _BatchProgress]] = []
+        with self._batches_lock:
+            for _path, batch_id in dropped:
+                batch = self._batches.get(batch_id) if batch_id else None
+                if batch is not None:
+                    batch.total -= 1
+            for batch_id, batch in list(self._batches.items()):
+                if not batch.is_open and batch.done >= batch.total:
+                    finished.append((batch_id, self._batches.pop(batch_id)))
+        for batch_id, batch in finished:
+            self._publish_batch(batch_id, batch)
+        self.context.event_bus.publish(ImportProgressEvent(done=done, total=total))
+        return len(dropped)
 
     def add_file(self, path: str, batch_id: str | None = None) -> None:
         with self._progress_lock:
@@ -158,6 +229,8 @@ class ImportQueueManager:
             self._threads.append(thread)
 
     def stop(self) -> None:
+        if self._watch_timer is not None:
+            self._watch_timer.cancel()
         self._stop_event.set()
         for _ in self._threads:
             self._queue.put(_SENTINEL)
@@ -184,7 +257,7 @@ class ImportQueueManager:
                 self._queue.task_done()
                 self._report_progress()
                 if batch_id is not None:
-                    self._report_batch_outcome(batch_id, outcome, MetadataNormalizer.generate_document_id(path))
+                    self._report_batch_outcome(batch_id, outcome, MetadataNormalizer.generate_document_id(path), path)
 
     def _report_progress(self) -> None:
         with self._progress_lock:
@@ -192,7 +265,7 @@ class ImportQueueManager:
             done, total = self._done, self._total
         self.context.event_bus.publish(ImportProgressEvent(done=done, total=total))
 
-    def _report_batch_outcome(self, batch_id: str, outcome: str, doc_id: str) -> None:
+    def _report_batch_outcome(self, batch_id: str, outcome: str, doc_id: str, path: str = "") -> None:
         finished: _BatchProgress | None = None
         with self._batches_lock:
             batch = self._batches.get(batch_id)
@@ -203,22 +276,27 @@ class ImportQueueManager:
                 batch.duplicate += 1
             elif outcome == "failed":
                 batch.failed += 1
+                batch.failed_paths.append(path)
             else:
                 batch.success += 1
                 batch.doc_ids.append(doc_id)
-            if batch.done >= batch.total:
+            if batch.done >= batch.total and not batch.is_open:
                 finished = batch
                 del self._batches[batch_id]
         if finished is not None:
-            self.context.event_bus.publish(
-                ImportBatchCompletedEvent(
-                    success=finished.success,
-                    duplicate=finished.duplicate,
-                    failed=finished.failed,
-                    batch_id=batch_id,
-                    doc_ids=tuple(finished.doc_ids),
-                )
+            self._publish_batch(batch_id, finished)
+
+    def _publish_batch(self, batch_id: str, batch: _BatchProgress) -> None:
+        self.context.event_bus.publish(
+            ImportBatchCompletedEvent(
+                success=batch.success,
+                duplicate=batch.duplicate,
+                failed=batch.failed,
+                batch_id=batch_id,
+                doc_ids=tuple(batch.doc_ids),
+                failed_paths=tuple(batch.failed_paths),
             )
+        )
 
     def _process_file(self, path: str, batch_id: str | None = None) -> str:
         """Returns "success", "duplicate", or "failed" for batch reporting."""
