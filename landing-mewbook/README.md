@@ -36,3 +36,5 @@ comments ignored) and each picture file, and compares them with what `content.js
 content. Set `"auto": false` on a version to keep its hand-written Vietnamese bullets (CHANGELOG entries are English).
 Donate details go in `content.json` → `donate` (empty ones are hidden). Point the domain (mewbook.*) at wherever
 `dist/` is hosted.
+
+The pictures in `public/assets/gallery/` are the project owner's own work, confirmed on 2026-09-25 as fine to publish. The donate QR stays out of git.
