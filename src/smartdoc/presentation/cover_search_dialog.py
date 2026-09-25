@@ -27,8 +27,8 @@ from PySide6.QtCore import QRect, QRectF, QSize, QStandardPaths, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -39,7 +39,9 @@ from PySide6.QtWidgets import (
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
+    QTabWidget,
     QVBoxLayout,
+    QWidget,
 )
 
 from smartdoc.application.cover_search import (
@@ -53,7 +55,21 @@ from smartdoc.application.cover_search import (
 )
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.cover_manager import CoverCacheManager
+from smartdoc.application.cover_search import (
+    SOURCE_APPLE_BOOKS,
+    SOURCE_GOOGLE_BOOKS,
+    SOURCE_GOOGLE_IMAGES,
+    SOURCE_OPEN_LIBRARY,
+    SOURCE_TIKI,
+)
 from smartdoc.presentation.cover_placeholder import _wrapped_lines
+from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.flow_widget import FlowWidget
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme_manager import theme_manager
+
+_SOURCES = (SOURCE_OPEN_LIBRARY, SOURCE_GOOGLE_BOOKS, SOURCE_APPLE_BOOKS, SOURCE_TIKI, SOURCE_GOOGLE_IMAGES)
+_PREVIEW_SIZE = QSize(96, 132)
 
 _THUMB_SIZE = QSize(112, 150)
 # One fixed-size cell per result: the text under a thumbnail wraps to the
@@ -64,6 +80,7 @@ _CELL_PAD = 6
 _TITLE_MAX_LINES = 3
 _RESULT_ROLE = Qt.UserRole + 1
 _IMAGE_BYTES_ROLE = Qt.UserRole + 2
+_SCORE_ROLE = Qt.UserRole + 4  # the match percentage painted as a badge on the thumbnail
 _CUSTOM_ROLE = Qt.UserRole + 3  # set on the image the user pasted/picked, as opposed to a search result
 
 
@@ -94,6 +111,10 @@ def _result_tooltip(candidate) -> str:
     return "\n".join(parts)
 
 
+def _badge_colour(percent: int) -> str:
+    return "ok" if percent >= 90 else "warn" if percent >= 70 else "ink3"
+
+
 class _ResultDelegate(QStyledItemDelegate):
     """One fixed-size cell per result: the thumbnail, then the title wrapped
     to the cell width (up to three lines, the last elided), then the author
@@ -103,6 +124,21 @@ class _ResultDelegate(QStyledItemDelegate):
 
     def sizeHint(self, option, index) -> QSize:  # noqa: N802 -- Qt override
         return _CELL_SIZE
+
+    @staticmethod
+    def _paint_badge(painter, rect: QRect, percent: int) -> None:
+        painter.save()
+        painter.setRenderHint(painter.RenderHint.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(theme_manager().color(_badge_colour(percent)))
+        painter.drawRoundedRect(rect, 10, 10)
+        painter.setPen(QColor("#ffffff"))
+        font = painter.font()
+        font.setBold(True)
+        font.setPointSizeF(max(font.pointSizeF() - 1.5, 7.0))
+        painter.setFont(font)
+        painter.drawText(rect, Qt.AlignCenter, f"{percent}%")
+        painter.restore()
 
     def paint(self, painter, option, index) -> None:
         opt = QStyleOptionViewItem(option)
@@ -135,6 +171,10 @@ class _ResultDelegate(QStyledItemDelegate):
                 QRectF(pixmap.rect()),
             )
 
+        score = index.data(_SCORE_ROLE)
+        if score:
+            self._paint_badge(painter, QRect(cell.right() - 44, cell.top() + 2, 42, 20), int(score))
+
         role = QPalette.HighlightedText if selected else QPalette.Text
         main_color = opt.palette.color(role)
         muted_color = QColor(main_color)
@@ -157,48 +197,50 @@ class _ResultDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class CoverSearchDialog(QDialog):
+class CoverSearchDialog(DesignDialog):
     search_finished = Signal(list, str)  # (list[(CoverSearchResult, bytes)], error_message)
     url_loaded = Signal(bytes, str, str)  # (image bytes, the pasted url, error_message)
 
     def __init__(self, context, doc: dict, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title=f"Đổi ảnh bìa: {doc.get('title', '')}",
+                         subtitle="Tìm trên mạng, dán đường dẫn ảnh hoặc chọn ảnh từ máy.", icon="image", width=820)
         self.context = context
         self.doc = doc
         self._cover_manager = CoverCacheManager(context)
-
-        self.setWindowTitle(f"Tìm ảnh bìa: {doc.get('title', '')}")
-        self.resize(760, 640)
-        self.setMaximumSize(960, 800)  # a grid of many thumbnails shouldn't be able to balloon the window
+        self.resize(860, 640)
+        self.setMaximumSize(1040, 820)  # a grid of many thumbnails shouldn't be able to balloon the window
+        tm = theme_manager()
 
         self.title_edit = QLineEdit(doc.get("title", "") or "", self)
         self.author_edit = QLineEdit(doc.get("author", "") or "", self)
-        search_button = QPushButton("Tìm kiếm", self)
-        search_button.clicked.connect(self._on_search)
-
+        self.search_button = QPushButton("Tìm kiếm", self)
+        self.search_button.setProperty("role", "primary")
+        self.search_button.clicked.connect(self._on_search)
         form_row = QHBoxLayout()
-        form_row.addWidget(QLabel("Tiêu đề:"))
-        form_row.addWidget(self.title_edit, stretch=1)
-        form_row.addWidget(QLabel("Tác giả:"))
-        form_row.addWidget(self.author_edit, stretch=1)
-        form_row.addWidget(search_button)
+        form_row.addWidget(QLabel("Tiêu đề", self))
+        form_row.addWidget(self.title_edit, 1)
+        form_row.addWidget(QLabel("Tác giả", self))
+        form_row.addWidget(self.author_edit, 1)
+        form_row.addWidget(self.search_button)
 
-        # Not everything is in the catalogs: a cover can also come from an
-        # image link the user pastes, or from a file on this machine.
-        self.url_edit = QLineEdit(self)
-        self.url_edit.setPlaceholderText("Hoặc dán đường dẫn ảnh (https://...) để tải về")
-        self.url_edit.setClearButtonEnabled(True)
-        self.url_edit.returnPressed.connect(self._on_download_url)
-        self.download_button = QPushButton("Tải về", self)
-        self.download_button.clicked.connect(self._on_download_url)
-        self.browse_button = QPushButton("Chọn ảnh từ máy...", self)
-        self.browse_button.clicked.connect(self._on_browse_file)
-
-        custom_row = QHBoxLayout()
-        custom_row.addWidget(self.url_edit, stretch=1)
-        custom_row.addWidget(self.download_button)
-        custom_row.addWidget(self.browse_button)
-
+        # Which sources will be asked: a chip per source; Google Images needs the person's own key and is dimmed
+        # without it (Settings > Ảnh bìa).
+        config = context.config.config
+        disabled = set(config.disabled_cover_sources or ())
+        has_google_key = bool(config.google_image_api_key and config.google_image_search_cx)
+        chips = FlowWidget(self, h_spacing=6, v_spacing=6)
+        self.source_chips: dict[str, QLabel] = {}
+        for source in _SOURCES:
+            locked = source == SOURCE_GOOGLE_IMAGES and not has_google_key
+            on = source not in disabled and not locked
+            chip = QLabel(f"{source} (cần khóa)" if locked else source, self)
+            chip.setToolTip("Cần khóa Google, thêm trong Cài đặt > Ảnh bìa" if locked
+                            else ("Đang bật" if on else "Đã tắt trong Cài đặt > Ảnh bìa"))
+            chip.setStyleSheet(f"border: 1px solid {tm.token('line2')}; border-radius: 11px; padding: 2px 10px;"
+                               f" color: {tm.token('ink') if on else tm.token('ink3')};"
+                               f" background: {tm.token('surface') if on else 'transparent'};")
+            self.source_chips[source] = chip
+        chips.set_widgets(list(self.source_chips.values()))
         self.include_weak_check = QCheckBox(f"Hiện cả kết quả khớp dưới {round(MIN_MATCH_SCORE * 100)}%", self)
         self.include_weak_check.setToolTip(
             "Mặc định chỉ hiện ảnh bìa khớp tiêu đề/tác giả từ "
@@ -206,6 +248,7 @@ class CoverSearchDialog(QDialog):
         )
 
         self.status_label = QLabel("", self)
+        self.status_label.setWordWrap(True)
         self.results_list = QListWidget(self)
         self.results_list.setViewMode(QListWidget.IconMode)
         self.results_list.setIconSize(_THUMB_SIZE)
@@ -215,27 +258,109 @@ class CoverSearchDialog(QDialog):
         self.results_list.setResizeMode(QListWidget.Adjust)
         self.results_list.setMovement(QListWidget.Static)
         self.results_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        search_page = QWidget(self)
+        search_layout = QVBoxLayout(search_page)
+        search_layout.setContentsMargins(0, 10, 0, 0)
+        search_layout.setSpacing(8)
+        search_layout.addLayout(form_row)
+        search_layout.addWidget(chips)
+        search_layout.addWidget(self.include_weak_check)
+        search_layout.addWidget(self.status_label)
+        search_layout.addWidget(self.results_list, 1)
 
-        self.use_button = QPushButton("Dùng ảnh này", self)
+        # Not everything is in the catalogs: a cover can also come from an image link the person pastes, or from a
+        # file on this machine. Either shows up as a selected item at the top of the same list.
+        self.url_edit = QLineEdit(self)
+        self.url_edit.setPlaceholderText("Dán đường dẫn ảnh (https://...) để tải về")
+        self.url_edit.setClearButtonEnabled(True)
+        self.url_edit.returnPressed.connect(self._on_download_url)
+        self.download_button = QPushButton("Tải về", self)
+        self.download_button.clicked.connect(self._on_download_url)
+        link_page = QWidget(self)
+        link_layout = QVBoxLayout(link_page)
+        link_layout.setContentsMargins(0, 14, 0, 0)
+        link_row = QHBoxLayout()
+        link_row.addWidget(self.url_edit, 1)
+        link_row.addWidget(self.download_button)
+        link_layout.addLayout(link_row)
+        link_layout.addStretch(1)
+        self.browse_button = QPushButton("Chọn ảnh từ máy…", self)
+        self.browse_button.setIcon(line_icon("folder", tm.token("ink"), 14))
+        self.browse_button.clicked.connect(self._on_browse_file)
+        file_page = QWidget(self)
+        file_layout = QVBoxLayout(file_page)
+        file_layout.setContentsMargins(0, 14, 0, 0)
+        file_layout.addWidget(self.browse_button, 0, Qt.AlignLeft)
+        file_layout.addWidget(QLabel("Nhận ảnh .jpg, .png, .webp, .bmp, .gif, .tif.", self))
+        file_layout.addStretch(1)
+
+        self.tabs = QTabWidget(self)
+        self.tabs.addTab(search_page, "Tìm trên mạng")
+        self.tabs.addTab(link_page, "Dán đường dẫn")
+        self.tabs.addTab(file_page, "Từ máy")
+
+        # Right column: the current cover -> the picked one, so the change is visible before it is made.
+        self.current_preview = QLabel(self)
+        self.new_preview = QLabel(self)
+        for label in (self.current_preview, self.new_preview):
+            label.setFixedSize(_PREVIEW_SIZE)
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet(f"background: {tm.token('surface2')}; border: 1px solid {tm.token('line')};"
+                                f" border-radius: 4px; color: {tm.token('ink3')};")
+        self.current_preview.setText("Chưa có bìa")
+        self._set_preview(self.current_preview, QPixmap(doc.get("cover_path") or ""))
+        self.new_preview.setText("Chưa chọn")
+        arrow = QLabel(self)
+        arrow.setPixmap(line_icon("chevron_right", tm.token("ink2"), 16).pixmap(16, 16))
+        previews = QHBoxLayout()
+        previews.setSpacing(6)
+        previews.addWidget(self.current_preview)
+        previews.addWidget(arrow)
+        previews.addWidget(self.new_preview)
+        side = QFrame(self)
+        side.setFixedWidth(2 * _PREVIEW_SIZE.width() + 62)
+        side_layout = QVBoxLayout(side)
+        side_layout.setContentsMargins(0, 10, 0, 0)
+        side_layout.addWidget(QLabel("XEM TRƯỚC: hiện tại → mới", self))
+        side_layout.addLayout(previews)
+        side_layout.addWidget(self.add_note_box("File sách không bị sửa. Chỉ ảnh bìa hiển thị trong thư viện đổi.", "ok"))
+        side_layout.addStretch(1)
+
+        content = QHBoxLayout()
+        content.setSpacing(16)
+        content.addWidget(self.tabs, 1)
+        content.addWidget(side)
+        self.body.addLayout(content, 1)
+
+        self.add_footer_button("Hủy", on_click=self.reject)
+        self.use_button = self.add_footer_button("Dùng ảnh này", "primary", on_click=self._on_use_selected)
         self.use_button.setEnabled(False)
-        self.use_button.clicked.connect(self._on_use_selected)
-        self.results_list.itemSelectionChanged.connect(
-            lambda: self.use_button.setEnabled(bool(self.results_list.selectedItems()))
-        )
-
-        layout = QVBoxLayout(self)
-        layout.addLayout(form_row)
-        layout.addWidget(self.include_weak_check)
-        layout.addLayout(custom_row)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.results_list, stretch=1)
-        layout.addWidget(self.use_button)
+        self.results_list.itemSelectionChanged.connect(self._on_selection_changed)
 
         self.search_finished.connect(self._on_search_finished)
         self.url_loaded.connect(self._on_url_loaded)
 
         if self.title_edit.text().strip():
             self._on_search()
+
+    @staticmethod
+    def _set_preview(label: QLabel, pixmap: QPixmap) -> None:
+        if pixmap.isNull():
+            return
+        label.setText("")
+        label.setPixmap(pixmap.scaled(_PREVIEW_SIZE - QSize(4, 4), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+    def _on_selection_changed(self) -> None:
+        items = self.results_list.selectedItems()
+        self.use_button.setEnabled(bool(items))
+        pixmap = QPixmap()
+        if items:
+            pixmap.loadFromData(items[0].data(_IMAGE_BYTES_ROLE))
+        if pixmap.isNull():
+            self.new_preview.setPixmap(QPixmap())
+            self.new_preview.setText("Chưa chọn")
+        else:
+            self._set_preview(self.new_preview, pixmap)
 
     def _on_search(self) -> None:
         title = self.title_edit.text().strip()
@@ -250,7 +375,7 @@ class CoverSearchDialog(QDialog):
         for row in reversed(range(self.results_list.count())):
             if not self.results_list.item(row).data(_CUSTOM_ROLE):
                 self.results_list.takeItem(row)
-        self.use_button.setEnabled(bool(self.results_list.selectedItems()))
+        self._on_selection_changed()
 
         config = self.context.config.config
         min_score = 0.0 if self.include_weak_check.isChecked() else MIN_MATCH_SCORE
@@ -302,6 +427,8 @@ class CoverSearchDialog(QDialog):
             item.setToolTip(_result_tooltip(candidate))
             item.setData(_RESULT_ROLE, candidate)
             item.setData(_IMAGE_BYTES_ROLE, image_bytes)
+            score = getattr(candidate, "score", 0.0)
+            item.setData(_SCORE_ROLE, round(score * 100) if score else 0)
             self.results_list.addItem(item)
 
     def _on_download_url(self) -> None:

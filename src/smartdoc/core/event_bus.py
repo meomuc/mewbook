@@ -185,6 +185,7 @@ class SmartClassifyProgressEvent(BaseEvent):
     unknown: int = 0  # looked at, no confident answer
     failed: int = 0
     phase: str = "running"  # "starting" (worker warming up) | "running"
+    recent: tuple[tuple[str, str], ...] = ()  # the last few books looked at: (title, the tag given, "" = not sure)
 
 
 @dataclass(frozen=True)
@@ -200,6 +201,9 @@ class SmartClassifyFinishedEvent(BaseEvent):
     error: str = ""  # non-empty when the job could not run at all
     seconds: float = 0.0
     by_group: tuple[tuple[str, int], ...] = ()  # (sidebar folder, how many landed in it)
+    tagged_ids: tuple[str, ...] = ()  # the books of this run by outcome, for the "Xem N sách" links of the result page
+    unknown_ids: tuple[str, ...] = ()
+    failed_items: tuple[tuple[str, str], ...] = ()  # (book id, why it could not be read)
 
 
 class EventBus:

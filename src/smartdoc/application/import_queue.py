@@ -34,7 +34,7 @@ from smartdoc.infrastructure.epub_extractor import EpubExtractor
 from smartdoc.infrastructure.file_hash import sha256_file
 from smartdoc.infrastructure.fingerprint import fingerprint_file
 from smartdoc.infrastructure.page_count import count_pages
-from smartdoc.infrastructure.pdf_extractor import PdfExtractor
+from smartdoc.infrastructure.pdf_extractor import DEFAULT_MAX_PAGES, PdfExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -321,7 +321,8 @@ class ImportQueueManager:
             # extract_all opens the PDF once and reuses that handle for
             # metadata + cover + text, instead of parsing the file three
             # separate times (see PdfExtractor.extract_all docstring).
-            raw_metadata, cover_path, extracted_text = self._pdf_extractor.extract_all(path, doc_id)
+            pages = self.context.config.config.content_search_pages or DEFAULT_MAX_PAGES  # Settings > Hiệu năng
+            raw_metadata, cover_path, extracted_text = self._pdf_extractor.extract_all(path, doc_id, max_pages=pages)
         elif extension in _EPUB_LIKE_EXTENSIONS:
             raw_metadata = self._epub_extractor.extract_metadata(path)
             cover_path = self._epub_extractor.extract_cover(path, doc_id)

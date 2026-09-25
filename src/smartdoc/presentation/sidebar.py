@@ -24,6 +24,7 @@ from smartdoc.domain.library_filter import COLLECTIONS, MODE_GO, MODE_TOGGLE, TA
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.infrastructure.database import READING_LIST_ID
 from smartdoc.presentation.collection_dialog import NewCollectionDialog, can_edit_in_dialog
+from smartdoc.presentation.design_dialog import confirm_danger
 from smartdoc.presentation.facet_panel import FacetPanel
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.sidebar_style import SECTION_ITEM_ID, CountRowDelegate, section_label
@@ -255,9 +256,14 @@ class CollectionListPanel(QWidget):
             row = self.context.db.get_collection(collection_id)
             if row is None:
                 return
-            dialog = NewCollectionDialog(self, collection=VirtualCollection.from_row(row))
-            if dialog.exec() == QDialog.Accepted:
-                updated = dialog.build_collection()
+            dialog = NewCollectionDialog(self, collection=VirtualCollection.from_row(row), context=self.context)
+            accepted = dialog.exec() == QDialog.Accepted
+            wants_delete = dialog.delete_requested
+            updated = dialog.build_collection() if accepted else None
+            dialog.deleteLater()
+            if wants_delete:
+                self._delete_collection(collection_id, item.data(_COLLECTION_NAME_ROLE))
+            elif accepted:
                 if updated:
                     self.context.db.save_collection(
                         updated.id, updated.name, updated.to_json(), updated.logic, updated.created_at
@@ -271,15 +277,21 @@ class CollectionListPanel(QWidget):
                 self.context.db.rename_collection(collection_id, new_name)
                 self.reload_collections()
         elif chosen == delete_action:
-            raw_name = item.data(_COLLECTION_NAME_ROLE)
-            confirm = QMessageBox.question(
-                self, "Xóa bộ sưu tập", f"Xóa bộ sưu tập \"{raw_name}\"? (Các tài liệu bên trong không bị xóa.)"
-            )
-            if confirm == QMessageBox.Yes:
-                self.context.db.delete_collection(collection_id)
-                self.context.filters.remove(COLLECTIONS, collection_id)  # no-op unless it was selected
-                self.context.event_bus.publish(LibraryUpdatedEvent())
-                self.reload_collections()
+            self._delete_collection(collection_id, item.data(_COLLECTION_NAME_ROLE))
+
+    def _delete_collection(self, collection_id: str, raw_name: str) -> None:
+        books = self.context.db.count_documents_in_collection(collection_id)
+        if not confirm_danger(
+            self, title=f"Xóa bộ sưu tập “{raw_name}”?", subtitle="Bước xác nhận cuối",
+            message=f"Bộ sưu tập <b>“{raw_name}”</b> sẽ bị xóa. Sách bên trong ({books} sách) vẫn ở lại thư viện.",
+            safe_text="<b>Không bị đụng tới:</b> các sách và file sách trên máy. Chỉ mất cái tên và điều kiện của bộ sưu tập.",
+            ack_text="Tôi hiểu bộ sưu tập sẽ bị xóa", action_text="Xóa bộ sưu tập", cancel_text="Giữ lại",
+        ):
+            return
+        self.context.db.delete_collection(collection_id)
+        self.context.filters.remove(COLLECTIONS, collection_id)  # no-op unless it was selected
+        self.context.event_bus.publish(LibraryUpdatedEvent())
+        self.reload_collections()
 
     def _exec_menu(self, menu: QMenu, position):
         """Thin seam so tests can patch this instead of QMenu.exec, which
@@ -288,10 +300,10 @@ class CollectionListPanel(QWidget):
         return menu.exec(self.collections_list.viewport().mapToGlobal(position))
 
     def _on_add_collection(self) -> None:
-        dialog = NewCollectionDialog(self)
-        if dialog.exec() != QDialog.Accepted:
-            return
-        collection = dialog.build_collection()
+        dialog = NewCollectionDialog(self, context=self.context)
+        accepted = dialog.exec() == QDialog.Accepted
+        collection = dialog.build_collection() if accepted else None
+        dialog.deleteLater()
         if collection is None:
             return
         existing_names = {row["name"].strip().lower() for row in self.context.db.list_collections()}

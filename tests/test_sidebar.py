@@ -220,7 +220,7 @@ def test_delete_collection_via_context_menu(qapp, app_context, monkeypatch):
     collection = _seed_collection(app_context)
     sidebar = LibrarySidebar(app_context)
     monkeypatch.setattr(LibrarySidebar, "_exec_menu", _pick_action_containing("Xóa bộ sưu tập"))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.sidebar.confirm_danger", lambda parent, **kw: True)
 
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 
@@ -357,7 +357,7 @@ def test_deleting_the_selected_collection_drops_it_from_the_filter(qapp, app_con
     sidebar = LibrarySidebar(app_context)
     sidebar._on_collection_clicked(_item(sidebar, 1))
     monkeypatch.setattr(LibrarySidebar, "_exec_menu", _pick_action_containing("Xóa bộ sưu tập"))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.sidebar.confirm_danger", lambda parent, **kw: True)
 
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 

@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 8: smart classification in three steps.** One dialog replaces the strip above the list and
+  the two small questions: (1) pick what to look at ("Phần đang lọc" or the books you selected / "Sách chưa phân loại" /
+  "Tất cả tài liệu", each with its count and a few covers), (2) watch it work (progress, time left, the last three
+  books looked at, "Chạy nền" to close the dialog and keep going, "Dừng"), (3) the result as three cards (tagged / not
+  sure / could not read), each with a link that lists exactly those books, and "Hoàn tác phân loại", which takes back
+  only the hashtags of that run. No database change was needed: the run id was already stored per hashtag.
+- **New "Kệ sách" look, step 7: dialogs in one frame.** Tìm file trùng (groups on the left, a "Giữ" choice per file,
+  "Bỏ N bản kia khỏi thư viện" vs. "Xóa N file khỏi máy…"), Tìm lại file thiếu, Đổi ảnh bìa (three tabs, source chips,
+  a "khớp N%" badge and a current → new preview), Tìm thông tin sách (three steps, a Nguồn column, "Áp dụng N mục"),
+  Dọn tên tác giả (one card per suggestion with an editable target name) and Bộ sưu tập theo luật (several conditions,
+  "khớp tất cả / bất kỳ", a live count of matching books) share one header/footer design. Every dangerous action (deleting
+  files from the disk, removing books from the library, restoring a backup, deleting a collection, merging authors) now
+  asks through the same confirmation: it lists what will happen, says what is *not* touched, and keeps the final button
+  locked until "Tôi hiểu …" is ticked. The backup restore counts the books that would disappear.
 - **New "Kệ sách" look, step 6: adding books without pop-ups.** While books are added a card at the top of the library
   shows "Đang thêm sách…", a progress bar, "Đã xong 280 / 450", a rough time left and a **Dừng** button (stopping keeps
   the books already added). When it is done ONE summary card replaces it: ✓ thêm mới · ○ trùng — bỏ qua · ■ lỗi (with a

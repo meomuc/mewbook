@@ -262,3 +262,14 @@ def test_a_format_that_cannot_be_written_says_the_file_stays_as_it_is(qapp, app_
 
     assert "file sách giữ nguyên" in dialog.write_hint.text()
     assert not dialog.backup_row.isEnabled()
+
+
+def test_the_footer_counts_the_ticked_rows_and_the_steps_follow(qapp, app_context, tmp_path):
+    doc = _doc(app_context, tmp_path / "scan.pdf", "pdf")
+    dialog, _service = _open(qapp, app_context, doc)
+    assert "3. Xem khác biệt" in dialog.step_label.text()
+    ticked = len(dialog.checked_changes())
+    assert dialog.selected_label.text() == f"{ticked} mục được chọn"
+    assert dialog.apply_button.text() == f"Áp dụng {ticked} mục"
+    assert dialog.table.item(0, 4).text() == "Open Library"  # the source column
+    dialog.deleteLater()

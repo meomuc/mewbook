@@ -290,3 +290,16 @@ def test_new_search_keeps_the_image_the_user_added(qapp, app_context, monkeypatc
     )
     assert "mine.png" in dialog.results_list.item(0).text()
     assert dialog.use_button.isEnabled()
+
+
+def test_the_dialog_shows_source_chips_and_a_current_to_new_preview(qapp, app_context, monkeypatch):
+    monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers", lambda *a, **k: [])
+    dialog = CoverSearchDialog(app_context, _doc())
+    deadline = time.time() + 5  # let the (empty) search report back before the dialog goes away
+    while time.time() < deadline and "Đang tìm" in dialog.status_label.text():
+        qapp.processEvents()
+        time.sleep(0.01)
+    assert "Google Images" in dialog.source_chips and "cần khóa" in dialog.source_chips["Google Images"].text()
+    assert dialog.new_preview.text() == "Chưa chọn" and not dialog.use_button.isEnabled()
+    assert [dialog.tabs.tabText(i) for i in range(3)] == ["Tìm trên mạng", "Dán đường dẫn", "Từ máy"]
+    dialog.deleteLater()

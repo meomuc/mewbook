@@ -1,4 +1,5 @@
-"""Metadata suggestions: look a book up, review the differences, apply what you accept.
+"""Tìm thông tin sách (stage G7): look a book up, review the differences, apply what you accept -- in three visible
+steps (Tìm, Chọn kết quả, Xem khác biệt).
 
 Nothing is changed until "Áp dụng" is pressed. The table lists, for the chosen
 candidate, every field whose suggested value differs from the current one --
@@ -22,7 +23,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
-    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -34,13 +34,14 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QVBoxLayout,
     QWidget,
 )
 
 from smartdoc.application.metadata_applier import MetadataApplier, MetadataApplyError
 from smartdoc.application.metadata_lookup import LookupResult, MetadataLookupService
 from smartdoc.application.metadata_writer import MetadataWriter
+from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.theme_manager import theme_manager
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,8 @@ _WRITE_WARNING = (
 )
 _MAX_CELL_CHARS = 90
 
-_COL_CHECK, _COL_FIELD, _COL_CURRENT, _COL_SUGGESTED = range(4)
+_COL_CHECK, _COL_FIELD, _COL_CURRENT, _COL_SUGGESTED, _COL_SOURCE = range(5)
+_STEPS = ((1, "Tìm"), (2, "Chọn kết quả"), (3, "Xem khác biệt"))
 
 
 def is_placeholder(field: str, value, doc: dict) -> bool:
@@ -85,11 +87,12 @@ def _shorten(text: str) -> str:
     return text if len(text) <= _MAX_CELL_CHARS else text[: _MAX_CELL_CHARS - 1].rstrip() + "…"
 
 
-class MetadataSuggestDialog(QDialog):
+class MetadataSuggestDialog(DesignDialog):
     lookup_finished = Signal(int, object, str)  # (search number, LookupResult | None, error message)
 
     def __init__(self, context, doc: dict, parent=None, service=None, applier=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Tìm thông tin sách", subtitle=doc.get("title", "") or "", icon="search",
+                         width=860)
         self.context = context
         self.doc = doc
         self.applied = False  # something was applied or undone: callers refresh
@@ -98,17 +101,19 @@ class MetadataSuggestDialog(QDialog):
         self._candidates: list = []
         self._search_number = 0
 
-        self.setWindowTitle(f"Tìm thông tin sách: {doc.get('title', '')}")
-        self.resize(820, 620)
+        self.resize(880, 660)
+        self.step_label = QLabel(self)
+        self.step_label.setTextFormat(Qt.RichText)
+        self.body.addWidget(self.step_label)
 
         self.title_edit = QLineEdit(doc.get("title", "") or "", self)
         self.author_edit = QLineEdit(doc.get("author", "") or "", self)
         self.search_button = QPushButton("Tìm kiếm", self)
         self.search_button.clicked.connect(lambda: self._start_search(include_internet=False))
         search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("Tiêu đề:"))
+        search_row.addWidget(QLabel("Tiêu đề"))
         search_row.addWidget(self.title_edit, stretch=1)
-        search_row.addWidget(QLabel("Tác giả:"))
+        search_row.addWidget(QLabel("Tác giả"))
         search_row.addWidget(self.author_edit, stretch=1)
         search_row.addWidget(self.search_button)
 
@@ -125,8 +130,8 @@ class MetadataSuggestDialog(QDialog):
         self.candidate_list.setMaximumHeight(150)
         self.candidate_list.currentRowChanged.connect(self._show_candidate)
 
-        self.table = QTableWidget(0, 4, self)
-        self.table.setHorizontalHeaderLabels(["", "Thông tin", "Hiện tại", "Đề xuất"])
+        self.table = QTableWidget(0, 5, self)
+        self.table.setHorizontalHeaderLabels(["", "MỤC", "HIỆN TẠI", "ĐỀ XUẤT", "NGUỒN"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -136,12 +141,17 @@ class MetadataSuggestDialog(QDialog):
         header.setSectionResizeMode(_COL_FIELD, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_CURRENT, QHeaderView.Stretch)
         header.setSectionResizeMode(_COL_SUGGESTED, QHeaderView.Stretch)
+        header.setSectionResizeMode(_COL_SOURCE, QHeaderView.ResizeToContents)
         self.table.itemChanged.connect(lambda _item: self._update_apply_enabled())
 
         self.write_check = QCheckBox("Ghi đè lên file sách gốc", self)
         self.write_hint = QLabel("", self)
         self.write_hint.setWordWrap(True)
-        self.write_hint.setStyleSheet("color: palette(mid);")
+        self.write_hint.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px;")
+        self.locked_note = QLabel("", self)
+        self.locked_note.setWordWrap(True)
+        self.locked_note.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px;")
+        self.locked_note.hide()
         # How many copies of the old file are kept before it is changed. The same number as in Settings.
         self.backup_spin = QSpinBox(self)
         self.backup_spin.setRange(1, 20)
@@ -157,34 +167,37 @@ class MetadataSuggestDialog(QDialog):
         self.write_check.toggled.connect(lambda _checked: self._update_backup_row())
         self._setup_write_option()
 
-        self.apply_button = QPushButton("Áp dụng", self)
-        self.apply_button.setEnabled(False)
-        self.apply_button.clicked.connect(self._on_apply)
-        self.undo_button = QPushButton("Hoàn tác lần cập nhật gần nhất", self)
-        self.undo_button.clicked.connect(self._on_undo)
-        close_button = QPushButton("Đóng", self)
-        close_button.clicked.connect(self.reject)
-        button_row = QHBoxLayout()
-        button_row.addWidget(self.undo_button)
-        button_row.addStretch(1)
-        button_row.addWidget(self.apply_button)
-        button_row.addWidget(close_button)
+        self.body.addLayout(search_row)
+        self.body.addLayout(status_row)
+        self.body.addWidget(QLabel("KẾT QUẢ TÌM ĐƯỢC", self))
+        self.body.addWidget(self.candidate_list)
+        self.body.addWidget(self.table, 1)
+        self.body.addWidget(self.locked_note)
+        self.body.addWidget(self.write_check)
+        self.body.addWidget(self.write_hint)
+        self.body.addWidget(self.backup_row)
 
-        layout = QVBoxLayout(self)
-        layout.addLayout(search_row)
-        layout.addLayout(status_row)
-        layout.addWidget(QLabel("Kết quả tìm được:"))
-        layout.addWidget(self.candidate_list)
-        layout.addWidget(self.table, stretch=1)
-        layout.addWidget(self.write_check)
-        layout.addWidget(self.write_hint)
-        layout.addWidget(self.backup_row)
-        layout.addLayout(button_row)
+        self.undo_button = self.add_footer_link("Hoàn tác lần gần nhất", "refresh", self._on_undo)
+        self.selected_label = self.add_footer_note("0 mục được chọn")
+        self.add_footer_button("Hủy", on_click=self.reject)
+        self.apply_button = self.add_footer_button("Áp dụng", "primary", on_click=self._on_apply)
+        self.apply_button.setEnabled(False)
 
         self.lookup_finished.connect(self._on_lookup_finished)
         self._refresh_undo_button()
+        self._set_step(1)
         if self.title_edit.text().strip():
             self._start_search(include_internet=False)
+
+    def _set_step(self, step: int) -> None:
+        tm = theme_manager()
+        parts = []
+        for number, name in _STEPS:
+            if number == step:
+                parts.append(f"<b style='color:{tm.token('ink')}'>{number}. {name}</b>")
+            else:
+                parts.append(f"<span style='color:{tm.token('ink3')}'>{number}. {name}</span>")
+        self.step_label.setText("  ›  ".join(parts))
 
     # -- the "write into the file" option ---------------------------------------------
 
@@ -221,6 +234,7 @@ class MetadataSuggestDialog(QDialog):
             return
         self._search_number += 1
         number = self._search_number
+        self._set_step(1)
         self.status_label.setText("Đang tìm kiếm..." if not include_internet else "Đang tìm trên internet...")
         self.search_button.setEnabled(False)
         self.internet_button.setEnabled(False)
@@ -268,6 +282,7 @@ class MetadataSuggestDialog(QDialog):
         if result.errors:
             parts.append("Một số nơi tìm chưa trả lời được: " + "; ".join(result.errors))
         self.status_label.setText(" ".join(parts))
+        self._set_step(2 if self._candidates else 1)
         if self._candidates:
             # Start on the best real lookup result; what the file itself says (tier 0) is
             # listed first but is often a leftover ("Microsoft Word - doc1") rather than an answer.
@@ -281,10 +296,17 @@ class MetadataSuggestDialog(QDialog):
     def _show_candidate(self, row: int) -> None:
         self.table.blockSignals(True)
         self.table.setRowCount(0)
+        self.locked_note.hide()
         if 0 <= row < len(self._candidates):
+            self._set_step(3)
             candidate = self._candidates[row]
             doc = self._current_doc()
             locked = self.context.db.locked_fields(self.doc["id"])
+            kept = [FIELD_LABELS[n] for n in _FIELD_ORDER if n in candidate.fields and n in locked]
+            if kept:
+                # A field the person typed by hand is never offered: say so instead of leaving it out silently.
+                self.locked_note.setText("Giữ nguyên vì bạn đã tự sửa: " + ", ".join(kept) + ".")
+                self.locked_note.show()
             for name in _FIELD_ORDER:
                 if name not in candidate.fields or name in locked:
                     continue
@@ -292,14 +314,15 @@ class MetadataSuggestDialog(QDialog):
                 current_text = "" if current is None else str(current)
                 if current_text.strip().casefold() == suggested.strip().casefold():
                     continue  # nothing new
-                self._add_row(name, current_text, suggested, tick=is_placeholder(name, current_text, doc))
+                self._add_row(name, current_text, suggested, tick=is_placeholder(name, current_text, doc),
+                              source=candidate.source)
             if self.table.rowCount() == 0:
                 self.status_label.setText("Kết quả này không có gì mới so với thông tin hiện tại.")
         self.table.blockSignals(False)
         self.table.resizeRowsToContents()
         self._update_apply_enabled()
 
-    def _add_row(self, name: str, current: str, suggested: str, *, tick: bool) -> None:
+    def _add_row(self, name: str, current: str, suggested: str, *, tick: bool, source: str = "") -> None:
         row = self.table.rowCount()
         self.table.insertRow(row)
         check = QTableWidgetItem()
@@ -307,8 +330,9 @@ class MetadataSuggestDialog(QDialog):
         check.setCheckState(Qt.Checked if tick else Qt.Unchecked)
         check.setData(Qt.UserRole, name)
         self.table.setItem(row, _COL_CHECK, check)
-        for column, text in ((_COL_FIELD, FIELD_LABELS[name]), (_COL_CURRENT, current), (_COL_SUGGESTED, suggested)):
-            item = QTableWidgetItem(_shorten(text) if column != _COL_FIELD else text)
+        for column, text in ((_COL_FIELD, FIELD_LABELS[name]), (_COL_CURRENT, current), (_COL_SUGGESTED, suggested),
+                             (_COL_SOURCE, source)):
+            item = QTableWidgetItem(_shorten(text) if column in (_COL_CURRENT, _COL_SUGGESTED) else text)
             item.setFlags(Qt.ItemIsEnabled)
             item.setToolTip(text)
             self.table.setItem(row, column, item)
@@ -323,7 +347,10 @@ class MetadataSuggestDialog(QDialog):
         return changes
 
     def _update_apply_enabled(self) -> None:
-        self.apply_button.setEnabled(bool(self.checked_changes()))
+        count = len(self.checked_changes())
+        self.apply_button.setEnabled(count > 0)
+        self.apply_button.setText(f"Áp dụng {count} mục" if count else "Áp dụng")
+        self.selected_label.setText(f"{count} mục được chọn")
 
     # -- apply / undo -------------------------------------------------------------------
 

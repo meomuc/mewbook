@@ -2,21 +2,18 @@ import time
 
 import pytest
 from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 
 from _smart_helpers import COOKING_WORDS, PROGRAMMING_WORDS, WORKER_SETTINGS, add_book, make_toy_model, thread_executor, write_epub
-from smartdoc.application.smart_classifier import ClassifyScope, ScopePreview, SmartClassifyService
+from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
 from smartdoc.core.event_bus import (
-    FacetFilterChangedEvent,
     ImportBatchCompletedEvent,
     SmartClassifyFinishedEvent,
+    SmartClassifyProgressEvent,
 )
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.main_window import MainWindow
-from smartdoc.presentation.settings_dialog import SettingsDialog
-from smartdoc.presentation.smart_classify_bar import SmartClassifyBar, summarize
-from smartdoc.presentation.smart_classify_dialogs import SmartClassifyOfferDialog, SmartClassifyScopeDialog
+from smartdoc.presentation.smart_classify_wizard import STEP_RESULT, STEP_RUNNING, STEP_SCOPE, SmartClassifyWizard
 
 
 @pytest.fixture
@@ -37,127 +34,167 @@ def finished_event(**kwargs):
     return SmartClassifyFinishedEvent(**{**defaults, **kwargs})
 
 
-# -- Dialogs --------------------------------------------------------------------
+# -- The three-step dialog --------------------------------------------------------
 
 
-def test_offer_dialog_is_one_compact_popup_carrying_the_import_summary(qapp):
-    dialog = SmartClassifyOfferDialog(12, "Thêm thành công: 12")
-    texts = " ".join(label.text() for label in dialog.findChildren(QLabel))
-    assert "Thêm thành công: 12" in texts
-    assert "12" in texts
-    assert not dialog.remember_checkbox.isChecked()
+def _wizard(context, service, scope=None, selected=None):
+    return SmartClassifyWizard(context, service, lambda: scope or ClassifyScope(description="Tất cả tài liệu"),
+                               selected_scope=selected)
 
 
-def test_offer_dialog_reports_the_choice(qapp):
-    dialog = SmartClassifyOfferDialog(3)
-    dialog.remember_checkbox.setChecked(True)
-    dialog.classify_button.click()
-    assert dialog.wants_classification() and dialog.remember_choice()
-
-    skipped = SmartClassifyOfferDialog(3)
-    skipped.skip_button.click()
-    assert not skipped.wants_classification()
-
-
-def test_scope_dialog_shows_counts_and_disables_start_when_nothing_is_pending(qapp):
-    dialog = SmartClassifyScopeDialog(
-        "Bộ sưu tập: A", lambda again: ScopePreview(total=100, pending=100 if again else 60, already_categorised=30, already_looked_at=10)
-    )
-    assert dialog.start_button.isEnabled()
-    assert "60" in dialog.counts_label.text()
-    dialog.reclassify_checkbox.setChecked(True)
-    assert dialog.reclassify()
-    assert "100" in dialog.counts_label.text().split("<br>")[0]
-    assert "Bộ sưu tập: A" in dialog.scope_label.text()
-
-    empty = SmartClassifyScopeDialog("x", lambda again: ScopePreview(total=5, pending=0, already_categorised=5))
-    assert not empty.start_button.isEnabled()
-
-
-def test_scope_dialog_names_its_subject(qapp):
-    dialog = SmartClassifyScopeDialog("2 tài liệu", lambda again: ScopePreview(total=2, pending=2), subject="các tài liệu đã chọn")
-    assert "các tài liệu đã chọn" in dialog.scope_label.text()
-    assert "danh sách đang xem" not in dialog.scope_label.text()
-
-
-# -- The bar above the list -------------------------------------------------------
-
-
-def test_summaries_are_readable_one_liners():
-    assert "80" in summarize(finished_event()) and summarize(finished_event()).startswith("✅")
-    assert summarize(finished_event(cancelled=True)).startswith("⏹")
-    assert "lỗi" in summarize(finished_event(error="lỗi gì đó"))
-    assert "Không có" in summarize(finished_event(total=0, tagged=0, skipped=7))
-    assert "Văn học" in summarize(finished_event(by_group=(("Văn học", 50),)))
-
-
-def test_bar_follows_a_job_from_start_to_finish(qapp, context, service, tmp_path):
-    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
-    bar = SmartClassifyBar(context, service, lambda: ClassifyScope(description="tất cả"))
-    bar.show()
-    assert bar.classify_button.isEnabled() and not bar.progress.isVisible()
-
-    assert bar.start(ClassifyScope(doc_ids=("code",)))
-    assert not bar.classify_button.isEnabled() and bar.stop_button.isVisible()
-    assert service.wait(timeout=30)
-    deadline = time.time() + 5
-    while time.time() < deadline and not bar.undo_button.isVisible():
+def _pump(qapp, predicate, timeout=5.0):
+    deadline = time.time() + timeout
+    while time.time() < deadline and not predicate():
         qapp.processEvents()
         time.sleep(0.02)
-    assert bar.classify_button.isEnabled()
-    assert bar.undo_button.isVisible() and not bar.stop_button.isVisible()
-    assert "✅" in bar.status_label.full_text()
-
-    bar.dismiss_button.click()
-    assert not bar.undo_button.isVisible()
+    qapp.processEvents()
+    return predicate()
 
 
-def test_a_long_result_line_does_not_widen_the_window(qapp, context, service):
-    bar = SmartClassifyBar(context, service, lambda: ClassifyScope())
-    before = bar.minimumSizeHint().width()
-    bar._show_finished(finished_event(by_group=tuple((f"Nhóm rất dài số {i}" * 3, 9) for i in range(3))))
-    assert bar.minimumSizeHint().width() <= before + 200
-    assert "Nhiều nhất" in bar.status_label.full_text()
-    assert bar.status_label.toolTip() == bar.status_label.full_text()
-
-
-def test_bar_undo_takes_the_tags_back(qapp, context, service, tmp_path, monkeypatch):
+def test_step_one_shows_three_cards_with_counts_and_a_start_button(qapp, context, service, tmp_path):
     add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
-    bar = SmartClassifyBar(context, service, lambda: ClassifyScope())
-    bar.show()
-    bar.start(ClassifyScope(doc_ids=("code",)))
-    assert service.wait(timeout=30)
-    deadline = time.time() + 5
-    while time.time() < deadline and not bar.undo_button.isVisible():
-        qapp.processEvents()
-        time.sleep(0.02)
-    assert context.db.get_document("code")["tags"]
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
-    bar.undo_button.click()
-    assert not context.db.get_document("code")["tags"]
+    add_book(context, "food", write_epub(tmp_path / "f.epub", COOKING_WORDS), tags="bếp")
+    wizard = _wizard(context, service)
+
+    assert [o.key for o in wizard.options] == ["filter", "unclassified", "all"]
+    assert wizard.step_bar.step == STEP_SCOPE
+    assert wizard.cards["filter"].count_label.text() == "2 sách"
+    assert wizard.selected_option().key == "filter"
+    assert wizard.start_button.text() == "Bắt đầu với 2 sách" and wizard.start_button.isEnabled()
+    wizard.cards["all"].radio.setChecked(True)
+    assert wizard.selected_option().key == "all" and not wizard.cards["filter"].radio.isChecked()
+    wizard.deleteLater()
 
 
-def test_bar_explains_when_there_is_no_model(qapp, context, service, monkeypatch):
+def test_a_selection_from_the_list_replaces_the_first_card(qapp, context, service, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    selected = ClassifyScope(doc_ids=("code",), description="1 sách đã chọn")
+    wizard = _wizard(context, service, selected=selected)
+    assert wizard.options[0].key == "selected" and wizard.cards["selected"].count_label.text() == "1 sách"
+    wizard.deleteLater()
+
+
+def test_cards_with_nothing_to_do_are_switched_off(qapp, context, service):
+    wizard = _wizard(context, service)
+    assert not wizard.start_button.isEnabled()
+    assert all(not card.radio.isEnabled() for card in wizard.cards.values())
+    wizard.deleteLater()
+
+
+def test_the_dialog_explains_when_there_is_no_model(qapp, context, service, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
     service.model_path = lambda: None
-    shown = []
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda parent, title, text, *a: shown.append(text)))
-    bar = SmartClassifyBar(context, service, lambda: ClassifyScope())
-    bar.classify_button.click()
-    assert shown and "train.py" in shown[0]
+    wizard = _wizard(context, service)
+    assert not wizard.start_button.isEnabled()
+    assert "train.py" in wizard._notice
+    wizard.deleteLater()
 
 
-def test_bar_asks_before_starting_and_respects_cancel(qapp, context, service, tmp_path, monkeypatch):
-    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
-    bar = SmartClassifyBar(context, service, lambda: ClassifyScope(description="tất cả"))
-    monkeypatch.setattr(SmartClassifyScopeDialog, "exec", lambda self: QDialog.Rejected)
-    bar.classify_button.click()
-    assert not service.running
-    assert context.db.get_document("code")["tags"] in ("", None)
+def test_a_run_goes_through_the_steps_and_lists_its_books(qapp, context, service, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS), title="Lập trình Python")
+    wizard = _wizard(context, service)
+    wizard.show()
 
-    monkeypatch.setattr(SmartClassifyScopeDialog, "exec", lambda self: QDialog.Accepted)
-    bar.classify_button.click()
+    wizard.start_button.click()
+    assert wizard.step_bar.step in (STEP_RUNNING, STEP_RESULT)
     assert service.wait(timeout=30)
+    assert _pump(qapp, lambda: wizard.step_bar.step == STEP_RESULT)
+
+    assert wizard.tagged_count.text() == "1" and not wizard.tagged_link.isHidden()
+    assert wizard.tagged_link.text() == "Xem 1 sách"
+    assert wizard.undo_button.isEnabled() and not wizard.done_button.isHidden()
     assert context.db.get_document("code")["tags"]
+    wizard.deleteLater()
+
+
+def test_undo_takes_back_only_this_runs_tags(qapp, context, service, tmp_path, monkeypatch):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    wizard = _wizard(context, service)
+    wizard.show()
+    wizard.start_button.click()
+    assert service.wait(timeout=30)
+    assert _pump(qapp, lambda: wizard.step_bar.step == STEP_RESULT)
+    monkeypatch.setattr(wizard, "_confirm_undo", lambda tagged: True)
+
+    wizard.undo_button.click()
+
+    assert not context.db.get_document("code")["tags"]
+    assert "Đã hoàn tác" in wizard.result_title.text() and not wizard.undo_button.isEnabled()
+    wizard.deleteLater()
+
+
+def test_declining_the_undo_keeps_the_tags(qapp, context, service, tmp_path, monkeypatch):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    wizard = _wizard(context, service)
+    wizard.show()
+    wizard.start_button.click()
+    assert service.wait(timeout=30)
+    assert _pump(qapp, lambda: wizard.step_bar.step == STEP_RESULT)
+    monkeypatch.setattr(wizard, "_confirm_undo", lambda tagged: False)
+    wizard.undo_button.click()
+    assert context.db.get_document("code")["tags"]
+    wizard.deleteLater()
+
+
+def test_the_running_step_shows_progress_and_the_last_three_books(qapp, context, service):
+    wizard = _wizard(context, service)
+    wizard._set_step(STEP_RUNNING)
+    wizard._started_at = time.monotonic() - 30
+    wizard._show_progress(140, 318, "running", (("Tủ rack", "Mạng"), ("Sống chậm", "Kỹ năng"), ("Dự án", "")))
+    assert wizard.progress.maximum() == 318 and wizard.progress.value() == 140
+    assert "140" in wizard.done_label.text() and wizard.eta_label.text().startswith("còn ")
+    assert wizard.recent_labels[0].text().startswith("✓ Tủ rack") and "chưa chắc" in wizard.recent_labels[2].text()
+    assert not wizard.stop_button.isHidden() and not wizard.background_button.isHidden()
+    wizard.deleteLater()
+
+
+def test_running_in_the_background_hides_the_dialog_and_reports_at_the_end(qapp, context, service):
+    wizard = _wizard(context, service)
+    wizard.show()
+    wizard._set_step(STEP_RUNNING)
+    said = []
+    wizard.background_finished.connect(said.append)
+    wizard.background_button.click()
+    assert not wizard.isVisible()
+    wizard._show_result(finished_event(tagged=281, unknown=30, failed=7))
+    assert said and "281" in said[0] and "30" in said[0]
+    wizard.deleteLater()
+
+
+def test_the_result_page_names_errors_and_offers_the_lists(qapp, context, service):
+    context.db.add_or_update_document("bad", {"title": "Hỏng", "author": "A", "file_path": "x.pdf", "created_at": 1.0})
+    wizard = _wizard(context, service)
+    wizard._show_result(finished_event(tagged=0, unknown=0, failed=1, failed_items=(("bad", "worker crashed"),)))
+    assert wizard.failed_count.text() == "1" and wizard.failed_link.text() == "Xem lý do"
+    assert wizard.tagged_link.isHidden() and not wizard.undo_button.isEnabled()
+    wizard.deleteLater()
+
+
+def test_an_error_result_says_so(qapp, context, service):
+    wizard = _wizard(context, service)
+    wizard._show_result(finished_event(total=0, tagged=0, unknown=0, failed=0, error="Chưa có mô hình"))
+    assert wizard.result_title.text() == "Chưa phân loại được" and "Chưa có mô hình" in wizard.result_subtitle.text()
+    wizard.deleteLater()
+
+
+def test_a_finished_event_from_a_job_elsewhere_is_ignored_on_step_one(qapp, context, service):
+    wizard = _wizard(context, service)
+    wizard._on_event(finished_event())
+    assert wizard.step_bar.step == STEP_SCOPE
+    wizard.deleteLater()
+
+
+def test_the_service_reports_recent_books_and_the_ids_of_each_outcome(qapp, context, service, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS), title="Lập trình Python")
+    events = []
+    context.event_bus.subscribe(SmartClassifyProgressEvent, events.append)
+    finished = []
+    context.event_bus.subscribe(SmartClassifyFinishedEvent, finished.append)
+    service.start(ClassifyScope(doc_ids=("code",)))
+    assert service.wait(timeout=30)
+    assert finished[0].tagged_ids == ("code",) and finished[0].unknown_ids == () and finished[0].failed_items == ()
+    assert any(e.recent and e.recent[-1][0] == "Lập trình Python" for e in events)
+    assert service.preview_ids(ClassifyScope(doc_ids=("code",)), reclassify=True, limit=3) == ["code"]
 
 
 # -- The library list: what "the list I am looking at" means ------------------------
@@ -231,9 +268,22 @@ def batch_event(doc_ids, success=None):
     return ImportBatchCompletedEvent(batch_id="b", success=len(doc_ids) if success is None else success, duplicate=0, failed=0, doc_ids=tuple(doc_ids))
 
 
-def test_window_puts_the_classify_bar_above_the_list(window):
-    layout = window.library_view.parentWidget().layout()
-    assert layout.indexOf(window.smart_bar) < layout.indexOf(window.library_view)
+def test_the_window_opens_the_dialog_and_reuses_a_running_one(window, context, service, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    wizard = window.open_smart_classify()
+    assert wizard.isVisible() and window.classify_wizard is wizard
+    wizard.hide()
+    service.start(ClassifyScope(doc_ids=("code",)))
+    assert window.open_smart_classify() is wizard  # a job is running: the same dialog comes back
+    service.wait(timeout=30)
+    wizard.hide()
+
+
+def test_a_selection_from_the_list_opens_the_dialog_on_those_books(window, context, tmp_path):
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    window._on_classify_selected(["code"])
+    assert window.classify_wizard.options[0].key == "selected"
+    window.classify_wizard.hide()
 
 
 def test_asking_mode_offers_the_question_on_the_card_and_classifies_on_yes(window, context, service, tmp_path):

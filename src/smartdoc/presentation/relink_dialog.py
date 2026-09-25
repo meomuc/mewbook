@@ -11,20 +11,12 @@ import logging
 import threading
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
-    QDialog,
-    QFileDialog,
-    QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QVBoxLayout,
-)
+from PySide6.QtWidgets import QFileDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox, QPushButton, QTableWidget, QTableWidgetItem
 
 from smartdoc.application.relink_service import METHOD_FINGERPRINT, METHOD_HASH, METHOD_NAME_SIZE, RelinkProposal
+from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme_manager import theme_manager
 
 logger = logging.getLogger(__name__)
 
@@ -40,35 +32,39 @@ def method_label(method: str) -> str:
     return _METHOD_LABELS.get(method, method)
 
 
-class RelinkDialog(QDialog):
+class RelinkDialog(DesignDialog):
     _progress = Signal(str)
     _found = Signal(object)  # list[RelinkProposal] | Exception
     _checked = Signal(object)  # int | Exception
 
     def __init__(self, context, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Tìm lại file thiếu",
+                         subtitle="Chọn thư mục mới, MewBook dò lại theo tên, dung lượng và nội dung.",
+                         icon="link", width=760)
         self.context = context
         self._service = context.relink
         self._proposals: list[RelinkProposal] = []
         self._busy = False
         self._cancel = threading.Event()
-        self.setWindowTitle("Tìm lại file thiếu")
-        self.setMinimumSize(760, 480)
+        self.setMinimumHeight(480)
+        tm = theme_manager()
 
-        layout = QVBoxLayout(self)
         self.summary_label = QLabel(self)
         self.summary_label.setWordWrap(True)
-        layout.addWidget(self.summary_label)
+        self.summary_label.setStyleSheet(f"font-weight: 600; color: {tm.token('warn')};")
+        self.body.addWidget(self.summary_label)
 
         row = QHBoxLayout()
-        self.folder_button = QPushButton("📂 Chọn thư mục gốc mới...", self)
+        self.folder_button = QPushButton("Chọn thư mục mới…", self)
+        self.folder_button.setIcon(line_icon("folder", tm.token("ink"), 14))
         self.folder_button.clicked.connect(self._on_choose_folder)
-        self.recheck_button = QPushButton("🔄 Kiểm tra lại file", self)
+        self.recheck_button = QPushButton("Dò lại", self)
+        self.recheck_button.setIcon(line_icon("refresh", tm.token("ink"), 14))
         self.recheck_button.clicked.connect(self._on_recheck)
         row.addWidget(self.folder_button)
         row.addWidget(self.recheck_button)
         row.addStretch(1)
-        layout.addLayout(row)
+        self.body.addLayout(row)
 
         self.table = QTableWidget(0, len(_COLUMNS), self)
         self.table.setHorizontalHeaderLabels(list(_COLUMNS))
@@ -81,21 +77,15 @@ class RelinkDialog(QDialog):
         for column in (1, 2, 3):
             header.setSectionResizeMode(column, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.ResizeToContents)
-        layout.addWidget(self.table, stretch=1)
+        self.body.addWidget(self.table, 1)
 
         self.status_label = QLabel(self)
         self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+        self.body.addWidget(self.status_label)
 
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        self.apply_button = QPushButton("✅ Cập nhật đường dẫn đã chọn", self)
-        self.apply_button.clicked.connect(self._on_apply)
-        self.close_button = QPushButton("Đóng", self)
-        self.close_button.clicked.connect(self.reject)
-        buttons.addWidget(self.apply_button)
-        buttons.addWidget(self.close_button)
-        layout.addLayout(buttons)
+        self.add_footer_note("File sách không bị di chuyển, đổi tên hay sửa.")
+        self.close_button = self.add_footer_button("Hủy", on_click=self.reject)
+        self.apply_button = self.add_footer_button("Cập nhật đường dẫn", "primary", on_click=self._on_apply)
 
         self._progress.connect(self.status_label.setText)
         self._found.connect(self._on_found)
@@ -108,10 +98,12 @@ class RelinkDialog(QDialog):
 
     def _refresh_summary(self) -> None:
         missing = self.context.db.count_missing()
+        tm = theme_manager()
+        self.summary_label.setStyleSheet(f"font-weight: 600; color: {tm.token('warn' if missing else 'ink2')};")
         if missing:
             self.summary_label.setText(
                 f"{missing} sách không tìm thấy file. Chọn thư mục nơi các file đang nằm; MewBook sẽ tìm và đề xuất, "
-                "bạn xem lại rồi mới xác nhận. File sách không bị di chuyển hay sửa."
+                "bạn xem lại rồi mới xác nhận."
             )
         else:
             self.summary_label.setText("Không có sách nào bị mất file. Bấm \"Kiểm tra lại file\" nếu bạn vừa di chuyển sách.")
@@ -119,7 +111,9 @@ class RelinkDialog(QDialog):
     def _update_buttons(self) -> None:
         self.folder_button.setEnabled(not self._busy and self.context.db.count_missing() > 0)
         self.recheck_button.setEnabled(not self._busy)
-        self.apply_button.setEnabled(not self._busy and bool(self.selected_proposals()))
+        chosen = len(self.selected_proposals())
+        self.apply_button.setText(f"Cập nhật {chosen} đường dẫn" if chosen else "Cập nhật đường dẫn")
+        self.apply_button.setEnabled(not self._busy and chosen > 0)
 
     def selected_proposals(self) -> list[RelinkProposal]:
         selected = []
@@ -163,13 +157,13 @@ class RelinkDialog(QDialog):
         threading.Thread(target=target, name="relink", daemon=True).start()
 
     def _on_recheck(self) -> None:
-        self.status_label.setText("Đang kiểm tra file của thư viện...")
+        self.status_label.setText("Đang kiểm tra file của thư viện…")
         self._run(lambda: self._service.check_files(), self._checked)
 
     def _on_checked(self, result) -> None:
         self._busy = False
         if isinstance(result, Exception):
-            self.status_label.setText(f"⚠️ Không kiểm tra được: {result}")
+            self.status_label.setText(f"Không kiểm tra được: {result}")
         else:
             self.status_label.setText(f"Đã kiểm tra: {result} sách không tìm thấy file.")
         self._refresh_summary()
@@ -194,7 +188,7 @@ class RelinkDialog(QDialog):
     def _on_found(self, result) -> None:
         self._busy = False
         if isinstance(result, Exception):
-            self.status_label.setText(f"⚠️ Không tìm được: {result}")
+            self.status_label.setText(f"Không tìm được: {result}")
             self._update_buttons()
             return
         self._proposals = result
@@ -227,7 +221,7 @@ class RelinkDialog(QDialog):
         for proposal in self._proposals:
             proposal.selected = proposal in chosen
         result = self._service.apply(self._proposals)
-        text = f"✅ Đã cập nhật đường dẫn của {result.updated} sách."
+        text = f"Đã cập nhật đường dẫn của {result.updated} sách."
         if result.skipped:
             text += f" Bỏ qua {len(result.skipped)}: {result.skipped[0][1]}."
         self.status_label.setText(text)

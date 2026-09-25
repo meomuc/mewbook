@@ -71,6 +71,7 @@ from smartdoc.domain.library_filter import LibraryFilter, describe
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
+from smartdoc.presentation.design_dialog import confirm_danger
 from smartdoc.presentation.cover_loader import CoverLoader
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.shelf_view import ShelfView
@@ -1285,16 +1286,19 @@ class LibraryListWidget(QWidget):
         if not docs:
             return
         count = len(docs)
-        message = (
-            f"Xóa \"{docs[0].get('title')}\" khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)"
-            if count == 1
-            else f"Xóa {count} tài liệu đã chọn khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)"
-        )
-        confirm = QMessageBox.question(self, "Xóa khỏi thư viện", message)
-        if confirm == QMessageBox.Yes:
-            self.file_actions.delete_documents(
-                [(d["id"], d.get("file_path")) for d in docs], delete_physical_file=False
-            )
+        names = [f"{d.get('title') or '(không có tên)'}" for d in docs[:8]]
+        if count > len(names):
+            names.append(f"… và {count - len(names)} sách khác")
+        if not confirm_danger(
+            self, title=f"Xóa {count} sách khỏi thư viện?", subtitle="Bước xác nhận cuối",
+            message=(f"<b>{count} sách</b> sẽ biến mất khỏi thư viện MewBook, kèm hashtag, đánh giá và ghi chú bạn đã gắn."),
+            items=names,
+            safe_text="<b>Không bị đụng tới:</b> file sách trên máy. Bạn có thể thêm lại sách vào thư viện bất cứ lúc nào.",
+            ack_text=f"Tôi hiểu {count} sách sẽ bị gỡ khỏi thư viện", action_text=f"Xóa {count} sách khỏi thư viện",
+            cancel_text="Giữ lại",
+        ):
+            return
+        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in docs], delete_physical_file=False)
 
     # ── Edit-menu-facing operations (mirror the context menu -- see
     # main_window.py's Edit menu) ────────────────────────────────────

@@ -1,178 +1,430 @@
-"""TDD-021 UI: Duplicate Finder dialog.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Tìm file trùng: groups of the same book on the left, the files of the chosen group on the right, and one clear
+choice -- which copy to keep.
 
-Two tabs (exact / fuzzy matches), each a sortable checkbox table. Checking a
-row and pressing "Xóa file" removes it from the library, optionally also
-deleting the physical file -- never silently: the user always picks one of
-the two explicitly (or cancels).
+Exact matches compare the *content* of the files (a hash), so a renamed copy is found and two different books with the
+same title are not. "Gần giống" is the older title/author comparison, run on a background thread (a few seconds on a
+big library; closing the dialog cancels it) and shown as a second list.
 
-The exact tab is one indexed SQL query and fills in immediately. The fuzzy
-tab's scan runs on a background thread with a progress bar: even with the
-indexed search in application/duplicate_finder.py it takes a few seconds on
-a large library, and it used to run inside this dialog's constructor on the
-GUI thread -- which is what froze the whole app. Closing the dialog cancels
-a scan still in progress.
+Nothing happens to a file until a button is pressed, and the two actions are kept apart on purpose:
+  * "Bỏ N bản kia khỏi thư viện" only removes the other copies from the MewBook library; the files stay on the disk.
+  * "Xóa N file khỏi máy…" deletes them from the disk for good, behind the "Tôi hiểu" confirmation
+    (design_dialog.DangerConfirmDialog) that also says what is NOT touched.
+The book that is kept is never removed by either. "Chuyển vào khu vực lưu tạm" is shown but switched off ("Sắp có").
 """
 from __future__ import annotations
 
 import threading
 from datetime import datetime
+from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
+    QAbstractItemView,
+    QButtonGroup,
+    QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
-    QMenu,
-    QMessageBox,
+    QListWidget,
+    QListWidgetItem,
     QProgressBar,
     QPushButton,
+    QRadioButton,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QVBoxLayout,
+    QWidget,
 )
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
+from smartdoc.presentation.design_dialog import DesignDialog, confirm_danger
 from smartdoc.presentation.file_actions import FileActionEngine
+from smartdoc.presentation.format_utils import human_size
+from smartdoc.presentation.theme_manager import theme_manager
 
 _DOC_ROLE = Qt.UserRole + 1
-_FUZZY_TAB_TITLE = "Có thể trùng (tiêu đề/tác giả gần giống)"
-_MARKED_BRUSH = QBrush(QColor("#f5c2c7"))
-_CLEAR_BRUSH = QBrush()  # resets to the table's default background
+_GROUP_ROLE = Qt.UserRole + 2
+_COL_KEEP, _COL_PATH, _COL_SIZE, _COL_DATE, _COL_NOTE = range(5)
+MODE_EXACT, MODE_FUZZY = "exact", "fuzzy"
 
 
-def _format_datetime(value) -> str:
+def _format_date(value) -> str:
     if not value:
         return "—"
     try:
-        return datetime.fromtimestamp(value).strftime("%d/%m/%Y %H:%M")
+        return datetime.fromtimestamp(value).strftime("%d/%m/%Y")
     except (TypeError, ValueError, OSError):
         return "—"
 
 
-class _DateTableWidgetItem(QTableWidgetItem):
-    """Sorts by the raw timestamp, not the formatted display string."""
-
-    def __init__(self, timestamp) -> None:
-        super().__init__(_format_datetime(timestamp))
-        self._timestamp = timestamp or 0.0
-
-    def __lt__(self, other) -> bool:
-        if isinstance(other, _DateTableWidgetItem):
-            return self._timestamp < other._timestamp
-        return super().__lt__(other)
+def _size(value) -> str:
+    return human_size(value or 0).replace(".", ",")
 
 
-class DuplicateFinderDialog(QDialog):
+def completeness_score(doc: dict) -> tuple:
+    """How much a copy knows about the book (cover, author, publisher, year, pages); the richest copy is the one
+    offered as "giữ" first, and the oldest wins a tie."""
+    score = (2 if doc.get("cover_path") else 0) + (1 if (doc.get("author") or "") not in ("", "Unknown") else 0) \
+        + (1 if doc.get("publisher") else 0) + (1 if doc.get("pub_year") else 0) + (1 if doc.get("page_count") else 0)
+    return score, -(doc.get("created_at") or 0)
+
+
+def default_keeper(group: list[dict]) -> dict:
+    return max(group, key=completeness_score)
+
+
+def note_for(doc: dict, keeper: dict, mode: str) -> str:
+    parts = []
+    if doc is keeper or doc.get("id") == keeper.get("id"):
+        if doc.get("cover_path") and (doc.get("author") or "") not in ("", "Unknown"):
+            parts.append("Có thông tin đầy đủ, có bìa")
+        elif doc.get("cover_path"):
+            parts.append("Có bìa")
+    elif mode == MODE_EXACT:
+        parts.append("Giống hệt từng byte")
+    else:
+        parts.append("Tên/tác giả gần giống")
+    if doc.get("file_status") == "missing":
+        parts.append("không thấy file")
+    return ", ".join(parts)
+
+
+class DuplicateFinderDialog(DesignDialog):
     def __init__(self, context, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Tìm file trùng", subtitle="So sánh theo nội dung file, không chỉ theo tên",
+                         icon="filter", width=860)
         self.context = context
         self.engine = DuplicateEngine(context)
         self.file_actions = FileActionEngine(context)
-        self._exact_groups: list[list[dict]] = []
-        self._fuzzy_groups: list[list[dict]] = []
-        # Each scan gets a new generation number; results/progress from an
-        # older (superseded or cancelled) scan are ignored on arrival.
+        self._groups = {MODE_EXACT: [], MODE_FUZZY: []}
+        self._mode = MODE_EXACT
+        self._current = -1  # index of the group shown on the right
+        self._keepers: dict[tuple[str, int], str] = {}  # (mode, group index) -> id of the copy kept
+        # The fuzzy scan: the worker thread never touches a Qt object (a signal emitted on a dialog destroyed
+        # mid-scan is a hard crash); it writes plain values into this dict and a timer owned by the dialog reads them.
         self._scan_generation = 0
         self._cancel_scan = threading.Event()
-        # The worker thread never touches a Qt object (emitting a signal on a
-        # dialog destroyed mid-scan is a hard crash, not an exception): it
-        # only writes plain Python values into this dict, and a timer owned
-        # by the dialog -- so it dies with it -- picks them up on the GUI
-        # thread.
         self._scan_state: dict = {}
         self._scan_poll = QTimer(self)
         self._scan_poll.setInterval(50)
         self._scan_poll.timeout.connect(self._poll_fuzzy_scan)
+        self.resize(900, 560)
+        self.setMaximumSize(1200, 860)
 
-        self.setWindowTitle("Dọn dẹp trùng lặp")
-        self.resize(760, 480)
-        self.setMaximumSize(1100, 800)  # a long duplicate list shouldn't be able to balloon the window
-
-        self.exact_table = self._build_table()
-        self.fuzzy_table = self._build_table()
-        self.tabs = QTabWidget(self)
-        self.tabs.addTab(self.exact_table, "Trùng hoàn toàn (nội dung giống hệt)")
-        self.tabs.addTab(self.fuzzy_table, _FUZZY_TAB_TITLE)
-
+        # -- left: the groups --
+        self.exact_button = QPushButton("Giống hệt", self)
+        self.fuzzy_button = QPushButton("Gần giống", self)
+        for button in (self.exact_button, self.fuzzy_button):
+            button.setCheckable(True)
+        self.exact_button.setChecked(True)
+        self.exact_button.clicked.connect(lambda: self._set_mode(MODE_EXACT))
+        self.fuzzy_button.clicked.connect(lambda: self._set_mode(MODE_FUZZY))
+        modes = QHBoxLayout()
+        modes.setSpacing(0)
+        modes.addWidget(self.exact_button)
+        modes.addWidget(self.fuzzy_button)
+        self.summary_label = QLabel(self)
+        self.summary_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
+        self.group_list = QListWidget(self)
+        self.group_list.setFrameShape(QFrame.NoFrame)
+        self.group_list.setSpacing(2)
+        self.group_list.currentRowChanged.connect(self._on_group_chosen)
         self.scan_status_label = QLabel(self)
+        self.scan_status_label.setWordWrap(True)
         self.scan_progress = QProgressBar(self)
-        self.scan_progress.setTextVisible(True)
-        self.scan_progress.setMaximumHeight(14)
+        self.scan_progress.setTextVisible(False)
+        left = QVBoxLayout()
+        left.setSpacing(8)
+        left.addLayout(modes)
+        left.addWidget(self.summary_label)
+        left.addWidget(self.group_list, 1)
+        left.addWidget(self.scan_status_label)
+        left.addWidget(self.scan_progress)
+        left_box = QWidget(self)
+        left_box.setLayout(left)
+        left_box.setFixedWidth(270)
 
-        refresh_button = QPushButton("🔄 Quét lại")
-        refresh_button.clicked.connect(self.refresh)
+        # -- right: the files of the chosen group --
+        self.group_title = QLabel(self)
+        self.group_title.setStyleSheet("font-weight: 600; font-size: 14px;")
+        self.file_table = QTableWidget(0, 5, self)
+        self.file_table.setHorizontalHeaderLabels(["GIỮ", "VỊ TRÍ FILE", "DUNG LƯỢNG", "NGÀY", "GHI CHÚ"])
+        self.file_table.verticalHeader().setVisible(False)
+        self.file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.file_table.setSelectionMode(QAbstractItemView.NoSelection)
+        self.file_table.setShowGrid(False)
+        header = self.file_table.horizontalHeader()
+        header.setSectionResizeMode(_COL_KEEP, QHeaderView.Fixed)
+        self.file_table.setColumnWidth(_COL_KEEP, 48)
+        header.setSectionResizeMode(_COL_PATH, QHeaderView.Stretch)
+        header.setSectionResizeMode(_COL_SIZE, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(_COL_DATE, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(_COL_NOTE, QHeaderView.Interactive)
+        self.file_table.setColumnWidth(_COL_NOTE, 170)
+        self.file_table.verticalHeader().setDefaultSectionSize(44)
+        self._radio_group: QButtonGroup | None = None
 
-        self.select_duplicates_button = QPushButton("✅ Chọn file trùng ▾")
-        self.select_duplicates_button.clicked.connect(self._on_select_duplicates)
+        self.remove_button = QPushButton(self)
+        self.remove_button.clicked.connect(self._on_remove_from_library)
+        self.delete_button = QPushButton(self)
+        self.delete_button.setProperty("role", "danger")
+        self.delete_button.clicked.connect(self._on_delete_files)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addWidget(self.remove_button)
+        buttons.addWidget(self.delete_button)
+        buttons.addStretch(1)
+        self.hint_label = QLabel(
+            "“Bỏ khỏi thư viện”: file vẫn nằm trên máy. “Xóa file khỏi máy”: sẽ hỏi lại kỹ trước khi xóa.", self)
+        self.hint_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
+        self.hint_label.setWordWrap(True)
 
-        self.delete_button = QPushButton("🗑️ Xóa file ▾")
-        self.delete_button.clicked.connect(self._on_delete_selected)
+        # "Sắp có": shown, switched off, no logic behind it.
+        self.soon_box = QFrame(self)
+        self.soon_box.setObjectName("SoonBox")
+        self.soon_box.setStyleSheet(
+            f"#SoonBox {{ border: 1px dashed {theme_manager().token('line2')}; border-radius: 6px; }}"
+            f" QLabel {{ color: {theme_manager().token('ink3')}; }}")
+        self.soon_toggle = QPushButton("Chuyển vào khu vực lưu tạm thay vì xóa ngay", self.soon_box)
+        self.soon_toggle.setCheckable(True)
+        self.soon_toggle.setEnabled(False)
+        self.soon_toggle.setFlat(True)
+        soon_badge = QLabel("Sắp có", self.soon_box)
+        soon_note = QLabel("File sẽ nằm trong khu lưu tạm và tự xóa hẳn sau số ngày bạn đặt. "
+                           "Chưa dùng được ở phiên bản này.", self.soon_box)
+        soon_note.setWordWrap(True)
+        top_row = QHBoxLayout()
+        top_row.addWidget(self.soon_toggle)
+        top_row.addWidget(soon_badge)
+        top_row.addStretch(1)
+        soon = QVBoxLayout(self.soon_box)
+        soon.setContentsMargins(12, 8, 12, 10)
+        soon.addLayout(top_row)
+        soon.addWidget(soon_note)
 
-        action_row = QHBoxLayout()
-        action_row.addWidget(refresh_button)
-        action_row.addWidget(self.select_duplicates_button)
-        action_row.addStretch(1)
-        action_row.addWidget(self.delete_button)
+        right = QVBoxLayout()
+        right.setSpacing(10)
+        right.addWidget(self.group_title)
+        right.addWidget(self.file_table, 1)
+        right.addLayout(buttons)
+        right.addWidget(self.hint_label)
+        right.addWidget(self.soon_box)
+        right_box = QWidget(self)
+        right_box.setLayout(right)
 
-        close_buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        close_buttons.rejected.connect(self.accept)
+        columns = QHBoxLayout()
+        columns.setSpacing(16)
+        columns.addWidget(left_box)
+        columns.addWidget(right_box, 1)
+        self.body.addLayout(columns, 1)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.tabs)
-        layout.addWidget(self.scan_status_label)
-        layout.addWidget(self.scan_progress)
-        layout.addLayout(action_row)
-        layout.addWidget(close_buttons)
+        self.position_label = self.add_footer_note("")
+        self.previous_button = self.add_footer_button("Nhóm trước", on_click=lambda: self._step(-1))
+        self.next_button = self.add_footer_button("Nhóm sau", on_click=lambda: self._step(1))
+        self.done_button = self.add_footer_button("Xong", "primary", on_click=self.accept)
 
         self.refresh()
 
-    @staticmethod
-    def _build_table() -> QTableWidget:
-        table = QTableWidget(0, 4)
-        table.setHorizontalHeaderLabels(["Tiêu đề", "Tác giả", "Ngày thêm", "Đường dẫn file"])
-        table.horizontalHeader().setStretchLastSection(True)
-        table.horizontalHeader().setSortIndicatorShown(True)
-        table.setSortingEnabled(True)
-        table.verticalHeader().setVisible(False)
-        return table
+    # -- keeping the old public names used around the app and in tests ------------------------------------------------
+    @property
+    def _exact_groups(self) -> list[list[dict]]:
+        return self._groups[MODE_EXACT]
 
-    def _exec_menu(self, menu: QMenu, global_position):
-        """Thin seam so tests can patch this instead of QMenu.exec, which
-        opens a real modal loop that hangs forever under an offscreen Qt
-        platform (see library_view.LibraryListWidget._exec_menu)."""
-        return menu.exec(global_position)
+    @property
+    def _fuzzy_groups(self) -> list[list[dict]]:
+        return self._groups[MODE_FUZZY]
 
+    # -- loading ------------------------------------------------------------------------------------------------------
     def refresh(self) -> None:
-        self._exact_groups = self.engine.find_exact_duplicates()
-        self._populate(self.exact_table, self._exact_groups)
+        self._groups[MODE_EXACT] = self.engine.find_exact_duplicates()
+        self._keepers = {key: v for key, v in self._keepers.items() if key[0] != MODE_EXACT}
+        self._fill_groups()
         self._start_fuzzy_scan()
 
-    # -- Fuzzy scan on a background thread ---------------------------------
+    def _set_mode(self, mode: str) -> None:
+        self._mode = mode
+        self.exact_button.setChecked(mode == MODE_EXACT)
+        self.fuzzy_button.setChecked(mode == MODE_FUZZY)
+        self._fill_groups()
 
+    def _fill_groups(self) -> None:
+        groups = self._groups[self._mode]
+        self.group_list.blockSignals(True)
+        self.group_list.clear()
+        for index, group in enumerate(groups):
+            title = default_keeper(group).get("title") or "(không có tên)"
+            total = sum(d.get("file_size") or 0 for d in group)
+            chosen = (self._mode, index) in self._keepers
+            sub = f"{len(group)} file · {_size(total)}" + (" · đã chọn cái giữ" if chosen else "")
+            item = QListWidgetItem(f"{title}\n{sub}")
+            item.setData(_GROUP_ROLE, index)
+            item.setSizeHint(QSize(0, 48))
+            self.group_list.addItem(item)
+        self.group_list.blockSignals(False)
+        files = sum(len(g) for g in groups)
+        total_size = sum(d.get("file_size") or 0 for g in groups for d in g)
+        self.summary_label.setText(f"{len(groups)} nhóm · {files} file · {_size(total_size)}" if groups else "Không có nhóm nào")
+        if groups:
+            self.group_list.setCurrentRow(0)
+            self._on_group_chosen(0)
+        else:
+            self._current = -1
+            self._show_group(None)
+
+    def _on_group_chosen(self, row: int) -> None:
+        self._current = row
+        groups = self._groups[self._mode]
+        self._show_group(groups[row] if 0 <= row < len(groups) else None)
+
+    def _keeper_of(self, group: list[dict]) -> dict:
+        wanted = self._keepers.get((self._mode, self._current))
+        return next((d for d in group if d.get("id") == wanted), None) or default_keeper(group)
+
+    def _show_group(self, group: list[dict] | None) -> None:
+        self.file_table.setRowCount(0)
+        self._radio_group = None
+        total_groups = len(self._groups[self._mode])
+        self.position_label.setText(f"Nhóm {self._current + 1} / {total_groups}" if group else "")
+        self.previous_button.setEnabled(self._current > 0)
+        self.next_button.setEnabled(0 <= self._current < total_groups - 1)
+        if not group:
+            self.group_title.setText("")
+            self._update_action_buttons(None)
+            return
+        keeper = self._keeper_of(group)
+        self.group_title.setText(f"{keeper.get('title') or '(không có tên)'} — chọn bản giữ lại")
+        self.file_table.setRowCount(len(group))
+        self._radio_group = QButtonGroup(self.file_table)
+        tm = theme_manager()
+        for row, doc in enumerate(group):
+            radio = QRadioButton(self.file_table)
+            radio.setChecked(doc.get("id") == keeper.get("id"))
+            radio.setProperty("doc_id", doc.get("id"))
+            radio.toggled.connect(lambda checked, d=doc: checked and self._on_keeper_chosen(d))
+            self._radio_group.addButton(radio)
+            holder = QWidget(self.file_table)
+            QHBoxLayout(holder).addWidget(radio, 0, Qt.AlignCenter)
+            holder.layout().setContentsMargins(0, 0, 0, 0)
+            self.file_table.setCellWidget(row, _COL_KEEP, holder)
+            path_text = doc.get("file_path", "")
+            path_item = QTableWidgetItem(path_text + ("  · giữ" if doc.get("id") == keeper.get("id") else ""))
+            path_item.setToolTip(path_text)
+            path_item.setData(_DOC_ROLE, doc)
+            self.file_table.setItem(row, _COL_PATH, path_item)
+            self.file_table.setItem(row, _COL_SIZE, QTableWidgetItem(_size(doc.get("file_size"))))
+            self.file_table.setItem(row, _COL_DATE, QTableWidgetItem(_format_date(doc.get("created_at"))))
+            note = QTableWidgetItem(note_for(doc, keeper, self._mode))
+            note.setForeground(tm.color("ink3"))
+            self.file_table.setItem(row, _COL_NOTE, note)
+        self._update_action_buttons(group)
+
+    def _on_keeper_chosen(self, doc: dict) -> None:
+        """The radio changed: update the texts in place (the radio buttons are never rebuilt from inside their own
+        signal)."""
+        groups = self._groups[self._mode]
+        if not 0 <= self._current < len(groups):
+            return
+        group = groups[self._current]
+        self._keepers[(self._mode, self._current)] = doc.get("id")
+        keeper = self._keeper_of(group)
+        item = self.group_list.item(self._current)
+        if item is not None:
+            title = item.text().split("\n")[0]
+            total = _size(sum(d.get("file_size") or 0 for d in group))
+            item.setText(f"{title}\n{len(group)} file · {total} · đã chọn cái giữ")
+        self.group_title.setText(f"{keeper.get('title') or '(không có tên)'} — chọn bản giữ lại")
+        for row in range(self.file_table.rowCount()):
+            path_item = self.file_table.item(row, _COL_PATH)
+            row_doc = path_item.data(_DOC_ROLE)
+            path_item.setText(row_doc.get("file_path", "") + ("  · giữ" if row_doc.get("id") == keeper.get("id") else ""))
+            self.file_table.item(row, _COL_NOTE).setText(note_for(row_doc, keeper, self._mode))
+        self._update_action_buttons(group)
+
+    def _others(self) -> list[dict]:
+        groups = self._groups[self._mode]
+        if not 0 <= self._current < len(groups):
+            return []
+        group = groups[self._current]
+        keeper = self._keeper_of(group)
+        return [d for d in group if d.get("id") != keeper.get("id")]
+
+    def _update_action_buttons(self, group: list[dict] | None) -> None:
+        count = len(self._others()) if group else 0
+        self.remove_button.setText(f"Bỏ {count} bản kia khỏi thư viện")
+        self.delete_button.setText(f"Xóa {count} file khỏi máy…")
+        self.remove_button.setEnabled(count > 0)
+        self.delete_button.setEnabled(count > 0)
+
+    def _step(self, delta: int) -> None:
+        target = self._current + delta
+        if 0 <= target < self.group_list.count():
+            self.group_list.setCurrentRow(target)
+
+    # -- the two actions --------------------------------------------------------------------------------------------------
+    def _on_remove_from_library(self) -> None:
+        """Only the library entries of the other copies go; every file stays where it is."""
+        others = self._others()
+        if not others:
+            return
+        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=False)
+        self._forget({d["id"] for d in others})
+
+    def _on_delete_files(self) -> None:
+        others = self._others()
+        if not others:
+            return
+        group = self._groups[self._mode][self._current]
+        keeper = self._keeper_of(group)
+        count = len(others)
+        confirmed = confirm_danger(
+            self,
+            title=f"Xóa {count} file khỏi máy?",
+            message=(f"{'Hai' if count == 2 else str(count)} file dưới đây sẽ bị <b>xóa khỏi ổ cứng</b> và không nằm trong "
+                     f"Thùng rác của Windows. MewBook không thể hoàn tác việc này."),
+            items=[f"{d.get('file_path', '')} — {_size(d.get('file_size'))}" for d in others],
+            safe_text=(f"<b>Không bị đụng tới:</b> bản bạn giữ lại ({keeper.get('file_path', '')}), "
+                       "thông tin sách, hashtag và bộ sưu tập của cuốn này."),
+            ack_text=f"Tôi hiểu {count} file sẽ bị xóa vĩnh viễn",
+            action_text=f"Xóa {count} file",
+            cancel_text="Không xóa",
+        )
+        if not confirmed:
+            return
+        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=True)
+        self._forget({d["id"] for d in others})
+
+    def _forget(self, deleted_ids: set[str]) -> None:
+        """Removing copies can only shrink groups, never create new ones: drop them from what was found."""
+        for mode in (MODE_EXACT, MODE_FUZZY):
+            self._groups[mode] = self._without(self._groups[mode], deleted_ids)
+        self._keepers = {}
+        keep_row = max(0, self._current)
+        self._fill_groups()
+        if self.group_list.count():
+            self.group_list.setCurrentRow(min(keep_row, self.group_list.count() - 1))
+
+    @staticmethod
+    def _without(groups: list[list[dict]], deleted_ids: set[str]) -> list[list[dict]]:
+        remaining = [[doc for doc in group if doc["id"] not in deleted_ids] for group in groups]
+        return [group for group in remaining if len(group) > 1]
+
+    # -- fuzzy scan on a background thread ---------------------------------------------------------------------------------
     def _start_fuzzy_scan(self) -> None:
         self._cancel_scan.set()  # stop any scan still running from before
         self._cancel_scan = threading.Event()
         self._scan_generation += 1
         generation, cancel = self._scan_generation, self._cancel_scan
-
-        self._fuzzy_groups = []
-        self._populate(self.fuzzy_table, [])
-        self.tabs.setTabText(1, f"{_FUZZY_TAB_TITLE} -- đang quét...")
-        self.scan_status_label.setText("Đang tìm các tài liệu có tiêu đề/tác giả gần giống nhau...")
+        self._groups[MODE_FUZZY] = []
+        self.fuzzy_button.setText("Gần giống …")
+        self.scan_status_label.setText("Đang tìm sách có tên/tác giả gần giống nhau…")
         self.scan_progress.setRange(0, 0)  # indeterminate until the first progress report
         self.scan_progress.show()
+        self.scan_status_label.show()
 
-        # Read here, on the GUI thread (one quick query); the worker only
-        # does the comparison. A worker holding the shared database
-        # connection could otherwise still be mid-query when the app closes
-        # that connection on exit -- a hard crash, not an exception.
+        # Read here, on the GUI thread (one quick query); the worker only does the comparison, so it never holds the
+        # shared database connection when the app closes it on exit.
         docs = self.context.db.list_documents_for_dedup()
-
-        # A fresh dict per scan: a superseded worker keeps writing into its
-        # own, which nobody reads any more.
         state: dict = {"generation": generation}
         self._scan_state = state
         engine = self.engine
@@ -185,7 +437,7 @@ class DuplicateFinderDialog(QDialog):
                 groups = engine.find_fuzzy_duplicates(progress=progress, should_cancel=cancel.is_set, docs=docs)
             except DuplicateSearchCancelled:
                 return
-            except Exception as exc:  # a scan failure must not take the dialog down with it
+            except Exception as exc:  # noqa: BLE001 -- a scan failure must not take the dialog down with it
                 state["result"] = ([], str(exc))
                 return
             state["result"] = (groups, "")
@@ -208,22 +460,21 @@ class DuplicateFinderDialog(QDialog):
             return
         self.scan_progress.setRange(0, total)
         self.scan_progress.setValue(done)
-        self.scan_progress.setFormat(f"%p%  ({done}/{total} tài liệu)")
+        self.scan_status_label.setText(f"Đang so sánh: {done}/{total} sách")
 
     def _on_fuzzy_finished(self, generation: int, groups: list, error: str) -> None:
         if generation != self._scan_generation:
             return
         self.scan_progress.hide()
         if error:
-            self.tabs.setTabText(1, _FUZZY_TAB_TITLE)
-            self.scan_status_label.setText(f"Không quét được tài liệu gần giống: {error}")
+            self.fuzzy_button.setText("Gần giống")
+            self.scan_status_label.setText(f"Không quét được sách gần giống: {error}")
             return
-        self._fuzzy_groups = groups
-        self._populate(self.fuzzy_table, groups)
-        self.tabs.setTabText(1, f"{_FUZZY_TAB_TITLE} ({len(groups)} nhóm)")
-        self.scan_status_label.setText(
-            f"Trùng hoàn toàn: {len(self._exact_groups)} nhóm  ·  Có thể trùng: {len(groups)} nhóm"
-        )
+        self._groups[MODE_FUZZY] = groups
+        self.fuzzy_button.setText(f"Gần giống ({len(groups)})")
+        self.scan_status_label.hide()
+        if self._mode == MODE_FUZZY:
+            self._fill_groups()
 
     def wait_for_scan(self, timeout: float = 10.0) -> bool:
         """For tests: pump events until the current fuzzy scan reports back."""
@@ -234,146 +485,33 @@ class DuplicateFinderDialog(QDialog):
         deadline = time.time() + timeout
         while time.time() < deadline:
             QApplication.processEvents()
-            if self.scan_progress.isHidden():
+            if not self._scan_poll.isActive():
                 return True
             time.sleep(0.01)
         return False
 
     def done(self, result: int) -> None:  # noqa: D401 -- Qt override
-        # Closing (any way: Close button, Esc, [x]) stops a scan in progress
-        # rather than leaving it churning in the background.
+        # Closing (any way: Xong, Esc, ×) stops a scan in progress rather than leaving it churning in the background.
         self._cancel_scan.set()
         self._scan_poll.stop()
         super().done(result)
-
-    def _populate(self, table: QTableWidget, groups: list[list[dict]]) -> None:
-        table.setSortingEnabled(False)
-        table.setRowCount(0)
-        table.setRowCount(sum(len(group) for group in groups))
-        row = 0
-        for group in groups:
-            for doc in group:
-
-                title_item = QTableWidgetItem(doc.get("title", ""))
-                title_item.setFlags(title_item.flags() | Qt.ItemIsUserCheckable)
-                title_item.setCheckState(Qt.Unchecked)
-                title_item.setData(_DOC_ROLE, doc)
-                table.setItem(row, 0, title_item)
-                table.setItem(row, 1, QTableWidgetItem(doc.get("author", "")))
-                table.setItem(row, 2, _DateTableWidgetItem(doc.get("created_at")))
-                table.setItem(row, 3, QTableWidgetItem(doc.get("file_path", "")))
-                row += 1
-        table.setSortingEnabled(True)
-        # Sorted by the first column by default, same as the user would get
-        # by clicking its header once.
-        table.sortItems(0, Qt.AscendingOrder)
-
-    def _current_groups(self) -> list[list[dict]]:
-        return self._exact_groups if self.tabs.currentWidget() is self.exact_table else self._fuzzy_groups
-
-    def _on_select_duplicates(self) -> None:
-        menu = QMenu(self)
-        newest_action = menu.addAction("Ưu tiên giữ file thêm mới nhất (mặc định)")
-        oldest_action = menu.addAction("Ưu tiên giữ file thêm lâu nhất")
-        chosen = self._exec_menu(
-            menu, self.select_duplicates_button.mapToGlobal(QPoint(0, self.select_duplicates_button.height()))
-        )
-        if chosen == oldest_action:
-            self._apply_duplicate_selection(keep_newest=False)
-        elif chosen == newest_action:
-            self._apply_duplicate_selection(keep_newest=True)
-
-    def _apply_duplicate_selection(self, keep_newest: bool) -> None:
-        """Marks every document in a duplicate group for deletion except the
-        one to keep (newest-added by default, or oldest-added), and colors
-        the marked rows so they're visually distinct from the kept one."""
-        table = self.tabs.currentWidget()
-        groups = self._current_groups()
-
-        keep_ids: set[str] = set()
-        for group in groups:
-            kept = max(group, key=lambda d: d.get("created_at") or 0) if keep_newest else min(
-                group, key=lambda d: d.get("created_at") or 0
-            )
-            keep_ids.add(kept["id"])
-
-        for row in range(table.rowCount()):
-            title_item = table.item(row, 0)
-            doc = title_item.data(_DOC_ROLE)
-            mark_for_deletion = doc["id"] not in keep_ids
-            title_item.setCheckState(Qt.Checked if mark_for_deletion else Qt.Unchecked)
-            brush = _MARKED_BRUSH if mark_for_deletion else _CLEAR_BRUSH
-            for col in range(table.columnCount()):
-                cell = table.item(row, col)
-                if cell:
-                    cell.setBackground(brush)
-
-    def _on_delete_selected(self) -> None:
-        current_table = self.tabs.currentWidget()
-        selected_docs = []
-        for row in range(current_table.rowCount()):
-            item = current_table.item(row, 0)
-            if item.checkState() == Qt.Checked:
-                selected_docs.append(item.data(_DOC_ROLE))
-
-        if not selected_docs:
-            return
-
-        menu = QMenu(self)
-        library_only_action = menu.addAction("Xóa khỏi thư viện")
-        library_and_disk_action = menu.addAction("Xóa khỏi thư viện và thư mục gốc")
-        menu.addSeparator()
-        menu.addAction("Hủy bỏ")
-        chosen = self._exec_menu(menu, self.delete_button.mapToGlobal(QPoint(0, self.delete_button.height())))
-        if chosen not in (library_only_action, library_and_disk_action):
-            return
-
-        delete_physical = chosen == library_and_disk_action
-        confirm_text = (
-            f"Xóa {len(selected_docs)} tài liệu đã chọn khỏi thư viện VÀ xóa file gốc trên đĩa? "
-            "Hành động này không thể hoàn tác."
-            if delete_physical
-            else f"Xóa {len(selected_docs)} tài liệu đã chọn khỏi thư viện? (File gốc trên đĩa sẽ không bị xóa.)"
-        )
-        confirm = QMessageBox.question(self, "Xóa file", confirm_text)
-        if confirm == QMessageBox.Yes:
-            self.file_actions.delete_documents(
-                [(doc["id"], doc.get("file_path")) for doc in selected_docs], delete_physical_file=delete_physical
-            )
-            # Deleting can only *remove* duplicates, never create new ones,
-            # so drop the deleted documents from the groups already found
-            # rather than re-running the whole scan.
-            deleted_ids = {doc["id"] for doc in selected_docs}
-            self._exact_groups = self._without(self._exact_groups, deleted_ids)
-            self._fuzzy_groups = self._without(self._fuzzy_groups, deleted_ids)
-            self._populate(self.exact_table, self._exact_groups)
-            self._populate(self.fuzzy_table, self._fuzzy_groups)
-
-    @staticmethod
-    def _without(groups: list[list[dict]], deleted_ids: set[str]) -> list[list[dict]]:
-        remaining = [[doc for doc in group if doc["id"] not in deleted_ids] for group in groups]
-        return [group for group in remaining if len(group) > 1]
 
 
 if __name__ == "__main__":
     import sys
     import tempfile
-    from pathlib import Path
 
     from PySide6.QtWidgets import QApplication
 
     from smartdoc.core.app_context import AppContext
-    from smartdoc.presentation.theme import apply_light_theme
 
     with tempfile.TemporaryDirectory() as tmp:
         context = AppContext.create_in_memory(Path(tmp))
         context.db.add_or_update_document(
-            "d1", {"title": "Sach A", "author": "X", "file_path": "a.pdf", "content_hash": "h1", "created_at": 1.0}
-        )
+            "d1", {"title": "Sach A", "author": "X", "file_path": "a.pdf", "content_hash": "h1", "created_at": 1.0})
         context.db.add_or_update_document(
-            "d2", {"title": "Sach A (copy)", "author": "X", "file_path": "a2.pdf", "content_hash": "h1", "created_at": 2.0}
-        )
+            "d2", {"title": "Sach A (copy)", "author": "X", "file_path": "a2.pdf", "content_hash": "h1", "created_at": 2.0})
 
         app = QApplication(sys.argv)
-        apply_light_theme(app)
+        theme_manager().apply(app, "broadsheet")
         DuplicateFinderDialog(context).exec()

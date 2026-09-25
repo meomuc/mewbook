@@ -46,7 +46,7 @@ from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
 from smartdoc.presentation.sidebar import LibrarySidebar
 from smartdoc.presentation.sidebar_shell import SidebarShell
-from smartdoc.presentation.smart_classify_bar import SmartClassifyBar
+from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
 from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
@@ -119,8 +119,7 @@ class MainWindow(QMainWindow):
         # How adding books is going (progress, then ONE summary) -- a card here, never a pop-up.
         self.import_card = ImportStatusCard(context, import_manager, self.smart_classifier)
         main_layout.addWidget(self.import_card)
-        self.smart_bar = SmartClassifyBar(context, self.smart_classifier, self.library_view.classification_scope)
-        main_layout.addWidget(self.smart_bar)
+        self.classify_wizard: SmartClassifyWizard | None = None  # made when asked for (Công cụ, or a right-click)
         # What the list is filtered by, with a one-click way out; hidden when nothing is.
         self.filter_bar = ActiveFilterBar(context)
         main_layout.addWidget(self.filter_bar)
@@ -221,8 +220,7 @@ class MainWindow(QMainWindow):
 
     def _build_tools_menu(self) -> QMenu:
         menu = QMenu(self)
-        menu.addAction(vi.TOOL_SMART_CLASSIFY,
-                       lambda: self.smart_bar.ask_and_start(self.library_view.classification_scope()))
+        menu.addAction(vi.TOOL_SMART_CLASSIFY, lambda: self.open_smart_classify())
         menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
         menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
@@ -297,7 +295,7 @@ class MainWindow(QMainWindow):
         duplicates_action.triggered.connect(self._on_open_duplicate_finder)
         tools_menu.addAction(duplicates_action)
         smart_classify_action = QAction("✨ Phân loại thông minh danh sách đang xem...", self)
-        smart_classify_action.triggered.connect(lambda: self.smart_bar.ask_and_start(self.library_view.classification_scope()))
+        smart_classify_action.triggered.connect(lambda: self.open_smart_classify())
         tools_menu.addAction(smart_classify_action)
         relink_action = QAction("🔎 Tìm lại file thiếu...", self)
         relink_action.triggered.connect(self._on_open_relink)
@@ -407,8 +405,33 @@ class MainWindow(QMainWindow):
         self.library_view.send_selected_to_ereader()
 
     def _on_classify_selected(self, doc_ids: list) -> None:
-        scope = ClassifyScope(doc_ids=tuple(doc_ids), description=f"{len(doc_ids):,} tài liệu đã chọn")
-        self.smart_bar.ask_and_start(scope, subject="các tài liệu đã chọn")
+        scope = ClassifyScope(doc_ids=tuple(doc_ids), description=f"{len(doc_ids):,} sách đã chọn trong danh sách")
+        self.open_smart_classify(selected_scope=scope)
+
+    def open_smart_classify(self, selected_scope: ClassifyScope | None = None) -> SmartClassifyWizard:
+        """Shows the three-step classification dialog. A job that is already running (dialog sent to the background)
+        is picked up again instead of starting a second dialog."""
+        wizard = self.classify_wizard
+        if wizard is not None and (wizard.isVisible() or self.smart_classifier.running):
+            wizard.show()
+            wizard.raise_()
+            return wizard
+        if wizard is not None:
+            wizard.deleteLater()
+        wizard = SmartClassifyWizard(self.context, self.smart_classifier, self.library_view.classification_scope, self,
+                                     selected_scope=selected_scope)
+        wizard.background_finished.connect(self.import_card.show_notice)
+        wizard.finished.connect(self._on_classify_wizard_closed)
+        self.classify_wizard = wizard
+        wizard.show()
+        return wizard
+
+    def _on_classify_wizard_closed(self, _result: int) -> None:
+        # Closed with a job still running = "Chạy nền": keep the dialog so its events (and the result) are not lost.
+        if not self.smart_classifier.running:
+            wizard, self.classify_wizard = self.classify_wizard, None
+            if wizard is not None:
+                wizard.deleteLater()
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
         if event.mimeData().hasUrls():

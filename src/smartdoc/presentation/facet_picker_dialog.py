@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.domain.author_names import search_key
-from smartdoc.domain.library_filter import AUTHORS, CATEGORY_LABELS, MODE_GO, MODE_TOGGLE
+from smartdoc.domain.library_filter import AUTHORS, MODE_GO, MODE_TOGGLE
 from smartdoc.presentation.sidebar_style import CountRowDelegate
 from smartdoc.presentation.theme import current_colors
 

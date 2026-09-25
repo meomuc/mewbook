@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -36,6 +35,7 @@ from smartdoc.application.backup_service import (
 )
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.schema_migrations import SchemaError
+from smartdoc.presentation.design_dialog import confirm_danger
 
 logger = logging.getLogger(__name__)
 
@@ -172,17 +172,26 @@ class BackupPanel(QWidget):
     def _on_backup_now(self) -> None:
         self._run("backup", lambda: self._service().create_backup(REASON_MANUAL))
 
+    def _lost_since(self, info: BackupInfo) -> list[str]:
+        """What a restore would really lose: the books added after that backup (counted, not guessed)."""
+        added = self.context.db.connection.execute(
+            "SELECT COUNT(*) FROM documents WHERE created_at > ?", (info.created_at,)
+        ).fetchone()[0]
+        return [f"{added} sách thêm vào thư viện sau mốc này sẽ biến mất khỏi danh sách"] if added else []
+
     def _confirm_restore(self, info: BackupInfo) -> bool:
-        answer = QMessageBox.question(
-            self,
-            "Khôi phục thư viện",
-            f"Khôi phục thư viện về bản:\n{describe(info)}\n\n"
-            "Mọi thay đổi từ thời điểm đó (sách thêm, thẻ, bộ sưu tập, đánh giá) sẽ mất khỏi thư viện đang dùng. "
-            "MewBook sẽ sao lưu thư viện hiện tại trước, nên bạn có thể quay lại. File sách không bị đụng tới.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+        lines = self._lost_since(info) + [
+            "Hashtag, bộ sưu tập, đánh giá và ảnh bìa bạn sửa sau mốc này sẽ trở về như lúc đó",
+        ]
+        return confirm_danger(
+            self, title="Khôi phục thư viện về bản cũ?", subtitle="Bước xác nhận cuối",
+            message=f"Thư viện sẽ trở về bản:<br><b>{describe(info)}</b>",
+            items=lines,
+            safe_text="<b>Không bị đụng tới:</b> file sách trên máy. MewBook sao lưu thư viện hiện tại trước khi khôi phục, "
+                      "nên bạn có thể quay lại.",
+            ack_text="Tôi hiểu các thay đổi sau mốc này sẽ mất khỏi thư viện", action_text="Khôi phục thư viện",
+            cancel_text="Không khôi phục",
         )
-        return answer == QMessageBox.Yes
 
     def _on_restore(self) -> None:
         info = self._selected()

@@ -97,7 +97,7 @@ def test_single_selection_delete_confirmed_removes_document(qapp, app_context, m
     doc_at_row0 = widget.model.document_at(0)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa khỏi thư viện"))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
 
     widget._show_context_menu(position)
 
@@ -111,7 +111,7 @@ def test_single_selection_delete_cancelled_keeps_document(qapp, app_context, mon
     position = _select_row(widget, qapp, 0)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa khỏi thư viện"))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.No))
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: False)
 
     widget._show_context_menu(position)
 
@@ -193,7 +193,7 @@ def test_multi_selection_delete_confirmed_removes_all_selected(qapp, app_context
     position = _select_row(widget, qapp, 0, 1)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa"))
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
 
     widget._show_context_menu(position)
 
@@ -302,7 +302,7 @@ def test_delete_selected_removes_confirmed_selection(qapp, app_context, monkeypa
     widget = LibraryListWidget(app_context)
     _select_row(widget, qapp, 0, 1)
 
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
 
     widget.delete_selected()
 
@@ -314,7 +314,7 @@ def test_delete_selected_does_nothing_when_nothing_selected(qapp, app_context, m
     widget = LibraryListWidget(app_context)
 
     asked = []
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: asked.append(1) or QMessageBox.Yes))
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: asked.append(1) or True)
 
     widget.delete_selected()
 

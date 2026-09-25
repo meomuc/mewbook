@@ -1,268 +1,205 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMessageBox
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Tìm file trùng (stage G7): groups on the left, the files of a group on the right with a "Giữ" choice, and two
+clearly different actions -- remove the others from the library (files stay) or delete them from the disk (locked
+confirmation)."""
+from PySide6.QtWidgets import QDialog
 
-from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
-
-
-def _pick_action_containing(text_substring: str):
-    def fake_exec_menu(self, menu, _position):
-        for action in menu.actions():
-            if text_substring in action.text():
-                return action
-        return None
-
-    return fake_exec_menu
+from smartdoc.presentation import duplicate_finder_dialog as module
+from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog, default_keeper, note_for
 
 
-def _delete_via_menu(monkeypatch, choice_text: str = "Xóa khỏi thư viện") -> None:
-    """"Xóa khỏi thư viện" is a substring of "Xóa khỏi thư viện và thư mục
-    gốc" too, but menu.actions() preserves insertion order and the
-    library-only action is added first, so this still picks the intended
-    one when choice_text is the default."""
-    monkeypatch.setattr(DuplicateFinderDialog, "_exec_menu", _pick_action_containing(choice_text))
+def _seed_exact_duplicates(app_context, tmp_path=None):
+    def path(name):
+        return str(tmp_path / name) if tmp_path else name
 
-
-def _seed_exact_duplicates(app_context):
     app_context.db.add_or_update_document(
-        "d1", {"title": "Sach A", "author": "X", "file_path": "a.pdf", "content_hash": "h1", "created_at": 1.0}
-    )
+        "d1", {"title": "Sach A", "author": "X", "file_path": path("a.pdf"), "content_hash": "h1", "created_at": 1.0,
+               "file_size": 12_400_000})
     app_context.db.add_or_update_document(
-        "d2", {"title": "Sach A (copy)", "author": "X", "file_path": "a2.pdf", "content_hash": "h1", "created_at": 2.0}
-    )
+        "d2", {"title": "Sach A (copy)", "author": "X", "file_path": path("a2.pdf"), "content_hash": "h1",
+               "created_at": 2.0, "file_size": 12_400_000})
     app_context.db.add_or_update_document(
-        "d3", {"title": "Unique", "author": "Y", "file_path": "b.pdf", "content_hash": "h2", "created_at": 3.0}
-    )
+        "d3", {"title": "Unique", "author": "Y", "file_path": path("b.pdf"), "content_hash": "h2", "created_at": 3.0})
 
 
-def test_exact_tab_lists_only_duplicate_documents(qapp, app_context):
+def _dialog(app_context):
+    dialog = DuplicateFinderDialog(app_context)
+    dialog.wait_for_scan()
+    return dialog
+
+
+def test_exact_groups_list_only_duplicate_books_with_counts_and_sizes(qapp, app_context):
     _seed_exact_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
+    dialog = _dialog(app_context)
 
-    assert dialog.exact_table.rowCount() == 2
-    titles = {dialog.exact_table.item(row, 0).text() for row in range(2)}
-    assert titles == {"Sach A", "Sach A (copy)"}
+    assert dialog.group_list.count() == 1
+    assert "2 file" in dialog.group_list.item(0).text()
+    assert dialog.summary_label.text().startswith("1 nhóm · 2 file")
+    assert dialog.file_table.rowCount() == 2
+    dialog.deleteLater()
 
 
-def test_no_duplicates_means_empty_tables(qapp, app_context):
+def test_no_duplicates_means_an_empty_dialog_with_buttons_off(qapp, app_context):
     app_context.db.add_or_update_document(
-        "d1", {"title": "Only One", "author": "X", "file_path": "a.pdf", "content_hash": "h1", "created_at": 1.0}
-    )
-    dialog = DuplicateFinderDialog(app_context)
+        "d1", {"title": "Only One", "author": "X", "file_path": "a.pdf", "content_hash": "h1", "created_at": 1.0})
+    dialog = _dialog(app_context)
+    assert dialog.group_list.count() == 0 and dialog.file_table.rowCount() == 0
+    assert not dialog.remove_button.isEnabled() and not dialog.delete_button.isEnabled()
+    dialog.deleteLater()
 
-    assert dialog.exact_table.rowCount() == 0
-    assert dialog.fuzzy_table.rowCount() == 0
+
+def test_the_copy_with_most_information_is_offered_as_the_one_to_keep(qapp):
+    poor = {"id": "a", "title": "T", "author": "Unknown", "created_at": 1.0}
+    rich = {"id": "b", "title": "T", "author": "X", "cover_path": "c.webp", "publisher": "NXB", "created_at": 2.0}
+    assert default_keeper([poor, rich])["id"] == "b"
+    tie_old = {"id": "c", "title": "T", "created_at": 1.0}
+    tie_new = {"id": "d", "title": "T", "created_at": 5.0}
+    assert default_keeper([tie_new, tie_old])["id"] == "c"  # equal: the oldest
+    assert note_for(poor, rich, "exact") == "Giống hệt từng byte"
 
 
-def test_checking_a_row_and_deleting_removes_from_library(qapp, app_context, monkeypatch):
+def test_choosing_another_keeper_updates_the_buttons_and_the_group_line(qapp, app_context):
     _seed_exact_duplicates(app_context)
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
-    _delete_via_menu(monkeypatch)
+    dialog = _dialog(app_context)
+    radios = [dialog.file_table.cellWidget(row, 0).findChildren(type(dialog._radio_group.buttons()[0]))[0]
+              for row in range(2)]
+    checked_before = [r.isChecked() for r in radios]
+    assert checked_before.count(True) == 1
 
+    other = radios[checked_before.index(False)]
+    other.setChecked(True)
+
+    assert "đã chọn cái giữ" in dialog.group_list.item(0).text()
+    assert dialog.remove_button.text() == "Bỏ 1 bản kia khỏi thư viện"
+    assert dialog.delete_button.text() == "Xóa 1 file khỏi máy…"
+    dialog.deleteLater()
+
+
+def test_removing_the_others_from_the_library_keeps_every_file(qapp, app_context, tmp_path):
+    _seed_exact_duplicates(app_context, tmp_path)
+    for name in ("a.pdf", "a2.pdf", "b.pdf"):
+        (tmp_path / name).write_bytes(b"x")
+    dialog = _dialog(app_context)
+    keeper = default_keeper(dialog._exact_groups[0])["id"]
+
+    dialog.remove_button.click()
+
+    remaining = {d["id"] for d in app_context.db.list_all_documents()}
+    assert keeper in remaining and len(remaining) == 2  # the keeper and the unrelated book
+    assert all((tmp_path / name).exists() for name in ("a.pdf", "a2.pdf", "b.pdf"))  # no file touched
+    assert dialog.group_list.count() == 0
+    dialog.deleteLater()
+
+
+def test_deleting_files_needs_the_confirmation_and_removes_only_the_others(qapp, app_context, tmp_path, monkeypatch):
+    _seed_exact_duplicates(app_context, tmp_path)
+    for name in ("a.pdf", "a2.pdf", "b.pdf"):
+        (tmp_path / name).write_bytes(b"x")
+    dialog = _dialog(app_context)
+    keeper_id = default_keeper(dialog._exact_groups[0])["id"]
+    asked = {}
+
+    def fake_confirm(parent, **kwargs):
+        asked.update(kwargs)
+        return True
+
+    monkeypatch.setattr(module, "confirm_danger", fake_confirm)
+    dialog.delete_button.click()
+
+    assert asked["action_text"] == "Xóa 1 file" and "Không bị đụng tới" in asked["safe_text"]
+    assert len(asked["items"]) == 1
+    remaining_paths = {p.name for p in tmp_path.iterdir() if p.suffix == ".pdf"}
+    assert len(remaining_paths) == 2  # one duplicate is gone from the disk
+    assert app_context.db.get_document(keeper_id) is not None
+    dialog.deleteLater()
+
+
+def test_declining_the_confirmation_keeps_files_and_library(qapp, app_context, tmp_path, monkeypatch):
+    _seed_exact_duplicates(app_context, tmp_path)
+    for name in ("a.pdf", "a2.pdf", "b.pdf"):
+        (tmp_path / name).write_bytes(b"x")
+    dialog = _dialog(app_context)
+    monkeypatch.setattr(module, "confirm_danger", lambda parent, **kw: False)
+
+    dialog.delete_button.click()
+
+    assert len([p for p in tmp_path.iterdir() if p.suffix == ".pdf"]) == 3 and len(app_context.db.list_all_documents()) == 3
+    dialog.deleteLater()
+
+
+def test_the_coming_soon_block_is_shown_but_switched_off(qapp, app_context):
     dialog = DuplicateFinderDialog(app_context)
-    dialog.exact_table.item(0, 0).setCheckState(Qt.Checked)
-
-    dialog._on_delete_selected()
-
-    remaining_ids = {d["id"] for d in app_context.db.list_all_documents()}
-    assert "d1" not in remaining_ids or "d2" not in remaining_ids
-    assert len(remaining_ids) == 2  # one of the pair removed, "d3" untouched
-    assert "d3" in remaining_ids
+    assert not dialog.soon_toggle.isEnabled()
+    dialog.reject()
+    dialog.deleteLater()
 
 
-def test_deleting_with_nothing_checked_does_nothing(qapp, app_context):
-    _seed_exact_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-
-    dialog._on_delete_selected()
-
-    assert len(app_context.db.list_all_documents()) == 3
-
-
-def test_delete_cancelled_keeps_all_documents(qapp, app_context, monkeypatch):
-    _seed_exact_duplicates(app_context)
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.No))
-    _delete_via_menu(monkeypatch)
-
-    dialog = DuplicateFinderDialog(app_context)
-    dialog.exact_table.item(0, 0).setCheckState(Qt.Checked)
-    dialog._on_delete_selected()
-
-    assert len(app_context.db.list_all_documents()) == 3
+def test_navigation_buttons_step_through_the_groups(qapp, app_context):
+    for i in range(4):
+        app_context.db.add_or_update_document(
+            f"a{i}", {"title": f"T{i // 2}", "author": "X", "file_path": f"{i}.pdf", "content_hash": f"h{i // 2}",
+                      "created_at": float(i)})
+    dialog = _dialog(app_context)
+    assert dialog.group_list.count() == 2 and dialog.position_label.text() == "Nhóm 1 / 2"
+    assert not dialog.previous_button.isEnabled() and dialog.next_button.isEnabled()
+    dialog.next_button.click()
+    assert dialog.position_label.text() == "Nhóm 2 / 2" and not dialog.next_button.isEnabled()
+    dialog.deleteLater()
 
 
-def test_delete_menu_dismissed_does_nothing(qapp, app_context, monkeypatch):
-    """Picking "Hủy bỏ" (or dismissing the menu, which _exec_menu returns
-    None for) must not touch the library or even prompt for confirmation."""
-    _seed_exact_duplicates(app_context)
-    asked = []
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: asked.append(1) or QMessageBox.Yes))
-    monkeypatch.setattr(DuplicateFinderDialog, "_exec_menu", lambda self, menu, position: None)
-
-    dialog = DuplicateFinderDialog(app_context)
-    dialog.exact_table.item(0, 0).setCheckState(Qt.Checked)
-    dialog._on_delete_selected()
-
-    assert asked == []
-    assert len(app_context.db.list_all_documents()) == 3
-
-
-def test_delete_with_library_and_disk_option_removes_physical_file(qapp, app_context, tmp_path, monkeypatch):
-    real_file = tmp_path / "book.pdf"
-    real_file.write_bytes(b"content")
-    app_context.db.add_or_update_document(
-        "d1", {"title": "A", "author": "X", "file_path": str(real_file), "content_hash": "h1", "created_at": 1.0}
-    )
-    app_context.db.add_or_update_document(
-        "d2", {"title": "A (copy)", "author": "X", "file_path": "a2.pdf", "content_hash": "h1", "created_at": 2.0}
-    )
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
-    _delete_via_menu(monkeypatch, "và thư mục gốc")
-
-    dialog = DuplicateFinderDialog(app_context)
-    row = next(r for r in range(dialog.exact_table.rowCount()) if dialog.exact_table.item(r, 3).text() == str(real_file))
-    dialog.exact_table.item(row, 0).setCheckState(Qt.Checked)
-    dialog._on_delete_selected()
-
-    assert not real_file.exists()
-
-
-def test_refresh_updates_after_external_change(qapp, app_context):
-    dialog = DuplicateFinderDialog(app_context)
-    assert dialog.exact_table.rowCount() == 0
-
+def test_refresh_updates_after_an_external_change(qapp, app_context):
+    dialog = _dialog(app_context)
+    assert dialog.group_list.count() == 0
     _seed_exact_duplicates(app_context)
     dialog.refresh()
-
-    assert dialog.exact_table.rowCount() == 2
-
-
-def test_date_added_column_is_populated_on_both_tabs(qapp, app_context):
-    _seed_exact_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-
-    dates = {dialog.exact_table.item(row, 2).text() for row in range(dialog.exact_table.rowCount())}
-    assert all(d != "—" for d in dates)
+    assert dialog.group_list.count() == 1
+    dialog.wait_for_scan()
+    dialog.deleteLater()
 
 
-def test_table_is_sorted_by_first_column_by_default(qapp, app_context):
+# -- the "Gần giống" scan ------------------------------------------------------------------------------------------------
+
+
+def _seed_fuzzy(app_context):
     app_context.db.add_or_update_document(
-        "d1", {"title": "Zeta Book", "author": "X", "file_path": "z.pdf", "content_hash": "h1", "created_at": 1.0}
-    )
+        "f1", {"title": "Python Co Ban", "author": "Nguyen Van A", "file_path": "1.pdf", "content_hash": "x1",
+               "created_at": 1.0})
     app_context.db.add_or_update_document(
-        "d2", {"title": "Zeta Book (copy)", "author": "X", "file_path": "z2.pdf", "content_hash": "h1", "created_at": 2.0}
-    )
-    app_context.db.add_or_update_document(
-        "d3", {"title": "Alpha Book", "author": "Y", "file_path": "a.pdf", "content_hash": "h2", "created_at": 3.0}
-    )
-    app_context.db.add_or_update_document(
-        "d4", {"title": "Alpha Book (copy)", "author": "Y", "file_path": "a2.pdf", "content_hash": "h2", "created_at": 4.0}
-    )
+        "f2", {"title": "Python Cơ Bản (copy)", "author": "Nguyễn Văn A", "file_path": "2.pdf",
+               "content_hash": "x2", "created_at": 2.0})
+
+
+def test_fuzzy_scan_runs_in_the_background_and_fills_its_list(qapp, app_context):
+    _seed_fuzzy(app_context)
     dialog = DuplicateFinderDialog(app_context)
-
-    titles = [dialog.exact_table.item(row, 0).text() for row in range(dialog.exact_table.rowCount())]
-    assert titles == sorted(titles)
-
-
-def test_select_duplicates_keeps_newest_by_default(qapp, app_context):
-    _seed_exact_duplicates(app_context)  # d1 "Sach A" created_at=1.0, d2 "Sach A (copy)" created_at=2.0 (newer)
-    dialog = DuplicateFinderDialog(app_context)
-
-    dialog._apply_duplicate_selection(keep_newest=True)
-
-    checked_titles = [
-        dialog.exact_table.item(row, 0).text()
-        for row in range(dialog.exact_table.rowCount())
-        if dialog.exact_table.item(row, 0).checkState() == Qt.Checked
-    ]
-    assert checked_titles == ["Sach A"]  # d1 (older) marked for deletion, d2 (newest) kept
-
-
-def test_select_duplicates_keeps_oldest_when_requested(qapp, app_context):
-    _seed_exact_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-
-    dialog._apply_duplicate_selection(keep_newest=False)
-
-    checked_titles = [
-        dialog.exact_table.item(row, 0).text()
-        for row in range(dialog.exact_table.rowCount())
-        if dialog.exact_table.item(row, 0).checkState() == Qt.Checked
-    ]
-    assert checked_titles == ["Sach A (copy)"]  # d2 (newer) marked for deletion, d1 (oldest) kept
-
-
-def test_select_duplicates_colors_marked_rows_differently(qapp, app_context):
-    _seed_exact_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-
-    dialog._apply_duplicate_selection(keep_newest=True)
-
-    marked_brushes = {
-        dialog.exact_table.item(row, 0).background().color().name()
-        for row in range(dialog.exact_table.rowCount())
-        if dialog.exact_table.item(row, 0).checkState() == Qt.Checked
-    }
-    kept_brushes = {
-        dialog.exact_table.item(row, 0).background().color().name()
-        for row in range(dialog.exact_table.rowCount())
-        if dialog.exact_table.item(row, 0).checkState() == Qt.Unchecked
-    }
-    assert marked_brushes.isdisjoint(kept_brushes)
-
-
-def _seed_fuzzy_duplicates(app_context):
-    app_context.db.add_or_update_document(
-        "f1", {"title": "Python Co Ban", "author": "Nguyen Van A", "file_path": "p1.pdf", "created_at": 1.0}
-    )
-    app_context.db.add_or_update_document(
-        "f2", {"title": "Python Cơ Bản (copy)", "author": "Nguyễn Văn A", "file_path": "p2.pdf", "created_at": 2.0}
-    )
-
-
-def test_fuzzy_scan_runs_in_the_background_and_fills_the_tab(qapp, app_context):
-    _seed_fuzzy_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-
-    # The constructor returns straight away; the fuzzy tab fills in later.
-    assert dialog.wait_for_scan()
-    assert dialog.fuzzy_table.rowCount() == 2
-    assert "1 nhóm" in dialog.tabs.tabText(1)
+    assert dialog.wait_for_scan(), "timeout"
+    assert len(dialog._fuzzy_groups) == 1 and dialog.fuzzy_button.text() == "Gần giống (1)"
+    dialog.fuzzy_button.click()
+    assert dialog.group_list.count() == 1
+    dialog.deleteLater()
 
 
 def test_closing_the_dialog_cancels_a_scan_in_progress(qapp, app_context):
+    _seed_fuzzy(app_context)
     dialog = DuplicateFinderDialog(app_context)
-    cancel_flag = dialog._cancel_scan
-
+    cancel = dialog._cancel_scan
     dialog.reject()
-
-    assert cancel_flag.is_set()
-
-
-def test_deleting_updates_the_fuzzy_tab_without_rescanning(qapp, app_context, monkeypatch):
-    _seed_fuzzy_duplicates(app_context)
-    dialog = DuplicateFinderDialog(app_context)
-    assert dialog.wait_for_scan()
-
-    rescans = []
-    monkeypatch.setattr(dialog, "_start_fuzzy_scan", lambda: rescans.append(1))
-    _delete_via_menu(monkeypatch)
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
-    dialog.tabs.setCurrentWidget(dialog.fuzzy_table)
-    dialog.fuzzy_table.item(0, 0).setCheckState(Qt.Checked)
-
-    dialog._on_delete_selected()
-
-    assert rescans == []
-    assert dialog.fuzzy_table.rowCount() == 0  # a group of one is no longer a duplicate group
-    assert len(app_context.db.list_documents_for_dedup()) == 1
+    assert cancel.is_set() and not dialog._scan_poll.isActive()
+    dialog.deleteLater()
 
 
 def test_a_newer_scan_supersedes_an_older_one(qapp, app_context):
     dialog = DuplicateFinderDialog(app_context)
     stale_generation = dialog._scan_generation
-
     dialog.refresh()  # starts a new scan
     dialog._on_fuzzy_finished(stale_generation, [[{"id": "x"}, {"id": "y"}]], "")
-
-    assert dialog._fuzzy_groups == []  # the stale result was ignored
+    assert dialog._fuzzy_groups == []  # the stale result is ignored
     dialog.wait_for_scan()
+    dialog.deleteLater()
+
+
+def test_dialog_result_codes_are_normal(qapp, app_context):
+    dialog = DuplicateFinderDialog(app_context)
+    dialog.accept()
+    assert dialog.result() == QDialog.Accepted
+    dialog.deleteLater()

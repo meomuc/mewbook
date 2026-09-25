@@ -27,3 +27,54 @@ def test_build_collection_builds_expected_rule(qapp):
     sql, params = collection.to_sql_where_clause()
     assert sql == "extension = ?"
     assert params == ("pdf",)
+
+
+def test_several_conditions_and_the_match_mode_are_kept(qapp):
+    dialog = NewCollectionDialog()
+    dialog.name_edit.setText("Nhiều điều kiện")
+    dialog.value_edit.setText("pdf")
+    dialog._add_row(None)
+    dialog._rows[1].field_combo.setCurrentIndex(1)  # Tác giả chứa
+    dialog._rows[1].value_edit.setText("Osho")
+    dialog.logic_combo.setCurrentIndex(1)  # bất kỳ
+
+    collection = dialog.build_collection()
+
+    assert collection.logic == "OR" and [r.value for r in collection.rules] == ["pdf", "Osho"]
+    sql, params = collection.to_sql_where_clause()
+    assert " OR " in sql and params[0] == "pdf"
+    dialog.deleteLater()
+
+
+def test_an_empty_row_is_ignored_and_the_last_row_cannot_be_removed(qapp):
+    dialog = NewCollectionDialog()
+    dialog.name_edit.setText("X")
+    dialog.value_edit.setText("pdf")
+    dialog._add_row(None)  # left empty
+    assert len(dialog.build_collection().rules) == 1
+    dialog._remove_row(dialog._rows[1])
+    dialog._remove_row(dialog._rows[0])  # the only row stays
+    assert len(dialog._rows) == 1
+    dialog.deleteLater()
+
+
+def test_the_live_count_shows_how_many_books_match(qapp, app_context):
+    app_context.db.add_or_update_document("a", {"title": "A", "file_path": "a.pdf", "extension": "pdf", "created_at": 1.0})
+    app_context.db.add_or_update_document("b", {"title": "B", "file_path": "b.epub", "extension": "epub", "created_at": 2.0})
+    dialog = NewCollectionDialog(context=app_context)
+    dialog.name_edit.setText("PDF")
+    dialog.value_edit.setText("pdf")
+    dialog._update_count()
+    assert dialog.match_label.text() == "1 sách khớp ngay bây giờ"
+    dialog.deleteLater()
+
+
+def test_editing_offers_delete_and_reports_it(qapp):
+    from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
+
+    existing = VirtualCollection(name="Cũ", rules=[SmartRule(field="extension", operator="eq", value="pdf")])
+    dialog = NewCollectionDialog(collection=existing)
+    dialog.delete_button.click()
+    assert dialog.delete_requested
+    assert dialog.build_collection().id == existing.id
+    dialog.deleteLater()

@@ -241,6 +241,10 @@ class SmartClassifyService:
         enough (light columns only, no file reads) for the GUI thread."""
         return self._plan(scope, reclassify).preview
 
+    def preview_ids(self, scope: ClassifyScope, *, reclassify: bool = False, limit: int = 6) -> list[str]:
+        """A few of the books a run would read (for the cover strip of the first step)."""
+        return [job["id"] for job in self._plan(scope, reclassify).jobs[:limit]]
+
     # -- Running ---------------------------------------------------------------------
 
     @property
@@ -339,6 +343,11 @@ class SmartClassifyService:
         bus = self.context.event_bus
         tally: Counter = Counter()
         by_group: Counter = Counter()
+        tagged_ids: list[str] = []
+        unknown_ids: list[str] = []
+        failed_items: list[tuple[str, str]] = []
+        recent: deque = deque(maxlen=3)
+        titles: dict[str, str] = {}
         error = ""
         executor: Executor | None = None
         killed = False
@@ -347,6 +356,7 @@ class SmartClassifyService:
             plan = self._plan(scope, reclassify)
             tally["skipped"] = plan.preview.already_categorised + plan.preview.already_looked_at
             total = len(plan.jobs)
+            titles = {job["id"]: job["title"] or Path(job["path"] or "").stem for job in plan.jobs}
             if total == 0:
                 return
             usable, reason = self.availability()
@@ -385,12 +395,20 @@ class SmartClassifyService:
                     done += 1
                     category_id = result.get("category_id")
                     old_tag = plan.old_tags.get(result["id"])
+                    title = titles.get(result["id"], "")
                     if category_id:
                         tally["tagged"] += 1
                         by_group[result.get("group", "")] += 1
+                        tagged_ids.append(result["id"])
+                        recent.append((title, result.get("name") or ""))
                     else:
                         error_text = result.get("error") or ""
                         tally["failed" if error_text else "unknown"] += 1
+                        if error_text:
+                            failed_items.append((result["id"], error_text))
+                        else:
+                            unknown_ids.append(result["id"])
+                        recent.append((title, ""))
                         # A file that could not be read (unplugged drive, OneDrive placeholder,
                         # locked) is not a verdict about the book: leave no record, so the
                         # next run tries it again. A deterministic crash is recorded, or a
@@ -453,7 +471,7 @@ class SmartClassifyService:
                     bus.publish(
                         SmartClassifyProgressEvent(
                             job_id=job_id, done=done, total=total, tagged=tally["tagged"],
-                            unknown=tally["unknown"], failed=tally["failed"],
+                            unknown=tally["unknown"], failed=tally["failed"], recent=tuple(recent),
                         )
                     )
                 if error:
@@ -480,6 +498,9 @@ class SmartClassifyService:
                 error=error,
                 seconds=time.perf_counter() - started,
                 by_group=tuple(by_group.most_common()),
+                tagged_ids=tuple(tagged_ids),
+                unknown_ids=tuple(unknown_ids),
+                failed_items=tuple(failed_items),
             )
             self.last_result = finished_event
             bus.publish(finished_event)

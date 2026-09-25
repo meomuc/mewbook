@@ -101,6 +101,13 @@ class AppConfig:
     # Widths the user dragged the main window's columns to (0 = the design's default: 226 / 324 px).
     # Books per page in the library (Settings > Hiệu năng); 0 = the design's default of 24.
     page_size: int = 0
+    # Settings > Hiệu năng. Reader windows open at once (0 = the default of 5); PDF pages read for content search
+    # (0 = the default of 10); the in-memory cover cache in MB (0 = the default of 300).
+    max_reader_windows: int = 0
+    content_search_pages: int = 0
+    cover_cache_mb: int = 0
+    # Settings > Đánh giá cộng đồng: switch the whole feature off (nothing is fetched or sent).
+    community_reviews_enabled: bool = True
     sidebar_width: int = 0
     detail_width: int = 0
     # Sidebar filter sections the user folded away ("tags", "authors", "formats").
