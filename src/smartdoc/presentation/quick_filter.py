@@ -12,10 +12,13 @@ from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtWidgets import QAbstractItemView, QApplication, QFrame, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 from smartdoc.domain.library_filter import CATEGORY_LABELS, MODE_GO, MODE_TOGGLE
+from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.sidebar_style import ROW_HEIGHT, CountRowDelegate
 from smartdoc.presentation.theme import current_colors
 
-PLACEHOLDER = "Lọc nhanh: tác giả, hashtag, bộ sưu tập…"
+PLACEHOLDER = vi.SIDEBAR_QUICK_FILTER
 _SUGGESTION_ROLE = Qt.UserRole + 1
 DEBOUNCE_MS = 120
 
@@ -34,6 +37,7 @@ class QuickFilterBox(QWidget):
             f" padding: 5px 8px; background: {colors.surface}; color: {colors.sidebar_text}; }}"
             f" QLineEdit:focus {{ border-color: {colors.accent}; }}"
         )
+        self.edit.addAction(line_icon("filter", theme_manager().token("ink3"), 14), QLineEdit.LeadingPosition)
         self.edit.installEventFilter(self)
 
         self.suggestions = QListWidget(self)

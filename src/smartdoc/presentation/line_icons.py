@@ -200,12 +200,27 @@ def _wifi(p: QPainter) -> None:
     p.drawPoint(_p(8, 12))
 
 
+def _user(p: QPainter) -> None:
+    p.drawEllipse(QRectF(5.5, 2.5, 5, 5))
+    p.drawArc(QRectF(3, 9, 10, 8), 0, 180 * 16)
+
+
+def _tag(p: QPainter) -> None:
+    p.drawPolygon([_p(2.5, 8), _p(8, 2.5), _p(13.5, 2.5), _p(13.5, 8), _p(8, 13.5)])
+    p.drawPoint(_p(11, 5))
+
+
+def _file(p: QPainter) -> None:
+    p.drawPolyline([_p(4, 2.5), _p(10, 2.5), _p(12.5, 5), _p(12.5, 13.5), _p(4, 13.5), _p(4, 2.5)])
+    p.drawPolyline([_p(10, 2.5), _p(10, 5), _p(12.5, 5)])
+
+
 _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "plus": _plus, "search": _search, "grid": _grid, "table": _table, "sort": _sort, "tools": _tools,
     "panel": _panel, "gear": _gear, "pen": _pen, "book": _book, "star": _star, "star_fill": _star_fill,
     "cloud": _cloud, "bot": _bot, "globe": _globe, "chevron_down": _chevron_down, "chevron_right": _chevron_right,
     "close": _close, "refresh": _refresh, "image": _image, "send": _send, "check": _check, "folder": _folder,
-    "warn": _warn, "filter": _filter, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
+    "warn": _warn, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
 }
 ICON_NAMES = tuple(_DRAWERS)
 

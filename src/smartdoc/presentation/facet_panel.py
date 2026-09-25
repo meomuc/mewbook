@@ -23,14 +23,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QFrame,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QListWidget,
     QListWidgetItem,
     QMenu,
@@ -57,9 +56,11 @@ from smartdoc.presentation.author_cleanup_dialog import AuthorCleanupDialog
 from smartdoc.presentation.facet_picker_dialog import FacetPickerDialog
 from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
+from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.quick_filter import QuickFilterBox
 from smartdoc.presentation.sidebar_style import ROW_HEIGHT, CountRowDelegate, section_font
 from smartdoc.presentation.theme import current_colors, section_text
+from smartdoc.presentation.theme_manager import theme_manager
 
 TAG_CHIP_LIMIT = 14
 AUTHOR_ROW_LIMIT = 8
@@ -88,6 +89,18 @@ class _Entry:
     bucket: bool = False  # "Chưa phân loại" / "Không rõ": not a real name, can't be renamed
 
 
+def _dot_icon(color: str) -> QIcon:
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(color))
+    painter.drawEllipse(5, 5, 6, 6)
+    painter.end()
+    return QIcon(pixmap)
+
+
 def _fmt(count: int) -> str:
     return f"{count:,}".replace(",", ".")
 
@@ -107,6 +120,8 @@ class _Section(QWidget):
         self.header.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.header.setFont(section_font(self.header.font()))
         self.header.setAutoRaise(True)
+        self.header.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.header.setLayoutDirection(Qt.RightToLeft)  # the fold chevron sits at the right end
         self.header.clicked.connect(self.toggle)
         self.menu_button = QToolButton(self)
         self.menu_button.setText("⋯")
@@ -145,9 +160,9 @@ class _Section(QWidget):
         self.refresh_header()
 
     def refresh_header(self) -> None:
-        arrow = "▸" if self.collapsed else "▾"
         badge = f"  ·  {self._badge}" if self._badge else ""
-        self.header.setText(f"{arrow}  {section_text(self.title)}{badge}")
+        self.header.setText(f"{section_text(self.title)}{badge}")
+        self.header.setIcon(line_icon("chevron_right" if self.collapsed else "chevron_down", theme_manager().token("ink3"), 12))
         self.body.setVisible(not self.collapsed)
 
 
@@ -169,7 +184,7 @@ class FacetPanel(QWidget):
             f" QToolButton {{ border: none; color: {colors.muted_text}; background: transparent; padding: 2px 4px; }}"
             f" QToolButton:hover {{ color: {colors.accent}; }}"
             f" QPushButton#FacetChip {{ background: transparent; color: {colors.sidebar_text};"
-            f" border: 1px solid {colors.border}; border-radius: 11px; padding: 2px 9px; }}"
+            f" border: 1px solid {colors.border}; border-radius: 12px; padding: 0 10px; min-height: 22px; font-size: 12px; }}"
             f" QPushButton#FacetChip:hover {{ border-color: {colors.accent}; }}"
             f" QPushButton#FacetChip:checked {{ background: {colors.selected_bg}; color: {colors.selected_text};"
             f" border-color: {colors.selected_border}; font-weight: 600; }}"
@@ -203,16 +218,14 @@ class FacetPanel(QWidget):
         scroll.setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
         self.scroll_area = scroll
 
-        self.hint_label = QLabel(HINT_TEXT, self)
-        self.hint_label.setWordWrap(True)
-        self.hint_label.setStyleSheet(f"color: {colors.muted_text}; font-size: 11px; padding: 4px 12px 8px 12px;")
+        # The click rules are a tooltip, not a permanent paragraph: the sidebar stays quiet (design rule).
+        self.quick_filter.setToolTip(HINT_TEXT)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(4)
         layout.addWidget(self.quick_filter)
         layout.addWidget(scroll, stretch=1)
-        layout.addWidget(self.hint_label)
 
         self._refresh_timer = debounced(self, self.refresh)
         self._bridge = QtEventBridge(self)
@@ -381,6 +394,8 @@ class FacetPanel(QWidget):
                 "Không có tài liệu nào với các bộ lọc khác đang bật" if not entry.count else f"{_fmt(entry.count)} tài liệu"
             )
             button.setChecked(entry.selected)
+            # A picked chip shows an accent dot as well as the accent border: not colour alone.
+            button.setIcon(_dot_icon(theme_manager().token("accent")) if entry.selected else QIcon())
             button.show()
             ordered.append(button)
         cloud.set_widgets(ordered)

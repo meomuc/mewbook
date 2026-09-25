@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QInputDialog, QMessageBox
 
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
@@ -5,6 +6,27 @@ from smartdoc.domain.library_filter import LibraryFilter
 from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
 from smartdoc.presentation import collection_dialog as cd_module
 from smartdoc.presentation.sidebar import LibrarySidebar
+
+
+def _items(sidebar):
+    """The rows that are All / reading list / saved collections. The "Chưa phân loại" pill and the "BỘ SƯU TẬP"
+    heading are display rows of the pill list, not collections."""
+    from PySide6.QtCore import Qt
+
+    from smartdoc.presentation.sidebar import UNCLASSIFIED_ID
+    from smartdoc.presentation.sidebar_style import SECTION_ITEM_ID
+
+    lst = sidebar.collections_list
+    return [lst.item(i) for i in range(lst.count())
+            if lst.item(i).data(Qt.UserRole + 1) not in (UNCLASSIFIED_ID, SECTION_ITEM_ID)]
+
+
+def _item(sidebar, index):
+    return _items(sidebar)[index]
+
+
+def _current(sidebar):
+    return _items(sidebar).index(sidebar.collections_list.currentItem())
 
 
 def _pick_action_containing(text_substring: str):
@@ -19,8 +41,8 @@ def _pick_action_containing(text_substring: str):
 
 def test_reload_collections_always_includes_all_documents_first(qapp, app_context):
     sidebar = LibrarySidebar(app_context)
-    assert sidebar.collections_list.count() == 1
-    assert sidebar.collections_list.item(0).text() == "Tất cả tài liệu (0)"
+    assert len(_items(sidebar)) == 1
+    assert _item(sidebar, 0).text() == "Tất cả tài liệu (0)"
 
 
 def test_reload_collections_lists_saved_collections(qapp, app_context):
@@ -30,8 +52,8 @@ def test_reload_collections_lists_saved_collections(qapp, app_context):
     )
 
     sidebar = LibrarySidebar(app_context)
-    assert sidebar.collections_list.count() == 2
-    assert sidebar.collections_list.item(1).text() == "Sach AI (0)"
+    assert len(_items(sidebar)) == 2
+    assert _item(sidebar, 1).text() == "Sach AI (0)"
 
 
 def test_reload_collections_shows_document_count_per_collection(qapp, app_context):
@@ -48,8 +70,8 @@ def test_reload_collections_shows_document_count_per_collection(qapp, app_contex
 
     sidebar = LibrarySidebar(app_context)
 
-    assert sidebar.collections_list.item(0).text() == "Tất cả tài liệu (2)"
-    assert sidebar.collections_list.item(1).text() == "PDFs (1)"
+    assert _item(sidebar, 0).text() == "Tất cả tài liệu (2)"
+    assert _item(sidebar, 1).text() == "PDFs (1)"
 
 
 def test_clicking_a_collection_filters_by_it_and_all_documents_clears(qapp, app_context):
@@ -62,10 +84,10 @@ def test_clicking_a_collection_filters_by_it_and_all_documents_clears(qapp, app_
     received = []
     app_context.event_bus.subscribe(FilterChangedEvent, lambda e: received.append(e))
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
     assert received[-1].filter.collections == (collection.id,)
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(0))
+    sidebar._on_collection_clicked(_item(sidebar, 0))
     assert received[-1].filter.collections == ()
 
 
@@ -77,12 +99,12 @@ def test_add_collection_via_dialog_saves_and_reloads_list(qapp, app_context, mon
     monkeypatch.setattr(cd_module.NewCollectionDialog, "build_collection", lambda self: fake_collection)
 
     sidebar = LibrarySidebar(app_context)
-    assert sidebar.collections_list.count() == 1
+    assert len(_items(sidebar)) == 1
 
     sidebar._on_add_collection()
 
-    assert sidebar.collections_list.count() == 2
-    assert sidebar.collections_list.item(1).text() == "Test Collection (0)"
+    assert len(_items(sidebar)) == 2
+    assert _item(sidebar, 1).text() == "Test Collection (0)"
     assert app_context.db.get_collection(fake_collection.id) is not None
 
 
@@ -92,7 +114,7 @@ def test_add_collection_cancelled_dialog_does_not_save(qapp, app_context, monkey
     sidebar = LibrarySidebar(app_context)
     sidebar._on_add_collection()
 
-    assert sidebar.collections_list.count() == 1
+    assert len(_items(sidebar)) == 1
     assert app_context.db.list_collections() == []
 
 
@@ -136,14 +158,14 @@ def test_add_collection_with_duplicate_name_case_insensitive(qapp, app_context, 
 def test_reload_collections_preserves_current_selection(qapp, app_context):
     collection = _seed_collection(app_context)
     sidebar = LibrarySidebar(app_context)
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    assert sidebar.collections_list.currentRow() == 1
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    assert _current(sidebar) == 1
 
     # A background import (or any other document change) must not silently
     # snap the selection back to "Tất cả tài liệu".
     app_context.event_bus.publish(LibraryUpdatedEvent())
 
-    assert sidebar.collections_list.currentRow() == 1
+    assert _current(sidebar) == 1
     assert sidebar._current_collection_id() == collection.id
 
 
@@ -152,12 +174,12 @@ def test_external_filter_change_updates_highlighted_row(qapp, app_context):
     Document Detail Panel replaces the whole filter) must be reflected here too."""
     _seed_collection(app_context)
     sidebar = LibrarySidebar(app_context)
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    assert sidebar.collections_list.currentRow() == 1
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    assert _current(sidebar) == 1
 
     app_context.filters.set(LibraryFilter(tags=("AI",)))
 
-    assert sidebar.collections_list.currentRow() == 0
+    assert _current(sidebar) == 0
 
 
 def _seed_collection(app_context) -> VirtualCollection:
@@ -169,7 +191,7 @@ def _seed_collection(app_context) -> VirtualCollection:
 
 
 def _position_of_row(sidebar: LibrarySidebar, row: int):
-    return sidebar.collections_list.visualItemRect(sidebar.collections_list.item(row)).center()
+    return sidebar.collections_list.visualItemRect(_item(sidebar, row)).center()
 
 
 def test_right_click_on_all_documents_pseudo_item_shows_no_menu(qapp, app_context, monkeypatch):
@@ -191,7 +213,7 @@ def test_rename_collection_via_context_menu(qapp, app_context, monkeypatch):
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 
     assert app_context.db.get_collection(collection.id)["name"] == "New Name"
-    assert sidebar.collections_list.item(1).text() == "New Name (0)"
+    assert _item(sidebar, 1).text() == "New Name (0)"
 
 
 def test_delete_collection_via_context_menu(qapp, app_context, monkeypatch):
@@ -203,7 +225,7 @@ def test_delete_collection_via_context_menu(qapp, app_context, monkeypatch):
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 
     assert app_context.db.get_collection(collection.id) is None
-    assert sidebar.collections_list.count() == 1
+    assert len(_items(sidebar)) == 1
 
 
 def test_edit_collection_rule_via_context_menu(qapp, app_context, monkeypatch):
@@ -229,7 +251,7 @@ def test_clicking_all_documents_clears_every_filter_including_the_search(qapp, a
     sidebar = LibrarySidebar(app_context)
     app_context.filters.set(LibraryFilter(tags=("AI",), authors=("A",), formats=("pdf",), query="abc"))
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(0))  # "Tất cả tài liệu"
+    sidebar._on_collection_clicked(_item(sidebar, 0))  # "Tất cả tài liệu"
 
     assert app_context.filters.current == LibraryFilter()
 
@@ -241,7 +263,7 @@ def test_clicking_a_real_collection_keeps_the_other_filters(qapp, app_context):
     sidebar = LibrarySidebar(app_context)
     app_context.filters.set(LibraryFilter(tags=("AI",), formats=("pdf",)))
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))  # the real collection
+    sidebar._on_collection_clicked(_item(sidebar, 1))  # the real collection
 
     assert app_context.filters.current == LibraryFilter(tags=("AI",), formats=("pdf",), collections=(collection.id,))
 
@@ -266,12 +288,12 @@ def test_a_plain_click_switches_to_that_collection(qapp, app_context):
     first, second = _two_collections_with_members(app_context)
     sidebar = LibrarySidebar(app_context)
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    sidebar._on_collection_clicked(sidebar.collections_list.item(2))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    sidebar._on_collection_clicked(_item(sidebar, 2))
 
     assert sidebar._selected_ids == (second.id,)
-    assert not sidebar.collections_list.item(1).isSelected()
-    assert sidebar.collections_list.item(2).isSelected()
+    assert not _item(sidebar, 1).isSelected()
+    assert _item(sidebar, 2).isSelected()
 
 
 def test_ctrl_click_combines_several_collections(qapp, app_context, monkeypatch):
@@ -284,25 +306,25 @@ def test_ctrl_click_combines_several_collections(qapp, app_context, monkeypatch)
     events = []
     app_context.event_bus.subscribe(FilterChangedEvent, lambda e: events.append(e))
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    sidebar._on_collection_clicked(sidebar.collections_list.item(2))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    sidebar._on_collection_clicked(_item(sidebar, 2))
     qapp.processEvents()
 
     assert set(events[-1].filter.collections) == {first.id, second.id}
     shown = sorted(library.model.document_at(r)["id"] for r in range(library.model.rowCount()))
     assert shown == ["d0", "d1"]  # union of both collections
-    assert sidebar.collections_list.item(1).isSelected() and sidebar.collections_list.item(2).isSelected()
+    assert _item(sidebar, 1).isSelected() and _item(sidebar, 2).isSelected()
 
 
 def test_clicking_the_only_selected_collection_again_deselects_it(qapp, app_context):
     _two_collections_with_members(app_context)
     sidebar = LibrarySidebar(app_context)
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
 
     assert sidebar._selected_ids == ()
-    assert sidebar.collections_list.item(0).isSelected()  # nothing selected -> "Tất cả" is highlighted
+    assert _item(sidebar, 0).isSelected()  # nothing selected -> "Tất cả" is highlighted
 
 
 def test_ctrl_click_on_a_selected_collection_removes_just_that_one(qapp, app_context, monkeypatch):
@@ -310,9 +332,9 @@ def test_ctrl_click_on_a_selected_collection_removes_just_that_one(qapp, app_con
     sidebar = LibrarySidebar(app_context)
     monkeypatch.setattr(LibrarySidebar, "_additive_click", lambda self: True)
 
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
-    sidebar._on_collection_clicked(sidebar.collections_list.item(2))
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
+    sidebar._on_collection_clicked(_item(sidebar, 2))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
 
     assert sidebar._selected_ids == (second.id,)
 
@@ -322,18 +344,18 @@ def test_collection_counts_follow_the_other_filters(qapp, app_context):
     _two_collections_with_members(app_context)
     app_context.db.update_document_fields("d0", {"tags": "AI"})
     sidebar = LibrarySidebar(app_context)
-    assert sidebar.collections_list.item(1).text() == "Một (1)"
+    assert _item(sidebar, 1).text() == "Một (1)"
 
     app_context.filters.set(LibraryFilter(tags=("AI",)))
 
-    assert sidebar.collections_list.item(1).text() == "Một (1)"  # d0 has the tag
-    assert sidebar.collections_list.item(2).text() == "Hai (0)"  # d1 does not
+    assert _item(sidebar, 1).text() == "Một (1)"  # d0 has the tag
+    assert _item(sidebar, 2).text() == "Hai (0)"  # d1 does not
 
 
 def test_deleting_the_selected_collection_drops_it_from_the_filter(qapp, app_context, monkeypatch):
     _seed_collection(app_context)
     sidebar = LibrarySidebar(app_context)
-    sidebar._on_collection_clicked(sidebar.collections_list.item(1))
+    sidebar._on_collection_clicked(_item(sidebar, 1))
     monkeypatch.setattr(LibrarySidebar, "_exec_menu", _pick_action_containing("Xóa bộ sưu tập"))
     monkeypatch.setattr(QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.Yes))
 
@@ -364,3 +386,45 @@ def test_a_collection_made_from_a_filter_cannot_be_edited_in_the_one_rule_dialog
 
     assert ("Chỉnh sửa điều kiện", False) in seen
     assert ("Đổi tên", True) in seen
+
+
+# --- the "Kệ sách" pills (stage G3) ---
+
+
+def _find(sidebar, text_start):
+    lst = sidebar.collections_list
+    return next(lst.item(i) for i in range(lst.count()) if lst.item(i).text().startswith(text_start))
+
+
+def _seed_two_books(app_context):
+    for i, tags in enumerate(["Kỹ thuật", ""]):
+        app_context.db.add_or_update_document(
+            f"u{i}", {"title": f"B{i}", "author": "X", "file_path": f"{i}.pdf", "extension": "pdf",
+                      "tags": tags, "created_at": float(i)})
+
+
+def test_unclassified_pill_counts_books_without_a_hashtag_and_filters_by_them(qapp, app_context):
+    from smartdoc.domain.author_names import NO_TAG
+
+    _seed_two_books(app_context)
+    sidebar = LibrarySidebar(app_context)
+    pill = _find(sidebar, "Chưa phân loại")
+    assert pill.text() == "Chưa phân loại (1)"
+
+    sidebar._on_collection_clicked(pill)
+    assert app_context.filters.current.has_value("tags", NO_TAG)
+    assert _find(sidebar, "Chưa phân loại").isSelected()
+
+    sidebar._on_collection_clicked(_find(sidebar, "Chưa phân loại"))  # again: the only selected one clears
+    assert not app_context.filters.current.has_value("tags", NO_TAG)
+
+
+def test_collections_heading_is_a_label_not_a_selectable_collection(qapp, app_context):
+    from smartdoc.presentation.sidebar_style import SECTION_ITEM_ID
+
+    sidebar = LibrarySidebar(app_context)
+    heading = _find(sidebar, "Bộ sưu tập")
+    assert heading.data(Qt.UserRole + 1) == SECTION_ITEM_ID
+    assert not heading.flags() & Qt.ItemIsSelectable
+    sidebar._on_collection_clicked(heading)  # a click away from the "+" does nothing
+    assert app_context.filters.current.is_empty()

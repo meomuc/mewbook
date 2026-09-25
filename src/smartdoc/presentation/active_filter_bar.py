@@ -10,14 +10,13 @@ room when nothing is filtered.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.library_filter import CATEGORY_LABELS, QUERY, LibraryFilter, display_value
 from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation.theme_manager import theme_manager
 
 CLEAR_LABEL = "Xóa lọc"
 SAVE_LABEL = "Lưu thành bộ sưu tập"
@@ -45,19 +44,21 @@ class ActiveFilterBar(QFrame):
         self.clear_button.setToolTip("Bỏ mọi bộ lọc và ô tìm kiếm (phím Esc trong danh sách)")
         self.clear_button.clicked.connect(self.context.filters.clear)
 
+        # "Đang lọc  31 / 7.545 tài liệu   [Loại  Giá trị ✕] ...        Xóa lọc  Lưu thành bộ sưu tập"
+        self.title_label = QLabel("Đang lọc", self)
+        self.title_label.setObjectName("FilterTitle")
+        self.count_label.setObjectName("FilterCount")
+        lead = QHBoxLayout()
+        lead.setSpacing(8)
+        lead.addWidget(self.title_label)
+        lead.addWidget(self.count_label)
         outer = QHBoxLayout(self)
-        outer.setContentsMargins(12, 8, 12, 8)
-        outer.setSpacing(10)
+        outer.setContentsMargins(16, 8, 16, 8)
+        outer.setSpacing(12)
+        outer.addLayout(lead)
         outer.addWidget(self._flow, stretch=1)
-        side = QVBoxLayout()
-        side.setSpacing(4)
-        side.addWidget(self.count_label, alignment=Qt.AlignRight)
-        buttons = QHBoxLayout()
-        buttons.setSpacing(8)
-        buttons.addWidget(self.save_button)
-        buttons.addWidget(self.clear_button)
-        side.addLayout(buttons)
-        outer.addLayout(side)
+        outer.addWidget(self.clear_button, alignment=Qt.AlignVCenter)
+        outer.addWidget(self.save_button, alignment=Qt.AlignVCenter)
 
         self._apply_style()
         self._refresh_count_timer = debounced(self, self._update_count)
@@ -68,19 +69,18 @@ class ActiveFilterBar(QFrame):
         self.rebuild()
 
     def _apply_style(self) -> None:
-        colors = current_colors()
-        # Sits on the content area like the smart-classify bar above it, so it uses the content
-        # colours (a theme with dark chrome around a light list, e.g. Mực Đêm, keeps this bar light).
-        accent = QColor(colors.accent)
-        tint = f"rgba({accent.red()},{accent.green()},{accent.blue()},"
+        tm = theme_manager()
         self.setStyleSheet(
-            f"#ActiveFilterBar {{ background: {colors.content_bg}; border-bottom: 1px solid {colors.border}; }}"
-            f" QLabel {{ color: {colors.muted_text}; background: transparent; }}"
-            f" QPushButton#FilterChip {{ background: {tint}.12); color: {colors.text};"
-            f" border: 1px solid {tint}.55); border-radius: 12px; padding: 3px 10px; }}"
-            f" QPushButton#FilterChip:hover {{ border-color: {colors.accent}; color: {colors.accent}; }}"
-            f" QPushButton#BarAction {{ background: transparent; color: {colors.accent}; border: none; padding: 2px 4px; }}"
-            f" QPushButton#BarAction:hover {{ text-decoration: underline; }}"
+            f"#ActiveFilterBar {{ background: {tm.token('bg')}; border-bottom: 1px solid {tm.token('line')}; }}"
+            f" QLabel {{ color: {tm.token('ink2')}; background: transparent; font-size: 12px; }}"
+            f" #FilterTitle {{ color: {tm.token('ink')}; font-size: 13px; font-weight: 600; }}"
+            f" #FilterCount {{ color: {tm.token('ink2')}; font-size: 13px; }}"
+            f" QPushButton#FilterChip {{ background: {tm.token('surface')}; color: {tm.token('ink')};"
+            f" border: 1px solid {tm.token('line2')}; border-radius: 12px; padding: 0 10px; min-height: 22px; font-size: 12px; }}"
+            f" QPushButton#FilterChip:hover {{ border-color: {tm.token('accent')}; }}"
+            f" QPushButton#BarAction {{ background: transparent; color: {tm.token('accent')}; border: none;"
+            f" text-decoration: underline; padding: 0 4px; min-height: 22px; font-size: 12px; }}"
+            f" QPushButton#BarAction:hover {{ color: {tm.token('ink')}; }}"
         )
 
     def _on_bridged_event(self, event) -> None:

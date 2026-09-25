@@ -265,7 +265,7 @@ def test_typing_a_name_offers_it_as_a_filter(qapp, app_context):
 
     box._update_suggestions("nha")
 
-    assert box._suggestion_model.stringList() == ["Tác giả: Nhã Ca (1)"]
+    assert [(i.category, i.label, i.count) for i in box._popup._items] == [("authors", "Nhã Ca", 1)]
 
 
 def test_advanced_search_syntax_gets_no_suggestions(qapp, app_context):
@@ -274,7 +274,7 @@ def test_advanced_search_syntax_gets_no_suggestions(qapp, app_context):
 
     box._update_suggestions("author:nha")
 
-    assert box._suggestion_model.stringList() == []
+    assert box._popup._items == [] and not box._popup.isVisible()
 
 
 def test_picking_a_suggestion_applies_the_filter_and_empties_the_text_search(qapp, app_context):
@@ -284,7 +284,7 @@ def test_picking_a_suggestion_applies_the_filter_and_empties_the_text_search(qap
     box._publish_search()
     box._update_suggestions("nha")
 
-    box._on_suggestion_chosen("Tác giả: Nhã Ca (1)")
+    box._on_suggestion_chosen("authors", "Nhã Ca")
     qapp.processEvents()  # the deferred clear
 
     assert app_context.filters.current == LibraryFilter(authors=("Nhã Ca",))

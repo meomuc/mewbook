@@ -7,6 +7,27 @@ from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.sidebar import LibrarySidebar
 
 
+def _items(sidebar):
+    """The rows that are All / reading list / saved collections. The "Chưa phân loại" pill and the "BỘ SƯU TẬP"
+    heading are display rows of the pill list, not collections."""
+    from PySide6.QtCore import Qt
+
+    from smartdoc.presentation.sidebar import UNCLASSIFIED_ID
+    from smartdoc.presentation.sidebar_style import SECTION_ITEM_ID
+
+    lst = sidebar.collections_list
+    return [lst.item(i) for i in range(lst.count())
+            if lst.item(i).data(Qt.UserRole + 1) not in (UNCLASSIFIED_ID, SECTION_ITEM_ID)]
+
+
+def _item(sidebar, index):
+    return _items(sidebar)[index]
+
+
+def _current(sidebar):
+    return _items(sidebar).index(sidebar.collections_list.currentItem())
+
+
 def _seed(app_context):
     for i in range(3):
         app_context.db.add_or_update_document(
@@ -114,5 +135,5 @@ def test_reading_list_is_pinned_under_all_documents_in_the_sidebar(qapp, app_con
 
     sidebar = LibrarySidebar(app_context)
 
-    assert "Sẽ đọc" in sidebar.collections_list.item(1).text()
-    assert sidebar.collections_list.item(1).text().startswith("★")
+    assert "Sẽ đọc" in _item(sidebar, 1).text()
+    assert _item(sidebar, 1).text().startswith("Sẽ đọc")  # the pill draws its own filled-star icon

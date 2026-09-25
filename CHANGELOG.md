@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 3: the sidebar and the search.** Library and collections are now pill buttons (the picked
+  one filled), with new pills "Chưa phân loại" (books with no hashtag) and a "BỘ SƯU TẬP  +" heading; hashtag and format
+  chips show a dot when picked. Typing in the search box opens a grouped list of suggestions (Tác giả, Hashtag,
+  Bộ sưu tập, Định dạng, each with its number of books): ↑↓ to choose, Enter turns the choice into a filter chip, Enter
+  with no choice searches the words, Esc closes. The "Đang lọc" bar reads "Đang lọc  31 / 7.545 tài liệu" with the chips
+  and the "Xóa lọc" / "Lưu thành bộ sưu tập" links on one line.
 - **New "Kệ sách" look, step 2: the main window.** One layout in every theme: sidebar (226 px) | shelf/table |
   detail panel (324 px), with a new toolbar ("+ Thêm sách", search, Lưới bìa | Bảng, cover size, sort, "Công cụ"), line
   icons instead of emoji, and a status bar in three labelled zones whose icons carry a badge of a different *shape*

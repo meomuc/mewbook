@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtGui import QCursor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -13,33 +14,35 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QMessageBox,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
-from smartdoc.domain.library_filter import COLLECTIONS, MODE_GO, MODE_TOGGLE
+from smartdoc.domain.author_names import NO_TAG
+from smartdoc.domain.library_filter import COLLECTIONS, MODE_GO, MODE_TOGGLE, TAGS
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.infrastructure.database import READING_LIST_ID
 from smartdoc.presentation.collection_dialog import NewCollectionDialog, can_edit_in_dialog
 from smartdoc.presentation.facet_panel import FacetPanel
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
-from smartdoc.presentation.sidebar_style import ICON_ALL, ICON_FOLDER, ICON_STAR, CountRowDelegate, section_label
+from smartdoc.presentation.sidebar_style import SECTION_ITEM_ID, CountRowDelegate, section_label
 from smartdoc.presentation.theme import current_colors
 
 _COLLECTION_ID_ROLE = Qt.UserRole + 1
 _COLLECTION_NAME_ROLE = Qt.UserRole + 2  # raw name, since the item's own text() has " (N)" appended
 
 
-_MAX_LIST_HEIGHT = 320
+_MAX_LIST_HEIGHT = 440
+UNCLASSIFIED_ID = "__unclassified__"  # the "Chưa phân loại" pill: books without a hashtag (not a stored collection)
 
 
-def _collection_icon(index) -> str:
+def _collection_icon(index) -> str | None:
+    """A line_icons name for the pill: a filled star for the reading list, a bolt for rule-based collections."""
     collection_id = index.data(_COLLECTION_ID_ROLE)
-    if collection_id is None:
-        return ICON_ALL
-    return ICON_STAR if collection_id == READING_LIST_ID else ICON_FOLDER
+    if collection_id is None or collection_id == UNCLASSIFIED_ID:
+        return None
+    return "star_fill" if collection_id == READING_LIST_ID else "bolt"
 
 
 class CollectionListPanel(QWidget):
@@ -60,32 +63,18 @@ class CollectionListPanel(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet(f"background: {colors.sidebar_bg};")
 
-        iconic = colors.sidebar_style == "iconic"
-        header_label = section_label(colors.library_heading, self)
-        add_button = QToolButton(self)
-        add_button.setText("+")
-        add_button.setToolTip("Tạo bộ sưu tập ảo mới")
-        add_button.setAutoRaise(True)
-        add_button.setStyleSheet(
-            f"QToolButton {{ border: none; color: {colors.muted_text}; font-size: 18px; padding: 0 4px; }}"
-            f" QToolButton:hover {{ color: {colors.accent}; }}"
-        )
-        add_button.clicked.connect(self._on_add_collection)
-
+        header_label = section_label("Thư viện", self)
         header_row = QHBoxLayout()
         header_row.setContentsMargins(8, 4, 0, 4)
         header_row.addWidget(header_label)
         header_row.addStretch(1)
-        header_row.addWidget(add_button)
 
         self.collections_list = QListWidget(self)
         # Rows are drawn by CountRowDelegate (name left, muted count right,
         # tinted band + accent stripe when selected).
         # The "iconic" sidebar style adds line icons and a pill count on the selected row.
         self.collections_list.setItemDelegate(
-            CountRowDelegate(
-                self.collections_list, icon_for=_collection_icon if iconic else None, tall=iconic, code_names=True
-            )
+            CountRowDelegate(self.collections_list, icon_for=_collection_icon, code_names=True, pill=True)
         )
         self.collections_list.setMouseTracking(True)
         self.collections_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -143,38 +132,51 @@ class CollectionListPanel(QWidget):
         self.collections_list.clear()
 
         total = self.context.db.count_documents()
-        all_label = current_colors().all_items_label
-        all_item = QListWidgetItem(self._collection_row_text(all_label, total, icon="📚"))
+        all_item = QListWidgetItem(self._collection_row_text(current_colors().all_items_label, total))
         all_item.setData(_COLLECTION_ID_ROLE, None)
         all_item.setData(_COLLECTION_NAME_ROLE, "Tất cả tài liệu")
         self.collections_list.addItem(all_item)
 
-        # The built-in reading list sits right under "Tất cả tài liệu", marked
-        # with the same ★ as the buttons that fill it, instead of being
-        # buried at whatever position its creation date would put it.
+        # The built-in reading list sits right under "Tất cả tài liệu", then the books that still have no hashtag.
         rows = sorted(self.context.db.list_collections(), key=lambda r: r["id"] != READING_LIST_ID)
-        counts = self.context.facets.collection_counts(self.context.filters.current)
-        for row in rows:
-            count = counts.get(row["id"], 0)
-            is_reading_list = row["id"] == READING_LIST_ID
-            text = self._collection_row_text(row["name"], count, icon="★" if is_reading_list else "📁")
-            if is_reading_list and current_colors().sidebar_style != "iconic":
-                text = f"★ {text}"  # the iconic style draws a star icon instead
-            item = QListWidgetItem(text)
-            item.setData(_COLLECTION_ID_ROLE, row["id"])
-            item.setData(_COLLECTION_NAME_ROLE, row["name"])
-            self.collections_list.addItem(item)
+        flt = self.context.filters.current
+        counts = self.context.facets.collection_counts(flt)
+        reading = [r for r in rows if r["id"] == READING_LIST_ID]
+        others = [r for r in rows if r["id"] != READING_LIST_ID]
+        for row in reading:
+            self._add_collection_item(row, counts.get(row["id"], 0))
+        unclassified = next((c.count for c in self.context.facets.counts(TAGS, flt) if c.value == NO_TAG), 0)
+        item = QListWidgetItem(self._collection_row_text("Chưa phân loại", unclassified))
+        item.setData(_COLLECTION_ID_ROLE, UNCLASSIFIED_ID)
+        item.setData(_COLLECTION_NAME_ROLE, "Chưa phân loại")
+        item.setToolTip("Sách chưa có hashtag nào")
+        self.collections_list.addItem(item)
+
+        # "BỘ SƯU TẬP  +": a heading row (click the plus to make one), then one pill per collection.
+        heading = QListWidgetItem("Bộ sưu tập")
+        heading.setData(_COLLECTION_ID_ROLE, SECTION_ITEM_ID)
+        heading.setFlags(Qt.ItemIsEnabled)
+        heading.setToolTip("Tạo bộ sưu tập mới")
+        self.collections_list.addItem(heading)
+        for row in others:
+            self._add_collection_item(row, counts.get(row["id"], 0))
 
         self._fit_list_height()
         self._apply_selection()
+
+    def _add_collection_item(self, row, count: int) -> None:
+        item = QListWidgetItem(self._collection_row_text(row["name"], count))
+        item.setData(_COLLECTION_ID_ROLE, row["id"])
+        item.setData(_COLLECTION_NAME_ROLE, row["name"])
+        self.collections_list.addItem(item)
 
     def _fit_list_height(self) -> None:
         """Size the list to its rows (up to a cap) so a few collections
         never sit in a scrolling box with empty sidebar space below it."""
         rows = self.collections_list.count()
-        row_height = self.collections_list.sizeHintForRow(0) if rows else 0
+        rows_height = sum(self.collections_list.sizeHintForRow(i) for i in range(rows))
         frame = 2 * self.collections_list.frameWidth()
-        self.collections_list.setFixedHeight(min(rows * row_height + frame + 8, _MAX_LIST_HEIGHT))
+        self.collections_list.setFixedHeight(min(rows_height + frame + 8, _MAX_LIST_HEIGHT))
 
     def _current_collection_id(self) -> str | None:
         return self._selected_ids[0] if self._selected_ids else None
@@ -189,7 +191,12 @@ class CollectionListPanel(QWidget):
         for i in range(self.collections_list.count()):
             item = self.collections_list.item(i)
             collection_id = item.data(_COLLECTION_ID_ROLE)
-            selected = collection_id in selected_ids if selected_ids else collection_id is None
+            if collection_id == SECTION_ITEM_ID:
+                continue
+            if collection_id == UNCLASSIFIED_ID:
+                selected = self.context.filters.current.has_value(TAGS, NO_TAG)
+            else:
+                selected = collection_id in selected_ids if selected_ids else collection_id is None
             item.setSelected(selected)
             if selected and not found_any:
                 first_row, found_any = i, True
@@ -205,8 +212,17 @@ class CollectionListPanel(QWidget):
         Ctrl/Shift+click: add it to / take it out of the ones shown. Clicking
         the only selected one clears it. "Tất cả tài liệu" clears everything."""
         collection_id = item.data(_COLLECTION_ID_ROLE)
+        if collection_id == SECTION_ITEM_ID:
+            # Only the "+" at the right end of the heading makes a collection; the rest of the row is a label.
+            viewport = self.collections_list.viewport()
+            if viewport.mapFromGlobal(QCursor.pos()).x() >= viewport.width() - 36:
+                self._on_add_collection()
+            self._apply_selection()
+            return
         if collection_id is None:
             self._show_everything()
+        elif collection_id == UNCLASSIFIED_ID:
+            self.context.filters.select(TAGS, NO_TAG, MODE_TOGGLE if self._additive_click() else MODE_GO)
         else:
             self.context.filters.select(COLLECTIONS, collection_id, MODE_TOGGLE if self._additive_click() else MODE_GO)
         self._apply_selection()  # the list's own click toggled the row; the filter is the truth
@@ -222,8 +238,8 @@ class CollectionListPanel(QWidget):
         if item is None:
             return
         collection_id = item.data(_COLLECTION_ID_ROLE)
-        if collection_id is None:
-            return  # "Tất cả tài liệu" is a pseudo-entry, not a real collection.
+        if collection_id in (None, UNCLASSIFIED_ID, SECTION_ITEM_ID):
+            return  # pseudo-entries, not real collections.
 
         menu = QMenu(self)
         edit_action = menu.addAction("Chỉnh sửa điều kiện")

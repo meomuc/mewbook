@@ -12,12 +12,13 @@ While typing it also offers filters -- "Tác giả: Nhã Ca (12)", "Hashtag: L�
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QStringListModel, QTimer
-from PySide6.QtWidgets import QCompleter, QLineEdit
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtWidgets import QLineEdit
 
 from smartdoc.core.event_bus import FilterChangedEvent
-from smartdoc.domain.library_filter import CATEGORY_LABELS, MODE_GO
+from smartdoc.domain.library_filter import MODE_GO
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.search_suggest_popup import SearchSuggestPopup
 from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
@@ -66,13 +67,10 @@ class OmnibarSearchBar(QLineEdit):
         # not rewrite the text, or characters typed since would be lost.
         self._last_published = context.filters.current.query
 
-        # Filters matching what is typed, offered in a popup under the box.
-        self._suggestions: dict[str, tuple[str, str]] = {}
-        self._suggestion_model = QStringListModel(self)
-        self._completer = QCompleter(self._suggestion_model, self)
-        self._completer.setCompletionMode(QCompleter.UnfilteredPopupCompletion)  # the model is already filtered
-        self._completer.activated[str].connect(self._on_suggestion_chosen)
-        self.setCompleter(self._completer)
+        # Filters matching what is typed, offered in a popup under the box (it never takes the keyboard focus).
+        self._popup = SearchSuggestPopup(self)
+        self._popup.suggestionChosen.connect(self._on_suggestion_chosen)
+        self._popup.textSearchChosen.connect(self._search_now)
         self.textEdited.connect(self._update_suggestions)
         self._bridge = QtEventBridge(self)
         self._bridge.event_received.connect(self._on_filter_changed)
@@ -90,21 +88,47 @@ class OmnibarSearchBar(QLineEdit):
         self.context.filters.set_query(query)
 
     def _update_suggestions(self, text: str) -> None:
-        self._suggestions = {}
+        found = []
         if ":" not in text:  # "author:nam" is search syntax, not a name to filter by
-            for found in self.context.facets.suggest(text, self.context.filters.current, limit=6, per_category=3):
-                shown = f"{CATEGORY_LABELS[found.category]}: {found.label} ({found.count})"
-                self._suggestions[shown] = (found.category, found.value)
-        self._suggestion_model.setStringList(list(self._suggestions))
+            found = self.context.facets.suggest(text, self.context.filters.current, limit=8, per_category=3)
+        if found:
+            self._popup.show_for(found, text)
+        else:
+            self._popup.hide()
 
-    def _on_suggestion_chosen(self, shown: str) -> None:
-        chosen = self._suggestions.get(shown)
-        if chosen is None:
-            return
+    def _search_now(self) -> None:
+        self._timer.stop()
+        self._publish_search()
+
+    def _on_suggestion_chosen(self, category: str, value: str) -> None:
         # The typed words were a way of naming the filter: drop them from the text search.
-        # (Deferred: the completer writes the chosen line into the box right after this slot.)
-        self.context.filters.select(chosen[0], chosen[1], MODE_GO)
+        self.context.filters.select(category, value, MODE_GO)
         QTimer.singleShot(0, self._clear_text_search)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        if self._popup.isVisible():
+            key = event.key()
+            if key in (Qt.Key_Down, Qt.Key_Up):
+                self._popup.move_selection(1 if key == Qt.Key_Down else -1)
+                return
+            if key == Qt.Key_Escape:
+                self._popup.hide()
+                return
+            if key in (Qt.Key_Return, Qt.Key_Enter):
+                if not self._popup.activate_current():
+                    self._popup.hide()
+                    self._search_now()
+                return
+        elif event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self._search_now()
+            return
+        super().keyPressEvent(event)
+
+    def focusOutEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        # Showing the popup itself may briefly deactivate the window: only a real move of the focus closes it.
+        if event.reason() != Qt.ActiveWindowFocusReason:
+            self._popup.hide()
+        super().focusOutEvent(event)
 
     def _clear_text_search(self) -> None:
         self._timer.stop()

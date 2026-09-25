@@ -15,13 +15,17 @@ from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QPolygonF
 from PySide6.QtWidgets import QLabel, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
+from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.theme import current_colors, item_text, section_text
+from smartdoc.presentation.theme_manager import theme_manager
 
 _COUNT_RE = re.compile(r"^(.*) \((\d+)\)$", re.DOTALL)
 ROW_HEIGHT = 32
 TALL_ROW_HEIGHT = 44  # Walnut Library's roomier rows
 SECTION_ROW_HEIGHT = 38
 _STRIPE = 3
+SECTION_ITEM_ID = "__section__"  # a non-selectable heading row inside a pill list ("BỘ SƯU TẬP  +")
+PILL_ROW_HEIGHT = 36  # a 30 px pill and 3 px of air above and below
 _ICON_SIZE = 15
 
 # What leading icon a row gets (see CountRowDelegate's `icon_for`).
@@ -38,14 +42,15 @@ def split_count(text: str) -> tuple[str, str]:
 
 
 def section_font(base: QFont | None = None) -> QFont:
+    """Group labels: 10 px, semi-bold, wide-spaced capitals in the display face (design rule: only group labels,
+    column headings and pills use this style). Code-style themes keep them as quiet comments."""
     colors = current_colors()
     font = QFont(base) if base is not None else QFont()
-    font.setPixelSize(11)
-    # Light themes keep their headings light; code-style headings read as
-    # comments, so they aren't bold or spaced out either.
-    light = colors.font_weight < 400 or colors.label_style == "code"
-    font.setWeight(QFont.Normal if light else QFont.DemiBold)
-    font.setLetterSpacing(QFont.AbsoluteSpacing, 0.0 if colors.label_style == "code" else 1.4)
+    font.setFamily(theme_manager().font_family("disp"))
+    font.setPixelSize(10)
+    code = colors.label_style == "code"
+    font.setWeight(QFont.Normal if code else QFont.DemiBold)
+    font.setLetterSpacing(QFont.AbsoluteSpacing, 0.0 if code else 1.6)
     return font
 
 
@@ -63,7 +68,8 @@ class CountRowDelegate(QStyledItemDelegate):
     draws top-level rows as section headings."""
 
     def __init__(
-        self, parent=None, *, section_roots: bool = False, icon_for=None, tall: bool = False, code_names: bool = False
+        self, parent=None, *, section_roots: bool = False, icon_for=None, tall: bool = False, code_names: bool = False,
+        pill: bool = False,
     ) -> None:
         """`icon_for(index)` -> ICON_ALL / ICON_FOLDER / ICON_STAR / None
         turns on leading line icons and a pill-shaped count on the selected
@@ -75,6 +81,9 @@ class CountRowDelegate(QStyledItemDelegate):
         # Show names in the theme's code style ("tâm_lý_học") -- only for
         # collection names, never for authors/tags (real people and words).
         self._code_names = code_names
+        # Design "pill" rows: a 30 px bordered rounded button per row, upper-case display face; the selected one is
+        # filled with the accent. `icon_for(index)` then returns a line_icons name (or None).
+        self._pill = pill
 
     def _is_section(self, index) -> bool:
         return self._section_roots and not index.parent().isValid()
@@ -83,6 +92,8 @@ class CountRowDelegate(QStyledItemDelegate):
         size = super().sizeHint(option, index)
         if self._is_section(index):
             return QSize(size.width(), SECTION_ROW_HEIGHT)
+        if self._pill:
+            return QSize(size.width(), 30 if index.data(Qt.UserRole + 1) == SECTION_ITEM_ID else PILL_ROW_HEIGHT)
         return QSize(size.width(), TALL_ROW_HEIGHT if self._tall else ROW_HEIGHT)
 
     def paint(self, painter, option, index) -> None:
@@ -91,6 +102,10 @@ class CountRowDelegate(QStyledItemDelegate):
         colors = current_colors()
         rect = opt.rect
         text = index.data(Qt.DisplayRole) or ""
+
+        if self._pill:
+            self._paint_pill(painter, opt, index)
+            return
 
         painter.save()
         if self._is_section(index):
@@ -176,6 +191,56 @@ class CountRowDelegate(QStyledItemDelegate):
             text_width = metrics.horizontalAdvance(shown)
             baseline_y = rect.center().y() + metrics.height() // 2 + 3
             painter.fillRect(QRect(name_left, baseline_y, text_width, 1), QColor(colors.selected_border))
+        painter.restore()
+
+
+    def _paint_pill(self, painter, opt, index) -> None:
+        tm = theme_manager()
+        if index.data(Qt.UserRole + 1) == SECTION_ITEM_ID:
+            painter.save()
+            font = section_font(opt.font)
+            painter.setFont(font)
+            painter.setPen(QColor(tm.token("ink3")))
+            area = QRectF(opt.rect).adjusted(4, 8, -4, 0)
+            painter.drawText(area, Qt.AlignLeft | Qt.AlignVCenter, section_text(index.data(Qt.DisplayRole) or ""))
+            painter.drawPixmap(QPointF(area.right() - 14, area.center().y() - 7), icon_pixmap("plus", tm.token("ink2"), 14))
+            painter.restore()
+            return
+        selected = bool(opt.state & QStyle.State_Selected)
+        hovered = bool(opt.state & QStyle.State_MouseOver)
+        rect = QRectF(opt.rect).adjusted(0, 2, -1, -2)  # 30 px pill inside the 34 px row
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        border = QColor(tm.token("accent") if selected or hovered else tm.token("line2"))
+        painter.setPen(QPen(border, 1))
+        painter.setBrush(QColor(tm.token("accent")) if selected else Qt.NoBrush)
+        painter.drawRoundedRect(rect.adjusted(0.5, 0.5, -0.5, -0.5), 6, 6)
+        fg = QColor(tm.token("accentink") if selected else tm.token("ink"))
+        faint = QColor(tm.token("accentink") if selected else tm.token("ink3"))
+        name, count = split_count(index.data(Qt.DisplayRole) or "")
+        left = rect.x() + 12
+        icon_name = self._icon_for(index) if self._icon_for is not None else None
+        if icon_name:
+            pixmap = icon_pixmap(icon_name, fg, 12)
+            painter.drawPixmap(QPointF(left, rect.center().y() - 6), pixmap)
+            left += 18
+        right = rect.right() - 10
+        if count:
+            count_font = QFont(opt.font)
+            count_font.setPixelSize(11)
+            painter.setFont(count_font)
+            painter.setPen(faint)
+            shown = f"{int(count):,}".replace(",", ".")
+            width = QFontMetrics(count_font).horizontalAdvance(shown)
+            painter.drawText(QRectF(right - width, rect.y(), width, rect.height()), Qt.AlignRight | Qt.AlignVCenter, shown)
+            right -= width + 8
+        font = section_font(opt.font)
+        font.setPixelSize(11)  # pills read a little larger than group labels
+        painter.setFont(font)
+        painter.setPen(fg)
+        label = item_text(name, current_colors()).upper()
+        elided = QFontMetrics(font).elidedText(label, Qt.ElideRight, max(10, int(right - left)))
+        painter.drawText(QRectF(left, rect.y(), right - left, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, elided)
         painter.restore()
 
 
