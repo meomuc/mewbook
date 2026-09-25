@@ -68,9 +68,7 @@ def test_main_window_builds_and_works_in_every_theme(qapp, app_context, key):
         # One layout for every theme; the core features work the same in each.
         assert window.detail_panel is not None and window.sidebar_shell is not None
         window.library_view.reload()
-        featured = window.library_view.featured_card
-        shown_in_grid = window.library_view.model.rowCount() + (1 if featured and featured.document() else 0)
-        assert shown_in_grid == 1
+        assert window.library_view.model.rowCount() == 1
         window.library_view.set_view_mode("list")
         assert window.library_view.table_model.rowCount() == 1
         window.library_view.set_view_mode("grid")
@@ -102,40 +100,6 @@ def test_structural_option_defaults_keep_old_behavior():
     fields = {f.name: f.default for f in dataclasses.fields(ThemeColors) if f.default is not dataclasses.MISSING}
     assert fields["sidebar_style"] == "plain"
     assert fields["show_cover_size_slider"] is True
-
-
-def test_featured_layout_shows_first_book_large_and_selects_it(qapp, app_context):
-    from smartdoc.core.event_bus import DocumentSelectedEvent
-    from smartdoc.presentation.main_window import MainWindow
-
-    apply_theme(qapp, "japandi")
-    for i in range(3):
-        app_context.db.add_or_update_document(
-            f"d{i}", {"title": f"Book {i}", "author": "A", "file_path": f"b{i}.pdf", "created_at": float(i)}
-        )
-    window = MainWindow(app_context)
-    try:
-        view = window.library_view
-        view.set_view_mode("grid")
-        view.reload()
-        featured_doc = view.featured_card.document()
-        grid_ids = {view.model.document_at(r)["id"] for r in range(view.model.rowCount())}
-        assert featured_doc is not None and featured_doc["id"] not in grid_ids
-        assert len(grid_ids) == 2
-
-        selected = []
-        app_context.event_bus.subscribe(DocumentSelectedEvent, lambda e: selected.append(e.doc))
-        view._on_featured_clicked(featured_doc)
-        assert selected[-1]["id"] == featured_doc["id"]
-        assert [d["id"] for d in view._selected_documents()] == [featured_doc["id"]]
-
-        # The list view still shows every book.
-        view.set_view_mode("list")
-        assert view.table_model.rowCount() == 3
-    finally:
-        window.hide()
-        window.deleteLater()
-        apply_theme(qapp, "broadsheet")
 
 
 def test_theme_text_helpers():

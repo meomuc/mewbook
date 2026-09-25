@@ -24,7 +24,7 @@ QPushButton[role="dangerSolid"]:disabled { background: $surface2; color: $ink3; 
 QPushButton[role="pill"], QToolButton[role="pill"] {
     background: transparent; color: $ink2; border: 1px solid $line2; border-radius: 6px;
     min-height: 30px; padding: 0 12px; text-align: left;
-    font-family: $disp; font-size: 10px; font-weight: 600; letter-spacing: 1.4px;
+    font-family: $disp; font-size: 10px; font-weight: 600;
 }
 QPushButton[role="pill"]:hover, QToolButton[role="pill"]:hover { border-color: $accent; color: $ink; }
 QPushButton[role="pill"]:checked, QToolButton[role="pill"]:checked { background: $accent; color: $accentink; border-color: $accent; }
@@ -67,9 +67,13 @@ QSlider::groove:horizontal { height: 4px; background: $line2; border-radius: 2px
 QSlider::sub-page:horizontal { background: $accent; border-radius: 2px; }
 QSlider::handle:horizontal { background: $accent; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }
 
+QTableView { background: $bg; border: none; outline: 0; gridline-color: transparent; }
+QTableView::item { border-bottom: 1px solid $line; padding: 0 8px; color: $ink; }
+QHeaderView { background: $bg; }
+
 QTabWidget::pane { border: 1px solid $line; }
-QHeaderView::section { background: $surface2; color: $ink2; border: none; border-bottom: 1px solid $line; padding: 6px 8px;
-    font-family: $disp; font-size: 10px; font-weight: 600; letter-spacing: 1.6px; }
+QHeaderView::section { background: $bg; color: $ink3; border: none; border-bottom: 1px solid $line2; padding: 8px 8px;
+    font-family: $disp; font-size: 10px; font-weight: 600; }
 
 QStatusBar { background: $rail; color: $ink2; border-top: 1px solid $line; }
 QStatusBar::item { border: none; }
@@ -78,4 +82,4 @@ QStatusBar::item { border: none; }
 QDialog { background: $bg; }
 QFrame[role="dialogFooter"] { background: $surface2; border-top: 1px solid $line; }
 QLabel[role="hint"] { color: $ink3; }
-QLabel[role="groupLabel"] { color: $ink3; font-family: $disp; font-size: 10px; font-weight: 600; letter-spacing: 1.6px; }
+QLabel[role="groupLabel"] { color: $ink3; font-family: $disp; font-size: 10px; font-weight: 600; }

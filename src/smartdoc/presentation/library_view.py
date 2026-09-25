@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 import os
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -19,7 +18,6 @@ from PySide6.QtCore import (
     QEvent,
     QModelIndex,
     QRect,
-    QRectF,
     QSize,
     Qt,
     QTimer,
@@ -37,26 +35,25 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QShortcut,
-    QTextLayout,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QInputDialog,
     QLabel,
-    QListView,
     QMenu,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QStackedWidget,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -75,7 +72,9 @@ from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
 from smartdoc.presentation.cover_loader import CoverLoader
-from smartdoc.presentation.featured_book import FeaturedBookCard
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.shelf_view import ShelfView
+from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.cover_placeholder import gradient_pixmap
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
@@ -85,7 +84,7 @@ from smartdoc.presentation.metadata_suggest_dialog import MetadataSuggestDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.reader_manager import open_reader
 from smartdoc.presentation.review_dialog import ReviewDialog
-from smartdoc.presentation.theme import current_colors, qt_weight
+from smartdoc.presentation.theme import current_colors
 
 DEFAULT_ICON_WIDTH = 120
 # Height / width of a grid cover: roughly a real paperback (the mockups'
@@ -99,7 +98,8 @@ PLACEHOLDER_SIZE = QSize(180, int(180 * COVER_ASPECT))
 TABLE_THUMB_SIZE = QSize(32, 46)  # List view's inline cover thumbnail, on the title column
 DocumentRole = Qt.UserRole + 1
 LIBRARY_RELOAD_DEBOUNCE_MS = 300
-PAGE_SIZE = 100
+PAGE_SIZE = 24  # books per page unless the user chose another size (AppConfig.page_size)
+PAGE_SIZES = (12, 24, 48, 96)
 
 # Sort dropdown options -> trusted ORDER BY fragments (see
 # DatabaseManager.query_documents's order_by docstring on why this must stay
@@ -378,20 +378,56 @@ class LibraryModel(_AsyncCoverMixin, QAbstractListModel):
         return None
 
 
+class ShelfModel(LibraryModel):
+    """LibraryModel for the shelf: the icon is the plain cover (ShelfView paints the format chip, star and the
+    "no cover" placeholder itself), and `cover_state` says whether a real cover is decoded, still loading, or absent."""
+
+    _EMPTY = None  # a 1x1 transparent pixmap, made on first use (a QPixmap cannot exist before the QApplication)
+    _MAX_COVER_H = 480  # a decoded cover is kept at most this tall: a shelf never shows one bigger than ~300 px
+
+    def _cover_key_suffix(self, doc: dict) -> str:
+        return ""
+
+    def _build_cover_icon(self, pixmap: QPixmap, doc: dict) -> QIcon:
+        if pixmap.height() > self._MAX_COVER_H:
+            pixmap = pixmap.scaledToHeight(self._MAX_COVER_H, Qt.SmoothTransformation)
+        return QIcon(pixmap)
+
+    def _gradient_for(self, doc: dict) -> QPixmap:
+        if ShelfModel._EMPTY is None:
+            ShelfModel._EMPTY = QPixmap(1, 1)
+            ShelfModel._EMPTY.fill(Qt.transparent)
+        return ShelfModel._EMPTY
+
+    def cover_state(self, row: int) -> tuple[str, QPixmap | None]:
+        doc = self.document_at(row)
+        if doc is None:
+            return "none", None
+        icon = self._cover_decoration(doc)  # asks the loader for the real image when it is not decoded yet
+        path = doc.get("cover_path")
+        if not path or path in self._failed_covers:
+            return "none", None
+        if (path, "") in self._icon_cache:
+            sizes = icon.availableSizes()
+            return "ready", icon.pixmap(sizes[0]) if sizes else None
+        return "loading", None
+
+
 # (column key, header label). "title" is mandatory and always the first
 # column; the rest are optional, user-chosen (right-click the list view's
 # header -> see LibraryListWidget._show_column_picker), persisted in
 # AppConfig.visible_columns.
 COLUMN_DEFS: list[tuple[str, str]] = [
-    ("title", "Tiêu đề"),
+    ("title", "Tên sách"),
     ("author", "Tác giả"),
     ("format", "Định dạng"),
-    ("file_size", "Dung lượng"),
-    ("tags", "Thể loại"),
-    ("avg_rating", "Đánh giá TB"),
-    ("review_count", "Số đánh giá"),
+    ("pub_year", "Năm"),
+    ("avg_rating", "Đánh giá"),
+    ("tags", "Hashtag"),
     ("created_at", "Ngày thêm"),
-    ("updated_at", "Ngày chỉnh sửa"),
+    ("file_size", "Dung lượng"),
+    ("review_count", "Số đánh giá"),
+    ("updated_at", "Ngày sửa"),
 ]
 _COLUMN_LABELS = dict(COLUMN_DEFS)
 OPTIONAL_COLUMN_KEYS = [key for key, _label in COLUMN_DEFS if key != "title"]
@@ -406,9 +442,10 @@ OPTIONAL_COLUMN_KEYS = [key for key, _label in COLUMN_DEFS if key != "title"]
 _COLUMN_WIDTH_SAMPLES = {
     "format": "AZW3",
     "file_size": "999.9 MB",
-    "avg_rating": "4.5 ★",
+    "avg_rating": "★ 4,5",
+    "pub_year": "2026",
     "review_count": "9999",
-    "created_at": "31/12/2026 23:59",
+    "created_at": "31/12/2026",
     "updated_at": "31/12/2026 23:59",
 }
 _COLUMN_FIXED_WIDTHS = {"author": 190, "tags": 170}
@@ -417,26 +454,44 @@ _COLUMN_ALIGNMENT = {
     "format": Qt.AlignCenter,
     "file_size": Qt.AlignRight | Qt.AlignVCenter,
     "avg_rating": Qt.AlignCenter,
+    "pub_year": Qt.AlignCenter,
     "review_count": Qt.AlignCenter,
     "created_at": Qt.AlignCenter,
     "updated_at": Qt.AlignCenter,
 }
 
 
-def _format_datetime(value) -> str:
+# The sort dropdown's ORDER BY -> (column heading to mark, descending). None = the default, newest first.
+_SORTED_COLUMN = {
+    "documents.created_at DESC": ("created_at", True),
+    "documents.title ASC": ("title", False),
+    "documents.author ASC": ("author", False),
+    "documents.file_size DESC": ("file_size", True),
+    "documents.avg_rating DESC": ("avg_rating", True),
+}
+
+
+def _format_datetime(value, with_time: bool = True) -> str:
     if not value:
         return "—"
     try:
-        return datetime.fromtimestamp(value).strftime("%d/%m/%Y %H:%M")
+        return datetime.fromtimestamp(value).strftime("%d/%m/%Y %H:%M" if with_time else "%d/%m/%Y")
     except (TypeError, ValueError, OSError):
         return "—"
+
+
+def _author_unknown(doc: dict) -> bool:
+    author = (doc.get("author") or "").strip()
+    return not author or author in ("Unknown", "Không rõ")
 
 
 def _format_cell(doc: dict, key: str) -> str:
     if key == "title":
         return doc.get("title", "")
     if key == "author":
-        return doc.get("author", "") or "—"
+        return "" if _author_unknown(doc) else doc.get("author", "")
+    if key == "pub_year":
+        return str(doc.get("pub_year")) if doc.get("pub_year") else "—"
     if key == "format":
         return (doc.get("extension") or "").upper() or "—"
     if key == "file_size":
@@ -445,10 +500,12 @@ def _format_cell(doc: dict, key: str) -> str:
         return doc.get("tags", "") or "—"
     if key == "avg_rating":
         value = doc.get("avg_rating")
-        return f"{value:.1f} ★" if value is not None else "—"
+        return f"★ {value:.1f}".replace(".", ",") if value is not None else "—"
     if key == "review_count":
         return str(doc.get("review_count") or 0)
-    if key in ("created_at", "updated_at"):
+    if key == "created_at":
+        return _format_datetime(doc.get(key), with_time=False)
+    if key == "updated_at":
         return _format_datetime(doc.get(key))
     return ""
 
@@ -506,253 +563,6 @@ class _StarToggleMixin:
         return super().editorEvent(event, model, option, index)
 
 
-_CARD_PAD = 6  # inside each grid cell, above the cover
-_CARD_TEXT_GAP = 8  # cover -> title
-_CARD_TITLE_LINES = 2
-_CARD_GUTTER = 24  # horizontal space between neighbouring cards
-
-
-def _card_fonts(config) -> tuple[QFont, QFont]:
-    # Pixel sizes, read the same way the detail panel reads
-    # content_font_size (see detail_panel._content_font_css) -- as points
-    # the card titles came out a third larger than everything around them.
-    colors = current_colors()
-    title_font = _content_font(config) if config is not None else QFont()
-    size = config.content_font_size if config is not None else 13
-    title_font.setPixelSize(max(9, size))
-    title_font.setWeight(qt_weight(colors.card_title_weight))
-    author_font = QFont(title_font)
-    author_font.setWeight(qt_weight(min(colors.font_weight, 400)))
-    author_font.setPixelSize(max(8, round(size * 0.9)))
-    return title_font, author_font
-
-
-def card_text_height(config) -> int:
-    """Height of the title (up to two lines) + author block under a grid
-    cover -- what the grid cell has to leave room for."""
-    title_font, author_font = _card_fonts(config)
-    title_metrics, author_metrics = QFontMetrics(title_font), QFontMetrics(author_font)
-    return _CARD_TEXT_GAP + title_metrics.lineSpacing() * _CARD_TITLE_LINES + 4 + author_metrics.height()
-
-
-def _wrap_lines(text: str, font: QFont, width: int, max_lines: int) -> list[str]:
-    """`text` word-wrapped to `width` px, at most `max_lines` lines, the
-    last one elided with "..." if the text runs over."""
-    layout = QTextLayout(text, font)
-    layout.beginLayout()
-    spans = []
-    while True:
-        line = layout.createLine()
-        if not line.isValid():
-            break
-        line.setLineWidth(width)
-        spans.append((line.textStart(), line.textLength()))
-    layout.endLayout()
-    lines = [text[start : start + length].strip() for start, length in spans[:max_lines]]
-    if len(spans) > max_lines and lines:
-        rest = text[spans[max_lines - 1][0] :].strip()
-        lines[-1] = QFontMetrics(font).elidedText(rest, Qt.ElideRight, width)
-    return lines
-
-
-class _GridStarDelegate(_StarToggleMixin, QStyledItemDelegate):
-    """Paints each grid cell as a book card: the cover (with a soft drop
-    shadow, cropped to one uniform shape so the shelf lines up), the title
-    underneath in up to two lines, the author in a muted line below it. A
-    selected card gets an accent outline around its cover and accent-coloured
-    text, instead of a filled highlight block over the whole cell. The
-    reading-list star sits in the cover's top-right corner."""
-
-    _SCALED_CACHE_LIMIT = 400
-
-    def __init__(self, parent, is_starred, on_toggle, config=None) -> None:
-        super().__init__(parent)
-        self._init_star(is_starred, on_toggle)
-        self._config = config
-        self._scaled: dict[tuple[int, int, int], QPixmap] = {}
-        # Fades for themes with motion (ThemeColors.motion_ms): per
-        # (doc id, "hover"/"select") -> (active, start time, start value).
-        self._fades: dict[tuple[str, str], tuple[bool, float, float]] = {}
-        self._fade_timer = QTimer(self)
-        self._fade_timer.setInterval(16)
-        self._fade_timer.timeout.connect(self._on_fade_tick)
-
-    def _on_fade_tick(self) -> None:
-        view = self.parent()
-        if view is not None and hasattr(view, "viewport"):
-            view.viewport().update()
-        if not self._fades:
-            self._fade_timer.stop()
-
-    def _fade(self, key: tuple[str, str], active: bool, duration_ms: int) -> float:
-        """0..1 eased progress of `key` towards `active` -- the Qt stand-in
-        for a CSS `transition: all .5s ease` (Qt Widgets has none)."""
-        if duration_ms <= 0:
-            return 1.0 if active else 0.0
-        now = time.monotonic()
-        state = self._fades.get(key)
-        if state is None and not active:
-            return 0.0
-        if state is None or state[0] != active:
-            start = self._fade_value(state, now, duration_ms) if state else 0.0
-            state = (active, now, start)
-            self._fades[key] = state
-        value = self._fade_value(state, now, duration_ms)
-        target = 1.0 if active else 0.0
-        if value == target:
-            if not active:
-                self._fades.pop(key, None)
-        elif not self._fade_timer.isActive():
-            self._fade_timer.start()
-        return value
-
-    @staticmethod
-    def _fade_value(state, now: float, duration_ms: int) -> float:
-        active, started, start_value = state
-        t = min(1.0, (now - started) * 1000.0 / duration_ms)
-        eased = t * t * (3 - 2 * t)  # smoothstep "ease"
-        target = 1.0 if active else 0.0
-        return start_value + (target - start_value) * eased
-
-    @staticmethod
-    def _cover_rect(option) -> QRect:
-        size = option.decorationSize
-        rect = option.rect
-        x = rect.x() + (rect.width() - size.width()) // 2  # centred, so the gutters stay even
-        return QRect(x, rect.y() + _CARD_PAD, size.width(), size.height())
-
-    def _star_rect(self, option, index) -> QRect | None:
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        if opt.decorationSize.isEmpty():
-            return None
-        cover = self._cover_rect(opt)
-        return QRect(cover.right() - _STAR_SIZE - 3, cover.top() + 3, _STAR_SIZE, _STAR_SIZE)
-
-    def _cover_pixmap(self, icon: QIcon, size: QSize) -> QPixmap:
-        """The cover scaled to fill `size` exactly (cropping the overflow),
-        cached -- smooth-scaling every visible cover on every repaint would
-        make scrolling stutter."""
-        sizes = icon.availableSizes()
-        source = icon.pixmap(sizes[0]) if sizes else icon.pixmap(size)
-        key = (source.cacheKey(), size.width(), size.height())
-        cached = self._scaled.get(key)
-        if cached is not None:
-            return cached
-        scaled = source.scaled(size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-        if scaled.size() != size:
-            scaled = scaled.copy(
-                (scaled.width() - size.width()) // 2, (scaled.height() - size.height()) // 2, size.width(), size.height()
-            )
-        if len(self._scaled) >= self._SCALED_CACHE_LIMIT:
-            self._scaled.clear()
-        self._scaled[key] = scaled
-        return scaled
-
-    def paint(self, painter, option, index) -> None:
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        doc = index.data(DocumentRole) or {}
-        colors = current_colors()
-        selected = bool(opt.state & QStyle.State_Selected)
-        cover = self._cover_rect(opt)
-
-        painter.save()
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-
-        radius = colors.cover_radius
-        doc_key = str(doc.get("id") or index.row())
-        hovered = bool(opt.state & QStyle.State_MouseOver)
-        hover_level = self._fade((doc_key, "hover"), hovered and not selected, colors.motion_ms) if colors.motion_ms else 0.0
-        select_level = self._fade((doc_key, "select"), selected, colors.motion_ms)
-
-        painter.setPen(Qt.NoPen)
-        if colors.cover_shadow == "soft":
-            # Soft drop shadow: a few stacked translucent rounded rects.
-            for spread, alpha in ((3, 10), (2, 16), (1, 26)):
-                painter.setBrush(QColor(0, 0, 0, alpha))
-                painter.drawRoundedRect(
-                    cover.adjusted(-spread + 1, -spread + 2, spread - 1, spread + 2), radius + 1, radius + 1
-                )
-        elif colors.cover_shadow == "warm":
-            # A lifted, warm-brown shadow (~0 6px 16px rgba(107,85,64,.18)).
-            for spread, alpha in ((8, 6), (6, 9), (4, 12), (2, 16)):
-                painter.setBrush(QColor(107, 85, 64, alpha))
-                painter.drawRoundedRect(
-                    cover.adjusted(-spread + 2, -spread + 6, spread - 2, spread + 6), radius + spread, radius + spread
-                )
-
-        glow_level = max(select_level if colors.card_selection == "glow" else 0.0, hover_level * 0.5)
-        if glow_level > 0:
-            _paint_glow(painter, QRectF(cover), radius, QColor(colors.accent), glow_level)
-
-        icon = index.data(Qt.DecorationRole)
-        clip = QPainterPath()
-        clip.addRoundedRect(QRectF(cover), radius, radius)
-        painter.save()
-        painter.setClipPath(clip)
-        if isinstance(icon, QIcon) and not icon.isNull():
-            painter.drawPixmap(cover.topLeft(), self._cover_pixmap(icon, cover.size()))
-        else:
-            painter.fillRect(cover, QColor(colors.border))
-        painter.restore()
-
-        if colors.cover_border_color:
-            painter.setPen(QPen(QColor(colors.cover_border_color), 1))
-            painter.setBrush(Qt.NoBrush)
-            painter.drawRoundedRect(QRectF(cover).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
-
-        if select_level > 0:
-            ring = QColor(colors.accent)
-            ring.setAlphaF(select_level)
-            pen = QPen(ring)
-            width = colors.card_outline_width
-            pen.setWidth(width)
-            painter.setPen(pen)
-            painter.setBrush(Qt.NoBrush)
-            grow = width if colors.card_selection == "outline" else 0
-            painter.drawRoundedRect(QRectF(cover).adjusted(-grow, -grow, grow, grow), radius + 1, radius + 1)
-
-        # Title (up to two lines) and author, left-aligned under the cover.
-        title_font, author_font = _card_fonts(self._config)
-        custom = _content_color(self._config) if self._config is not None else None
-        title_color = QColor(colors.accent) if selected else (custom or QColor(colors.text))
-        author_color = QColor(colors.accent) if selected else QColor(colors.muted_text)
-        text_left = cover.left()
-        text_width = max(10, opt.rect.right() - text_left - 4)
-        y = cover.bottom() + _CARD_TEXT_GAP
-
-        title_metrics = QFontMetrics(title_font)
-        painter.setFont(title_font)
-        glow_text = colors.text_glow and select_level > 0
-        for line in _wrap_lines(doc.get("title") or "", title_font, text_width, _CARD_TITLE_LINES):
-            line_rect = QRect(text_left, y, text_width, title_metrics.lineSpacing())
-            if glow_text:
-                # ~text-shadow: 0 0 10px accent -- a faint halo drawn around the glyphs.
-                halo = QColor(colors.accent)
-                halo.setAlphaF(0.22 * select_level)
-                painter.setPen(halo)
-                for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    painter.drawText(line_rect.translated(dx, dy), Qt.AlignLeft | Qt.AlignVCenter, line)
-            painter.setPen(title_color)
-            painter.drawText(line_rect, Qt.AlignLeft | Qt.AlignVCenter, line)
-            y += title_metrics.lineSpacing()
-
-        author = doc.get("author") or ""
-        if author:
-            author_metrics = QFontMetrics(author_font)
-            painter.setFont(author_font)
-            painter.setPen(author_color)
-            painter.drawText(
-                QRect(text_left, y + 4, text_width, author_metrics.height()),
-                Qt.AlignLeft | Qt.AlignVCenter,
-                author_metrics.elidedText(author, Qt.ElideRight, text_width),
-            )
-        painter.restore()
-        self._paint_star(painter, option, index)
-
-
 class _ThemedRowDelegate(_StarToggleMixin, QStyledItemDelegate):
     """Paints the shared "selected item" look (theme.py's selected_bg +
     a selected_border-colored left stripe + selected_text) for the List
@@ -779,9 +589,9 @@ class _ThemedRowDelegate(_StarToggleMixin, QStyledItemDelegate):
         if option.state & QStyle.State_Selected:
             painter.save()
             painter.fillRect(option.rect, QColor(colors.selected_bg))
-            painter.fillRect(
-                option.rect.x(), option.rect.y(), self._BORDER_WIDTH, option.rect.height(), QColor(colors.selected_border)
-            )
+            if index.column() == 0:  # one accent bar at the row's left end, not one per cell
+                painter.fillRect(option.rect.x(), option.rect.y(), self._BORDER_WIDTH, option.rect.height(),
+                                 QColor(colors.selected_border))
             painter.restore()
             # QPalette.Text is an enum on the class: PySide6 has no such attribute on an
             # instance, and painting raised (repeatedly) as soon as a row got selected.
@@ -791,7 +601,11 @@ class _ThemedRowDelegate(_StarToggleMixin, QStyledItemDelegate):
             # the selected state here means only this delegate's own look
             # (the tint + stripe above) ends up on screen.
             option.state &= ~QStyle.State_Selected
+        star = self._star_rect(option, index)
+        if star is not None:  # keep the title text clear of the star at the end of the cell
+            option.rect = option.rect.adjusted(0, 0, -(_STAR_SIZE + 10), 0)
         super().paint(painter, option, index)
+        option.rect = option.rect.adjusted(0, 0, _STAR_SIZE + 10, 0) if star is not None else option.rect
         self._paint_star(painter, option, index)
 
 
@@ -808,6 +622,7 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         self._context = context
         self._documents: list[dict] = []
         self._columns: list[str] = ["title", *OPTIONAL_COLUMN_KEYS]
+        self._sorted: tuple[str, bool] | None = None  # (column key, descending) the list is ordered by
         self._init_async_covers()
 
     def set_documents(self, documents: list[dict]) -> None:
@@ -820,6 +635,12 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         self.beginResetModel()
         self._columns = ["title", *[k for k in optional_keys if k in OPTIONAL_COLUMN_KEYS]]
         self.endResetModel()
+
+    def set_sorted(self, key: str | None, descending: bool = False) -> None:
+        """Marks the column the list is sorted by (bold heading and an arrow); None clears the mark."""
+        self._sorted = (key, descending) if key else None
+        if self._columns:
+            self.headerDataChanged.emit(Qt.Horizontal, 0, len(self._columns) - 1)
 
     def visible_optional_columns(self) -> list[str]:
         return [key for key in self._columns if key != "title"]
@@ -858,8 +679,14 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         if orientation != Qt.Horizontal or not 0 <= section < len(self._columns):
             return None
         key = self._columns[section]
+        marked = self._sorted is not None and self._sorted[0] == key
         if role == Qt.DisplayRole:
-            return _COLUMN_LABELS[key]
+            arrow = (" ↓" if self._sorted[1] else " ↑") if marked else ""
+            return _COLUMN_LABELS[key].upper() + arrow  # small capitals (QSS has no text-transform)
+        if role == Qt.FontRole and marked:
+            font = QFont()
+            font.setBold(True)
+            return font
         if role == Qt.TextAlignmentRole:
             # Header text lines up with its column's cells.
             return int(_COLUMN_ALIGNMENT.get(key, Qt.AlignLeft | Qt.AlignVCenter))
@@ -871,17 +698,26 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         doc = self._documents[index.row()]
         column_key = self._columns[index.column()]
         if role == Qt.DisplayRole:
+            if column_key == "author" and _author_unknown(doc):
+                return "Chưa rõ tác giả"
             return _format_cell(doc, column_key)
         if role == Qt.DecorationRole and column_key == "title":
             return self._cover_icon(doc)
         if role == Qt.TextAlignmentRole and column_key in _COLUMN_ALIGNMENT:
             return int(_COLUMN_ALIGNMENT[column_key])
+        unknown_author = column_key == "author" and _author_unknown(doc)
         if role == Qt.FontRole and self._context:
-            return _content_font(self._context.config.config)
-        if role == Qt.ForegroundRole and self._context:
-            color = _content_color(self._context.config.config)
-            if color is not None:
-                return color
+            font = _content_font(self._context.config.config)
+            font.setPixelSize(max(9, self._context.config.config.content_font_size))  # px like the rest of the design
+            font.setItalic(unknown_author)  # "Chưa rõ tác giả" is set in italics and dimmed
+            return font
+        if role == Qt.ForegroundRole:
+            if unknown_author:
+                return QColor(theme_manager().token("ink3"))
+            if self._context:
+                color = _content_color(self._context.config.config)
+                if color is not None:
+                    return color
         if role == DocumentRole:
             return doc
         return None
@@ -908,45 +744,15 @@ class LibraryListWidget(QWidget):
         self._grid_icon_width = DEFAULT_ICON_WIDTH
         self._view_mode = "grid"
 
-        self.model = LibraryModel(self, context=context)
-        self.list_view = QListView(self)
+        self.model = ShelfModel(self, context=context)
+        # Reading-list stars: one set lookup per painted cover, refreshed once per reload() (see _starred_ids).
+        self._starred_ids: set[str] = set()
+        self.list_view = ShelfView(self, is_starred=self._is_starred, on_toggle=self.toggle_reading_list)
         self.list_view.setModel(self.model)
-        self.list_view.setViewMode(QListView.IconMode)
-        self.list_view.setResizeMode(QListView.Adjust)
         self.list_view.setIconSize(ICON_SIZE)
-        self.list_view.setSpacing(0)  # the gutters are part of gridSize (see _update_grid_size)
-        self.list_view.setFrameShape(QListView.NoFrame)
-        colors = current_colors()
-        margin = colors.page_margin
-        # In the featured layout the page row already carries the top margin
-        # (so the grid's first row lines up with the featured cover's top).
-        top = 0 if colors.grid_layout == "featured" else margin
-        self.list_view.setViewportMargins(margin, top, margin, 8)
-        if colors.motion_ms:
-            # Hover fades need hover state on every card.
-            self.list_view.setMouseTracking(True)
-            self.list_view.viewport().setAttribute(Qt.WA_Hover, True)
-        self.list_view.setMovement(QListView.Static)
-        self.list_view.setWordWrap(True)
-        self.list_view.setTextElideMode(Qt.ElideRight)
-        # A fixed grid cell size (set in _update_grid_size, below) rather
-        # than letting each item size itself off its own text is what
-        # actually keeps every cover aligned into even rows/columns
-        # regardless of title length; uniform sizes is also a real perf win
-        # for QListView since it can skip per-item size hints.
-        self.list_view.setUniformItemSizes(True)
-        self.list_view.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.list_view.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._show_context_menu)
         self.list_view.doubleClicked.connect(self._open_selected)
-        # Reading-list stars: one set lookup per painted row, refreshed once
-        # per reload() (see _starred_ids) rather than a query per row.
-        self._starred_ids: set[str] = set()
-        self.list_view.setItemDelegate(
-            _GridStarDelegate(self.list_view, self._is_starred, self.toggle_reading_list, context.config.config)
-        )
-        self._update_grid_size()
 
         self.table_model = LibraryTableModel(self, context=context)
         self.table_model.set_visible_columns(context.config.config.visible_columns)
@@ -974,24 +780,7 @@ class LibraryListWidget(QWidget):
         self.table_view.customContextMenuRequested.connect(self._show_context_menu)
         self.table_view.doubleClicked.connect(self._open_selected)
 
-        # Asymmetric grid (see featured_book.py): the page's first book shown
-        # large beside the grid of the others.
-        self.featured_card: FeaturedBookCard | None = None
         self._grid_page: QWidget = self.list_view
-        if colors.grid_layout == "featured":
-            self.featured_card = FeaturedBookCard(
-                self, cover_aspect=COVER_ASPECT, content_font_size=context.config.config.content_font_size
-            )
-            self.featured_card.clicked.connect(self._on_featured_clicked)
-            self.featured_card.double_clicked.connect(lambda doc: open_reader(self.context, doc, self))
-            self.featured_card.context_menu_requested.connect(self._on_featured_context_menu)
-            page = QWidget(self)
-            row = QHBoxLayout(page)
-            row.setContentsMargins(margin, margin, 0, 0)
-            row.setSpacing(0)
-            row.addWidget(self.featured_card, 0, Qt.AlignTop)
-            row.addWidget(self.list_view, 1)
-            self._grid_page = page
 
         self.view_stack = QStackedWidget(self)
         self.view_stack.addWidget(self._grid_page)
@@ -1037,61 +826,69 @@ class LibraryListWidget(QWidget):
 
         self.reload()
 
+    @property
+    def page_size(self) -> int:
+        return self.context.config.config.page_size or PAGE_SIZE
+
     def _build_pagination_bar(self) -> QWidget:
+        """"Trang ‹ 1 2 3 › ............ 24 mỗi trang": the picked page is boxed; the size is a plain choice."""
         bar = QWidget(self)
+        bar.setObjectName("PaginationBar")
+        self.pagination_bar = bar
         row = QHBoxLayout(bar)
-        row.setContentsMargins(0, 6, 0, 0)
-        row.setSpacing(6)
-        colors = current_colors()
-        # Flat text arrows and one filled "Đến" button, centred under the
-        # grid -- quiet enough not to compete with the covers above.
-        bar.setStyleSheet(
-            f"QPushButton {{ border: none; background: transparent; color: {colors.muted_text};"
-            f" padding: 4px 8px; font-size: 14px; }}"
-            f" QPushButton:hover {{ color: {colors.accent}; }}"
-            f" QPushButton:disabled {{ color: {colors.border}; }}"
-            f" QPushButton#JumpButton {{ background: {colors.accent}; color: {colors.accent_text};"
-            f" border-radius: 3px; padding: 4px 12px; font-weight: 600; }}"
-            f" QLabel {{ color: {colors.muted_text}; }}"
-            # White on light content areas (the original look); the theme's
-            # surface on dark ones (Zen, Retro-Tech), where white would glare
-            # and the content text color is light.
-            f" QSpinBox {{ background: {'#ffffff' if _is_light(colors.content_bg) else colors.surface};"
-            f" color: {colors.text}; border: 1px solid {colors.border}; border-radius: {min(colors.control_radius, 6)}px;"
-            f" padding: 3px 6px; min-width: 48px; }}"
-        )
-
-        self.first_page_button = QPushButton("|<")
-        self.prev_page_button = QPushButton("<")
-        self.page_label = QLabel("Trang 1 / 1")
-        self.next_page_button = QPushButton(">")
-        self.last_page_button = QPushButton(">|")
-        self.jump_spin = QSpinBox()
-        self.jump_spin.setMinimum(1)
-        self.jump_spin.setMaximum(1)
-        self.jump_button = QPushButton("Đến")
-        self.jump_button.setObjectName("JumpButton")
-        self.jump_spin.setButtonSymbols(QSpinBox.NoButtons)
-        self.jump_spin.setAlignment(Qt.AlignCenter)
-
-        self.first_page_button.clicked.connect(lambda: self._go_to_page(0))
+        row.setContentsMargins(16, 8, 16, 8)
+        row.setSpacing(4)
+        self.page_label = QLabel("Trang")
+        self.prev_page_button = QToolButton()
+        self.prev_page_button.setToolTip("Trang trước")
+        self.next_page_button = QToolButton()
+        self.next_page_button.setToolTip("Trang sau")
         self.prev_page_button.clicked.connect(lambda: self._go_to_page(self._current_page - 1))
         self.next_page_button.clicked.connect(lambda: self._go_to_page(self._current_page + 1))
-        self.last_page_button.clicked.connect(lambda: self._go_to_page(self._total_pages - 1))
-        self.jump_button.clicked.connect(lambda: self._go_to_page(self.jump_spin.value() - 1))
-
-        row.addStretch(1)
-        row.addWidget(self.first_page_button)
-        row.addWidget(self.prev_page_button)
+        self._numbers_layout = QHBoxLayout()
+        self._numbers_layout.setContentsMargins(0, 0, 0, 0)
+        self._numbers_layout.setSpacing(4)
+        self.page_buttons: dict[int, QPushButton] = {}
+        self.page_size_combo = QComboBox()
+        for size in PAGE_SIZES:
+            self.page_size_combo.addItem(f"{size} mỗi trang", size)
+        self.page_size_combo.activated.connect(self._on_page_size_chosen)
         row.addWidget(self.page_label)
+        row.addSpacing(8)
+        row.addWidget(self.prev_page_button)
+        row.addLayout(self._numbers_layout)
         row.addWidget(self.next_page_button)
-        row.addWidget(self.last_page_button)
-        row.addSpacing(18)
-        row.addWidget(QLabel("Đến:"))
-        row.addWidget(self.jump_spin)
-        row.addWidget(self.jump_button)
         row.addStretch(1)
+        row.addWidget(self.page_size_combo)
+        self._restyle_pagination()
+        theme_manager().themeChanged.connect(self._restyle_pagination)
         return bar
+
+    def _restyle_pagination(self, _key: str = "") -> None:
+        tm = theme_manager()
+        self.pagination_bar.setStyleSheet(
+            f"#PaginationBar {{ background: {tm.token('bg')}; }}"
+            f" QLabel {{ color: {tm.token('ink2')}; font-size: 13px; }}"
+            f" QToolButton {{ border: 1px solid transparent; border-radius: 6px; min-width: 26px; min-height: 26px;"
+            f" color: {tm.token('ink')}; background: transparent; font-size: 13px; }}"
+            f" QToolButton:hover {{ border-color: {tm.token('line2')}; }}"
+            f" QToolButton:disabled {{ color: {tm.token('ink3')}; }}"
+            f" QPushButton {{ border: 1px solid transparent; border-radius: 6px; min-width: 26px; max-width: 40px;"
+            f" min-height: 26px; padding: 0 4px; color: {tm.token('ink')}; background: transparent; }}"
+            f" QPushButton:hover {{ border-color: {tm.token('line2')}; }}"
+            f" QPushButton:checked {{ border: 1px solid {tm.token('accent')}; font-weight: 600; }}"
+            f" QComboBox {{ border: none; background: transparent; color: {tm.token('ink2')}; }}"
+        )
+        self.prev_page_button.setIcon(line_icon("chevron_left", tm.token("ink2")))
+        self.next_page_button.setIcon(line_icon("chevron_right", tm.token("ink2")))
+
+    def _on_page_size_chosen(self, index: int) -> None:
+        size = self.page_size_combo.itemData(index)
+        if size and size != self.page_size:
+            self.context.config.config.page_size = size
+            self.context.config.save()
+            self._current_page = 0
+            self.reload()
 
     def _go_to_page(self, page: int) -> None:
         page = max(0, min(page, self._total_pages - 1))
@@ -1100,15 +897,47 @@ class LibraryListWidget(QWidget):
         self._current_page = page
         self.reload()
 
+    @staticmethod
+    def page_window(current: int, total: int, width: int = 7) -> list[int | None]:
+        """Page numbers (0-based) to show as buttons; None is an "…" gap. Always the first and last page."""
+        if total <= width:
+            return list(range(total))
+        pages = {0, total - 1, current, current - 1, current + 1}
+        pages = sorted(p for p in pages if 0 <= p < total)
+        shown: list[int | None] = []
+        for page in pages:
+            if shown and page - shown[-1] > 1:  # type: ignore[operator]
+                shown.append(None)
+            shown.append(page)
+        return shown
+
     def _update_pagination_ui(self, total: int) -> None:
-        self.page_label.setText(f"Trang {self._current_page + 1} / {self._total_pages} ({total:,} tài liệu)")
-        self.jump_spin.setMaximum(self._total_pages)
-        at_first = self._current_page == 0
-        at_last = self._current_page >= self._total_pages - 1
-        self.first_page_button.setEnabled(not at_first)
-        self.prev_page_button.setEnabled(not at_first)
-        self.next_page_button.setEnabled(not at_last)
-        self.last_page_button.setEnabled(not at_last)
+        while self._numbers_layout.count():
+            item = self._numbers_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        self.page_buttons = {}
+        for page in self.page_window(self._current_page, self._total_pages):
+            if page is None:
+                gap = QLabel("…")
+                self._numbers_layout.addWidget(gap)
+                continue
+            button = QPushButton(str(page + 1))
+            button.setCheckable(True)
+            button.setChecked(page == self._current_page)
+            button.setToolTip(f"{total:,} tài liệu".replace(",", ".") if page == self._current_page else f"Trang {page + 1}")
+            button.clicked.connect(lambda _c=False, p=page: self._go_to_page(p))
+            self._numbers_layout.addWidget(button)
+            self.page_buttons[page] = button
+        self.prev_page_button.setEnabled(self._current_page > 0)
+        self.next_page_button.setEnabled(self._current_page < self._total_pages - 1)
+        index = self.page_size_combo.findData(self.page_size)
+        if index < 0:  # a size typed by hand into settings.json: show it too
+            self.page_size_combo.addItem(f"{self.page_size} mỗi trang", self.page_size)
+            index = self.page_size_combo.count() - 1
+        self.page_size_combo.setCurrentIndex(index)
 
     def set_view_mode(self, mode: str) -> None:
         self._view_mode = mode
@@ -1126,28 +955,11 @@ class LibraryListWidget(QWidget):
     def _grid_icon_size(self) -> QSize:
         return QSize(self._grid_icon_width, int(self._grid_icon_width * COVER_ASPECT))
 
-    def _update_grid_size(self) -> None:
-        icon_size = self._grid_icon_size()
-        # The cover plus the gutter between cards across; below it the
-        # card's two-line title + author block (see _GridStarDelegate) and
-        # the gap to the next row.
-        # Bigger covers get proportionally wider gutters, so a shelf of
-        # large covers doesn't look crammed together.
-        gutter = current_colors().card_gutter
-        cell_width = icon_size.width() + max(gutter, round(icon_size.width() * 0.2))
-        cell_height = _CARD_PAD + icon_size.height() + card_text_height(self.context.config.config) + 18
-        self.list_view.setGridSize(QSize(cell_width, cell_height))
-
     def set_grid_icon_width(self, width: int) -> None:
-        # list_view is now a persistent widget (just hidden, not
-        # reconfigured, while table_view is the active one in the stack) --
-        # always keep it current so switching back to grid mode later shows
-        # the right size instead of a stale one from before the last switch.
+        # list_view is a persistent widget (just hidden, not reconfigured, while table_view is the active one in the
+        # stack) -- always keep it current so switching back to the shelf later shows the right size.
         self._grid_icon_width = width
         self.list_view.setIconSize(self._grid_icon_size())
-        self._update_grid_size()
-        if self.featured_card is not None:
-            self.featured_card.set_cover_width(width)
 
     def _is_starred(self, doc_id) -> bool:
         return doc_id in self._starred_ids
@@ -1178,24 +990,22 @@ class LibraryListWidget(QWidget):
         where_sql, params = self._build_combined_where(flt)
         query = flt.query
         total = self.context.db.count_documents_matching(fts_query=query, where_sql=where_sql, params=params)
-        self._total_pages = max(1, math.ceil(total / PAGE_SIZE))
+        self._total_pages = max(1, math.ceil(total / self.page_size))
         self._current_page = min(self._current_page, self._total_pages - 1)
 
         documents = self.context.db.query_documents(
             fts_query=query,
             where_sql=where_sql,
             params=params,
-            limit=PAGE_SIZE,
-            offset=self._current_page * PAGE_SIZE,
+            limit=self.page_size,
+            offset=self._current_page * self.page_size,
             order_by=self._current_sort,
         )
         self._starred_ids = self.context.db.reading_list_ids()
-        if self.featured_card is not None:
-            self.featured_card.set_document(documents[0] if documents else None)
-            self.model.set_documents(documents[1:])
-        else:
-            self.model.set_documents(documents)
+        self.list_view.set_order_by(self._current_sort)
+        self.model.set_documents(documents)
         self.table_model.set_documents(documents)
+        self.table_model.set_sorted(*_SORTED_COLUMN.get(self._current_sort, ("created_at", True)))
         self._update_pagination_ui(total)
 
     def _build_combined_where(self, flt: LibraryFilter | None = None) -> tuple[str, tuple]:
@@ -1244,10 +1054,6 @@ class LibraryListWidget(QWidget):
         indexes = view.selectedIndexes()
         # Unique rows (table view emits one index per column per row).
         rows = sorted({idx.row() for idx in indexes})
-        if rows and self.featured_card is not None:
-            self.featured_card.set_selected(False)
-        if not rows and self._featured_selected():
-            return  # the featured book is the selection -- see _on_featured_clicked
         if len(rows) == 1:
             doc = model.document_at(rows[0])
             self.context.event_bus.publish(DocumentSelectedEvent(doc=doc))
@@ -1329,7 +1135,9 @@ class LibraryListWidget(QWidget):
         header.setMinimumSectionSize(48)
         # Cells render in the content font (LibraryTableModel's FontRole),
         # which is usually larger than the view's own chrome font.
-        metrics = QFontMetrics(_content_font(self.context.config.config))
+        cell_font = _content_font(self.context.config.config)
+        cell_font.setPixelSize(max(9, self.context.config.config.content_font_size))
+        metrics = QFontMetrics(cell_font)
         header_metrics = header.fontMetrics()
         for section, key in enumerate(self.table_model.column_keys()):
             if key == "title":
@@ -1495,28 +1303,7 @@ class LibraryListWidget(QWidget):
         view = self._active_view()
         model = self._active_model()
         rows = sorted({idx.row() for idx in view.selectedIndexes()})
-        if not rows and self._featured_selected():
-            return [self.featured_card.document()]
         return [d for d in (model.document_at(row) for row in rows) if d]
-
-    def _featured_selected(self) -> bool:
-        return (
-            self._view_mode != "list"
-            and self.featured_card is not None
-            and self.featured_card.is_selected()
-            and self.featured_card.document() is not None
-        )
-
-    def _on_featured_clicked(self, doc: dict) -> None:
-        self.list_view.clearSelection()
-        self.featured_card.set_selected(True)
-        self.context.event_bus.publish(DocumentSelectedEvent(doc=doc))
-
-    def _on_featured_context_menu(self, doc: dict, global_pos) -> None:
-        menu = QMenu(self)
-        # _exec_menu maps from the grid's viewport, so hand it the same spot
-        # in those coordinates.
-        self._show_single_document_menu(menu, doc, self.list_view.viewport().mapFromGlobal(global_pos))
 
     def clear_selection(self) -> None:
         self._active_view().clearSelection()
@@ -1613,23 +1400,6 @@ if __name__ == "__main__":
         widget.resize(600, 400)
         widget.show()
         sys.exit(app.exec())
-
-
-def _paint_glow(painter, rect: QRectF, radius: float, color: QColor, level: float) -> None:
-    """A soft halo around `rect` -- Qt's stand-in for CSS
-    `box-shadow: 0 0 18px <color>`: stacked, expanding, fading outlines."""
-    painter.save()
-    painter.setBrush(Qt.NoBrush)
-    steps = 7
-    for i in range(steps, 0, -1):
-        halo = QColor(color)
-        halo.setAlphaF(max(0.0, min(1.0, level * 0.07 * (steps - i + 1) / steps * 2)))
-        pen = QPen(halo)
-        pen.setWidthF(2.0)
-        painter.setPen(pen)
-        grow = i * 2.2
-        painter.drawRoundedRect(rect.adjusted(-grow, -grow, grow, grow), radius + grow, radius + grow)
-    painter.restore()
 
 
 def _is_light(hex_color: str) -> bool:

@@ -140,6 +140,10 @@ def _chevron_right(p: QPainter) -> None:
     p.drawPolyline([_p(6, 4), _p(10, 8), _p(6, 12)])
 
 
+def _chevron_left(p: QPainter) -> None:
+    p.drawPolyline([_p(10, 4), _p(6, 8), _p(10, 12)])
+
+
 def _close(p: QPainter) -> None:
     p.drawLine(_p(4, 4), _p(12, 12))
     p.drawLine(_p(12, 4), _p(4, 12))
@@ -218,7 +222,7 @@ def _file(p: QPainter) -> None:
 _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "plus": _plus, "search": _search, "grid": _grid, "table": _table, "sort": _sort, "tools": _tools,
     "panel": _panel, "gear": _gear, "pen": _pen, "book": _book, "star": _star, "star_fill": _star_fill,
-    "cloud": _cloud, "bot": _bot, "globe": _globe, "chevron_down": _chevron_down, "chevron_right": _chevron_right,
+    "cloud": _cloud, "bot": _bot, "globe": _globe, "chevron_down": _chevron_down, "chevron_right": _chevron_right, "chevron_left": _chevron_left,
     "close": _close, "refresh": _refresh, "image": _image, "send": _send, "check": _check, "folder": _folder,
     "warn": _warn, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
 }

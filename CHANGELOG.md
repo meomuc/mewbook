@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 4: the bookshelf.** The cover grid is now real shelves: each row stands on a board, with a
+  label on the left that follows the sort ("HÔM NAY · 5 sách mới thêm", "A", "5★"...). Covers keep their true
+  proportions, show a format chip (PDF/EPUB/...), a ★ for the reading list, "Chưa có bìa" with the title for a book
+  without a cover and "Không thấy file" for one whose file is gone; the picked cover lifts and gets a ring with the hint
+  "Bấm để xem · bấm đúp để đọc". The table has the new columns (Tên sách, Tác giả, Định dạng, Năm, Đánh giá, Hashtag,
+  Ngày thêm, Dung lượng), the sorted column is marked, and "Chưa rõ tác giả" is shown in dim italics. Pages read
+  "Trang ‹ 1 2 3 ›" with a choice of 12 / 24 / 48 / 96 books per page (24 by default).
 - **New "Kệ sách" look, step 3: the sidebar and the search.** Library and collections are now pill buttons (the picked
   one filled), with new pills "Chưa phân loại" (books with no hashtag) and a "BỘ SƯU TẬP  +" heading; hashtag and format
   chips show a dot when picked. Typing in the search box opens a grouped list of suggestions (Tác giả, Hashtag,

@@ -68,7 +68,18 @@ def main() -> None:
             window.show()
             for _ in range(5):
                 app.processEvents()
-            window.grab().save(str(out / f"main_{theme}_{size}.png"))
+            if "--list" in sys.argv:
+                window.library_view.set_view_mode("list")
+                window.toolbar.list_view_button.setChecked(True)
+                for _ in range(3):
+                    app.processEvents()
+            if "--select" in sys.argv:
+                view = window.library_view._active_view()
+                view.setCurrentIndex(window.library_view._active_model().index(1, 0))
+                for _ in range(3):
+                    app.processEvents()
+            suffix = "_list" if "--list" in sys.argv else ""
+            window.grab().save(str(out / f"main_{theme}_{size}{suffix}.png"))
             window.close()
         context.shutdown()
 

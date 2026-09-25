@@ -238,7 +238,7 @@ def test_grid_icon_gets_a_format_badge_and_caches_by_extension(qapp, app_context
     assert icon_epub is not None
     # Different extensions must not share a cached, identically-badged icon.
     assert icon_pdf.cacheKey() != icon_epub.cacheKey()
-    assert len(widget.model._icon_cache) == 2
+    assert len(widget.model._icon_cache) == 2  # one entry per document (no cover: the id keys it)
 
 
 def test_format_badge_font_is_seven_and_a_half_percent_of_cover_height():
@@ -328,7 +328,7 @@ def test_table_model_applies_content_font_and_color(qapp, app_context):
     font = widget.table_model.data(index, Qt.FontRole)
     color = widget.table_model.data(index, Qt.ForegroundRole)
 
-    assert font.pointSize() == 16
+    assert font.pixelSize() == 16  # the table sets content text in pixels, like the rest of the design
     assert QColor(color) == QColor("#00ff00")
 
 

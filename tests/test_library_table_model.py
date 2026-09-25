@@ -29,8 +29,8 @@ def test_title_is_always_the_first_column_even_if_not_requested():
     model = LibraryTableModel()
     model.set_visible_columns(["author"])
     assert model.columnCount() == 2  # title + author
-    assert model.headerData(0, Qt.Horizontal) == "Tiêu đề"
-    assert model.headerData(1, Qt.Horizontal) == "Tác giả"
+    assert model.headerData(0, Qt.Horizontal) == "TÊN SÁCH"
+    assert model.headerData(1, Qt.Horizontal) == "TÁC GIẢ"
 
 
 def test_set_visible_columns_ignores_unknown_keys():
@@ -51,7 +51,7 @@ def test_data_formats_rating_and_dates(qapp):
     assert values["title"] == "Sample Title"
     assert values["author"] == "Sample Author"
     assert values["tags"] == "AI,ML"
-    assert values["avg_rating"] == "4.2 ★"
+    assert values["avg_rating"] == "★ 4,2"
     assert values["review_count"] == "7"
     assert "2023" in values["created_at"] or "/" in values["created_at"]  # a formatted date, not blank
     assert values["updated_at"] != "—"
@@ -140,4 +140,4 @@ def test_list_view_column_widths_reapplied_after_toggling_a_column(qapp, app_con
 
     assert header.sectionResizeMode(0) == QHeaderView.Stretch
     date_width = header.sectionSize(2)
-    assert date_width >= widget.table_view.fontMetrics().horizontalAdvance("31/12/2026 23:59")
+    assert date_width >= widget.table_view.fontMetrics().horizontalAdvance("31/12/2026")

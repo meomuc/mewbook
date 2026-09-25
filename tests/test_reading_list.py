@@ -1,5 +1,4 @@
-from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import Qt
 
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.database import READING_LIST_ID, READING_LIST_NAME
@@ -76,7 +75,9 @@ def test_star_toggle_in_the_library_updates_stars_and_publishes(qapp, app_contex
     assert widget._is_starred("d0")  # reloaded from the database, not just local state
 
 
-def test_clicking_the_star_on_a_grid_cover_toggles_it(qapp, app_context):
+def test_clicking_the_star_on_a_shelf_cover_toggles_it_without_selecting(qapp, app_context):
+    from PySide6.QtTest import QTest
+
     _seed(app_context)
     widget = LibraryListWidget(app_context)
     widget.resize(700, 500)
@@ -84,46 +85,29 @@ def test_clicking_the_star_on_a_grid_cover_toggles_it(qapp, app_context):
     qapp.processEvents()
 
     view = widget.list_view
-    delegate = view.itemDelegate()
-    index = widget.model.index(0, 0)
     doc_id = widget.model.document_at(0)["id"]
+    star = view._star_rect(0)
+    QTest.mouseClick(view.viewport(), Qt.LeftButton, Qt.NoModifier, star.center())
 
-    from PySide6.QtWidgets import QStyleOptionViewItem
-
-    option = QStyleOptionViewItem()
-    view.initViewItemOption(option)
-    option.rect = view.visualRect(index)
-    star = delegate._star_rect(option, index)
-    assert star is not None
-
-    click_at = QPointF(star.center())
-    release = QMouseEvent(QEvent.MouseButtonRelease, click_at, click_at, Qt.LeftButton, Qt.NoButton, Qt.NoModifier)
-    consumed = delegate.editorEvent(release, widget.model, option, index)
-
-    assert consumed  # clicking the star must not also select/open the book
     assert widget._is_starred(doc_id)
+    assert not view.selectionModel().hasSelection()  # clicking the star must not also select/open the book
 
 
-def test_clicking_the_cover_outside_the_star_does_not_toggle(qapp, app_context):
+def test_clicking_the_cover_outside_the_star_selects_but_does_not_toggle(qapp, app_context):
+    from PySide6.QtTest import QTest
+
     _seed(app_context)
     widget = LibraryListWidget(app_context)
     widget.resize(700, 500)
     widget.show()
     qapp.processEvents()
 
-    from PySide6.QtWidgets import QStyleOptionViewItem
-
     view = widget.list_view
-    index = widget.model.index(0, 0)
-    option = QStyleOptionViewItem()
-    view.initViewItemOption(option)
-    option.rect = view.visualRect(index)
-
-    elsewhere = QPointF(option.rect.bottomLeft()) + QPointF(5, -5)
-    release = QMouseEvent(QEvent.MouseButtonRelease, elsewhere, elsewhere, Qt.LeftButton, Qt.NoButton, Qt.NoModifier)
-    view.itemDelegate().editorEvent(release, widget.model, option, index)
+    rect = view.visualRect(widget.model.index(0, 0))
+    QTest.mouseClick(view.viewport(), Qt.LeftButton, Qt.NoModifier, rect.center())
 
     assert not widget._is_starred(widget.model.document_at(0)["id"])
+    assert view.selectionModel().hasSelection()
 
 
 def test_reading_list_is_pinned_under_all_documents_in_the_sidebar(qapp, app_context):

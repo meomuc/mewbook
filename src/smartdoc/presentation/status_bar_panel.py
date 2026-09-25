@@ -44,6 +44,7 @@ from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.line_icons import icon_pixmap
+from smartdoc.presentation.sidebar_style import section_font
 from smartdoc.presentation.theme_manager import STATUS_BAR_H, theme_manager
 
 # Layout numbers for the bar: every item is one row high and the status icons share one slot width, so the rows of
@@ -384,7 +385,8 @@ class StatusBarPanel(QStatusBar):
         layout.setAlignment(Qt.AlignVCenter)
         if heading:
             label = QLabel(heading, zone)
-            label.setProperty("role", "groupLabel")  # 10 px, spaced capitals (base.qss.tpl)
+            label.setProperty("role", "groupLabel")  # colour from base.qss.tpl
+            label.setFont(section_font(label.font()))  # 10 px, spaced capitals (QSS cannot space letters)
             layout.addWidget(label)
             zone.heading_label = label
         for widget in widgets:
