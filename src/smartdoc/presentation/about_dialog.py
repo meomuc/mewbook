@@ -38,7 +38,7 @@ from smartdoc import (
     __version__,
 )
 from smartdoc.core.diagnostics import current_log_path, support_info
-from smartdoc.presentation.community import community_url
+from smartdoc.presentation.community import community_url, website_url
 from smartdoc.presentation.eula_dialog import EULA_TEXT
 from smartdoc.presentation.resources import brand_logo_path, legal_file_path
 from smartdoc.presentation.theme import current_colors
@@ -144,6 +144,22 @@ class AboutDialog(QDialog):
         else:
             self.source_label.setText(f"Mã nguồn tương ứng của phiên bản {__version__} được cung cấp cùng bản phát hành.")
         layout.addWidget(self.source_label)
+
+        # The official website, above the fan page: the first place to look for downloads and news.
+        self.website_label = QLabel(page)
+        self.website_label.setAlignment(Qt.AlignCenter)
+        self.website_label.setWordWrap(True)
+        self.website_label.setStyleSheet("font-size: 11px;")
+        site = website_url()
+        if site:
+            safe_site = html.escape(site, quote=True)
+            site_link = f'<a href="{safe_site}"><span style="color:{current_colors().accent};">{html.escape(site.removeprefix("https://").rstrip("/"))}</span></a>'
+            self.website_label.setTextFormat(Qt.RichText)
+            self.website_label.setText(f"Trang web chính thức: {site_link}")
+            self.website_label.setOpenExternalLinks(True)
+        else:
+            self.website_label.setVisible(False)
+        layout.addWidget(self.website_label)
 
         # Where new versions are announced and feedback is read. Same accent-coloured link as the source line above.
         self.community_label = QLabel(page)

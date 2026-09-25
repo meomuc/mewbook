@@ -288,6 +288,12 @@ without it. Since 1.0.0 every installation has an anonymous identity (`core/user
 written only through the server-side `submit_review` function (`src/smartdoc/application/sql/001_reviewer_identity.sql`,
 copyable from Settings → "Sao chép SQL nâng cấp"). Reviews stay public and anonymous.
 
+## Official website
+
+MewBook's official website, with what it is, where to download it, what is new and what is planned, is
+<https://meomuc.github.io/> (also linked from Help in the app). Its source is the `website/` folder of this repository,
+published from its own repository, <https://github.com/meomuc/meomuc.github.io>.
+
 ## Community
 
 New versions are announced, and feedback is read, on the project's Facebook page:

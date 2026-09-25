@@ -11,7 +11,7 @@ from __future__ import annotations
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 
-from smartdoc import APP_COMMUNITY_URL
+from smartdoc import APP_COMMUNITY_URL, APP_WEBSITE_URL
 
 
 def community_url() -> str:
@@ -21,4 +21,14 @@ def community_url() -> str:
 
 def open_community_page() -> bool:
     url = community_url()
+    return bool(url) and bool(QDesktopServices.openUrl(QUrl(url)))
+
+
+def website_url() -> str:
+    """The official website's address, or "" when it is not a plain https address."""
+    return APP_WEBSITE_URL if APP_WEBSITE_URL.startswith("https://") else ""
+
+
+def open_website() -> bool:
+    url = website_url()
     return bool(url) and bool(QDesktopServices.openUrl(QUrl(url)))

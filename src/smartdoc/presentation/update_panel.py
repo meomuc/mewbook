@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QPushButton, QVBox
 
 from smartdoc import __version__
 from smartdoc.application.update_checker import UpdateCheckError, UpdateInfo
-from smartdoc.presentation.community import community_url, open_community_page
+from smartdoc.presentation.community import community_url, open_community_page, open_website, website_url
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,11 @@ class UpdatePanel(QWidget):
         self.check_button.clicked.connect(self._on_check_now)
         row.addWidget(self.check_button)
         # The page that announces new versions works without the update check (and before a release feed exists).
+        self.website_button = QPushButton("🌐 Trang web chính thức", self)
+        self.website_button.setToolTip("Mở trang web chính thức của Mèo Mực trong trình duyệt: tải bản mới và xem tin cập nhật.")
+        self.website_button.setEnabled(bool(website_url()))
+        self.website_button.clicked.connect(lambda _checked=False: open_website())
+        row.addWidget(self.website_button)
         self.community_button = QPushButton("📣 Fanpage cộng đồng", self)
         self.community_button.setToolTip("Mở fanpage Facebook của Mèo Mực trong trình duyệt: tin về các bản nâng cấp mới và nơi gửi góp ý.")
         self.community_button.setEnabled(bool(community_url()))

@@ -71,3 +71,53 @@ def test_the_update_tab_button_is_disabled_without_a_page(qapp, app_context, mon
     monkeypatch.setattr(update_panel, "community_url", lambda: "")
     panel = UpdatePanel(app_context)
     assert not panel.community_button.isEnabled() and "fanpage" not in panel.status_label.text()
+
+
+# --- the official website, opened the same way ---
+
+SITE = "https://meomuc.github.io/"
+
+
+def test_the_official_website_is_configured_and_opened_only_when_plain_https(monkeypatch):
+    from smartdoc import APP_WEBSITE_URL
+
+    opened = _capture(monkeypatch)
+    assert APP_WEBSITE_URL == SITE and community.website_url() == SITE
+    assert community.open_website() is True and opened == [SITE]
+    for bad in ("", "http://meomuc.github.io/", "javascript:alert(1)", "file:///C:/Windows/notepad.exe"):
+        monkeypatch.setattr(community, "APP_WEBSITE_URL", bad)
+        assert community.website_url() == "" and community.open_website() is False
+    assert opened == [SITE]
+
+
+def test_the_help_menu_lists_the_website_before_the_fan_page_and_opens_it(qapp, app_context, monkeypatch):
+    opened = _capture(monkeypatch)
+    window = MainWindow(app_context)
+    help_menu = next(a.menu() for a in window.menuBar().actions() if a.menu() and a.text().endswith("Help"))
+    texts = [a.text() for a in help_menu.actions()]
+    website_at = next(i for i, t in enumerate(texts) if "Trang web chính thức" in t)
+    assert website_at < next(i for i, t in enumerate(texts) if "Fanpage" in t)
+    help_menu.actions()[website_at].trigger()
+    assert opened == [SITE]
+    window.hide()
+    window.deleteLater()
+
+
+def test_about_names_the_website(qapp):
+    label = AboutDialog().website_label
+    assert not label.isHidden() and SITE in label.text() and label.openExternalLinks()
+    assert "Trang web chính thức" in label.text()
+
+
+def test_about_omits_the_website_line_when_none_is_configured(qapp, monkeypatch):
+    monkeypatch.setattr(about_dialog, "website_url", lambda: "")
+    label = AboutDialog().website_label
+    assert label.isHidden() and "href" not in label.text()
+
+
+def test_the_update_tab_has_a_website_button(qapp, app_context, monkeypatch):
+    opened = _capture(monkeypatch)
+    panel = UpdatePanel(app_context)
+    assert panel.website_button.isEnabled()
+    panel.website_button.click()
+    assert opened == [SITE]

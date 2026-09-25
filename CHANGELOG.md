@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **The official website, https://meomuc.github.io/, is one click away.** Help → "Trang web chính thức", Help → About
+  ("Trang web chính thức: …") and Settings → Cập nhật ("🌐 Trang web chính thức") open it in the browser, and the installer
+  lists it as the publisher, support and updates address. Opening it is always your click; MewBook sends nothing.
 - **Official Mèo Mực logo and mascot artwork.** The app icon, the sidebar logo and the About logo are now the
   official cat-reading-a-book logo, and seven mascot pictures (reading, thinking, searching, waiting, done, sad,
   developer) ship with the app, ready for the empty and waiting screens. Built by `tools/prepare_brand_assets.py`.

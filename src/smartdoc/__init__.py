@@ -31,6 +31,10 @@ APP_UPDATE_FEED_URL = ""
 # The community page (a Facebook fan page): new versions are announced there and users' feedback is read there. Opened in the
 # browser by Help -> "Fanpage cộng đồng", Help -> About and Settings -> "Cập nhật" (presentation/community.py); MewBook sends nothing.
 APP_COMMUNITY_URL = "https://www.facebook.com/meomuc.mewbook/"
+# The official website (source in website/, published by its own repository): what the product is, where to download it,
+# what is new and what is planned. Opened in the browser by Help -> "Trang web chính thức", Help -> About and Settings ->
+# "Cập nhật" (presentation/community.py); MewBook sends nothing.
+APP_WEBSITE_URL = "https://meomuc.github.io/"
 # Anonymous error reports (docs/handoff/09_ERROR_REPORTING_SPEC.md): the server that receives them is a Supabase project;
 # these are its API URL and its public "anon" key. The key is public by design (the server checks every call and the
 # anon role can only call submit_error_report; nothing is protected by hiding it). Empty until the project owner has run
