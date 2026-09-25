@@ -43,10 +43,10 @@ def test_files_label_shows_total_and_completeness_counts(qapp, app_context):
     panel = StatusBarPanel(app_context)
 
     # The bar itself carries only icons and numbers; the sentence is the tooltip.
-    assert panel.files_label.text() == "📚 2  ·  ✅ 1  ·  ⚠️ 1"
+    assert (panel.files_label.text(), panel.complete_label.text(), panel.incomplete_label.text()) == ("📚 2", "✅ 1", "⚠️ 1")
     assert "2 tài liệu" in panel.files_label.toolTip()
-    assert "1 đủ thông tin" in panel.files_label.toolTip()
-    assert "1 còn thiếu thông tin" in panel.files_label.toolTip()
+    assert "1 tài liệu đã đủ thông tin" in panel.complete_label.toolTip()
+    assert "1 tài liệu còn thiếu thông tin" in panel.incomplete_label.toolTip()
 
 
 def test_folders_label_shows_watch_folder_count(qapp, app_context):
@@ -405,3 +405,67 @@ def test_key_based_providers_still_go_by_the_key(qapp, app_context):
     app_context.config.config.ai_api_key = "k"
     panel.refresh()
     assert panel.ai_label.state == STATE_OK
+
+
+# --- alignment: nothing beside the moving text may move, and the icons line up ---
+
+
+def _geometries(panel, widgets):
+    return [w.mapTo(panel, w.rect().topLeft()) for w in widgets]
+
+
+def test_the_moving_text_never_moves_the_icons_beside_it(qapp, app_context, monkeypatch):
+    """Regression: the ticker's width followed the characters showing, so the connection icons swayed with it."""
+    monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
+    panel = StatusBarPanel(app_context)
+    panel.resize(1500, 26)
+    panel.show()
+    qapp.processEvents()
+    icons = [panel.cloud_label, panel.ai_label, panel.network_label, panel.community_label, panel.author_label]
+    ticker_width = panel.donate_ticker.width()
+    before = _geometries(panel, icons)
+
+    for _ in range(len(panel.donate_ticker._loop_text)):  # one whole trip of the text, frame by frame
+        panel.donate_ticker._tick()
+        qapp.processEvents()
+        assert panel.donate_ticker.width() == ticker_width
+        assert _geometries(panel, icons) == before
+
+
+def test_the_donate_line_is_set_at_seven_tenths_of_the_bar_font(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    bar = panel.author_label.font()
+    ticker = panel.donate_ticker.font()
+    size = lambda f: f.pointSizeF() if f.pointSizeF() > 0 else float(f.pixelSize())  # noqa: E731
+    assert abs(size(ticker) / size(bar) - 0.7) < 0.08
+
+
+def test_status_icons_share_one_slot_width_and_sit_evenly(qapp, app_context, monkeypatch):
+    monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
+    panel = StatusBarPanel(app_context)
+    panel.resize(1500, 26)
+    panel.show()
+    qapp.processEvents()
+    icons = [panel.cloud_label, panel.ai_label, panel.network_label]
+
+    assert len({icon.width() for icon in icons}) == 1
+    lefts = [icon.mapTo(panel, icon.rect().topLeft()).x() for icon in icons]
+    assert len({b - a for a, b in zip(lefts, lefts[1:])}) == 1  # the same step from one icon to the next
+    for state in (STATE_OK, STATE_OFF, STATE_ERROR):
+        panel.ai_label.set_state(state, "x")
+        assert panel.ai_label.width() == icons[0].width()  # a different glyph never resizes its slot
+
+
+def test_every_item_of_the_bar_is_one_row_high_and_centred(qapp, app_context, monkeypatch):
+    monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
+    panel = StatusBarPanel(app_context)
+    panel.resize(1500, 26)
+    panel.show()
+    qapp.processEvents()
+    items = [
+        panel.files_label, panel.complete_label, panel.incomplete_label, panel.folders_label,
+        panel.cloud_label, panel.ai_label, panel.network_label, panel.community_label, panel.author_label,
+    ]
+    assert len({item.height() for item in items}) == 1
+    centres = {item.mapTo(panel, item.rect().center()).y() for item in items}
+    assert len(centres) == 1  # one common centre line

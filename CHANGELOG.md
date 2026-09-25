@@ -260,6 +260,10 @@ New features, so the next release is a MINOR bump (1.1.0).
   own trained model (`train.py`) is unaffected, except that the boilerplate list now applies to it too.
 
 ### Fixed
+- **The status bar's icons no longer sway while the donate line scrolls.** The line's box changed width with the
+  characters showing and pushed the connection icons back and forth; it is now a box of constant width. The counts on
+  the left are separate, evenly spaced items (📚 ✅ ⚠️ 👁), the three connection icons share one slot width so they
+  line up, everything sits on one centre line, and the donate line is set at 70% of the bar's text size.
 - **The main window and the reader no longer cover the taskbar.** They opened at a fixed 1400x800 and 900x1000, more
   than a laptop screen has above its taskbar; both now shrink to fit the usable screen area and are pulled back if
   any part would sit over the taskbar.

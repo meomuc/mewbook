@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QFontMetrics
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStatusBar, QWidget
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
@@ -49,6 +49,13 @@ from smartdoc.presentation.theme import current_colors
 # each status indicator inventing its own.
 _STATUS_OK_COLOR = "green"
 _STATUS_MISSING_COLOR = "crimson"
+
+# Layout numbers for the bar: every item is one row high and the status icons share one slot width, so the rows of
+# icons line up whatever glyphs they hold.
+_ROW_HEIGHT = 22
+_STATUS_ICON_WIDTH = 40
+_ZONE_SPACING_WIDE = 16
+_ZONE_SPACING_TIGHT = 4
 
 # State -> (badge shape, is it coloured). The shapes differ on purpose: see the module docstring.
 STATE_OK = "ok"
@@ -107,6 +114,7 @@ class _DonateTicker(QLabel):
     GAP = "    •    "
     WINDOW_CHARS = 42
     TICK_MS = 280
+    TEXT_SCALE = 0.7  # the line is a quiet aside, so it is set smaller than the rest of the bar
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -116,15 +124,30 @@ class _DonateTicker(QLabel):
         self.setToolTip("Ủng hộ tác giả một ly cà phê ☕ (bấm để xem mã QR)")
         colors = current_colors()
         self.setStyleSheet(f"color: {colors.accent}; font-weight: 600;")
-        # Up to WINDOW_CHARS wide, but free to be narrower: a fixed width would keep the whole window from shrinking.
-        self.setMaximumWidth(self.fontMetrics().averageCharWidth() * self.WINDOW_CHARS)
-        self.setMinimumWidth(1)
+        font = self.font()
+        if font.pointSizeF() > 0:
+            font.setPointSizeF(font.pointSizeF() * self.TEXT_SCALE)
+        else:
+            font.setPixelSize(max(1, round(font.pixelSize() * self.TEXT_SCALE)))
+        self.setFont(font)
+        self.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        # A slot of one constant width: the text moves inside it, and its preferred width does not follow the
+        # characters showing, so the icons beside it stay exactly where they are. It may still shrink to nothing
+        # (minimumSizeHint), and _fit_ticker hides it when the window has no room for it.
+        self._slot_width = QFontMetrics(font).averageCharWidth() * self.WINDOW_CHARS
+        self.setMaximumWidth(self._slot_width)
 
         self._timer = QTimer(self)
         self._timer.setInterval(self.TICK_MS)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
         self._tick()
+
+    def sizeHint(self) -> QSize:  # noqa: N802 -- Qt override
+        return QSize(self._slot_width, super().sizeHint().height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 -- Qt override
+        return QSize(0, super().minimumSizeHint().height())
 
     def _tick(self) -> None:
         doubled = self._loop_text * 2
@@ -151,7 +174,6 @@ class StatusBarPanel(QStatusBar):
     # Ollama has no key to look for, so "connected" has to be observed: asked again this often, so switching
     # Ollama off (or on) is noticed without touching Settings.
     OLLAMA_POLL_MS = 30_000
-    MIN_TICKER_WIDTH = 160  # narrower than this the moving text is not worth showing
 
     def __init__(self, context, parent=None) -> None:
         super().__init__(parent)
@@ -170,6 +192,8 @@ class StatusBarPanel(QStatusBar):
 
         # -- left zone: library --
         self.files_label = QLabel(self)
+        self.complete_label = QLabel(self)
+        self.incomplete_label = QLabel(self)
         self.collection_label = QLabel(self)
         self.folders_label = QLabel(self)
         self.activity_label = QLabel(self)
@@ -199,15 +223,49 @@ class StatusBarPanel(QStatusBar):
         self.author_label = QLabel("Dev:AnhTienSinh", self)
         self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- phát triển bởi {APP_PUBLISHER}")
 
-        for label in (self.files_label, self.collection_label, self.folders_label, self.activity_label):
+        for label in (
+            self.files_label,
+            self.complete_label,
+            self.incomplete_label,
+            self.collection_label,
+            self.folders_label,
+            self.activity_label,
+        ):
             label.setTextFormat(Qt.RichText)
 
         self.library_zone = self._zone(
-            [self.files_label, self.collection_label, self.folders_label, self.activity_label, self.missing_label, self.update_label],
+            [
+                self.files_label,
+                self.complete_label,
+                self.incomplete_label,
+                self.folders_label,
+                self.collection_label,
+                self.activity_label,
+                self.missing_label,
+                self.update_label,
+            ],
+            spacing=_ZONE_SPACING_WIDE,
             trailing_stretch=True,
         )
-        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label])
-        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label])
+        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT)
+        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE)
+        for label in (self.cloud_label, self.ai_label, self.network_label):
+            label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
+        for widget in (
+            self.files_label,
+            self.complete_label,
+            self.incomplete_label,
+            self.folders_label,
+            self.collection_label,
+            self.activity_label,
+            self.community_label,
+            self.author_label,
+            self.cloud_label,
+            self.ai_label,
+            self.network_label,
+        ):
+            widget.setFixedHeight(_ROW_HEIGHT)
+            widget.setAlignment(widget.alignment() | Qt.AlignVCenter)
 
         container = QWidget(self)
         row = QHBoxLayout(container)
@@ -251,11 +309,12 @@ class StatusBarPanel(QStatusBar):
     # -- construction helpers --
 
     @staticmethod
-    def _zone(widgets: list[QWidget], *, trailing_stretch: bool = False) -> QWidget:
+    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False) -> QWidget:
         zone = QWidget()
         layout = QHBoxLayout(zone)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(spacing)
+        layout.setAlignment(Qt.AlignVCenter)
         for widget in widgets:
             layout.addWidget(widget)
         if trailing_stretch:
@@ -283,7 +342,7 @@ class StatusBarPanel(QStatusBar):
             + self.author_label.sizeHint().width()
         )
         room = self.width() - others - 60  # dividers, margins and the spacing between items
-        self.donate_ticker.setVisible(room >= self.MIN_TICKER_WIDTH)
+        self.donate_ticker.setVisible(room >= self.donate_ticker._slot_width)
 
     # -- events --
 
@@ -353,8 +412,12 @@ class StatusBarPanel(QStatusBar):
         self._show_missing(self.context.db.count_missing())
         total = self.context.db.count_documents()
         complete, incomplete = self.context.db.count_metadata_completeness()
-        self.files_label.setText(f"📚 {total}  ·  ✅ {complete}  ·  ⚠️ {incomplete}")
-        self.files_label.setToolTip(f"{total} tài liệu: {complete} đủ thông tin, {incomplete} còn thiếu thông tin")
+        self.files_label.setText(f"📚 {total}")
+        self.files_label.setToolTip(f"Thư viện có {total} tài liệu")
+        self.complete_label.setText(f"✅ {complete}")
+        self.complete_label.setToolTip(f"{complete} tài liệu đã đủ thông tin")
+        self.incomplete_label.setText(f"⚠️ {incomplete}")
+        self.incomplete_label.setToolTip(f"{incomplete} tài liệu còn thiếu thông tin (tác giả, bìa...)")
 
         ids = self._active_collection_ids
         if len(ids) == 1:
