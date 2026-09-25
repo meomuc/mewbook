@@ -220,8 +220,8 @@ class StatusBarPanel(QStatusBar):
         self.community_label.setCursor(Qt.PointingHandCursor)
         self.community_label.setToolTip("Fanpage cộng đồng: tin về bản mới và nơi gửi góp ý (mở trong trình duyệt)")
         self.community_label.clicked.connect(open_community_page)
-        self.author_label = QLabel("Dev:AnhTienSinh", self)
-        self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- phát triển bởi {APP_PUBLISHER}")
+        self.author_label = QLabel("Tác giả: AnhTienSinh", self)
+        self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- tác giả: {APP_PUBLISHER}")
 
         for label in (
             self.files_label,

@@ -201,6 +201,8 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **The project is credited to its "tác giả" (author), not a "developer".** The status bar now reads "Tác giả:
+  AnhTienSinh", Help → About says "Tác giả: …", and the error messages ask you to send the log "cho tác giả".
 - **The "how to get an API key" guides are now short numbered steps.** Each AI provider (Gemini, OpenAI, Anthropic,
   Groq, OpenRouter, DeepSeek, Mistral, Ollama) says first whether it is free or paid, then lists one action per step,
   from opening the page to pasting the key and pressing "Kiểm tra kết nối". The Google cover-search guide got the same

@@ -24,6 +24,6 @@ gợi ý, tên tab) rồi tìm các từ trong danh sách `INTERNAL_TERMS`. Màn
 | 10 | Thông báo hệ thống: nhập từ Calibre | ✅ | ✅ | "hàng đợi xử lý" → "danh sách chờ". |
 | 11 | Thông báo hệ thống: sắp xếp theo đánh giá | ✅ | ✅ | "Đồng bộ đánh giá thất bại" → "Chưa lấy được điểm đánh giá". |
 | 12 | Thông báo hệ thống: thoát khi đang xử lý, khôi phục thư viện, đổi đường dẫn, xóa, phân loại | ✅ | Giữ | Đã đủ đơn giản, nói rõ file gốc có bị đụng tới hay không. |
-| 13 | Thông báo hệ thống: hộp thoại "gặp lỗi" | ✅ | Giữ | Có đường dẫn nhật ký và cách gửi cho nhà phát triển. Dòng tóm tắt lỗi lấy từ chương trình, chưa dịch. |
+| 13 | Thông báo hệ thống: hộp thoại "gặp lỗi" | ✅ | Giữ | Có đường dẫn nhật ký và cách gửi cho tác giả. Dòng tóm tắt lỗi lấy từ chương trình, chưa dịch. |
 
 Ký hiệu: ✅ xong · ⏳ sẽ làm ở task ghi bên cạnh · Giữ = đã rà, không cần đổi.

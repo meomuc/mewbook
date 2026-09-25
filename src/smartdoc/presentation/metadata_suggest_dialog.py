@@ -352,7 +352,7 @@ class MetadataSuggestDialog(QDialog):
                 self,
                 "Không cập nhật được",
                 "Có lỗi khi cập nhật thông tin sách. Hãy thử lại; nếu vẫn lỗi, mở Trợ giúp → Giới thiệu → "
-                "Thư mục nhật ký để gửi cho nhà phát triển.",
+                "Thư mục nhật ký để gửi cho tác giả.",
             )
             return
         QApplication.restoreOverrideCursor()

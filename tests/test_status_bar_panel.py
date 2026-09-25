@@ -110,7 +110,7 @@ def test_status_bar_has_a_top_border_separating_it_from_the_panel_above(qapp, ap
 
 def test_author_credit_is_always_shown(qapp, app_context):
     panel = StatusBarPanel(app_context)
-    assert panel.author_label.text() == "Dev:AnhTienSinh"
+    assert panel.author_label.text() == "Tác giả: AnhTienSinh"
 
 
 # --- three fixed zones ---

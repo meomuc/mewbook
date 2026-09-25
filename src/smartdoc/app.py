@@ -109,7 +109,7 @@ def _run_crash_dialog(summary: str) -> None:
             "Đã xảy ra lỗi không mong muốn. Ứng dụng vẫn cố gắng tiếp tục chạy.\n\n"
             f"{summary}\n\n"
             + (f"Chi tiết đã được ghi vào:\n{log_path}\n\n" if log_path else "")
-            + "Nếu lỗi lặp lại, hãy gửi file nhật ký này kèm mô tả thao tác cho nhà phát triển "
+            + "Nếu lỗi lặp lại, hãy gửi file nhật ký này kèm mô tả thao tác cho tác giả "
             "(Trợ giúp > Giới thiệu > Sao chép thông tin hỗ trợ).",
         )
     finally:

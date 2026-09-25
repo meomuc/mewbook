@@ -109,7 +109,7 @@ class AboutDialog(QDialog):
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
-        author = QLabel(f"Phát triển bởi {APP_PUBLISHER}", page)
+        author = QLabel(f"Tác giả: {APP_PUBLISHER}", page)
         author.setAlignment(Qt.AlignCenter)
         layout.addWidget(author)
 

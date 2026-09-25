@@ -129,3 +129,14 @@ def test_message_boxes_avoid_internal_terms(source):
             strings += [c.value for arg in node.args for c in ast.walk(arg) if isinstance(c, ast.Constant) and isinstance(c.value, str)]
     assert strings, "found no QMessageBox calls: the test would prove nothing"
     assert _offences(strings) == []
+
+
+def test_the_author_is_called_the_author_not_a_developer():
+    """The project is credited as "tác giả" everywhere people read it ("Tác giả: ...", "gửi cho tác giả")."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "src" / "smartdoc"
+    sources = [root / "app.py", *(root / "presentation").glob("*.py")]
+    banned = re.compile(r"phát triển bởi|nhà phát triển|\bDev:", re.IGNORECASE)
+    hits = [f"{path.name}: {m.group(0)}" for path in sources for m in banned.finditer(path.read_text(encoding="utf-8"))]
+    assert hits == []
