@@ -22,12 +22,13 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QFontMetrics
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStatusBar, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStatusBar, QToolTip, QWidget
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
 from smartdoc.application.ai_summary import probe_ollama, provider_requires_key
+from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync
 from smartdoc.core.event_bus import (
     AiConnectionChangedEvent,
     FilterChangedEvent,
@@ -76,11 +77,15 @@ class _ClickableStatusLabel(QLabel):
 
 
 class _StatusIcon(QLabel):
-    """One connection status: the feature's icon and a state badge, with the explanation in the tooltip."""
+    """One connection status: the feature's icon and a state badge, with the explanation in the tooltip.
+    A click asks the panel to say the status in words (a bubble beside the icon); it never opens a settings window."""
+
+    clicked = Signal()
 
     def __init__(self, feature_icon: str, parent=None) -> None:
         super().__init__(parent)
         self._feature_icon = feature_icon
+        self.setCursor(Qt.PointingHandCursor)
         self.state = STATE_OFF
         self.setTextFormat(Qt.RichText)
         self.set_state(STATE_OFF, "")
@@ -91,6 +96,11 @@ class _StatusIcon(QLabel):
         color = {STATE_OK: _STATUS_OK_COLOR, STATE_ERROR: _STATUS_MISSING_COLOR}.get(state, colors.muted_text)
         self.setText(f'{self._feature_icon}<span style="color:{color}; font-weight:700;">{_BADGES[state]}</span>')
         self.setToolTip(tooltip)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class _DonateTicker(QLabel):
@@ -170,6 +180,9 @@ class _DonateTicker(QLabel):
 class StatusBarPanel(QStatusBar):
     relink_requested = Signal()  # the "N sách không tìm thấy file. Tìm lại?" label was clicked
     _ollama_probed = Signal(bool)  # the background check finished (emitted from a worker thread)
+    _cloud_probed = Signal(bool)  # the community-reviews check finished (emitted from a worker thread)
+
+    STATUS_BUBBLE_MS = 6000  # how long the sentence stays beside the icon
 
     # Ollama has no key to look for, so "connected" has to be observed: asked again this often, so switching
     # Ollama off (or on) is noticed without touching Settings.
@@ -181,6 +194,9 @@ class StatusBarPanel(QStatusBar):
         self._active_collection_ids: tuple[str, ...] = ()
         self._ollama_up: bool | None = None  # None = not checked yet
         self._ollama_probe_running = False
+        self._cloud_reachable: bool | None = None  # None = not asked yet; set by a click on the cloud icon
+        self._cloud_probe_running = False
+        self.last_status_text = ""  # the sentence the latest click on a status icon showed
         self._import_progress: tuple[int, int] | None = None
         self._classify_progress: tuple[int, int] | None = None
 
@@ -295,6 +311,10 @@ class StatusBarPanel(QStatusBar):
             self._bridge.subscribe(context.event_bus, event_type)
 
         self._ollama_probed.connect(self._on_ollama_probed)
+        self._cloud_probed.connect(self._on_cloud_probed)
+        self.cloud_label.clicked.connect(self._on_cloud_clicked)
+        self.ai_label.clicked.connect(lambda: self._say(self.ai_label))
+        self.network_label.clicked.connect(lambda: self._say(self.network_label))
         self._ollama_timer = QTimer(self)
         self._ollama_timer.setInterval(self.OLLAMA_POLL_MS)
         self._ollama_timer.timeout.connect(self._start_ollama_probe)
@@ -443,15 +463,69 @@ class StatusBarPanel(QStatusBar):
         self.folders_label.setToolTip(f"Đang theo dõi {folder_count} thư mục: sách mới bỏ vào đó sẽ tự được thêm")
 
         config = self.context.config.config
-        cloud_ok = bool(config.supabase_url and config.supabase_anon_key)
-        if cloud_ok:
-            self.cloud_label.set_state(STATE_OK, "Đánh giá cộng đồng: đang bật, bạn có thể xem và viết đánh giá")
-        else:
-            self.cloud_label.set_state(STATE_OFF, "Đánh giá cộng đồng: chưa được bật trong bản này")
+        self._refresh_cloud()
 
         self._refresh_ai()
         self._refresh_network()
         self._fit_ticker()
+
+    def _cloud_configured(self) -> bool:
+        config = self.context.config.config
+        return bool(config.supabase_url and config.supabase_anon_key)
+
+    def _refresh_cloud(self) -> None:
+        if not self._cloud_configured():
+            self.cloud_label.set_state(STATE_OFF, "Đánh giá cộng đồng: chưa được bật trong bản này. Bấm để xem trạng thái")
+        elif self._cloud_reachable is False:
+            self.cloud_label.set_state(STATE_ERROR, "Đánh giá cộng đồng: chưa kết nối được. Bấm để kiểm tra lại")
+        else:
+            self.cloud_label.set_state(STATE_OK, "Đánh giá cộng đồng: đang bật, bạn có thể xem và viết đánh giá. Bấm để kiểm tra kết nối")
+
+    # -- a click on a status icon: the state in words, never a settings window --
+
+    def _say(self, icon: _StatusIcon, text: str | None = None) -> None:
+        """Shows `text` (default: the icon's own tooltip sentence) in a bubble just above the icon."""
+        text = text if text is not None else icon.toolTip()
+        self.last_status_text = text
+        anchor = icon.mapToGlobal(QPoint(icon.width() // 2, 0))
+        QToolTip.showText(anchor, text, icon, QRect(), self.STATUS_BUBBLE_MS)
+
+    def _on_cloud_clicked(self) -> None:
+        if not self._cloud_configured():
+            self._say(self.cloud_label, "Đánh giá cộng đồng: chưa được bật trong bản này, nên chưa xem được đánh giá của người khác.")
+            return
+        if self._cloud_probe_running:
+            return
+        self._cloud_probe_running = True
+        self._say(self.cloud_label, "Đánh giá cộng đồng: đang kiểm tra kết nối...")
+        config = self.context.config.config
+        url, key = config.supabase_url or "", config.supabase_anon_key or ""
+
+        def worker() -> None:
+            try:
+                SupabaseReviewSync(url, key).test_connection()
+                ok = True
+            except CloudReviewError:
+                ok = False
+            except Exception:  # noqa: BLE001 -- any failure just means "cannot reach it"; the user sees a plain sentence
+                ok = False
+            try:
+                self._cloud_probed.emit(ok)
+            except RuntimeError:
+                pass  # the window was closed while the check was running
+
+        threading.Thread(target=worker, name="cloud-probe", daemon=True).start()
+
+    def _on_cloud_probed(self, ok: bool) -> None:
+        self._cloud_probe_running = False
+        self._cloud_reachable = ok
+        self._refresh_cloud()
+        self._say(
+            self.cloud_label,
+            "Đánh giá cộng đồng: kết nối tốt, bạn có thể xem và viết đánh giá."
+            if ok
+            else "Đánh giá cộng đồng: chưa kết nối được. Hãy kiểm tra mạng rồi bấm lại.",
+        )
 
     def _refresh_ai(self) -> None:
         config = self.context.config.config

@@ -204,6 +204,10 @@ New features, so the next release is a MINOR bump (1.1.0).
   (server set-up, attack checks, the daily triage agent).
 
 ### Changed
+- **Click a status icon in the bottom bar to read its state.** The ☁️ community-reviews icon, the 🤖 AI icon and the 🌐
+  network icon each show a sentence in a bubble beside them; none opens a settings window. Clicking ☁️ when the
+  feature is on also checks the connection and turns the icon to ✕ with a plain sentence if it cannot be reached (the
+  technical error is never shown).
 - **The "Đánh giá cộng đồng" settings tab is gone.** It asked for a server address and key and showed database code to
   copy. A connection that was already saved is kept, and the status-bar icon and the review window now say the
   feature is not switched on in this build instead of pointing to a tab that no longer exists.

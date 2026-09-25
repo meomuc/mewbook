@@ -469,3 +469,85 @@ def test_every_item_of_the_bar_is_one_row_high_and_centred(qapp, app_context, mo
     assert len({item.height() for item in items}) == 1
     centres = {item.mapTo(panel, item.rect().center()).y() for item in items}
     assert len(centres) == 1  # one common centre line
+
+
+# --- a click on a status icon says the state in words; it never opens a settings window ---
+
+
+def _bubbles(monkeypatch):
+    shown: list[str] = []
+    from smartdoc.presentation import status_bar_panel
+
+    monkeypatch.setattr(status_bar_panel.QToolTip, "showText", lambda pos, text, *args: shown.append(text))
+    return shown
+
+
+def test_clicking_the_cloud_icon_when_off_says_so_and_opens_nothing(qapp, app_context, monkeypatch):
+    shown = _bubbles(monkeypatch)
+    from smartdoc.presentation import settings_dialog
+
+    opened = []
+    monkeypatch.setattr(settings_dialog.SettingsDialog, "exec", lambda self: opened.append(True))
+    panel = StatusBarPanel(app_context)
+
+    panel.cloud_label.clicked.emit()
+
+    assert len(shown) == 1 and "chưa được bật" in shown[0]
+    assert panel.last_status_text == shown[0]
+    assert opened == []  # no configuration window
+
+
+def test_the_cloud_icon_stays_visible_and_still_explains_itself_on_hover(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    panel.show()
+    qapp.processEvents()
+    assert panel.cloud_label.isVisible() and panel.cloud_label.state == STATE_OFF
+    assert "chưa được bật" in panel.cloud_label.toolTip()
+
+
+def test_clicking_the_cloud_icon_when_configured_checks_the_connection_and_reports(qapp, app_context, monkeypatch):
+    from smartdoc.presentation import status_bar_panel
+
+    shown = _bubbles(monkeypatch)
+    app_context.config.config.supabase_url = "https://x.supabase.co"
+    app_context.config.config.supabase_anon_key = "k"
+    monkeypatch.setattr(status_bar_panel.SupabaseReviewSync, "test_connection", lambda self: "ok")
+    panel = StatusBarPanel(app_context)
+    assert panel.cloud_label.state == STATE_OK  # configured: shown as usable until a check says otherwise
+
+    panel.cloud_label.clicked.emit()
+
+    assert "đang kiểm tra" in shown[0]
+    assert _pump_until(qapp, lambda: len(shown) >= 2)
+    assert "kết nối tốt" in shown[-1] and panel.cloud_label.state == STATE_OK
+
+
+def test_a_failed_check_turns_the_cloud_icon_into_a_problem_in_plain_words(qapp, app_context, monkeypatch):
+    from smartdoc.application.cloud_reviews import CloudReviewError
+    from smartdoc.presentation import status_bar_panel
+
+    shown = _bubbles(monkeypatch)
+    app_context.config.config.supabase_url = "https://x.supabase.co"
+    app_context.config.config.supabase_anon_key = "k"
+
+    def down(self):
+        raise CloudReviewError("View 'review_stats' không tồn tại")
+
+    monkeypatch.setattr(status_bar_panel.SupabaseReviewSync, "test_connection", down)
+    panel = StatusBarPanel(app_context)
+    panel.cloud_label.clicked.emit()
+
+    assert _pump_until(qapp, lambda: panel.cloud_label.state == STATE_ERROR)
+    assert "chưa kết nối được" in shown[-1]
+    assert "review_stats" not in shown[-1]  # the raw technical error is not shown to people
+
+
+def test_the_ai_and_network_icons_also_say_their_state_when_clicked(qapp, app_context, monkeypatch):
+    shown = _bubbles(monkeypatch)
+    monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
+    panel = StatusBarPanel(app_context)
+
+    panel.ai_label.clicked.emit()
+    panel.network_label.clicked.emit()
+
+    assert "AI tóm tắt" in shown[0] and "Mạng" in shown[1]
