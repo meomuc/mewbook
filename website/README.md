@@ -38,3 +38,5 @@ Donate details go in `content.json` → `donate` (empty ones are hidden). Point 
 `dist/` is hosted.
 
 The pictures in `public/assets/gallery/` are the project owner's own work, confirmed on 2026-09-25 as fine to publish. The donate QR (`public/assets/donate-qr.png`) is published on purpose: the owner chose to show it on the donate section.
+
+Published at https://meomuc.github.io/ (repository `meomuc/meomuc.github.io`, deployed by `.github/workflows/deploy.yml`).
