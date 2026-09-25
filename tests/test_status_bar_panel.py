@@ -555,3 +555,18 @@ def test_the_ai_and_network_icons_also_say_their_state_when_clicked(qapp, app_co
     panel.network_label.clicked.emit()
 
     assert "AI tóm tắt" in shown[0] and "Mạng" in shown[1]
+
+
+def test_a_theme_change_after_the_window_was_rebuilt_does_not_touch_deleted_icons(qapp, app_context):
+    """Regression: the status icons listened to the theme with a lambda, which outlived the icon and raised
+    "Internal C++ object (_StatusIcon) already deleted" when the window was rebuilt for a new theme."""
+    import shiboken6
+
+    from smartdoc.presentation.status_bar_panel import StatusBarPanel
+    from smartdoc.presentation.theme_manager import theme_manager
+
+    panel = StatusBarPanel(app_context)
+    icon = panel.cloud_label
+    shiboken6.delete(panel)
+    assert not shiboken6.isValid(icon)
+    theme_manager().themeChanged.emit("broadsheet")  # must not raise

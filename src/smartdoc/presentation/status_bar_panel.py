@@ -92,7 +92,11 @@ class _StatusIcon(QLabel):
         self.setCursor(Qt.PointingHandCursor)
         self.state = STATE_OFF
         self.set_state(STATE_OFF, "")
-        theme_manager().themeChanged.connect(lambda _key: self.set_state(self.state, self.toolTip()))
+        # A bound method, not a lambda: Qt drops it when this label is deleted (the window is rebuilt on a theme change).
+        theme_manager().themeChanged.connect(self._on_theme_changed)
+
+    def _on_theme_changed(self, _key: str = "") -> None:
+        self.set_state(self.state, self.toolTip())
 
     def set_state(self, state: str, tooltip: str) -> None:
         self.state = state
