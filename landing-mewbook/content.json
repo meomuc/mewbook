@@ -18,7 +18,8 @@
       ],
       "link": "",
       "download": {
-        "win": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d"
+        "win": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d",
+        "size": "97 MB"
       }
     }
   ],
@@ -177,12 +178,12 @@
       "imgHash": "2e91098228"
     },
     {
-      "src": "/assets/gallery/cai-dat-ai.webp?v=5e17ebdea9",
+      "src": "/assets/gallery/Screenshot_1.png?v=6e401c387e",
       "title": "Cài đặt AI tóm tắt",
       "caption": "Dùng khóa của bạn, hoặc Ollama chạy ngay trên máy",
+      "imgHash": "6e401c387e",
       "w": 754,
-      "h": 775,
-      "imgHash": "5e17ebdea9"
+      "h": 775
     }
   ],
   "pendingShots": [],
