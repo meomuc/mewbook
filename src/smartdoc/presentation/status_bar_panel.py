@@ -462,7 +462,6 @@ class StatusBarPanel(QStatusBar):
         self.folders_label.setText(f"👁 {folder_count}")
         self.folders_label.setToolTip(f"Đang theo dõi {folder_count} thư mục: sách mới bỏ vào đó sẽ tự được thêm")
 
-        config = self.context.config.config
         self._refresh_cloud()
 
         self._refresh_ai()
