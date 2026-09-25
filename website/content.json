@@ -176,14 +176,6 @@
       "theme": "retro_tech",
       "themeHash": "e62f98f013",
       "imgHash": "2e91098228"
-    },
-    {
-      "src": "/assets/gallery/Screenshot_1.png?v=6e401c387e",
-      "title": "Cài đặt AI tóm tắt",
-      "caption": "Dùng khóa của bạn, hoặc Ollama chạy ngay trên máy",
-      "imgHash": "6e401c387e",
-      "w": 754,
-      "h": 775
     }
   ],
   "pendingShots": [],

@@ -9,7 +9,9 @@ import {
 import content from "./content.json";
 import { detectWeather, themeFromClock, type WeatherKey } from "./weather";
 
-const logoUrl = "/assets/logo.png";
+// Pictures are addressed from the site's own base ("/" on a domain of its own, "/mewbook-landing/" on GitHub Pages).
+const asset = (path: string) => `${import.meta.env.BASE_URL.replace(/\/$/, "")}${path}`;
+const logoUrl = asset("/assets/logo.png");
 
 const weatherConfig: Record<WeatherKey, {
   label: string;
@@ -434,7 +436,7 @@ export default function App() {
                 className={`group text-left rounded-[20px] overflow-hidden border transition hover:-translate-y-0.5 ${isDark ? "bg-[#3A2E2A] border-[#4A3A34]" : "bg-white border-[#F0E2C8] shadow-[0_8px_24px_rgba(90,62,54,0.06)] hover:shadow-[0_12px_32px_rgba(90,62,54,0.1)]"}`}
               >
                 <div className="aspect-[16/10] overflow-hidden bg-black/5">
-                  <img src={g.src} alt={g.title} loading="lazy" width={g.w} height={g.h} className="w-full h-full object-cover object-top group-hover:scale-[1.03] transition duration-500" />
+                  <img src={asset(g.src)} alt={g.title} loading="lazy" width={g.w} height={g.h} className="w-full h-full object-cover object-top group-hover:scale-[1.03] transition duration-500" />
                 </div>
                 <div className="p-3">
                   <div className="font-bold text-[13px]">{g.title}</div>
@@ -448,7 +450,7 @@ export default function App() {
 
       {shot !== null && gallery[shot] && (
         <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 md:p-8" onClick={() => setShot(null)} role="dialog" aria-label={gallery[shot].title}>
-          <img src={gallery[shot].src} alt={gallery[shot].title} className="max-h-[80vh] max-w-full rounded-[16px] shadow-2xl" onClick={e => e.stopPropagation()} />
+          <img src={asset(gallery[shot].src)} alt={gallery[shot].title} className="max-h-[80vh] max-w-full rounded-[16px] shadow-2xl" onClick={e => e.stopPropagation()} />
           <div className="mt-4 text-center text-white" onClick={e => e.stopPropagation()}>
             <div className="font-bold text-[15px]">{gallery[shot].title}</div>
             <div className="text-[12px] opacity-70">{gallery[shot].caption} • {shot + 1}/{gallery.length}</div>
@@ -634,7 +636,7 @@ export default function App() {
               {/* Donate QR: the image is deployed with the build but never committed (see .gitignore); without it, a note. */}
               {donate.qr && !qrMissing ? (
                 <div className={`mt-4 rounded-[16px] p-4 border text-center ${isDark ? "border-[#4A3A34] bg-[#2B211E]" : "border-[#F0E2C8] bg-white shadow-sm"}`}>
-                  <img src={donate.qr} alt="Mã QR ủng hộ Mèo Mực (VietQR)" onError={() => setQrMissing(true)} className="mx-auto w-full max-w-[260px] rounded-[12px]" />
+                  <img src={asset(donate.qr)} alt="Mã QR ủng hộ Mèo Mực (VietQR)" onError={() => setQrMissing(true)} className="mx-auto w-full max-w-[260px] rounded-[12px]" />
                   <div className={`mt-2 text-[11px] ${cfg.textMuted}`}>Quét bằng app ngân hàng bất kỳ. Cảm ơn bạn đã mời Mèo cà phê ☕</div>
                 </div>
               ) : (
