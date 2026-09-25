@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QFontMetrics
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStatusBar, QToolTip, QWidget
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
@@ -43,18 +43,13 @@ from smartdoc.core.event_bus import (
 from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
-from smartdoc.presentation.theme import current_colors
-
-# Same green/crimson pair settings_dialog.py's connection test uses -- one
-# consistent "connected vs. not" color language across the app instead of
-# each status indicator inventing its own.
-_STATUS_OK_COLOR = "green"
-_STATUS_MISSING_COLOR = "crimson"
+from smartdoc.presentation.line_icons import icon_pixmap
+from smartdoc.presentation.theme_manager import STATUS_BAR_H, theme_manager
 
 # Layout numbers for the bar: every item is one row high and the status icons share one slot width, so the rows of
 # icons line up whatever glyphs they hold.
 _ROW_HEIGHT = 22
-_STATUS_ICON_WIDTH = 40
+_STATUS_ICON_WIDTH = 30
 _ZONE_SPACING_WIDE = 16
 _ZONE_SPACING_TIGHT = 4
 
@@ -63,6 +58,11 @@ STATE_OK = "ok"
 STATE_OFF = "off"
 STATE_ERROR = "error"
 _BADGES = {STATE_OK: "✓", STATE_OFF: "○", STATE_ERROR: "✕"}
+
+
+def _n(value: int) -> str:
+    """7545 -> "7.545" (Vietnamese thousands separator)."""
+    return f"{value:,}".replace(",", ".")
 
 
 class _ClickableStatusLabel(QLabel):
@@ -77,25 +77,64 @@ class _ClickableStatusLabel(QLabel):
 
 
 class _StatusIcon(QLabel):
-    """One connection status: the feature's icon and a state badge, with the explanation in the tooltip.
-    A click asks the panel to say the status in words (a bubble beside the icon); it never opens a settings window."""
+    """One connection status: the feature's line icon and, at its bottom right, a badge whose shape says the state
+    (filled circle + tick = works, empty ring = not set up, filled square + cross = a problem), with the explanation
+    in the tooltip. A click asks the panel to say the status in words (a bubble beside the icon); it never opens a
+    settings window."""
 
     clicked = Signal()
+    _SIZE = 22
 
     def __init__(self, feature_icon: str, parent=None) -> None:
         super().__init__(parent)
-        self._feature_icon = feature_icon
+        self._feature_icon = feature_icon  # a name from line_icons
         self.setCursor(Qt.PointingHandCursor)
         self.state = STATE_OFF
-        self.setTextFormat(Qt.RichText)
         self.set_state(STATE_OFF, "")
+        theme_manager().themeChanged.connect(lambda _key: self.set_state(self.state, self.toolTip()))
 
     def set_state(self, state: str, tooltip: str) -> None:
         self.state = state
-        colors = current_colors()
-        color = {STATE_OK: _STATUS_OK_COLOR, STATE_ERROR: _STATUS_MISSING_COLOR}.get(state, colors.muted_text)
-        self.setText(f'{self._feature_icon}<span style="color:{color}; font-weight:700;">{_BADGES[state]}</span>')
+        self.setPixmap(self._compose(state))
         self.setToolTip(tooltip)
+
+    def _compose(self, state: str) -> QPixmap:
+        tm = theme_manager()
+        size, dpr = self._SIZE, 2
+        pixmap = QPixmap(size * dpr, size * dpr)
+        pixmap.setDevicePixelRatio(dpr)  # the painter below then works in logical (22 x 22) coordinates
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.drawPixmap(1, 2, icon_pixmap(self._feature_icon, tm.token("ink2"), 16, scale=dpr))
+        badge = QRectF(size - 10, size - 10, 9, 9)
+        # The badge sits on a background-coloured disc so it stays readable over the icon's strokes.
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(tm.token("rail")))
+        painter.drawEllipse(badge.adjusted(-1.5, -1.5, 1.5, 1.5))
+        mark = QPen(QColor(tm.token("rail")), 1.4)
+        mark.setCapStyle(Qt.RoundCap)
+        mark.setJoinStyle(Qt.RoundJoin)
+        if state == STATE_OK:
+            painter.setBrush(QColor(tm.token("ok")))
+            painter.drawEllipse(badge)
+            painter.setPen(mark)
+            painter.drawPolyline([QPointF(badge.left() + 2.2, badge.center().y()),
+                                  QPointF(badge.center().x() - 0.6, badge.bottom() - 2.4),
+                                  QPointF(badge.right() - 2, badge.top() + 2.4)])
+        elif state == STATE_ERROR:
+            painter.setBrush(QColor(tm.token("err")))
+            painter.drawRoundedRect(badge, 1.5, 1.5)
+            painter.setPen(mark)
+            inset = 2.4
+            painter.drawLine(QPointF(badge.left() + inset, badge.top() + inset), QPointF(badge.right() - inset, badge.bottom() - inset))
+            painter.drawLine(QPointF(badge.right() - inset, badge.top() + inset), QPointF(badge.left() + inset, badge.bottom() - inset))
+        else:
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor(tm.token("ink2")), 1.3))
+            painter.drawEllipse(badge.adjusted(0.6, 0.6, -0.6, -0.6))
+        painter.end()
+        return pixmap
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
         if event.button() == Qt.LeftButton:
@@ -117,9 +156,9 @@ class _DonateTicker(QLabel):
     clicked = Signal()
 
     MESSAGES = (
-        "☕ Mèo Mực miễn phí. Mời tác giả một ly cà phê nhé!",
-        "📚 Thấy app hữu ích? Một ly cà phê là động lực lớn.",
-        "💌 Góp ý hay lời cảm ơn? Ghé fanpage của Mèo Mực nhé.",
+        "Mèo Mực miễn phí. Mời tác giả một ly cà phê nhé!",
+        "Thấy app hữu ích? Một ly cà phê là động lực lớn.",
+        "Góp ý hay lời cảm ơn? Ghé fanpage của Mèo Mực nhé.",
     )
     GAP = "    •    "
     WINDOW_CHARS = 42
@@ -131,9 +170,8 @@ class _DonateTicker(QLabel):
         self._loop_text = self.GAP.join(self.MESSAGES) + self.GAP
         self._offset = 0
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip("Ủng hộ tác giả một ly cà phê ☕ (bấm để xem mã QR)")
-        colors = current_colors()
-        self.setStyleSheet(f"color: {colors.accent}; font-weight: 600;")
+        self.setToolTip("Ủng hộ tác giả một ly cà phê (bấm để xem mã QR)")
+        self.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-style: italic;")
         font = self.font()
         if font.pointSizeF() > 0:
             font.setPointSizeF(font.pointSizeF() * self.TEXT_SCALE)
@@ -200,11 +238,9 @@ class StatusBarPanel(QStatusBar):
         self._import_progress: tuple[int, int] | None = None
         self._classify_progress: tuple[int, int] | None = None
 
-        colors = current_colors()
-        # A top border so the bar reads as its own strip, separated from
-        # whatever's directly above it (library view or detail panel) --
-        # QStatusBar spans the full window width, under both.
-        self.setStyleSheet(f"QStatusBar {{ border-top: 1px solid {colors.border}; }}")
+        self.setFixedHeight(STATUS_BAR_H)
+        self._apply_style()
+        theme_manager().themeChanged.connect(self._apply_style)
 
         # -- left zone: library --
         self.files_label = QLabel(self)
@@ -225,14 +261,14 @@ class StatusBarPanel(QStatusBar):
         self.update_label.clicked.connect(self._on_update_clicked)
 
         # -- middle zone: system & connections --
-        self.cloud_label = _StatusIcon("☁️", self)
-        self.ai_label = _StatusIcon("🤖", self)
-        self.network_label = _StatusIcon("🌐", self)
+        self.cloud_label = _StatusIcon("cloud", self)
+        self.ai_label = _StatusIcon("bot", self)
+        self.network_label = _StatusIcon("globe", self)
 
         # -- right zone: author & support --
         self.donate_ticker = _DonateTicker(self)
         self.donate_ticker.clicked.connect(self._on_donate_clicked)
-        self.community_label = _ClickableStatusLabel("📣", self)
+        self.community_label = _ClickableStatusLabel("Fanpage", self)
         self.community_label.setCursor(Qt.PointingHandCursor)
         self.community_label.setToolTip("Fanpage cộng đồng: tin về bản mới và nơi gửi góp ý (mở trong trình duyệt)")
         self.community_label.clicked.connect(open_community_page)
@@ -262,9 +298,12 @@ class StatusBarPanel(QStatusBar):
             ],
             spacing=_ZONE_SPACING_WIDE,
             trailing_stretch=True,
+            heading="THƯ VIỆN",
         )
-        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT)
-        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE)
+        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT,
+                                 heading="HỆ THỐNG & KẾT NỐI")
+        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE,
+                                  heading="TÁC GIẢ")
         for label in (self.cloud_label, self.ai_label, self.network_label):
             label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
         for widget in (
@@ -326,15 +365,28 @@ class StatusBarPanel(QStatusBar):
 
         self.refresh()
 
+    def _apply_style(self, _key: str = "") -> None:
+        tm = theme_manager()
+        self.setStyleSheet(
+            f"QStatusBar {{ background: {tm.token('rail')}; color: {tm.token('ink2')}; border-top: 1px solid {tm.token('line')};"
+            f" font-size: 12px; }}"
+            f" QStatusBar QLabel {{ color: {tm.token('ink2')}; }}"
+        )
+
     # -- construction helpers --
 
     @staticmethod
-    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False) -> QWidget:
+    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False, heading: str = "") -> QWidget:
         zone = QWidget()
         layout = QHBoxLayout(zone)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
         layout.setAlignment(Qt.AlignVCenter)
+        if heading:
+            label = QLabel(heading, zone)
+            label.setProperty("role", "groupLabel")  # 10 px, spaced capitals (base.qss.tpl)
+            layout.addWidget(label)
+            zone.heading_label = label
         for widget in widgets:
             layout.addWidget(widget)
         if trailing_stretch:
@@ -345,7 +397,7 @@ class StatusBarPanel(QStatusBar):
     def _divider(parent: QWidget) -> QFrame:
         line = QFrame(parent)
         line.setFrameShape(QFrame.VLine)
-        line.setStyleSheet(f"color: {current_colors().border};")
+        line.setStyleSheet(f"color: {theme_manager().token('line')};")
         return line
 
     def resizeEvent(self, event) -> None:  # noqa: N802 -- Qt override
@@ -363,6 +415,10 @@ class StatusBarPanel(QStatusBar):
         )
         room = self.width() - others - 60  # dividers, margins and the spacing between items
         self.donate_ticker.setVisible(room >= self.donate_ticker._slot_width)
+        # Narrower still: the zone headings shrink away too (the icons' tooltips carry the words).
+        show_headings = self.width() >= 1100
+        for zone in (self.library_zone, self.system_zone, self.support_zone):
+            zone.heading_label.setVisible(show_headings)
 
     # -- events --
 
@@ -400,11 +456,11 @@ class StatusBarPanel(QStatusBar):
         tips: list[str] = []
         if self._import_progress:
             done, total = self._import_progress
-            parts.append(f"⏳ {done}/{total}")
+            parts.append(f"Đang nhập {done}/{total}")
             tips.append(f"Đang thêm sách vào thư viện: {done}/{total}")
         if self._classify_progress:
             done, total = self._classify_progress
-            parts.append(f"🧠 {done}/{total}")
+            parts.append(f"Đang phân loại {done}/{total}")
             tips.append(f"Đang tự phân loại sách: {done}/{total}")
         self.activity_label.setText("  ".join(parts))
         self.activity_label.setToolTip("\n".join(tips))
@@ -413,7 +469,7 @@ class StatusBarPanel(QStatusBar):
     def _show_update(self, version: str, url: str) -> None:
         self._update_url = url
         self.update_label.setTextFormat(Qt.RichText)
-        self.update_label.setText(f"<span style='color:{_STATUS_OK_COLOR}; font-weight:600;'>⬆️ Có bản mới {version}. Xem?</span>")
+        self.update_label.setText(f"<span style='color:{theme_manager().token('ok')}; font-weight:600;'>Có bản mới {version}. Xem?</span>")
         self.update_label.setVisible(True)
 
     def _on_update_clicked(self) -> None:
@@ -423,7 +479,7 @@ class StatusBarPanel(QStatusBar):
     def _show_missing(self, count: int) -> None:
         self.missing_label.setVisible(count > 0)
         if count > 0:
-            self.missing_label.setText(f"<span style='color:{_STATUS_MISSING_COLOR}; font-weight:600;'>⚠️ {count} sách không tìm thấy file. Tìm lại?</span>")
+            self.missing_label.setText(f"<span style='color:{theme_manager().token('warn')}; font-weight:600;'>▲ <u>{_n(count)} sách không tìm thấy file. Tìm lại?</u></span>")
             self.missing_label.setTextFormat(Qt.RichText)
 
     # -- refresh --
@@ -432,11 +488,11 @@ class StatusBarPanel(QStatusBar):
         self._show_missing(self.context.db.count_missing())
         total = self.context.db.count_documents()
         complete, incomplete = self.context.db.count_metadata_completeness()
-        self.files_label.setText(f"📚 {total}")
+        self.files_label.setText(f"<b>{_n(total)}</b> tài liệu")
         self.files_label.setToolTip(f"Thư viện có {total} tài liệu")
-        self.complete_label.setText(f"✅ {complete}")
+        self.complete_label.setText(f"<span style='color:{theme_manager().token('ok')}'>✓</span> {_n(complete)} đủ")
         self.complete_label.setToolTip(f"{complete} tài liệu đã đủ thông tin")
-        self.incomplete_label.setText(f"⚠️ {incomplete}")
+        self.incomplete_label.setText(f"○ {_n(incomplete)} thiếu thông tin")
         self.incomplete_label.setToolTip(f"{incomplete} tài liệu còn thiếu thông tin (tác giả, bìa...)")
 
         ids = self._active_collection_ids
@@ -444,7 +500,7 @@ class StatusBarPanel(QStatusBar):
             row = self.context.db.get_collection(ids[0])
             name = row["name"] if row else "Bộ sưu tập"
             count = self.context.db.count_documents_in_collection(ids[0])
-            self.collection_label.setText(f"📁 {name}: {count}")
+            self.collection_label.setText(f"{name}: {_n(count)}")
             self.collection_label.setToolTip(f"Bộ sưu tập \"{name}\": {count} tài liệu")
         elif ids:
             # Several collections combined: the count is of their union
@@ -452,14 +508,14 @@ class StatusBarPanel(QStatusBar):
             # library view is actually showing.
             sql, params = self.context.db.collections_where_fragment(ids)
             count = self.context.db.count_documents_matching(where_sql=sql, params=params)
-            self.collection_label.setText(f"📁 {len(ids)}: {count}")
+            self.collection_label.setText(f"{len(ids)} bộ sưu tập: {_n(count)}")
             self.collection_label.setToolTip(f"{len(ids)} bộ sưu tập gộp lại: {count} tài liệu")
         else:
             self.collection_label.setText("")
             self.collection_label.setToolTip("")
 
         folder_count = len(self.context.config.config.watch_folders)
-        self.folders_label.setText(f"👁 {folder_count}")
+        self.folders_label.setText(f"{folder_count} thư mục")
         self.folders_label.setToolTip(f"Đang theo dõi {folder_count} thư mục: sách mới bỏ vào đó sẽ tự được thêm")
 
         self._refresh_cloud()

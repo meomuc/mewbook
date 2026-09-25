@@ -59,22 +59,18 @@ def test_main_window_builds_and_works_in_every_theme(qapp, app_context, key):
     from smartdoc.presentation.main_window import MainWindow
 
     app_context.config.config.theme = key
-    colors = apply_theme(qapp, key)
+    apply_theme(qapp, key)
     app_context.db.add_or_update_document(
         "d1", {"title": "Theme Probe", "author": "A", "file_path": "probe.pdf", "created_at": 0.0}
     )
     window = MainWindow(app_context)
     try:
-        # Declared structure is honored...
-        assert (window.detail_panel is None) == (colors.layout_mode == "action_bar")
-        assert (window.action_bar is not None) == (colors.layout_mode == "action_bar")
-        assert (window.filter_chips is not None) == colors.show_filter_chips
-        # ...and the core features still work the same in this theme.
+        # One layout for every theme; the core features work the same in each.
+        assert window.detail_panel is not None and window.sidebar_shell is not None
         window.library_view.reload()
         featured = window.library_view.featured_card
         shown_in_grid = window.library_view.model.rowCount() + (1 if featured and featured.document() else 0)
         assert shown_in_grid == 1
-        assert (featured is not None) == (colors.grid_layout == "featured")
         window.library_view.set_view_mode("list")
         assert window.library_view.table_model.rowCount() == 1
         window.library_view.set_view_mode("grid")
@@ -168,23 +164,3 @@ def test_every_theme_has_a_preview(qapp, key):
 
     pixmap = theme_preview_pixmap(THEMES[key], QSize(64, 40))
     assert not pixmap.isNull() and pixmap.size() == QSize(64, 40)
-
-
-def test_grain_overlay_covers_window_and_ignores_mouse(qapp, app_context):
-    from PySide6.QtCore import Qt
-
-    from smartdoc.presentation.main_window import MainWindow
-
-    apply_theme(qapp, "healing")
-    window = MainWindow(app_context)
-    try:
-        overlay = window.grain_overlay
-        assert overlay is not None
-        assert overlay.testAttribute(Qt.WA_TransparentForMouseEvents)
-        window.resize(900, 600)
-        qapp.processEvents()
-        assert overlay.geometry() == overlay.parent().rect()
-    finally:
-        window.hide()
-        window.deleteLater()
-        apply_theme(qapp, "broadsheet")

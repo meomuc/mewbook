@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 2: the main window.** One layout in every theme: sidebar (226 px) | shelf/table |
+  detail panel (324 px), with a new toolbar ("+ Thêm sách", search, Lưới bìa | Bảng, cover size, sort, "Công cụ"), line
+  icons instead of emoji, and a status bar in three labelled zones whose icons carry a badge of a different *shape*
+  for working / not set up / a problem. Below 1200 px the detail panel floats over the right edge; below 1100 px the
+  sidebar narrows to 200 px; the window is at least 1024 x 640 and always stays on the screen. Column widths you drag
+  are remembered. The old menu bar is hidden (its shortcuts still work); its actions moved into the toolbar menus.
 - **New "Kệ sách" look, step 1: colours and typefaces.** All seven themes now come from one token file and one
   stylesheet template (`presentation/theme_manager.py`), so buttons, inputs, menus and scroll bars share the same
   sizes and colours, and switching theme restyles the app at once without a restart. MewBook ships Be Vietnam Pro,

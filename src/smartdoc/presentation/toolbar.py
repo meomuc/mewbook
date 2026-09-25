@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QSlider,
-    QStyle,
     QToolButton,
     QWidget,
 )
@@ -24,7 +23,8 @@ from smartdoc.application.cloud_reviews import CloudReviewError
 from smartdoc.application.rating_sync import sync_all_rating_stats
 from smartdoc.core.event_bus import CoverSizeChangedEvent, SortChangedEvent, ViewModeChangedEvent
 from smartdoc.presentation.library_view import DEFAULT_ICON_WIDTH, HIGHEST_RATED_SORT_LABEL, SORT_OPTIONS
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation.line_icons import icon_pixmap, line_icon
+from smartdoc.presentation.theme_manager import theme_manager
 
 COVER_SIZE_MIN = 100
 COVER_SIZE_MAX = 300
@@ -38,17 +38,16 @@ class LibraryToolbar(QWidget):
         self.context = context
         self._rating_sync_finished.connect(self._on_rating_sync_finished)
 
+        # "Lưới bìa | Bảng": one segmented switch, text + line icon (the text goes away when the window is narrow).
         self.grid_view_button = QToolButton(self)
         self.grid_view_button.setCheckable(True)
-        self.grid_view_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogListView))
-        self.grid_view_button.setIconSize(QSize(18, 18))
-        self.grid_view_button.setToolTip("Dạng lưới (Grid)")
+        self.grid_view_button.setText(" Lưới bìa")
+        self.grid_view_button.setToolTip("Dạng lưới bìa")
 
         self.list_view_button = QToolButton(self)
         self.list_view_button.setCheckable(True)
-        self.list_view_button.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
-        self.list_view_button.setIconSize(QSize(18, 18))
-        self.list_view_button.setToolTip("Dạng danh sách (List)")
+        self.list_view_button.setText(" Bảng")
+        self.list_view_button.setToolTip("Dạng bảng")
 
         self._view_mode_group = QButtonGroup(self)
         self._view_mode_group.setExclusive(True)
@@ -75,40 +74,65 @@ class LibraryToolbar(QWidget):
         self.size_slider.setValue(DEFAULT_ICON_WIDTH)
         self.size_slider.valueChanged.connect(self._on_size_changed)
 
-        # Lives at the right end of the main window's header bar (see
-        # MainWindow._build_header_bar): compact, no stretch of its own.
-        colors = current_colors()
-        for button in (self.grid_view_button, self.list_view_button):
-            button.setAutoRaise(True)
-            button.setFixedSize(32, 30)
-        self.setStyleSheet(
-            f"QToolButton {{ border: none; border-radius: 3px; background: transparent; }}"
-            f" QToolButton:checked {{ background: {colors.selected_bg}; }}"
-            f" QToolButton:hover {{ background: {colors.border}; }}"
-            f" QComboBox {{ background: {colors.surface}; color: {colors.sidebar_text};"
-            f" border: 1px solid {colors.border}; border-radius: 3px; padding: 5px 10px; min-width: 150px; }}"
-            f" QComboBox::drop-down {{ border: none; width: 20px; }}"
-        )
         self.sort_combo.setToolTip("Sắp xếp")
-        self.size_slider.setFixedWidth(110)
+        self.sort_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.sort_combo.setMinimumContentsLength(11)  # the longest label ("Được đánh giá cao nhất") is elided
+        self.sort_combo.setMinimumWidth(112)  # explicit, or the font's width decides how narrow the window may get
+        self.grid_view_button.setMinimumWidth(96)
+        self.list_view_button.setMinimumWidth(72)
+        self.size_slider.setFixedWidth(72)
         self.size_slider.setToolTip("Cỡ bìa")
-        size_label = QLabel("Cỡ bìa", self)
-        size_label.setStyleSheet(f"color: {colors.muted_text};")
-        self._size_label = size_label
+        self._small_icon = QLabel(self)
+        self._large_icon = QLabel(self)
+        self._size_label = self._small_icon  # kept for set_size_control_visible()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(0)
         layout.addWidget(self.grid_view_button)
         layout.addWidget(self.list_view_button)
-        layout.addSpacing(14)
-        layout.addWidget(self.sort_combo)
-        layout.addSpacing(14)
-        layout.addWidget(size_label)
+        layout.addSpacing(16)
+        layout.addWidget(self._small_icon)
+        layout.addSpacing(4)
         layout.addWidget(self.size_slider)
+        layout.addSpacing(4)
+        layout.addWidget(self._large_icon)
+        layout.addSpacing(16)
+        layout.addWidget(self.sort_combo)
+        self._apply_style()
+        theme_manager().themeChanged.connect(self._apply_style)
+
+    def _apply_style(self, _key: str = "") -> None:
+        """Segmented switch + icons from the current theme's tokens (also re-run when the theme changes)."""
+        tm = theme_manager()
+        line, accent = tm.token("line2"), tm.token("accent")
+        self.setStyleSheet(
+            f"QToolButton {{ border: 1px solid {line}; background: {tm.token('surface')}; color: {tm.token('ink2')};"
+            f" min-height: 28px; padding: 0 10px; font-size: 13px; }}"
+            f" QToolButton:hover {{ color: {tm.token('ink')}; }}"
+            f" QToolButton:checked {{ background: {tm.token('accentsoft')}; color: {tm.token('ink')}; font-weight: 600; }}"
+            f" QToolButton:focus {{ border-color: {accent}; }}"
+        )
+        self.grid_view_button.setStyleSheet(
+            "QToolButton { border-top-left-radius: 6px; border-bottom-left-radius: 6px; border-right: none; }")
+        self.list_view_button.setStyleSheet(
+            "QToolButton { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }")
+        for button, name in ((self.grid_view_button, "grid"), (self.list_view_button, "table")):
+            button.setIcon(line_icon(name, tm.token("ink2")))
+            button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self._small_icon.setPixmap(icon_pixmap("image", tm.token("ink3"), 12))
+        self._large_icon.setPixmap(icon_pixmap("image", tm.token("ink3"), 16))
+
+    def set_compact(self, compact: bool) -> None:
+        """Icons only (tooltips carry the words) in a narrow window."""
+        style = Qt.ToolButtonIconOnly if compact else Qt.ToolButtonTextBesideIcon
+        self.grid_view_button.setToolButtonStyle(style)
+        self.list_view_button.setToolButtonStyle(style)
+        self.sort_combo.setMinimumWidth(88 if compact else 112)
 
     def set_size_control_visible(self, visible: bool) -> None:
-        self._size_label.setVisible(visible)
+        self._small_icon.setVisible(visible)
+        self._large_icon.setVisible(visible)
         self.size_slider.setVisible(visible)
 
     def _on_view_mode_clicked(self, mode: str) -> None:

@@ -1,63 +1,60 @@
-"""TDD-010 (with the menu bar + toolbar Milestone D upgrades applied).
+"""Main window of the "Kệ sách" design: [sidebar 226] | [toolbar + shelf/table] | [detail panel 324], status bar below.
 
-4-pane layout: sidebar (virtual collections + faceted filters) on the left,
-omnibar + sort/cover-size toolbar + library grid in the center, and a
-collapsible document detail panel on the right.
+One layout for every theme (themes differ in colour and type only, via ThemeManager). Widths are remembered; below
+1200 px the detail panel floats over the right edge instead of taking a column, and below 1100 px the sidebar
+narrows to 200 px and the toolbar keeps icons only. The window never exceeds the screen (see dialog_size).
+The old menu bar is kept but hidden -- its actions stay on the window so their shortcuts (Ctrl+A, Del, Ctrl+C...) work
+and the toolbar's "Công cụ" menu reuses them.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QFileDialog,
-    QHBoxLayout,
-    QLabel,
     QMainWindow,
+    QMenu,
     QMessageBox,
-    QPushButton,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
-from smartdoc import APP_DISPLAY_NAME
+from smartdoc import APP_DISPLAY_NAME, APP_NAME
 from smartdoc.application.calibre_migrator import CalibreImporter
 from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
-from smartdoc.core.config import THEME_CHOICES
 from smartdoc.core.event_bus import ImportBatchCompletedEvent
+from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.about_dialog import AboutDialog
+from smartdoc.presentation.active_filter_bar import ActiveFilterBar
 from smartdoc.presentation.add_document_dialog import AddDocumentDialog
+from smartdoc.presentation.author_cleanup_dialog import AuthorCleanupDialog
+from smartdoc.presentation.app_toolbar import COMPACT_BELOW, AppToolbar
 from smartdoc.presentation.community import open_community_page, open_website
 from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.dialog_size import fit_window_to_screen
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
-from smartdoc.presentation.active_filter_bar import ActiveFilterBar
-from smartdoc.presentation.filter_chips import FilterChipBar
-from smartdoc.presentation.icon_rail_sidebar import RAIL_WIDTH, IconRailSidebar
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.manual_report_dialog import ManualReportDialog
 from smartdoc.presentation.omnibar import OmnibarSearchBar
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
-from smartdoc.presentation.resources import app_icon_path, brand_logo_path
-from smartdoc.presentation.selection_action_bar import SelectionActionBar
 from smartdoc.presentation.relink_dialog import RelinkDialog
+from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
+from smartdoc.presentation.sidebar import LibrarySidebar
+from smartdoc.presentation.sidebar_shell import SidebarShell
 from smartdoc.presentation.smart_classify_bar import SmartClassifyBar
 from smartdoc.presentation.smart_classify_dialogs import SmartClassifyOfferDialog
-from smartdoc.presentation.sidebar import LibrarySidebar
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
-from smartdoc.presentation.theme import THEMES, action_css, action_text, current_colors
-from smartdoc.presentation.theme_effects import (
-    GrainOverlay,
-    RetroTitleBar,
-    apply_font_letter_spacing,
-    theme_preview_pixmap,
-)
+from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
+
+MIN_WINDOW_SIZE = (1024, 640)
+DETAIL_OVERLAY_BELOW = 1200  # under this width the detail panel floats over the right edge
+SIDEBAR_COMPACT_W = 200
 
 
 class MainWindow(QMainWindow):
@@ -78,127 +75,70 @@ class MainWindow(QMainWindow):
         # classification job actually starts. app.py passes one in so it
         # survives the window being rebuilt for a theme change.
         self.smart_classifier = smart_classifier or SmartClassifyService(context)
-        # Called (with this window) after Settings closes if the user
-        # changed theme/font -- see app.py's on_appearance_changed, which
-        # rebuilds the window in place rather than requiring a real app
-        # restart (theme.py can't live-restyle already-built stylesheets).
+        # Called (with this window) after Settings closes if the user changed theme/font -- app.py rebuilds the
+        # window in place (same context, fresh widgets), so nothing needs an app restart.
         self._on_appearance_changed = on_appearance_changed
 
         self._fitted_to_screen = False
-        self.setWindowTitle(APP_DISPLAY_NAME)
-        self.resize(1400, 800)
+        self.setWindowTitle(f"{APP_NAME} – {APP_DISPLAY_NAME}")
+        self.setMinimumSize(*MIN_WINDOW_SIZE)
+        self.resize(1400, 860)
         fit_window_to_screen(self)  # a small screen gets a smaller window, never one over the taskbar
         self.setAcceptDrops(True)
         icon_path = app_icon_path()
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
-        colors = current_colors()
-        # background/surface are the chrome-family tokens (dark for Inky
-        # Night, light otherwise) -- always paired with sidebar_text here,
-        # never text, which is fixed dark because the content grid/list is
-        # always light. Pairing text with a dark background would render
-        # invisible dark-on-dark menu text on Inky Night.
-        self.setStyleSheet(
-            f"QMainWindow {{ background: {colors.background}; color: {colors.sidebar_text}; }}"
-            f" QSplitter::handle {{ background: {colors.border}; }}"
-            f" QSplitter::handle:horizontal {{ width: 1px; }}"
-            f" QMenuBar {{ background: {colors.background}; color: {colors.sidebar_text}; }}"
-            f" QMenuBar::item:selected {{ background: {colors.border}; }}"
-            f" QMenu {{ background: {colors.surface}; color: {colors.sidebar_text}; border: 1px solid {colors.border}; }}"
-            f" QMenu::item:selected {{ background: {colors.selected_bg}; color: {colors.selected_text}; }}"
-            # Thin, arrow-less scrollbars everywhere in the window.
-            f" QScrollBar:vertical {{ background: transparent; width: 8px; margin: 0; }}"
-            f" QScrollBar:horizontal {{ background: transparent; height: 8px; margin: 0; }}"
-            f" QScrollBar::handle {{ background: {colors.border}; border-radius: 4px; min-height: 30px; min-width: 30px; }}"
-            f" QScrollBar::handle:hover {{ background: {colors.muted_text}; }}"
-            f" QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}"
-            f" QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}"
-        )
+        self._apply_window_style()
+        theme_manager().themeChanged.connect(self._apply_window_style)
 
-        # Each theme is designed around its own navigation/detail
-        # structure, not just its own palette (see theme.py's layout_mode /
-        # icon_rail_sidebar): "Mực Đêm" collapses the sidebar to an icon
-        # rail, "Kệ Sách Gỗ" drops the right-hand detail panel in favour of
-        # a filter chip bar on top and a selection action bar along the
-        # bottom. Everything below the chrome -- the same library view, the
-        # same event bus, the same collections/filters -- is shared.
-        self.sidebar = IconRailSidebar(context) if colors.icon_rail_sidebar else LibrarySidebar(context)
-        if isinstance(self.sidebar, IconRailSidebar):
-            self.sidebar.add_requested.connect(self._on_add_files)
-            self.sidebar.settings_requested.connect(self._on_open_settings)
-        self._uses_action_bar = colors.layout_mode == "action_bar"
-
+        config = context.config.config
         self.omnibar = OmnibarSearchBar(context)
         self.toolbar = LibraryToolbar(context)
         self.library_view = LibraryListWidget(context, import_manager=import_manager)
-        self.library_view.set_view_mode(context.config.config.view_mode)
-        self.library_view.set_grid_icon_width(colors.default_cover_width)
+        self.library_view.set_view_mode(config.view_mode)
+        self.detail_panel = DocumentDetailPanel(context)
 
-        self.detail_panel = None if self._uses_action_bar else DocumentDetailPanel(context)
-        self.filter_chips = FilterChipBar(context) if colors.show_filter_chips else None
-        self.action_bar = SelectionActionBar(context) if self._uses_action_bar else None
-
-        # Must come after self.library_view exists -- several Edit menu
-        # actions connect directly to its bound methods (not lambdas), so
-        # the attribute lookup happens at connect time.
+        # The menu bar is hidden but alive: its actions carry the shortcuts and feed the toolbar's menus.
         self._build_menu()
+        self.app_toolbar = AppToolbar(self.omnibar, self.toolbar, self._build_add_menu(), self._build_tools_menu())
+        self.app_toolbar.detail_button.setChecked(config.show_detail_panel)
+        self.app_toolbar.detail_toggled.connect(self._on_toggle_detail_panel)
 
-        library_container = QWidget()
-        library_container.setObjectName("LibraryContainer")
-        library_container.setStyleSheet(f"#LibraryContainer {{ background: {colors.content_bg}; }}")
-        library_layout = QVBoxLayout(library_container)
-        library_layout.setContentsMargins(0, 0, 0, 8)
-        library_layout.setSpacing(0)
+        self.sidebar = LibrarySidebar(context)
+        self.sidebar_shell = SidebarShell(self.sidebar)
+        self.sidebar_shell.settings_requested.connect(self._on_open_settings)
+
+        main_area = QWidget()
+        main_area.setObjectName("MainArea")
+        main_area.setMinimumWidth(480)  # smaller than any font-driven hint, so the columns can always be narrowed
+        main_layout = QVBoxLayout(main_area)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(self.app_toolbar)
         self.smart_bar = SmartClassifyBar(context, self.smart_classifier, self.library_view.classification_scope)
-        library_layout.addWidget(self.smart_bar)
+        main_layout.addWidget(self.smart_bar)
         # What the list is filtered by, with a one-click way out; hidden when nothing is.
         self.filter_bar = ActiveFilterBar(context)
-        library_layout.addWidget(self.filter_bar)
-        library_layout.addWidget(self.library_view)
+        main_layout.addWidget(self.filter_bar)
+        main_layout.addWidget(self.library_view, stretch=1)
         self.library_view.smart_classify_requested.connect(self._on_classify_selected)
 
-        if self.detail_panel is not None:
-            # Inner splitter: library view | detail panel
-            self._content_splitter = QSplitter(Qt.Horizontal)
-            self._content_splitter.setHandleWidth(1)
-            self._content_splitter.addWidget(library_container)
-            self._content_splitter.addWidget(self.detail_panel)
-            self._content_splitter.setStretchFactor(0, 3)
-            self._content_splitter.setStretchFactor(1, 1)
-            self._content_splitter.setSizes([900, 340])
-            self.detail_panel.setVisible(context.config.config.show_detail_panel)
-            content_widget = self._content_splitter
-        else:
-            self._content_splitter = None
-            content_widget = library_container
+        self._splitter = QSplitter(Qt.Horizontal)
+        self._splitter.setHandleWidth(1)
+        self._splitter.setChildrenCollapsible(False)
+        self._splitter.addWidget(self.sidebar_shell)
+        self._splitter.addWidget(main_area)
+        self._splitter.addWidget(self.detail_panel)
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        self._splitter.setStretchFactor(2, 0)
+        self._splitter.splitterMoved.connect(self._remember_column_widths)
+        self._detail_floating = False
+        self._narrow = self.width() < COMPACT_BELOW
+        self._show_detail = config.show_detail_panel
+        self.setCentralWidget(self._splitter)
+        self._relayout()
 
-        # Outer splitter: sidebar | content area
-        splitter = QSplitter()
-        splitter.setHandleWidth(1)
-        splitter.addWidget(self.sidebar)
-        splitter.addWidget(content_widget)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 5)
-        sidebar_width = RAIL_WIDTH if colors.icon_rail_sidebar else 240
-        splitter.setSizes([sidebar_width, 1400 - sidebar_width])
-
-        # Brand, search and the view/sort controls live in one bar across
-        # the whole window, above sidebar | library | detail panel -- the
-        # way the design mockups lay out every theme.
-        central = QWidget()
-        central_layout = QVBoxLayout(central)
-        central_layout.setContentsMargins(0, 0, 0, 0)
-        central_layout.setSpacing(0)
-        if colors.titlebar_text:
-            central_layout.addWidget(RetroTitleBar(colors, central))
-        central_layout.addWidget(self._build_header_bar(colors))
-        central_layout.addWidget(splitter, stretch=1)
-        if self.action_bar is not None:
-            # Across the whole window bottom, under the sidebar too.
-            central_layout.addWidget(self.action_bar)
-        self.setCentralWidget(central)
-        # Film grain over everything (mouse-transparent), for themes that want it.
-        self.grain_overlay = GrainOverlay(central) if colors.grain_overlay else None
         status_bar = StatusBarPanel(context, self)
         status_bar.relink_requested.connect(self._on_open_relink)
         self.setStatusBar(status_bar)
@@ -207,68 +147,96 @@ class MainWindow(QMainWindow):
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, ImportBatchCompletedEvent)
 
-    def _build_header_bar(self, colors) -> QWidget:
-        header = QWidget(self)
-        header.setObjectName("HeaderBar")
-        header.setAttribute(Qt.WA_StyledBackground, True)
-        header.setStyleSheet(
-            f"#HeaderBar {{ background: {colors.header_bg}; border-bottom: 1px solid {colors.border}; }}"
-            f" #HeaderBar QLabel {{ color: {colors.sidebar_text}; background: transparent; }}"
-        )
-        row = QHBoxLayout(header)
-        side = max(16, colors.page_margin)
-        row.setContentsMargins(0 if colors.icon_rail_sidebar else side, 10, side, 10)
-        row.setSpacing(12)
+    def _apply_window_style(self, _key: str = "") -> None:
+        tm = theme_manager()
+        self.setStyleSheet(f"QMainWindow, #MainArea {{ background: {tm.token('bg')}; }}")
 
-        logo = QLabel(header)
-        logo.setAlignment(Qt.AlignCenter)
-        pixmap = QPixmap(str(brand_logo_path()))
-        if not pixmap.isNull():
-            logo_px = 34 if colors.icon_rail_sidebar else 30
-            logo.setPixmap(pixmap.scaled(logo_px, logo_px, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        if colors.icon_rail_sidebar:
-            # Centered over the icon rail's column, like the mockup.
-            logo.setFixedWidth(RAIL_WIDTH)
-        row.addWidget(logo)
-        if colors.icon_rail_sidebar:
-            row.addSpacing(8)
-        brand_name = APP_DISPLAY_NAME.upper() if colors.brand_caps else APP_DISPLAY_NAME
-        brand = QLabel(f"{colors.brand_prefix}{brand_name}", header)
-        brand.setObjectName("BrandLabel")
-        if colors.brand_caps:
-            # Quiet, spaced-out wordmark (Japandi) instead of a bold title.
-            brand.setStyleSheet("font-weight: 400; font-size: 17px;")
-            apply_font_letter_spacing(brand, 118)
-        else:
-            brand.setStyleSheet("font-weight: 700; font-size: 19px;")
-        row.addWidget(brand)
-        row.addSpacing(8)
+    # -- responsive layout --------------------------------------------------------------------------------------------
+    def _column_widths(self) -> tuple[int, int]:
+        config = self.context.config.config
+        compact = self.width() < COMPACT_BELOW
+        sidebar = SIDEBAR_COMPACT_W if compact else (config.sidebar_width or SIDEBAR_W)
+        return sidebar, config.detail_width or DETAIL_W
 
-        self.omnibar.setMaximumWidth(680)
-        row.addWidget(self.omnibar, stretch=3)
-        if self.filter_chips is not None:
-            row.addWidget(self.filter_chips)
-        row.addStretch(1)
-        row.addWidget(self.toolbar)
-        if colors.header_add_button:
-            # Some themes put "add" right in the header instead of only in
-            # the File menu.
-            add_button = QPushButton(action_text(colors.add_button_label), header)
-            add_button.setObjectName("HeaderAddButton")
-            add_button.setCursor(Qt.PointingHandCursor)
-            if colors.action_style == "default":
-                add_button.setStyleSheet(
-                    f"QPushButton {{ background: {colors.accent}; color: {colors.accent_text}; border: none;"
-                    f" border-radius: {colors.control_radius}px; padding: 9px 18px; font-weight: 600; font-size: 14px; }}"
-                    f" QPushButton:hover {{ background: {colors.selected_text}; }}"
-                )
+    def _relayout(self, *, resize_columns: bool = True) -> None:
+        """Applies the window's current width: floating detail panel, icon-only toolbar and (unless the user is just
+        dragging the window edge, where the stretch factors keep the side columns as they are) the column widths."""
+        width = self.width()
+        sidebar, detail = self._column_widths()
+        floating = width < DETAIL_OVERLAY_BELOW
+        if floating != self._detail_floating:
+            self._detail_floating = floating
+            resize_columns = True
+            if floating:
+                self.detail_panel.setParent(self)
+                self.detail_panel.raise_()
             else:
-                add_button.setStyleSheet(f"QPushButton {{ {action_css(colors, font_px=14)} }}")
-            add_button.clicked.connect(self._on_add_files)
-            row.addWidget(add_button)
-        if not colors.show_cover_size_slider:
-            self.toolbar.set_size_control_visible(False)
-        return header
+                self._splitter.addWidget(self.detail_panel)
+        self.detail_panel.setVisible(self._show_detail)
+        if resize_columns:
+            # The splitter has not been laid out for the new width yet when this runs from resizeEvent: size it first,
+            # or Qt would scale the numbers below to its old width.
+            self._splitter.setGeometry(0, 0, width, self._splitter.height())
+            if floating:
+                self._splitter.setSizes([sidebar, max(200, width - sidebar)])
+            else:
+                self._splitter.setSizes(
+                    [sidebar, max(200, width - sidebar - (detail if self._show_detail else 0)), detail])
+        self._place_floating_detail()
+
+    def _place_floating_detail(self) -> None:
+        if not self._detail_floating:
+            return
+        _sidebar, detail = self._column_widths()
+        detail = min(detail, max(240, self.width() - 240))
+        status_h = self.statusBar().height() if self.statusBar() is not None else 0
+        self.detail_panel.setGeometry(self.width() - detail, 0, detail, self.height() - status_h)
+        self.detail_panel.raise_()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        super().resizeEvent(event)
+        if hasattr(self, "_splitter"):
+            narrow = self.width() < COMPACT_BELOW
+            self._relayout(resize_columns=narrow != self._narrow)
+            self._narrow = narrow
+
+    def _remember_column_widths(self, *_args) -> None:
+        if self._detail_floating:
+            return
+        sizes = self._splitter.sizes()
+        config = self.context.config.config
+        if self.width() >= COMPACT_BELOW and sizes[0] > 0:
+            config.sidebar_width = sizes[0]
+        if self._show_detail and sizes[2] > 0:
+            config.detail_width = sizes[2]
+
+    def _build_add_menu(self) -> QMenu:
+        menu = QMenu(self)
+        for label, slot in ((vi.ADD_FILES, self._on_add_files), (vi.ADD_FOLDER, self._on_add_folder),
+                            (vi.IMPORT_CALIBRE, self._on_import_from_calibre)):
+            menu.addAction(label, slot)
+        return menu
+
+    def _build_tools_menu(self) -> QMenu:
+        menu = QMenu(self)
+        menu.addAction(vi.TOOL_SMART_CLASSIFY,
+                       lambda: self.smart_bar.ask_and_start(self.library_view.classification_scope()))
+        menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
+        menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
+        menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
+        menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
+        menu.addSeparator()
+        help_menu = menu.addMenu(vi.TOOL_HELP_HEADING)
+        help_menu.addAction("Giới thiệu…", self._on_open_about)
+        help_menu.addAction("Trang web chính thức", lambda: open_website())
+        help_menu.addAction("Fanpage cộng đồng", lambda: open_community_page())
+        help_menu.addAction("Báo lỗi…", self._on_open_error_report)
+        return menu
+
+    def _on_open_author_cleanup(self) -> None:
+        dialog = AuthorCleanupDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -322,28 +290,6 @@ class MainWindow(QMainWindow):
         paste_action.triggered.connect(self.library_view.paste_files)
         edit_menu.addAction(paste_action)
 
-        # Grid/List is now the icon toggle at the start of LibraryToolbar
-        # (same row as sort), not here -- one control for it, not two.
-        view_menu = self.menuBar().addMenu("&View")
-        sidebar_action = QAction("◀▶ Hiện/Ẩn Sidebar", self, checkable=True)
-        sidebar_action.setChecked(True)
-        sidebar_action.toggled.connect(lambda checked: self.sidebar.setVisible(checked))
-        view_menu.addAction(sidebar_action)
-
-        self._detail_panel_action = QAction("ℹ️ Hiện/Ẩn Panel chi tiết", self, checkable=True)
-        self._detail_panel_action.setChecked(self.context.config.config.show_detail_panel)
-        self._detail_panel_action.toggled.connect(self._on_toggle_detail_panel)
-        # "Kệ Sách Gỗ" has no detail panel at all (its selection action bar
-        # replaces it) -- a toggle that can't do anything is worse than no
-        # toggle, so it's disabled with an explanation rather than hidden.
-        if self.detail_panel is None:
-            self._detail_panel_action.setEnabled(False)
-            self._detail_panel_action.setChecked(False)
-            self._detail_panel_action.setToolTip(
-                "Giao diện \"Walnut Library\" dùng thanh hành động ở đáy thay cho panel chi tiết."
-            )
-        view_menu.addAction(self._detail_panel_action)
-
         tools_menu = self.menuBar().addMenu("&Tools")
         duplicates_action = QAction("🧹 Dọn dẹp trùng lặp...", self)
         duplicates_action.triggered.connect(self._on_open_duplicate_finder)
@@ -378,49 +324,15 @@ class MainWindow(QMainWindow):
         report_action.triggered.connect(self._on_open_error_report)
         help_menu.addAction(report_action)
 
-        self._build_theme_picker()
-
-    def _build_theme_picker(self) -> None:
-        """A theme switcher parked in the menu bar's right corner --
-        switching look-and-feel is something people try repeatedly (and
-        compare back and forth), so it shouldn't be buried three clicks
-        deep in Settings. Picking one here goes through exactly the same
-        save + rebuild path as the Settings tab does (see
-        app.py's on_appearance_changed), so the two stay in sync."""
-        colors = current_colors()
-        self.theme_picker = QComboBox(self)
-        self.theme_picker.setToolTip("Đổi giao diện")
-        self.theme_picker.setIconSize(QSize(40, 25))
-        for key in THEME_CHOICES:
-            self.theme_picker.addItem(QIcon(theme_preview_pixmap(THEMES[key])), THEMES[key].display_name, key)
-        current_index = self.theme_picker.findData(self.context.config.config.theme)
-        if current_index >= 0:
-            self.theme_picker.setCurrentIndex(current_index)
-        self.theme_picker.setStyleSheet(
-            f"QComboBox {{ background: {colors.surface}; color: {colors.sidebar_text};"
-            f" border: 1px solid {colors.border}; border-radius: 6px; padding: 2px 8px; margin-right: 8px; }}"
-        )
-        self.theme_picker.activated.connect(self._on_theme_picked)
-
-        corner = QWidget(self)
-        corner_layout = QHBoxLayout(corner)
-        corner_layout.setContentsMargins(0, 0, 0, 0)
-        corner_layout.addWidget(self.theme_picker)
-        self.menuBar().setCornerWidget(corner, Qt.TopRightCorner)
-
-    def _on_theme_picked(self, index: int) -> None:
-        key = self.theme_picker.itemData(index)
-        if not key or key == self.context.config.config.theme:
-            return
-        self.context.config.config.theme = key
-        self.context.config.save()
-        if self._on_appearance_changed:
-            self._on_appearance_changed(self)
+        self.menuBar().setVisible(False)
+        for menu_action in self.menuBar().actions():
+            if menu_action.menu():
+                self.addActions(menu_action.menu().actions())  # keeps shortcuts alive while the bar is hidden
 
     def _on_toggle_detail_panel(self, checked: bool) -> None:
-        if self.detail_panel is None:
-            return
+        self._show_detail = checked
         self.detail_panel.setVisible(checked)
+        self._relayout()
         self.context.config.config.show_detail_panel = checked
         self.context.config.save()
 
@@ -559,6 +471,7 @@ class MainWindow(QMainWindow):
         if not self._fitted_to_screen:
             self._fitted_to_screen = True  # once: the frame is only known now, and the user may move it later
             fit_window_to_screen(self)
+            self._relayout()  # the real width is known now (the constructor's was only a guess)
 
     def closeEvent(self, event) -> None:
         work = self._running_work()

@@ -96,7 +96,10 @@ class AppConfig:
     content_font_family: str | None = None
     content_font_size: int = 13
     content_text_color: str | None = None  # hex, e.g. "#1a1a1a"; None = theme default
-    show_detail_panel: bool = False
+    show_detail_panel: bool = True
+    # Widths the user dragged the main window's columns to (0 = the design's default: 226 / 324 px).
+    sidebar_width: int = 0
+    detail_width: int = 0
     # Sidebar filter sections the user folded away ("tags", "authors", "formats").
     collapsed_filter_sections: list[str] = field(default_factory=list)
     # Last folder the user picked in any "choose a file/folder" dialog, so

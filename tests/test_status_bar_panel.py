@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtGui import QImage
 
 from smartdoc.core.event_bus import (
     AiConnectionChangedEvent,
@@ -10,6 +11,7 @@ from smartdoc.core.event_bus import (
     SmartClassifyProgressEvent,
 )
 from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
+from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.status_bar_panel import (
     STATE_ERROR,
     STATE_OFF,
@@ -43,7 +45,7 @@ def test_files_label_shows_total_and_completeness_counts(qapp, app_context):
     panel = StatusBarPanel(app_context)
 
     # The bar itself carries only icons and numbers; the sentence is the tooltip.
-    assert (panel.files_label.text(), panel.complete_label.text(), panel.incomplete_label.text()) == ("📚 2", "✅ 1", "⚠️ 1")
+    assert (panel.files_label.text(), panel.complete_label.text(), panel.incomplete_label.text()) == ("<b>2</b> tài liệu", "<span style='color:%s'>✓</span> 1 đủ" % theme_manager().token("ok"), "○ 1 thiếu thông tin")
     assert "2 tài liệu" in panel.files_label.toolTip()
     assert "1 tài liệu đã đủ thông tin" in panel.complete_label.toolTip()
     assert "1 tài liệu còn thiếu thông tin" in panel.incomplete_label.toolTip()
@@ -55,7 +57,7 @@ def test_folders_label_shows_watch_folder_count(qapp, app_context):
 
     panel = StatusBarPanel(app_context)
 
-    assert panel.folders_label.text() == "👁 2"
+    assert panel.folders_label.text() == "2 thư mục"
     assert "2 thư mục" in panel.folders_label.toolTip()
 
 
@@ -85,11 +87,13 @@ def test_status_icons_differ_by_shape_not_only_by_colour(qapp, app_context):
     badges = {}
     for state in (STATE_OK, STATE_OFF, STATE_ERROR):
         panel.ai_label.set_state(state, "x")
-        text = panel.ai_label.text()
-        badges[state] = text[text.index(">", text.index("<span")) + 1 : text.index("</span>")]
+        # Compare the badge corner in grey scale: the shapes must differ even with every colour taken away.
+        image = panel.ai_label.pixmap().toImage().convertToFormat(QImage.Format_Grayscale8)
+        w, h = image.width(), image.height()
+        corner = tuple(image.pixel(x, y) & 0xFF for x in range(w // 2, w, 3) for y in range(h // 2, h, 3))
+        badges[state] = corner
 
-    assert len(set(badges.values())) == 3, badges
-    assert badges[STATE_ERROR] not in (badges[STATE_OK], badges[STATE_OFF])
+    assert len(set(badges.values())) == 3, "badge shapes are not distinguishable without colour"
 
 
 def test_status_icons_carry_no_long_text_and_explain_themselves_in_a_tooltip(qapp, app_context, monkeypatch):
@@ -150,7 +154,7 @@ def test_zones_are_ordered_left_middle_right_and_never_overlap(qapp, app_context
 
 def test_the_moving_text_gives_way_in_a_narrow_window(qapp, app_context):
     panel = StatusBarPanel(app_context)
-    panel.resize(1600, 26)
+    panel.resize(2200, 26)
     panel.show()
     qapp.processEvents()
     assert panel.donate_ticker.isVisible()
@@ -418,7 +422,7 @@ def test_the_moving_text_never_moves_the_icons_beside_it(qapp, app_context, monk
     """Regression: the ticker's width followed the characters showing, so the connection icons swayed with it."""
     monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
     panel = StatusBarPanel(app_context)
-    panel.resize(1500, 26)
+    panel.resize(2100, 26)
     panel.show()
     qapp.processEvents()
     icons = [panel.cloud_label, panel.ai_label, panel.network_label, panel.community_label, panel.author_label]
@@ -443,7 +447,7 @@ def test_the_donate_line_is_set_at_seven_tenths_of_the_bar_font(qapp, app_contex
 def test_status_icons_share_one_slot_width_and_sit_evenly(qapp, app_context, monkeypatch):
     monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
     panel = StatusBarPanel(app_context)
-    panel.resize(1500, 26)
+    panel.resize(2100, 26)
     panel.show()
     qapp.processEvents()
     icons = [panel.cloud_label, panel.ai_label, panel.network_label]
@@ -459,7 +463,7 @@ def test_status_icons_share_one_slot_width_and_sit_evenly(qapp, app_context, mon
 def test_every_item_of_the_bar_is_one_row_high_and_centred(qapp, app_context, monkeypatch):
     monkeypatch.setattr(StatusBarPanel, "_network_state", lambda self: STATE_OK)
     panel = StatusBarPanel(app_context)
-    panel.resize(1500, 26)
+    panel.resize(2100, 26)
     panel.show()
     qapp.processEvents()
     items = [

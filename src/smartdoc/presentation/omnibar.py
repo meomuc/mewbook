@@ -12,31 +12,17 @@ While typing it also offers filters -- "Tác giả: Nhã Ca (12)", "Hashtag: L�
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, QStringListModel, Qt, QTimer
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PySide6.QtCore import QStringListModel, QTimer
 from PySide6.QtWidgets import QCompleter, QLineEdit
 
 from smartdoc.core.event_bus import FilterChangedEvent
 from smartdoc.domain.library_filter import CATEGORY_LABELS, MODE_GO
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme_manager import theme_manager
 
 DEBOUNCE_MS = 300
-
-
-def _magnifier_icon(color: str) -> QIcon:
-    pixmap = QPixmap(32, 32)
-    pixmap.fill(Qt.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    pen = QPen(QColor(color))
-    pen.setWidthF(2.6)
-    pen.setCapStyle(Qt.RoundCap)
-    painter.setPen(pen)
-    painter.drawEllipse(QRectF(7, 7, 14, 14))
-    painter.drawLine(QPointF(19.5, 19.5), QPointF(25, 25))
-    painter.end()
-    return QIcon(pixmap)
 
 
 def search_stylesheet(colors) -> str:
@@ -62,15 +48,12 @@ class OmnibarSearchBar(QLineEdit):
         super().__init__(parent)
         self.context = context
 
-        colors = current_colors()
-        self.setPlaceholderText(
-            colors.search_placeholder or "Tìm theo tên sách, tác giả... (lọc nâng cao: author:tên, tag:thể_loại)"
-        )
-        self.setToolTip("Tìm theo tên sách, tác giả... (lọc nâng cao: author:tên, tag:thể_loại)")
+        self.setPlaceholderText(vi.SEARCH_PLACEHOLDER)
+        self.setToolTip(vi.SEARCH_PLACEHOLDER + "\nLọc nâng cao: author:tên, tag:thể_loại  ·  Ctrl+F để tìm nhanh")
         self.setClearButtonEnabled(True)
-        self.setStyleSheet(search_stylesheet(colors))
-
-        self.addAction(_magnifier_icon(colors.muted_text), QLineEdit.LeadingPosition)
+        self.setMinimumHeight(30)
+        self._search_action = self.addAction(line_icon("search", theme_manager().token("ink3")), QLineEdit.LeadingPosition)
+        theme_manager().themeChanged.connect(self._restyle)
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -97,6 +80,9 @@ class OmnibarSearchBar(QLineEdit):
         if self._last_published:
             self.setText(self._last_published)
             self._timer.stop()
+
+    def _restyle(self, _key: str = "") -> None:
+        self._search_action.setIcon(line_icon("search", theme_manager().token("ink3")))
 
     def _publish_search(self) -> None:
         query = self.text().strip()

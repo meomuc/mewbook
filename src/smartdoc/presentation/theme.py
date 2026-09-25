@@ -58,6 +58,7 @@ already-built stylesheet in place was judged not worth the complexity here.
 """
 from __future__ import annotations
 
+import dataclasses
 import re
 from dataclasses import dataclass
 
@@ -503,6 +504,23 @@ ZEN_DARK = ThemeColors(  # "Zen Dark Mode"
     text_glow=True,
     font_families=CALM_SANS_FONT_FAMILIES,
 )
+
+def _in_design_tokens(colors: ThemeColors) -> ThemeColors:
+    """The theme with its colours taken from the "Kệ sách" token file (styles/theme_tokens.json), so widgets that
+    still read ThemeColors and widgets styled by ThemeManager show one palette. Structure and type options stay."""
+    from smartdoc.presentation.theme_manager import TOKEN_KEY_FOR_THEME, load_tokens
+
+    t = load_tokens()[TOKEN_KEY_FOR_THEME[colors.key]]
+    return dataclasses.replace(
+        colors, background=t["bg"], content_bg=t["bg"], surface=t["surface"], sidebar_bg=t["rail"],
+        sidebar_text=t["ink"], panel_bg=t["panel"], panel_text=t["ink"], header_bg=t["bg"], text=t["ink"],
+        muted_text=t["ink2"], border=t["line"], accent=t["accent"], accent_text=t["accentink"],
+        selected_bg=t["accentsoft"], selected_border=t["accent"], selected_text=t["ink"],
+    )
+
+
+BROADSHEET, WOODSHELF, INKYNIGHT, HEALING, RETRO_TECH, JAPANDI, ZEN_DARK = (
+    _in_design_tokens(c) for c in (BROADSHEET, WOODSHELF, INKYNIGHT, HEALING, RETRO_TECH, JAPANDI, ZEN_DARK))
 
 THEMES: dict[str, ThemeColors] = {
     "broadsheet": BROADSHEET,
