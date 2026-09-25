@@ -67,6 +67,7 @@ from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.worker_relay import WorkerRelay, post
 
 _SOURCES = (SOURCE_OPEN_LIBRARY, SOURCE_GOOGLE_BOOKS, SOURCE_APPLE_BOOKS, SOURCE_TIKI, SOURCE_GOOGLE_IMAGES)
 _PREVIEW_SIZE = QSize(96, 132)
@@ -207,6 +208,7 @@ class CoverSearchDialog(DesignDialog):
         self.context = context
         self.doc = doc
         self._cover_manager = CoverCacheManager(context)
+        self._relay = WorkerRelay(self)  # what the search threads talk to (never the dialog itself)
         self.resize(860, 640)
         self.setMaximumSize(1040, 820)  # a grid of many thumbnails shouldn't be able to balloon the window
         tm = theme_manager()
@@ -379,6 +381,7 @@ class CoverSearchDialog(DesignDialog):
 
         config = self.context.config.config
         min_score = 0.0 if self.include_weak_check.isChecked() else MIN_MATCH_SCORE
+        relay = self._relay
 
         def worker() -> None:
             try:
@@ -391,7 +394,7 @@ class CoverSearchDialog(DesignDialog):
                     disabled_sources=config.disabled_cover_sources,
                 )
             except CoverSearchError as exc:
-                self.search_finished.emit([], str(exc))
+                post(relay, "search_finished", [], str(exc))
                 return
             def fetch(candidate):
                 try:
@@ -402,7 +405,7 @@ class CoverSearchDialog(DesignDialog):
             # Parallel downloads, but map() keeps the ranked order.
             with ThreadPoolExecutor(max_workers=4) as pool:
                 downloaded = [pair for pair in pool.map(fetch, candidates) if pair is not None]
-            self.search_finished.emit(downloaded, "")
+            post(relay, "search_finished", downloaded, "")
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -440,14 +443,15 @@ class CoverSearchDialog(DesignDialog):
 
         self.status_label.setText("Đang tải ảnh từ đường dẫn...")
         self.download_button.setEnabled(False)
+        relay = self._relay
 
         def worker() -> None:
             try:
                 data = download_cover_from_url(url)
             except CoverSearchError as exc:
-                self.url_loaded.emit(b"", url, str(exc))
+                post(relay, "url_loaded", b"", url, str(exc))
                 return
-            self.url_loaded.emit(data, url, "")
+            post(relay, "url_loaded", data, url, "")
 
         threading.Thread(target=worker, daemon=True).start()
 

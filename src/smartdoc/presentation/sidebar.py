@@ -123,7 +123,7 @@ class CollectionListPanel(QWidget):
             # rows follow the filter too.
             self.reload_collections()
 
-    def _collection_row_text(self, name: str, count: int, *, icon: str = "📁") -> str:
+    def _collection_row_text(self, name: str, count: int, *, icon: str = "") -> str:
         # Plain "name (count)" in every theme: icons and count pills are
         # drawn by the delegate (sidebar_style.CountRowDelegate), not
         # baked into the text.

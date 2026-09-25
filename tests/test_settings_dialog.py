@@ -513,17 +513,75 @@ def test_a_full_folder_box_does_not_push_the_other_settings_off_the_window(qapp,
     assert many.sizeHint().height() - few.sizeHint().height() <= row * 5
 
 
-# --- the community-review tab is gone; what was saved stays ---
+# --- the community-review page: on/off, nickname, and what is (not) sent ---
 
 
-def test_settings_have_no_community_review_tab(qapp, app_context):
+def test_settings_have_ten_pages_in_the_designed_order(qapp, app_context):
     from PySide6.QtWidgets import QTabWidget
 
     dialog = SettingsDialog(app_context)
     tabs = dialog.findChild(QTabWidget)
     names = [tabs.tabText(i) for i in range(tabs.count())]
-    assert not any("Đánh giá cộng đồng" in name for name in names), names
-    assert not hasattr(dialog, "supabase_url_edit") and not hasattr(dialog, "copy_upgrade_sql_button")
+    assert names == ["Quản lý File", "Giao diện", "Hiệu năng", "Phân loại", "AI Tóm tắt", "Ảnh bìa",
+                     "Đánh giá cộng đồng", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
+    assert dialog.pills.count() == 10 and not hasattr(dialog, "supabase_url_edit")
+
+
+def test_the_pills_drive_the_pages(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.pills.setCurrentRow(2)
+    assert dialog.tabs.currentIndex() == 2
+    dialog.tabs.setCurrentIndex(5)
+    assert dialog.pills.currentRow() == 5
+
+
+def test_the_community_page_keeps_the_switch_and_the_nickname(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.community_reviews_check.setChecked(False)
+    dialog.reviewer_nickname_edit.setText("Mèo Mực")
+    dialog._on_save()
+    assert app_context.config.config.community_reviews_enabled is False
+    assert app_context.config.config.reviewer_nickname == "Mèo Mực"
+
+
+def test_changes_are_saved_as_they_are_made(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.worker_spin.setValue(7)
+    assert dialog._autosave_timer.isActive()
+    dialog._autosave_timer.stop()
+    dialog._apply_settings()  # what the timer does when it fires
+    assert app_context.config.config.worker_thread_count == 7
+    assert dialog.saved_label.text() == "Thay đổi được lưu ngay."
+
+
+def test_the_performance_page_saves_its_new_options(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.page_size_combo.setCurrentIndex(dialog.page_size_combo.findData(48))
+    dialog.reader_windows_combo.setCurrentIndex(dialog.reader_windows_combo.findData(3))
+    dialog.content_pages_combo.setCurrentIndex(dialog.content_pages_combo.findData(200))
+    dialog.cover_cache_combo.setCurrentIndex(dialog.cover_cache_combo.findData(600))
+    dialog._on_save()
+    config = app_context.config.config
+    assert (config.page_size, config.max_reader_windows, config.content_search_pages, config.cover_cache_mb) == (48, 3, 200, 600)
+
+
+def test_the_theme_cards_drive_the_theme_and_show_the_current_one(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    assert len(dialog.theme_cards) == 7 and dialog.theme_cards["broadsheet"].is_selected()
+    dialog.theme_cards["inkynight"].chosen.emit("inkynight")
+    assert dialog.theme_combo.currentData() == "inkynight" and dialog.theme_cards["inkynight"].is_selected()
+    assert not dialog.theme_cards["broadsheet"].is_selected()
+    dialog._on_save()
+    assert app_context.config.config.theme == "inkynight" and dialog.appearance_changed
+
+
+def test_coming_soon_rows_are_disabled(qapp, app_context):
+    from PySide6.QtWidgets import QLabel
+
+    dialog = SettingsDialog(app_context)
+    badges = [label for label in dialog.findChildren(QLabel) if label.text() == "Sắp có"]
+    assert len(badges) >= 5
+    assert all(not label.parent().isEnabled() for label in badges)
 
 
 def test_saving_settings_keeps_an_existing_community_review_connection(qapp, app_context):

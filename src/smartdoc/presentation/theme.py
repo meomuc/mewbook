@@ -123,14 +123,10 @@ class ThemeColors:
     # "plain": name + muted count rows. "iconic": taller rows with line
     # icons and a count pill on the selected row.
     sidebar_style: str = "plain"
-    # Sidebar section heading and the "everything" row's label.
-    library_heading: str = "Bộ sưu tập"
+    # The "everything" row's label.
     all_items_label: str = "Tất cả tài liệu"
-    # Header extras: a "＋ Thêm mới" button, the cover-size slider, and the
-    # format filter chips next to the search box.
-    header_add_button: bool = False
+    # Header extras: the cover-size slider.
     show_cover_size_slider: bool = True
-    show_filter_chips: bool = False
 
     # -- Style options ("mood" themes). Every default reproduces the look
     # the three original themes already had, so they need no changes. --
@@ -144,23 +140,17 @@ class ThemeColors:
     jacket_min_px: int = 6
     # "normal" or "code" (lower_snake_case labels, "// " section headings).
     label_style: str = "normal"
-    # Corner radii (px): covers/cards, search box & buttons, panel edge.
+    # Corner radii (px): covers/cards, search box & buttons.
     cover_radius: int = 2
     control_radius: int = 3
-    panel_radius: int = 0
-    # Covers: "soft" / "warm" drop shadow or "none"; optional 1px border;
-    # flat (first gradient color only) instead of a gradient; whether a
+    # Covers: optional 1px border; flat (first gradient color only) instead
+    # of a gradient; whether a
     # coverless book gets its title printed on the placeholder, and in
     # which color.
-    cover_shadow: str = "soft"
     cover_border_color: str | None = None
     cover_flat: bool = False
     cover_jacket_text: bool = True
     cover_text_color: str = "#ffffff"
-    # Selected grid card: "outline" (accent ring) or "glow" (ring + soft
-    # halo), and the ring width.
-    card_selection: str = "outline"
-    card_outline_width: int = 2
     # Selected sidebar row: "stripe" (band + left stripe), "fill" (rounded
     # band), "outline" (1px accent box) or "underline" (accent line under
     # the name, no band).
@@ -169,27 +159,17 @@ class ThemeColors:
     # "default", "link" (underlined text), "bracket" ("[ action ]") or
     # "soft" (faint filled box).
     action_style: str = "default"
-    # Search box: "box", "pill" or "underline"; custom placeholder.
+    # Search box: "box", "pill" or "underline".
     search_style: str = "box"
-    search_placeholder: str | None = None
-    # Header add button label, brand prefix (e.g. a leaf) and all-caps,
-    # letter-spaced brand.
-    add_button_label: str = "＋ Thêm mới"
-    brand_prefix: str = ""
-    brand_caps: bool = False
     # Retro OS title bar strip at the top of the window (None = none).
     titlebar_text: str | None = None
     # Film-grain overlay over the whole window.
     grain_overlay: bool = False
-    # Hover/selection fade duration in ms (0 = instant) and a soft glow
-    # around important text (selected card title, detail title).
+    # Hover/selection fade duration in ms (0 = instant).
     motion_ms: int = 0
-    text_glow: bool = False
     # Library grid: "uniform", or "featured" (the page's first book shown
-    # large beside the grid). Outer margin and card gutter in px.
+    # large beside the grid).
     grid_layout: str = "uniform"
-    page_margin: int = 14
-    card_gutter: int = 24
 
 
 # Shared across all 3 themes -- muted, book-spine-like tones for the cover
@@ -271,11 +251,8 @@ WOODSHELF = ThemeColors(
     layout_mode="action_bar",
     icon_rail_sidebar=False,
     sidebar_style="iconic",
-    library_heading="Thư viện",
     all_items_label="Tất cả",
-    header_add_button=True,
     show_cover_size_slider=False,  # this theme's big covers are its point
-    show_filter_chips=True,
     font_families=CLASSIC_SERIF_FONT_FAMILIES,
 )
 
@@ -344,20 +321,12 @@ HEALING = ThemeColors(  # "Không Gian Chữa Lành" -- Cottagecore & Ghibli
     default_cover_width=136,
     layout_mode="detail_panel",
     icon_rail_sidebar=False,
-    library_heading="Góc đọc sách",
     all_items_label="Tất cả",
-    header_add_button=True,
     show_cover_size_slider=False,
     cover_radius=12,
     control_radius=18,
-    panel_radius=20,
-    cover_shadow="warm",
-    card_outline_width=3,
     selection_style="fill",
     search_style="pill",
-    search_placeholder="Tìm một cuốn sách để đọc hôm nay...",
-    add_button_label="+ Thêm sách",
-    brand_prefix="🌿 ",
     grain_overlay=True,
     card_title_weight=700,
     font_families=ROUNDED_FONT_FAMILIES,
@@ -396,15 +365,11 @@ RETRO_TECH = ThemeColors(  # "Hoài Niệm Kỹ Thuật Số" -- Lo-Fi Retro-Tec
     all_items_label="Tất cả",
     cover_radius=0,
     control_radius=0,
-    cover_shadow="none",
     cover_border_color="#3a3e56",
     cover_flat=True,
     cover_text_color="#1f2233",
-    card_selection="glow",
-    card_outline_width=1,
     selection_style="outline",
     action_style="bracket",
-    search_placeholder="> tìm kiếm tài liệu_",
     titlebar_text="~/smartdoc — thư viện.app",
 )
 
@@ -434,7 +399,6 @@ JAPANDI = ThemeColors(  # "Japandi Tối Giản"
     default_cover_width=150,
     layout_mode="detail_panel",
     icon_rail_sidebar=False,
-    header_add_button=True,
     show_cover_size_slider=False,
     font_families=SANS_LIGHT_FONT_FAMILIES,
     font_weight=300,
@@ -442,19 +406,12 @@ JAPANDI = ThemeColors(  # "Japandi Tối Giản"
     card_title_weight=400,
     cover_radius=2,
     control_radius=0,
-    cover_shadow="none",
     cover_flat=True,
     cover_jacket_text=False,
-    card_outline_width=1,
     selection_style="underline",
     action_style="link",
     search_style="underline",
-    search_placeholder="Tìm kiếm",
-    add_button_label="Thêm tài liệu",
-    brand_caps=True,
     grid_layout="featured",
-    page_margin=40,
-    card_gutter=40,
 )
 
 ZEN_DARK = ThemeColors(  # "Zen Dark Mode"
@@ -493,15 +450,10 @@ ZEN_DARK = ThemeColors(  # "Zen Dark Mode"
     show_cover_size_slider=False,
     cover_radius=6,
     control_radius=18,
-    cover_shadow="none",
-    card_selection="glow",
-    card_outline_width=2,
     selection_style="fill",
     action_style="soft",
     search_style="pill",
-    search_placeholder="Tìm kiếm nhẹ nhàng...",
     motion_ms=500,
-    text_glow=True,
     font_families=CALM_SANS_FONT_FAMILIES,
 )
 
@@ -539,8 +491,6 @@ SIDEBAR_STYLES = ("plain", "iconic")
 # Allowed values of the enumerated style options.
 STYLE_CHOICES = {
     "label_style": ("normal", "code"),
-    "cover_shadow": ("soft", "warm", "none"),
-    "card_selection": ("outline", "glow"),
     "selection_style": ("stripe", "fill", "outline", "underline"),
     "action_style": ("default", "link", "bracket", "soft"),
     "search_style": ("box", "pill", "underline"),

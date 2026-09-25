@@ -72,6 +72,7 @@ from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
 from smartdoc.presentation.design_dialog import confirm_danger
+from smartdoc.presentation.ereader_dialog import EreaderSendDialog
 from smartdoc.presentation.cover_loader import CoverLoader
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.shelf_view import ShelfView
@@ -84,7 +85,8 @@ from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEdi
 from smartdoc.presentation.metadata_suggest_dialog import MetadataSuggestDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.reader_manager import open_reader
-from smartdoc.presentation.review_dialog import ReviewDialog
+from smartdoc.presentation.review_dialog import open_review_dialog
+from smartdoc.presentation.state_view import StateView
 from smartdoc.presentation.theme import current_colors
 
 DEFAULT_ICON_WIDTH = 120
@@ -254,6 +256,17 @@ class _AsyncCoverMixin:
         self._cover_loader.cancel_pending()
         self._evict_replaced_covers()
 
+    _ICON_KB = 160  # about what one decoded cover icon costs in memory
+
+    def _trim_icon_cache(self) -> None:
+        """Keeps the decoded covers inside Settings > Hiệu năng > "Bộ nhớ đệm ảnh bìa": the oldest are dropped first and
+        simply decoded again when they come back on screen."""
+        context = getattr(self, "_context", None)
+        megabytes = (context.config.config.cover_cache_mb if context is not None else 0) or 300
+        limit = max(60, megabytes * 1024 // self._ICON_KB)
+        while len(self._icon_cache) > limit:
+            self._icon_cache.pop(next(iter(self._icon_cache)))
+
     def _evict_replaced_covers(self) -> None:
         """A cover is saved as <doc_id>.webp, so choosing a new cover for a book rewrites the *same path*: the
         icon caches (keyed by path) would go on showing the old picture until the app restarted. The file's
@@ -295,6 +308,7 @@ class _AsyncCoverMixin:
 
         icon = self._build_cover_icon(self._gradient_for(doc), doc)
         self._icon_cache[key] = icon
+        self._trim_icon_cache()
         return icon
 
     def _gradient_for(self, doc: dict) -> QPixmap:
@@ -321,6 +335,7 @@ class _AsyncCoverMixin:
             pixmap = QPixmap.fromImage(image) if not image.isNull() else self._gradient_for(doc)
             key = (cover_path, self._cover_key_suffix(doc))
             self._icon_cache[key] = self._build_cover_icon(pixmap, doc)
+            self._trim_icon_cache()
             self._placeholder_cache.pop(key, None)
             index = self.index(row, 0)
             self.dataChanged.emit(index, index, [Qt.DecorationRole])
@@ -727,6 +742,8 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
 class LibraryListWidget(QWidget):
     # "Phân loại thông minh" from the right-click menu: the ids of the selected documents.
     smart_classify_requested = Signal(list)
+    add_files_requested = Signal()  # the empty-library state's "Thêm sách"
+    add_folder_requested = Signal()  # ... and "Thêm thư mục…"
 
     def __init__(self, context, parent=None, import_manager=None) -> None:
         super().__init__(parent)
@@ -786,6 +803,8 @@ class LibraryListWidget(QWidget):
         self.view_stack = QStackedWidget(self)
         self.view_stack.addWidget(self._grid_page)
         self.view_stack.addWidget(self.table_view)
+        self.state_view = StateView(self)  # empty library / nothing found / error, in the middle of the area
+        self.state_view.hide()
 
         # Emit DocumentSelectedEvent whenever the user clicks a row in
         # either view so the detail panel can update.
@@ -801,6 +820,7 @@ class LibraryListWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view_stack)
+        layout.addWidget(self.state_view, 1)
         layout.addWidget(self.pagination_bar)
 
         # A bulk import fires one LibraryUpdatedEvent per document. Reacting
@@ -1008,6 +1028,19 @@ class LibraryListWidget(QWidget):
         self.table_model.set_documents(documents)
         self.table_model.set_sorted(*_SORTED_COLUMN.get(self._current_sort, ("created_at", True)))
         self._update_pagination_ui(total)
+        self._show_state_or_view(total)
+
+    def _show_state_or_view(self, total: int) -> None:
+        """Nothing on the shelf: say why in the middle of the area instead of showing an empty grid."""
+        self.view_stack.setVisible(total > 0)
+        self.state_view.setVisible(total == 0)
+        self.pagination_bar.setVisible(total > 0)
+        if total > 0:
+            return
+        if self.library_filter.is_empty():
+            self.state_view.show_empty_library(self.add_files_requested.emit, self.add_folder_requested.emit)
+        else:
+            self.state_view.show_no_match(self.context.filters.clear)
 
     def _build_combined_where(self, flt: LibraryFilter | None = None) -> tuple[str, tuple]:
         return self.context.db.filter_where(flt or self.library_filter)
@@ -1168,7 +1201,7 @@ class LibraryListWidget(QWidget):
         # Without this, filing a document into a brand-new collection meant
         # leaving the menu, creating the collection in the sidebar, then
         # coming back and starting the whole right-click over.
-        new_action = submenu.addAction("➕ Tạo bộ sưu tập mới...")
+        new_action = submenu.addAction("Tạo bộ sưu tập mới...")
         actions[new_action] = self.NEW_COLLECTION
         parent_menu.addMenu(submenu)
         return submenu, actions
@@ -1203,15 +1236,15 @@ class LibraryListWidget(QWidget):
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
         cover_search_action = menu.addAction("Tìm ảnh bìa...")
-        metadata_search_action = menu.addAction("🔎 Tìm thông tin sách...")
-        ai_summary_action = menu.addAction("🤖 Tóm tắt AI...")
-        smart_classify_action = menu.addAction("✨ Phân loại thông minh")
+        metadata_search_action = menu.addAction("Tìm thông tin sách...")
+        ai_summary_action = menu.addAction("Tóm tắt AI...")
+        smart_classify_action = menu.addAction("Phân loại thông minh")
         menu.addSeparator()
-        copy_action = menu.addAction("📋 Sao chép")
-        cut_action = menu.addAction("✂️ Cắt")
+        copy_action = menu.addAction("Sao chép")
+        cut_action = menu.addAction("Cắt")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
-        send_ereader_action = menu.addAction("📱 Gửi tới máy đọc sách...")
+        send_ereader_action = menu.addAction("Gửi tới máy đọc sách...")
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
 
@@ -1225,7 +1258,7 @@ class LibraryListWidget(QWidget):
         elif chosen == edit_action:
             self._edit_documents([doc])
         elif chosen == review_action:
-            ReviewDialog(self.context, doc, self).exec()
+            open_review_dialog(self.context, doc, self)
         elif chosen == cover_search_action:
             CoverSearchDialog(self.context, doc, self).exec()
         elif chosen == metadata_search_action:
@@ -1249,13 +1282,13 @@ class LibraryListWidget(QWidget):
     def _show_multi_document_menu(self, menu: QMenu, docs: list[dict], position) -> None:
         count = len(docs)
         batch_edit_action = menu.addAction(f"Chỉnh sửa hàng loạt ({count} tài liệu)")
-        smart_classify_action = menu.addAction(f"✨ Phân loại thông minh ({count} tài liệu)")
+        smart_classify_action = menu.addAction(f"Phân loại thông minh ({count} tài liệu)")
         menu.addSeparator()
-        copy_action = menu.addAction("📋 Sao chép")
-        cut_action = menu.addAction("✂️ Cắt")
+        copy_action = menu.addAction("Sao chép")
+        cut_action = menu.addAction("Cắt")
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
-        send_ereader_action = menu.addAction("📱 Gửi tới máy đọc sách...")
+        send_ereader_action = menu.addAction("Gửi tới máy đọc sách...")
         menu.addSeparator()
         delete_action = menu.addAction(f"Xóa {count} tài liệu khỏi thư viện")
 
@@ -1367,18 +1400,10 @@ class LibraryListWidget(QWidget):
             self.context.config.config.ereader_folder_path = target
             self.context.config.save()
 
-        succeeded, failed = self.file_actions.send_to_ereader(paths, target)
-        if failed:
-            QMessageBox.warning(
-                self,
-                "Gửi tới máy đọc sách",
-                f"Đã gửi {len(succeeded)}/{len(paths)} file tới \"{target}\".\n"
-                f"{len(failed)} file chưa gửi được. Chi tiết nằm trong nhật ký lỗi (Trợ giúp → Giới thiệu → Thư mục nhật ký).",
-            )
-        else:
-            QMessageBox.information(
-                self, "Gửi tới máy đọc sách", f"Đã gửi {len(succeeded)} file tới \"{target}\"."
-            )
+        docs = [d for d in self._selected_documents() if d.get("file_path")]
+        dialog = EreaderSendDialog(self.context, docs, self.file_actions, target, self)
+        dialog.exec()
+        dialog.deleteLater()
 
 
 if __name__ == "__main__":

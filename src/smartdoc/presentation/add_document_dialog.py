@@ -1,7 +1,7 @@
 """Add Document modal: drag-and-drop (or browse) files into the library,
 optionally tagging the whole batch with a hashtag/collection at add-time --
 previously the only way to do this was to add files via the plain file
-picker (still available from File > "📁 Thêm thư mục..." for whole-folder
+picker (still available from File > "Thêm thư mục..." for whole-folder
 watch registration, a different flow this dialog doesn't replace), then
 edit each document individually afterward (metadata_editor.py).
 
@@ -56,7 +56,7 @@ class _DropZone(QFrame):
         self.setStyleSheet(
             f"_DropZone {{ border: 2px dashed {colors.border}; border-radius: 8px; background: {colors.content_bg}; }}"
         )
-        label = QLabel("📥  Kéo-thả file PDF / EPUB / MOBI / AZW3 vào đây", self)
+        label = QLabel("Kéo-thả file PDF / EPUB / MOBI / AZW3 vào đây", self)
         label.setAlignment(Qt.AlignCenter)
         label.setStyleSheet(f"border: none; color: {colors.muted_text};")
         layout = QVBoxLayout(self)

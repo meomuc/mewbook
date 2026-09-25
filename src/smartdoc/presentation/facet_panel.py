@@ -15,7 +15,7 @@ and why:
 * Everything goes through context.filters, so the "Đang lọc" bar, the search
   box and the detail panel always agree with what is highlighted here.
 
-Folders the user made (facet_groups) show as "📂" entries that select all their
+Folders the user made (facet_groups) show as "" entries that select all their
 members at once; right-click manages them as before.
 """
 from __future__ import annotations
@@ -487,15 +487,15 @@ class FacetPanel(QWidget):
     def _show_section_menu(self, category: str, anchor: QWidget) -> None:
         menu = QMenu(self)
         actions: dict = {}
-        sort_menu = menu.addMenu("↕️ Sắp xếp")
+        sort_menu = menu.addMenu("Sắp xếp")
         for key, label in _SORT_LABELS.items():
             action = sort_menu.addAction(label)
             action.setCheckable(True)
             action.setChecked(self._sort_keys[category] == key)
             actions[action] = ("sort", key)
-        actions[menu.addAction("➕ Tạo nhóm mới...")] = ("new_group", None)
+        actions[menu.addAction("Tạo nhóm mới...")] = ("new_group", None)
         if category == AUTHORS:
-            actions[menu.addAction("🧹 Gợi ý dọn tên tác giả...")] = ("cleanup", None)
+            actions[menu.addAction("Gợi ý dọn tên tác giả...")] = ("cleanup", None)
         chosen = self._exec_menu(menu, anchor.mapToGlobal(anchor.rect().bottomLeft()))
         if chosen is None or chosen not in actions:
             return
@@ -516,26 +516,26 @@ class FacetPanel(QWidget):
         category_key = _GROUP_CATEGORY[category]
         menu = QMenu(self)
         actions: dict = {}
-        actions[menu.addAction("➕ Thêm vào lựa chọn (Ctrl+nhấp)")] = ("add",)
+        actions[menu.addAction("Thêm vào lựa chọn (Ctrl+nhấp)")] = ("add",)
         menu.addSeparator()
 
         if entry.group_id:
-            actions[menu.addAction("✏️ Đổi tên nhóm...")] = ("rename_group",)
-            actions[menu.addAction("🗑️ Xóa nhóm (các mục bên trong được giữ lại)")] = ("delete_group",)
+            actions[menu.addAction("Đổi tên nhóm...")] = ("rename_group",)
+            actions[menu.addAction("Xóa nhóm (các mục bên trong được giữ lại)")] = ("delete_group",)
         elif category != FORMATS and not entry.bucket:
             # Formats come from the files themselves -- only the two metadata-backed groups can be edited.
             if category == AUTHORS:
-                actions[menu.addAction("✏️ Đổi tên tác giả (cập nhật metadata)...")] = ("rename",)
+                actions[menu.addAction("Đổi tên tác giả (cập nhật metadata)...")] = ("rename",)
             else:
-                actions[menu.addAction("✏️ Đổi tên hashtag (cập nhật metadata)...")] = ("rename",)
-                actions[menu.addAction("🗑️ Xóa hashtag khỏi mọi tài liệu...")] = ("delete_tag",)
-            move_menu = menu.addMenu("📂 Chuyển vào nhóm")
+                actions[menu.addAction("Đổi tên hashtag (cập nhật metadata)...")] = ("rename",)
+                actions[menu.addAction("Xóa hashtag khỏi mọi tài liệu...")] = ("delete_tag",)
+            move_menu = menu.addMenu("Chuyển vào nhóm")
             for group in self.context.db.list_facet_groups(category_key):
                 if group["id"] != entry.in_group:
                     actions[move_menu.addAction(group["name"])] = ("move", group["id"])
-            actions[move_menu.addAction("➕ Nhóm mới...")] = ("move_new",)
+            actions[move_menu.addAction("Nhóm mới...")] = ("move_new",)
             if entry.in_group:
-                actions[menu.addAction("↩️ Bỏ khỏi nhóm")] = ("move", None)
+                actions[menu.addAction("Bỏ khỏi nhóm")] = ("move", None)
 
         chosen = self._exec_menu(menu, global_pos)
         if chosen is None or chosen not in actions:

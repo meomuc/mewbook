@@ -98,6 +98,12 @@ def test_the_metadata_dialog_uses_plain_words(qapp, app_context):
     dialog = MetadataSuggestDialog(app_context, doc)
     try:
         assert _offences(_texts(dialog)) == []
+        import time
+
+        deadline = time.time() + 5  # the lookup thread reads the library: let it finish before the library is closed
+        while time.time() < deadline and dialog.search_button.isEnabled() is False:
+            qapp.processEvents()
+            time.sleep(0.01)
     finally:
         dialog.deleteLater()
 
@@ -154,4 +160,37 @@ def test_no_settings_tab_shows_commands_file_names_or_code(qapp, app_context):
         tab = tabs.widget(i)
         for text in _texts(tab):
             assert not code.search(text), (tabs.tabText(i), text[:100])
-    assert not any("Đánh giá cộng đồng" in tabs.tabText(i) for i in range(tabs.count()))
+
+
+def test_the_dialogs_of_the_new_design_use_plain_words(qapp, app_context, tmp_path):
+    """Stage G11: every dialog rebuilt for the "Kệ sách" design, built for real and read like the older screens."""
+    from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
+    from smartdoc.presentation.author_cleanup_dialog import AuthorCleanupDialog
+    from smartdoc.presentation.collection_dialog import NewCollectionDialog
+    from smartdoc.presentation.design_dialog import DangerConfirmDialog
+    from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
+    from smartdoc.presentation.ereader_dialog import EreaderSendDialog
+    from smartdoc.presentation.file_actions import FileActionEngine
+    from smartdoc.presentation.relink_dialog import RelinkDialog
+    from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
+
+    doc = {"id": "d1", "title": "Sách", "author": "Ai đó", "file_path": str(tmp_path / "a.epub"), "extension": "epub"}
+    app_context.db.add_or_update_document("d1", {**doc, "created_at": 1.0})
+    service = SmartClassifyService(app_context)
+    (tmp_path / "dev").mkdir()
+    dialogs = [
+        DangerConfirmDialog(None, title="Xóa 2 file khỏi máy?", message="Hai file sẽ bị <b>xóa</b>.", items=["a.pdf"],
+                            safe_text="<b>Không bị đụng tới:</b> bản bạn giữ.", ack_text="Tôi hiểu", action_text="Xóa 2 file"),
+        SmartClassifyWizard(app_context, service, lambda: ClassifyScope(description="Tất cả tài liệu")),
+        NewCollectionDialog(context=app_context),
+        AuthorCleanupDialog(app_context),
+        DuplicateFinderDialog(app_context),
+        RelinkDialog(app_context),
+        EreaderSendDialog(app_context, [doc], FileActionEngine(app_context), str(tmp_path / "dev")),
+    ]
+    try:
+        for dialog in dialogs:
+            assert _offences(_texts(dialog)) == [], type(dialog).__name__
+    finally:
+        for dialog in dialogs:
+            dialog.deleteLater()

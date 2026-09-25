@@ -178,7 +178,7 @@ def test_check_now_says_when_you_are_current_and_when_it_failed(qapp, app_contex
     _serve(monkeypatch, requests.ConnectionError("offline"))
     panel.check_button.click()
     _wait(qapp, panel)
-    assert "⚠️" in panel.status_label.text() and panel.check_button.isEnabled()
+    assert "offline" in panel.status_label.text() and panel.check_button.isEnabled()
 
 
 def test_the_status_bar_offers_the_release_page_only_over_https(qapp, app_context, monkeypatch):

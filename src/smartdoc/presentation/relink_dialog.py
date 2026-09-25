@@ -17,6 +17,7 @@ from smartdoc.application.relink_service import METHOD_FINGERPRINT, METHOD_HASH,
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.worker_relay import WorkerRelay, post
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class RelinkDialog(DesignDialog):
         self._proposals: list[RelinkProposal] = []
         self._busy = False
         self._cancel = threading.Event()
+        self._relay = WorkerRelay(self)
         self.setMinimumHeight(480)
         tm = theme_manager()
 
@@ -142,9 +144,10 @@ class RelinkDialog(DesignDialog):
 
     # -- background work --------------------------------------------------------------------------------------
 
-    def _run(self, work, done_signal) -> None:
+    def _run(self, work, done_signal_name: str) -> None:
         self._busy = True
         self._update_buttons()
+        relay = self._relay
 
         def target() -> None:
             try:
@@ -152,13 +155,14 @@ class RelinkDialog(DesignDialog):
             except Exception as exc:  # noqa: BLE001 -- the worker must always report back, or the buttons stay disabled
                 logger.exception("Relink task failed")
                 result = exc
-            done_signal.emit(result)
+            post(relay, done_signal_name, result)
 
         threading.Thread(target=target, name="relink", daemon=True).start()
 
     def _on_recheck(self) -> None:
         self.status_label.setText("Đang kiểm tra file của thư viện…")
-        self._run(lambda: self._service.check_files(), self._checked)
+        service = self._service
+        self._run(lambda: service.check_files(), "_checked")
 
     def _on_checked(self, result) -> None:
         self._busy = False
@@ -179,11 +183,13 @@ class RelinkDialog(DesignDialog):
         self._proposals = []
         self._fill_table()
 
+        relay, service = self._relay, self._service
+
         def progress(stage: str, done: int, total: int) -> None:
             text = f"Đang duyệt thư mục: {done} file..." if stage == "scan" else f"Đang đối chiếu: {done}/{total} sách..."
-            self._progress.emit(text)
+            post(relay, "_progress", text)
 
-        self._run(lambda: self._service.propose(folder, progress=progress), self._found)
+        self._run(lambda: service.propose(folder, progress=progress), "_found")
 
     def _on_found(self, result) -> None:
         self._busy = False

@@ -99,7 +99,7 @@ class AuthorCleanupDialog(DesignDialog):
         self._scroll.setMinimumHeight(240)
         self.body.addWidget(self._scroll, 1)
         self.body.addWidget(self.add_note_box("<b>Không bị đụng tới:</b> các file sách trên máy. "
-                                              "Chỉ trường “tác giả” trong thư viện được sửa.", "ok"))
+                                              "Chỉ phần “tác giả” trong thư viện được sửa.", "ok"))
 
         self.selected_label = self.add_footer_note("")
         self.close_footer_button = self.add_footer_button("Đóng", on_click=self.accept)

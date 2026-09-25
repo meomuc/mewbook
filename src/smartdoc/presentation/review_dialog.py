@@ -35,10 +35,11 @@ import html
 import threading
 from datetime import datetime
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QAbstractTextDocumentLayout, QPalette, QTextDocument
+import shiboken6
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QAbstractTextDocumentLayout, QPalette, QPixmap, QTextDocument
 from PySide6.QtWidgets import (
-    QDialog,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -46,12 +47,14 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QInputDialog,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QStyle,
     QStyledItemDelegate,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
+    QWidget,
 )
 
 from smartdoc.application.cloud_reviews import (
@@ -66,7 +69,9 @@ from smartdoc.application.cloud_reviews import (
 )
 from smartdoc.application.service_flags import REVIEWS_ENABLED, BANNER_MESSAGE
 from smartdoc.core.event_bus import LibraryUpdatedEvent
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme_manager import theme_manager
 
 _FULL_STAR = "★"
 _EMPTY_STAR = "☆"
@@ -95,6 +100,16 @@ def _format_date(value) -> str:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone().strftime("%d/%m/%Y")
     except ValueError:
         return ""
+
+
+def open_review_dialog(context, doc: dict, parent=None) -> None:
+    """Opens the reviews of `doc`, unless the person switched community reviews off in Settings."""
+    if not context.config.config.community_reviews_enabled:
+        QMessageBox.information(parent, "Đánh giá cộng đồng", "Đánh giá cộng đồng đang tắt. Bật lại trong Cài đặt > Đánh giá cộng đồng.")
+        return
+    dialog = ReviewDialog(context, doc, parent)
+    dialog.exec()
+    dialog.deleteLater()
 
 
 class _ReviewItemDelegate(QStyledItemDelegate):
@@ -138,34 +153,94 @@ class _ReviewItemDelegate(QStyledItemDelegate):
         return QSize(int(document.idealWidth()) + 16, int(document.size().height()) + 12)
 
 
-class ReviewDialog(QDialog):
+class _Relay(QObject):
+    """What the background threads talk to. A worker never holds the dialog itself: if the last reference to a dialog
+    were dropped on a worker thread, Python would destroy the widget there (an access violation). The relay is a child
+    of the dialog, so it dies with it, and `send` checks that before emitting."""
+
     reviews_loaded = Signal(list, str)  # (reviews, error_message)
     submit_finished = Signal(list, str, bool)  # (reviews, error_message, was_update)
     nickname_taken = Signal(str)
     flags_loaded = Signal(object)  # FlagSnapshot | None
     report_finished = Signal(str, bool)  # (error_message, ok)
+    nickname_checked = Signal(str, str)  # (nickname that was asked about, "free" | "taken" | "")
+
+
+def _send(relay: _Relay, name: str, *args) -> None:
+    if not shiboken6.isValid(relay):
+        return  # the dialog was closed while the server was thinking
+    try:
+        getattr(relay, name).emit(*args)
+    except RuntimeError:
+        pass
+
+
+class ReviewDialog(DesignDialog):
 
     def __init__(self, context, doc: dict, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Đánh giá cộng đồng", subtitle=doc.get("title", "") or "", icon="star", width=980)
         self.context = context
         self.doc = doc
         self._rating = 0
+        self._relay = _Relay(self)
         self._reviews: list[dict] = []
         self._user_hash = context.identity.user_hash
         config = context.config.config
         self._configured = bool(config.supabase_url and config.supabase_anon_key)
         self._sync = SupabaseReviewSync(config.supabase_url or "", config.supabase_anon_key or "")
-        colors = current_colors()
-        self._muted = colors.muted_text
-        self._accent = colors.accent
+        tm = theme_manager()
+        self._muted = tm.token("ink2")
+        self._accent = tm.token("accent")
+        self.resize(1020, 620)
 
-        self.setWindowTitle(f"Đánh giá: {doc.get('title', '')}")
-        self.resize(520, 600)
-        self.setMaximumSize(680, 820)
-
+        # -- left: the book, its average and how the stars are spread ------------------------------------------------
+        self.cover_label = QLabel(self)
+        self.cover_label.setFixedSize(118, 168)
+        self.cover_label.setAlignment(Qt.AlignCenter)
+        self.cover_label.setStyleSheet(f"background: {tm.token('surface2')}; border: 1px solid {tm.token('line')};")
+        cover = QPixmap(doc.get("cover_path") or "") if doc.get("cover_path") else QPixmap()
+        if cover.isNull():
+            self.cover_label.setText("Chưa có bìa")
+        else:
+            self.cover_label.setPixmap(cover.scaled(114, 164, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.book_label = QLabel(f"<b>{html.escape(doc.get('title', '') or '')}</b><br>{html.escape(doc.get('author', '') or '')}", self)
+        self.book_label.setTextFormat(Qt.RichText)
+        self.book_label.setWordWrap(True)
         self.summary_label = QLabel(self)
         self.summary_label.setTextFormat(Qt.RichText)
-        self.status_label = QLabel("Đang tải đánh giá...")
+        self.summary_label.setWordWrap(True)
+        self.distribution_bars: dict[int, QProgressBar] = {}
+        self.distribution_counts: dict[int, QLabel] = {}
+        distribution = QVBoxLayout()
+        distribution.setSpacing(4)
+        for stars in range(5, 0, -1):
+            bar = QProgressBar(self)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(7)
+            count = QLabel("0", self)
+            count.setFixedWidth(26)
+            count.setAlignment(Qt.AlignRight)
+            count.setStyleSheet(f"color: {self._muted}; font-size: 12px;")
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            row.addWidget(QLabel(f"{stars}", self))
+            row.addWidget(bar, 1)
+            row.addWidget(count)
+            distribution.addLayout(row)
+            self.distribution_bars[stars] = bar
+            self.distribution_counts[stars] = count
+        left = QVBoxLayout()
+        left.addWidget(self.cover_label)
+        left.addWidget(self.book_label)
+        left.addWidget(self.summary_label)
+        left.addLayout(distribution)
+        left.addStretch(1)
+        left_holder = QWidget(self)
+        left_holder.setFixedWidth(230)
+        left_holder.setLayout(left)
+
+        # -- middle: the reviews ---------------------------------------------------------------------------------------
+        self.status_label = self.add_footer_note("Đang tải đánh giá...")
         self.status_label.setWordWrap(True)
         # A message from the project owner (service_flags.banner_message) and the notice shown while reviews are switched off.
         self.banner_label = QLabel(self)
@@ -175,7 +250,7 @@ class ReviewDialog(QDialog):
         self.banner_label.setVisible(False)
         self.notice_label = QLabel(self)
         self.notice_label.setWordWrap(True)
-        self.notice_label.setStyleSheet("color: #b45309; font-size: 12px;")
+        self.notice_label.setStyleSheet(f"color: {tm.token('warn')}; font-size: 12px;")
         self.notice_label.setVisible(False)
         self._reviews_enabled = True
         self.reviews_list = QListWidget(self)
@@ -184,25 +259,56 @@ class ReviewDialog(QDialog):
         self.reviews_list.setItemDelegate(_ReviewItemDelegate(self.reviews_list))
         self.reviews_list.setVerticalScrollMode(QListWidget.ScrollPerPixel)
         self.reviews_list.setResizeMode(QListWidget.Adjust)  # re-wrap rows when the dialog resizes
+        self.sort_combo = QComboBox(self)
+        self.sort_combo.addItem("Mới nhất", "newest")
+        self.sort_combo.addItem("Được đánh giá cao nhất", "highest")
+        self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        self.report_button = QPushButton("Báo cáo bài đã chọn…", self)
+        self.report_button.setIcon(line_icon("warn", tm.token("ink"), 14))
+        self.report_button.setToolTip("Báo cáo bài đánh giá spam, xúc phạm hay vi phạm. Nhiều người báo cáo thì bài bị ẩn để chủ dự án xem lại.")
+        self.report_button.setEnabled(False)
+        self.report_button.clicked.connect(self._on_report)
+        head = QHBoxLayout()
+        heading = QLabel("<b>Nhận xét</b>", self)
+        heading.setTextFormat(Qt.RichText)
+        head.addWidget(heading)
+        head.addStretch(1)
+        head.addWidget(QLabel("Sắp xếp", self))
+        head.addWidget(self.sort_combo)
+        middle = QVBoxLayout()
+        middle.addLayout(head)
+        middle.addWidget(self.banner_label)
+        middle.addWidget(self.notice_label)
+        middle.addWidget(self.reviews_list, 1)
+        middle.addWidget(self.report_button, 0, Qt.AlignRight)
 
+        # -- right: your review ------------------------------------------------------------------------------------------
         self.nickname_edit = QLineEdit(config.reviewer_nickname, self)
-        self.nickname_edit.setPlaceholderText(f"Nick name của bạn (để trống = {ANONYMOUS_NICKNAME})")
+        self.nickname_edit.setPlaceholderText(f"Nick name (để trống = {ANONYMOUS_NICKNAME})")
         self.nickname_edit.setMaxLength(NICKNAME_MAX_LENGTH)
+        self.nickname_hint_label = QLabel("", self)
+        self.nickname_hint_label.setStyleSheet(f"font-size: 12px; color: {self._muted};")
+        self._nickname_timer = QTimer(self)
+        self._nickname_timer.setSingleShot(True)
+        self._nickname_timer.setInterval(600)
+        self._nickname_timer.timeout.connect(self._check_nickname_async)
+        self.nickname_edit.textEdited.connect(self._on_nickname_edited)
 
         self._star_buttons: list[QToolButton] = []
         star_row = QHBoxLayout()
+        star_row.setSpacing(0)
         for i in range(1, 6):
             button = QToolButton(self)
             button.setText(_EMPTY_STAR)
             button.setStyleSheet(f"QToolButton {{ font-size: 22px; border: none; color: {_STAR_EMPTY_COLOR}; }}")
-            button.clicked.connect(lambda _checked=False, n=i: self._set_rating(n))
+            button.clicked.connect(self._on_star_clicked)
             self._star_buttons.append(button)
             star_row.addWidget(button)
         star_row.addStretch(1)
 
         self.comment_edit = QTextEdit(self)
-        self.comment_edit.setPlaceholderText("Nhận xét của bạn...")
-        self.comment_edit.setMaximumHeight(80)
+        self.comment_edit.setPlaceholderText("Nhận xét của bạn… (đừng tiết lộ nội dung sách)")
+        self.comment_edit.setMinimumHeight(90)
 
         self.my_review_label = QLabel(self)
         self.my_review_label.setWordWrap(True)
@@ -210,46 +316,59 @@ class ReviewDialog(QDialog):
         self.my_review_label.setStyleSheet(f"color: {self._accent}; font-size: 12px;")
 
         self.sync_notice_label = QLabel(
-            "Đánh giá của bạn sẽ được đồng bộ lên thư viện cộng đồng. Hãy đảm bảo nội dung văn minh.", self
+            "Chỉ gửi nick name, số sao và nhận xét. Không gửi tên file, thư viện hay thông tin máy.", self
         )
         self.sync_notice_label.setWordWrap(True)
-        self.sync_notice_label.setStyleSheet("color: palette(mid); font-size: 11px;")
+        self.sync_notice_label.setStyleSheet(f"color: {tm.token('ink3')}; font-size: 12px;")
 
         self.submit_button = QPushButton("Gửi đánh giá", self)
+        self.submit_button.setProperty("role", "primary")
         self.submit_button.clicked.connect(self._on_submit)
 
-        self.report_button = QPushButton("🚩 Báo cáo bài đã chọn...", self)
-        self.report_button.setToolTip("Báo cáo bài đánh giá spam, xúc phạm hay vi phạm. Nhiều người báo cáo thì bài bị ẩn để chủ dự án xem lại.")
-        self.report_button.setEnabled(False)
-        self.report_button.clicked.connect(self._on_report)
+        mine = QVBoxLayout()
+        mine.addWidget(QLabel("<b>Bài của bạn</b>", self))
+        mine.addWidget(QLabel("Nick name", self))
+        mine.addWidget(self.nickname_edit)
+        mine.addWidget(self.nickname_hint_label)
+        mine.addWidget(QLabel("Số sao", self))
+        mine.addLayout(star_row)
+        mine.addWidget(QLabel("Nhận xét", self))
+        mine.addWidget(self.comment_edit)
+        mine.addWidget(self.my_review_label)
+        mine.addWidget(self.submit_button, 0, Qt.AlignLeft)
+        mine.addStretch(1)
+        mine.addWidget(self.sync_notice_label)
+        right_holder = QWidget(self)
+        right_holder.setFixedWidth(290)
+        right_holder.setLayout(mine)
 
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.summary_label)
-        layout.addWidget(self.banner_label)
-        layout.addWidget(self.notice_label)
-        layout.addWidget(self.status_label)
-        layout.addWidget(self.reviews_list, stretch=1)
-        layout.addWidget(self.report_button, alignment=Qt.AlignRight)
-        layout.addWidget(QLabel("Viết đánh giá của bạn:"))
-        layout.addWidget(self.my_review_label)
-        layout.addWidget(self.nickname_edit)
-        layout.addLayout(star_row)
-        layout.addWidget(self.comment_edit)
-        layout.addWidget(self.sync_notice_label)
-        layout.addWidget(self.submit_button)
+        columns = QHBoxLayout()
+        columns.setSpacing(18)
+        columns.addWidget(left_holder)
+        columns.addLayout(middle, 1)
+        columns.addWidget(right_holder)
+        self.body.addLayout(columns, 1)
+        self.add_footer_button("Đóng", on_click=self.accept)
 
-        self.reviews_loaded.connect(self._on_reviews_loaded)
-        self.submit_finished.connect(self._on_submit_finished)
-        self.nickname_taken.connect(self._on_nickname_taken)
-        self.flags_loaded.connect(self._on_flags_loaded)
-        self.report_finished.connect(self._on_report_finished)
+        relay = self._relay
+        relay.reviews_loaded.connect(self._on_reviews_loaded)
+        relay.submit_finished.connect(self._on_submit_finished)
+        relay.nickname_taken.connect(self._on_nickname_taken)
+        relay.flags_loaded.connect(self._on_flags_loaded)
+        relay.report_finished.connect(self._on_report_finished)
         self.reviews_list.itemSelectionChanged.connect(self._update_report_button)
 
+        relay.nickname_checked.connect(self._on_nickname_checked)
         self._update_summary()
         self._load_reviews_async()
         self._load_flags_async()
 
     # -- Rating input -------------------------------------------------------
+
+    def _on_star_clicked(self) -> None:
+        button = self.sender()
+        if button in self._star_buttons:
+            self._set_rating(self._star_buttons.index(button) + 1)
 
     def _set_rating(self, n: int) -> None:
         self._rating = n
@@ -266,12 +385,14 @@ class ReviewDialog(QDialog):
             self.status_label.setText("Đánh giá cộng đồng chưa được bật trong bản này.")
             return
 
+        sync, doc_id, relay = self._sync, self.doc["id"], self._relay
+
         def worker() -> None:
             try:
-                reviews = self._sync.fetch_reviews(self.doc["id"])
-                self.reviews_loaded.emit(reviews, "")
+                reviews = sync.fetch_reviews(doc_id)
+                _send(relay, "reviews_loaded", reviews, "")
             except CloudReviewError as exc:
-                self.reviews_loaded.emit([], str(exc))
+                _send(relay, "reviews_loaded", [], str(exc))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -280,13 +401,61 @@ class ReviewDialog(QDialog):
 
     def _update_summary(self) -> None:
         average, count = rating_summary(self._reviews)
+        spread = {stars: sum(1 for r in self._reviews if r.get("rating") == stars) for stars in range(1, 6)}
+        for stars, bar in self.distribution_bars.items():
+            bar.setRange(0, max(count, 1))
+            bar.setValue(spread[stars])
+            self.distribution_counts[stars].setText(str(spread[stars]))
         if not count:
             self.summary_label.setText(f'<span style="color:{self._muted};">Chưa có đánh giá</span>')
             return
         self.summary_label.setText(
-            f"{stars_html(average, 18)}&nbsp;&nbsp;<b style='font-size:16px;'>{average:.1f}</b>"
+            f"{stars_html(average, 18)}&nbsp;&nbsp;<b style='font-size:20px;'>{average:.1f}</b>"
             f"<span style='color:{self._muted};'> / 5 · {count} đánh giá</span>"
         )
+
+    def _on_sort_changed(self, _index: int = 0) -> None:
+        if self._reviews:
+            self._on_reviews_loaded(self._reviews, "")
+
+    def _sorted(self, reviews: list[dict]) -> list[dict]:
+        """"Mới nhất" keeps the server's order (newest first); "Được đánh giá cao nhất" puts more stars first."""
+        if self.sort_combo.currentData() == "highest":
+            return sorted(reviews, key=lambda r: r.get("rating", 0), reverse=True)
+        return list(reviews)
+
+    # -- The nickname check (live) ------------------------------------------------------
+
+    def _on_nickname_edited(self, *_args) -> None:
+        self.nickname_hint_label.setText("")
+        if self._configured and self.nickname_edit.text().strip():
+            self._nickname_timer.start()
+
+    def _check_nickname_async(self) -> None:
+        nickname = self.nickname_edit.text().strip()
+        if not nickname or not self._configured:
+            return
+        user_hash, sync, relay = self._user_hash, self._sync, self._relay
+
+        def worker() -> None:
+            try:
+                status = sync.nickname_status(nickname, user_hash)
+            except CloudReviewError:
+                status = ""
+            _send(relay, "nickname_checked", nickname, status)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_nickname_checked(self, nickname: str, status: str) -> None:
+        if nickname != self.nickname_edit.text().strip():
+            return  # the person kept typing: this answer is about an older name
+        tm = theme_manager()
+        if status == "taken":
+            self.nickname_hint_label.setText("Nick name này đã có người dùng")
+            self.nickname_hint_label.setStyleSheet(f"font-size: 12px; color: {tm.token('err')};")
+        elif status:
+            self.nickname_hint_label.setText("Tên này chưa ai dùng")
+            self.nickname_hint_label.setStyleSheet(f"font-size: 12px; color: {tm.token('ok')};")
 
     def _review_html(self, review: dict, is_mine: bool) -> str:
         nickname = html.escape(review.get("nickname") or ANONYMOUS_NICKNAME)
@@ -307,7 +476,7 @@ class ReviewDialog(QDialog):
         self._reviews = list(reviews)
         self._update_summary()
         self._update_my_review_notice()
-        self.status_label.setVisible(False)
+        self.status_label.setText("Đã kết nối máy chủ đánh giá cộng đồng")
         self.reviews_list.setVisible(True)
         self.reviews_list.clear()
         if not reviews:
@@ -315,7 +484,7 @@ class ReviewDialog(QDialog):
             return
         # Supabase already returns rows ordered by created_at desc (see
         # SupabaseReviewSync.fetch_reviews's query params).
-        for review in reviews:
+        for review in self._sorted(reviews):
             is_mine = bool(self._user_hash) and review.get("user_hash") == self._user_hash
             stars = _FULL_STAR * review["rating"] + _EMPTY_STAR * (5 - review["rating"])
             item = QListWidgetItem(f"{stars}  {review.get('nickname', '')}\n{review.get('comment', '')}")
@@ -341,9 +510,11 @@ class ReviewDialog(QDialog):
         if not self._configured:
             return
 
+        sync, relay = self._sync, self._relay
+
         def worker() -> None:
             # flags() never raises: an unreachable server is "unknown" (None) and changes nothing on screen.
-            self.flags_loaded.emit(self._sync.flags())
+            _send(relay, "flags_loaded", sync.flags())
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -390,12 +561,14 @@ class ReviewDialog(QDialog):
         token, review_id = self.context.identity.token, review["id"]
         self.report_button.setEnabled(False)
 
+        sync, relay = self._sync, self._relay
+
         def worker() -> None:
             try:
-                self._sync.report_review(review_id, reason, user_token=token)
-                self.report_finished.emit("", True)
+                sync.report_review(review_id, reason, user_token=token)
+                _send(relay, "report_finished", "", True)
             except CloudReviewError as exc:
-                self.report_finished.emit(str(exc), False)
+                _send(relay, "report_finished", str(exc), False)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -455,18 +628,18 @@ class ReviewDialog(QDialog):
         self.submit_button.setEnabled(False)
         self.submit_button.setText("Đang gửi...")
 
+        sync, relay = self._sync, self._relay
+
         def worker() -> None:
             try:
-                if self._sync.nickname_status(nickname, user_hash) == "taken":
+                if sync.nickname_status(nickname, user_hash) == "taken":
                     raise NicknameTakenError(nickname)
-                reviews = self._sync.submit_review(
-                    doc_id, nickname, rating, comment, user_token=token, review_id=review_id
-                )
-                self.submit_finished.emit(reviews, "", review_id is not None)
+                reviews = sync.submit_review(doc_id, nickname, rating, comment, user_token=token, review_id=review_id)
+                _send(relay, "submit_finished", reviews, "", review_id is not None)
             except NicknameTakenError as exc:
-                self.nickname_taken.emit(exc.nickname)
+                _send(relay, "nickname_taken", exc.nickname)
             except (CloudReviewError, ValueError) as exc:
-                self.submit_finished.emit([], str(exc), False)
+                _send(relay, "submit_finished", [], str(exc), False)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -506,9 +679,8 @@ class ReviewDialog(QDialog):
         self._set_rating(0)
         self._on_reviews_loaded(reviews, "")
         self.status_label.setText(
-            "✅ Đã cập nhật bài đánh giá của bạn." if was_update else "✅ Đã gửi đánh giá. Cảm ơn bạn!"
+            "Đã cập nhật bài đánh giá của bạn." if was_update else "Đã gửi đánh giá. Cảm ơn bạn!"
         )
-        self.status_label.setStyleSheet("color: green;")
         self.status_label.setVisible(True)
 
 

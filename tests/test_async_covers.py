@@ -143,3 +143,15 @@ def test_replacing_one_cover_leaves_the_other_documents_cached(qapp, tmp_path):
 
 def _docs_same_path(docs):
     return [dict(doc) for doc in docs]
+
+
+def test_the_decoded_cover_cache_stays_inside_the_configured_size(qapp, app_context):
+    from smartdoc.presentation.library_view import LibraryModel
+
+    app_context.config.config.cover_cache_mb = 1  # 1 MB = a handful of covers, floored at 60 entries
+    model = LibraryModel(context=app_context)
+    for i in range(200):
+        model._icon_cache[(f"c{i}", "")] = None
+    model._trim_icon_cache()
+    assert len(model._icon_cache) == 60
+    assert ("c199", "") in model._icon_cache and ("c0", "") not in model._icon_cache  # the oldest went first

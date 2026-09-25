@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""The yellow strip at the top of the content area: "12 sách không tìm thấy file. Tìm lại?" (stage G11).
+
+It shows only while some book's file is missing (the same count the status bar shows) and offers one button that opens
+"Tìm lại file". Nothing here touches a file; finding them again is the relink dialog's job.
+"""
+from __future__ import annotations
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
+
+from smartdoc.core.event_bus import LibraryFilesMissingEvent
+from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation.line_icons import icon_pixmap
+from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.theme_manager import theme_manager
+
+
+class MissingFilesStrip(QFrame):
+    relink_requested = Signal()
+
+    def __init__(self, context, parent=None) -> None:
+        super().__init__(parent)
+        self.context = context
+        self.setObjectName("MissingFilesStrip")
+        self.icon_label = QLabel(self)
+        self.text_label = QLabel(self)
+        self.button = QPushButton(vi.FIND_AGAIN, self)
+        self.button.setCursor(Qt.PointingHandCursor)
+        self.button.clicked.connect(self.relink_requested)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(16, 6, 16, 6)
+        row.setSpacing(10)
+        row.addWidget(self.icon_label)
+        row.addWidget(self.text_label, 1)
+        row.addWidget(self.button)
+        self._restyle()
+        theme_manager().themeChanged.connect(self._restyle)
+        self._bridge = QtEventBridge(self)
+        self._bridge.event_received.connect(self._on_event)
+        self._bridge.subscribe(context.event_bus, LibraryFilesMissingEvent)
+        self.set_count(context.db.count_missing())
+
+    def _restyle(self, _key: str = "") -> None:
+        tm = theme_manager()
+        self.setStyleSheet(f"#MissingFilesStrip {{ background: {tm.token('surface2')}; border-bottom: 1px solid {tm.token('warn')}; }}"
+                           f" #MissingFilesStrip QLabel {{ color: {tm.token('ink')}; background: transparent; }}")
+        self.icon_label.setPixmap(icon_pixmap("warn", tm.token("warn"), 16))
+
+    def _on_event(self, event) -> None:
+        self.set_count(event.count)
+
+    def set_count(self, count: int) -> None:
+        self.text_label.setText(vi.MISSING_FILES.format(n=f"{count:,}".replace(",", ".")) if count else "")
+        self.setVisible(count > 0)

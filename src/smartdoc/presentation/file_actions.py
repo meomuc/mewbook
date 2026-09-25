@@ -86,6 +86,22 @@ class FileActionEngine:
         if items:
             self.context.event_bus.publish(LibraryUpdatedEvent())
 
+    def copy_to_ereader(self, file_path: str, target_folder: str) -> str:
+        """Copies one file into the e-reader's folder. Returns "" when it worked, otherwise the reason in plain words
+        (for the "Gửi sang máy đọc sách" list)."""
+        try:
+            shutil.copy2(file_path, Path(target_folder) / Path(file_path).name)
+        except FileNotFoundError:
+            logger.warning("Failed to send file to e-reader (not found): %s", file_path)
+            return "Không tìm thấy file trên máy"
+        except PermissionError:
+            logger.warning("Failed to send file to e-reader (permission): %s", file_path)
+            return "File bị khóa bởi chương trình khác"
+        except OSError as exc:
+            logger.exception("Failed to send file to e-reader: %s", file_path)
+            return "Máy đọc sách đã hết chỗ" if getattr(exc, "errno", None) == 28 else "Không chép được file này"
+        return ""
+
     def send_to_ereader(self, file_paths: list[str], target_folder: str) -> tuple[list[str], list[str]]:
         """Copies files into an e-reader's book folder -- once connected
         over USB an e-reader just mounts as a normal folder on Windows, so
@@ -95,16 +111,10 @@ class FileActionEngine:
 
         Returns (succeeded, failed) source paths.
         """
-        target = Path(target_folder)
         succeeded: list[str] = []
         failed: list[str] = []
         for file_path in file_paths:
-            try:
-                shutil.copy2(file_path, target / Path(file_path).name)
-                succeeded.append(file_path)
-            except OSError:
-                logger.exception("Failed to send file to e-reader: %s", file_path)
-                failed.append(file_path)
+            (failed if self.copy_to_ereader(file_path, target_folder) else succeeded).append(file_path)
         return succeeded, failed
 
 

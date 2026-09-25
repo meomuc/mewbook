@@ -363,3 +363,90 @@ def test_mobi_tempdir_is_cleaned_up_when_the_window_closes(qapp, app_context, tm
 
     window.close()
     assert not workdir.exists()  # a temp copy of every book opened would otherwise pile up
+
+
+# -- G10: the frame (top bar, contents, bottom bar, keys) --------------------------------------------------------------
+
+
+def test_the_top_bar_shows_the_title_the_format_and_the_page_range(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=5)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path), title="Thiết kế hệ thống điện nhẹ"))
+    bar = window.top_bar
+    assert bar.title_label.text() == "Thiết kế hệ thống điện nhẹ" and bar.format_label.text() == "PDF"
+    assert bar.page_caption.text() == "Trang" and bar.total_label.text() == " / 5" and window.page_spin is bar.page_spin
+    window.deleteLater()
+
+
+def test_typing_a_page_number_jumps_there_and_ctrl_g_focuses_the_box(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=5)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+    window.show()
+    qapp.processEvents()
+
+    window.focus_page_box()
+    window.page_spin.setValue(4)
+
+    assert window.pdf_view.pageNavigator().currentPage() == 3
+    assert window.page_spin.hasFocus() or window.page_spin.lineEdit().hasFocus()
+    window.deleteLater()
+
+
+def test_zoom_percent_and_fit_buttons_drive_the_pdf_view(qapp, app_context, tmp_path):
+    from PySide6.QtPdfWidgets import QPdfView
+
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=2)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+    bar = window.top_bar
+
+    bar.zoom_combo.setCurrentIndex(bar.zoom_combo.findData(150))
+    bar.zoom_percent_chosen.emit(150)
+    assert window.pdf_view.zoomMode() == QPdfView.ZoomMode.Custom and abs(window.pdf_view.zoomFactor() - 1.5) < 0.01
+    assert not bar.fit_width_button.isChecked()
+
+    bar.fit_page_button.click()
+    assert window.pdf_view.zoomMode() == QPdfView.ZoomMode.FitInView and bar.fit_page_button.isChecked()
+    bar.fit_width_button.click()
+    assert window.pdf_view.zoomMode() == QPdfView.ZoomMode.FitToWidth and not bar.fit_page_button.isChecked()
+    window.deleteLater()
+
+
+def test_the_contents_column_lists_epub_chapters_and_folds_away(qapp, app_context, tmp_path):
+    epub_path = tmp_path / "book.epub"
+    _make_epub(epub_path, chapter_count=3)
+    window = ReaderWindow(app_context, _doc(file_path=str(epub_path), extension="epub"))
+    window.show()
+    qapp.processEvents()
+    assert window.toc_panel.isVisible() and window.toc_view.model().rowCount() == 3
+    assert window.top_bar.page_caption.text() == "Chương"
+
+    window.toc_view.clicked.emit(window.toc_view.model().index(2, 0))
+    assert window._current_chapter == 2
+
+    window.top_bar.toc_button.click()  # the hamburger folds the column
+    assert not window.toc_panel.isVisible()
+    window.deleteLater()
+
+
+def test_a_pdf_without_bookmarks_has_no_contents_button(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=2)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+    window.show()
+    qapp.processEvents()
+    assert not window.toc_panel.isVisible() and window.top_bar.toc_button.isHidden()
+    window.deleteLater()
+
+
+def test_f11_toggles_full_screen_and_escape_leaves_it(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, page_count=2)
+    window = ReaderWindow(app_context, _doc(file_path=str(pdf_path)))
+    window.show()
+    window._toggle_fullscreen_shortcut()
+    assert window.top_bar.fullscreen_button.isChecked()
+    window._leave_fullscreen()
+    assert not window.isFullScreen() and not window.top_bar.fullscreen_button.isChecked()
+    window.deleteLater()

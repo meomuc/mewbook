@@ -52,7 +52,7 @@ class ErrorReportDialog(QDialog):
         item = reporter.pending(report_id)
 
         layout = QVBoxLayout(self)
-        self.heading = QLabel(f"😿 {TITLE}", self)
+        self.heading = QLabel(f"{TITLE}", self)
         self.heading.setStyleSheet("font-weight: 700; font-size: 16px;")
         layout.addWidget(self.heading)
 

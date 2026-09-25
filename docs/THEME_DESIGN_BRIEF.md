@@ -78,11 +78,10 @@ Không bắt buộc; bỏ trống thì theme giữ kiểu mặc định:
 | `selection_style` | `stripe`, `fill`, `outline` hoặc `underline` |
 | `action_style` | `default`, `link`, `bracket` hoặc `soft` |
 | `search_style` / `search_placeholder` | `box`, `pill` hoặc `underline`; chữ gợi ý |
-| `add_button_label` / `brand_prefix` / `brand_caps` | Nhãn nút thêm; ký hiệu trước tên; tên viết hoa giãn chữ |
 | `titlebar_text` | Thanh tiêu đề kiểu hệ điều hành cũ (bỏ trống = không có) |
 | `grain_overlay` | Lớp hạt phim phủ cửa sổ |
 | `motion_ms` / `text_glow` | Thời gian chuyển động hover/chọn (0 = tức thì); phát sáng nhẹ quanh chữ |
-| `grid_layout` / `page_margin` / `card_gutter` | `uniform` hoặc `featured` (sách đầu trang hiện lớn); lề ngoài; khoảng cách thẻ |
+| `grid_layout` | `uniform` hoặc `featured` (sách đầu trang hiện lớn) |
 
 Nếu thiết kế của bạn cần một kiểu bố cục **không có** trong bảng này (ví dụ
 sidebar bên phải, hay kiểu kệ sách ngang), hãy đề xuất nó thành **một tùy

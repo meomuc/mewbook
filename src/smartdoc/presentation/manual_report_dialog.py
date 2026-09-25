@@ -108,7 +108,7 @@ class ManualReportDialog(QDialog):
         try:
             report = self.context.error_reports.build_manual(self.note_edit.toPlainText(), include_log=self.log_check.isChecked())
         except ErrorReportError as exc:
-            self.status_label.setText(f"⚠️ {exc}")
+            self.status_label.setText(f"{exc}")
             return
         self._report = report
         self.preview.setPlainText(payload_json(report.to_payload(), indent=2))
@@ -122,7 +122,7 @@ class ManualReportDialog(QDialog):
         try:
             self.context.error_reports.submit(self._report)
         except ErrorReportError as exc:
-            self.status_label.setText(f"⚠️ {exc}")
+            self.status_label.setText(f"{exc}")
             return
         self.sent = True
         for widget in (self.info_label, self.note_edit, self.counter_label, self.log_check, self.status_label, self.preview,

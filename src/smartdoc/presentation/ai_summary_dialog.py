@@ -88,9 +88,9 @@ class AISummaryDialog(QDialog):
             self.summary_edit.setPlainText(existing)
             self.status_label.setText("Tóm tắt đã lưu trước đó. Có thể tạo lại nếu muốn.")
 
-        self.generate_button = QPushButton("✨ Tạo tóm tắt", self)
+        self.generate_button = QPushButton("Tạo tóm tắt", self)
         self.generate_button.clicked.connect(self._on_generate)
-        self.save_button = QPushButton("💾 Lưu tóm tắt", self)
+        self.save_button = QPushButton("Lưu tóm tắt", self)
         self.save_button.clicked.connect(self._on_save)
         self.save_button.setEnabled(bool(existing))
 
@@ -162,7 +162,7 @@ class AISummaryDialog(QDialog):
 
     def _on_generation_finished(self, summary: str, error: str) -> None:
         self.generate_button.setEnabled(True)
-        self.generate_button.setText("✨ Tạo tóm tắt")
+        self.generate_button.setText("Tạo tóm tắt")
         if error:
             self.status_label.setText(f"Lỗi: {error}")
             return

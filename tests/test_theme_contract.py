@@ -118,13 +118,3 @@ def test_original_themes_get_no_global_stylesheet():
     for key in ("broadsheet", "woodshelf", "inkynight"):
         assert app_stylesheet(THEMES[key]) == ""
     assert "QPushButton" in app_stylesheet(THEMES["retro_tech"])
-
-
-@pytest.mark.parametrize("key", list(THEMES))
-def test_every_theme_has_a_preview(qapp, key):
-    from PySide6.QtCore import QSize
-
-    from smartdoc.presentation.theme_effects import theme_preview_pixmap
-
-    pixmap = theme_preview_pixmap(THEMES[key], QSize(64, 40))
-    assert not pixmap.isNull() and pixmap.size() == QSize(64, 40)

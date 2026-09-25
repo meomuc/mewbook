@@ -48,7 +48,7 @@ from smartdoc.presentation.line_icons import icon_pixmap, line_icon
 from smartdoc.presentation.metadata_suggest_dialog import MetadataSuggestDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.reader_manager import open_reader
-from smartdoc.presentation.review_dialog import ReviewDialog
+from smartdoc.presentation.review_dialog import open_review_dialog
 from smartdoc.presentation.sidebar_style import section_font
 from smartdoc.presentation.tag_editor import TagEditor
 from smartdoc.presentation.theme_manager import DETAIL_W, theme_manager
@@ -612,7 +612,7 @@ class DocumentDetailPanel(QFrame):
 
     def _on_review(self) -> None:
         if self._current_doc:
-            ReviewDialog(self.context, self._current_doc, self).exec()
+            open_review_dialog(self.context, self._current_doc, self)
 
     def _on_search_cover(self) -> None:
         if self._current_doc:

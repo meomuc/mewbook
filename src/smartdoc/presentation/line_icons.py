@@ -219,12 +219,57 @@ def _file(p: QPainter) -> None:
     p.drawPolyline([_p(10, 2.5), _p(10, 5), _p(12.5, 5)])
 
 
+def _eye(p: QPainter) -> None:
+    path = QPainterPath()
+    path.moveTo(1.5, 8)
+    path.cubicTo(4, 3.5, 12, 3.5, 14.5, 8)
+    path.cubicTo(12, 12.5, 4, 12.5, 1.5, 8)
+    p.drawPath(path)
+    p.drawEllipse(QRectF(6, 6, 4, 4))
+
+
+def _palette(p: QPainter) -> None:
+    p.drawEllipse(QRectF(2, 2, 12, 12))
+    for x, y in ((5.5, 6), (8, 4.5), (10.5, 6)):
+        p.drawPoint(_p(x, y))
+
+
+def _archive(p: QPainter) -> None:
+    p.drawRoundedRect(QRectF(2, 3, 12, 3), 1, 1)
+    p.drawPolyline([_p(3, 6), _p(3, 13), _p(13, 13), _p(13, 6)])
+    p.drawLine(_p(6.5, 9), _p(9.5, 9))
+
+
+def _download(p: QPainter) -> None:
+    p.drawLine(_p(8, 2.5), _p(8, 10))
+    p.drawPolyline([_p(5, 7.5), _p(8, 10.5), _p(11, 7.5)])
+    p.drawPolyline([_p(3, 11.5), _p(3, 13.5), _p(13, 13.5), _p(13, 11.5)])
+
+
+def _shield(p: QPainter) -> None:
+    path = QPainterPath()
+    path.moveTo(8, 2)
+    path.lineTo(13, 4)
+    path.lineTo(13, 8)
+    path.cubicTo(13, 11, 10.5, 13, 8, 14)
+    path.cubicTo(5.5, 13, 3, 11, 3, 8)
+    path.lineTo(3, 4)
+    path.closeSubpath()
+    p.drawPath(path)
+
+
+def _expand(p: QPainter) -> None:
+    for x, y, dx, dy in ((2.5, 2.5, 1, 1), (13.5, 2.5, -1, 1), (2.5, 13.5, 1, -1), (13.5, 13.5, -1, -1)):
+        p.drawPolyline([_p(x + 3.5 * dx, y), _p(x, y), _p(x, y + 3.5 * dy)])
+
+
 _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "plus": _plus, "search": _search, "grid": _grid, "table": _table, "sort": _sort, "tools": _tools,
     "panel": _panel, "gear": _gear, "pen": _pen, "book": _book, "star": _star, "star_fill": _star_fill,
     "cloud": _cloud, "bot": _bot, "globe": _globe, "chevron_down": _chevron_down, "chevron_right": _chevron_right, "chevron_left": _chevron_left,
     "close": _close, "refresh": _refresh, "image": _image, "send": _send, "check": _check, "folder": _folder,
     "warn": _warn, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
+    "eye": _eye, "expand": _expand, "palette": _palette, "archive": _archive, "download": _download, "shield": _shield,
 }
 ICON_NAMES = tuple(_DRAWERS)
 

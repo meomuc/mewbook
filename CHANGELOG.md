@@ -11,6 +11,29 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 New features, so the next release is a MINOR bump (1.1.0).
 
 ### Added
+- **New "Kệ sách" look, step 11: states, wording, colours.** An empty library, or a filter that matches nothing, now
+  says so in the middle of the list with Mèo Mực and one or two buttons ("Thêm sách", "Xóa bộ lọc") instead of an empty
+  grid; a yellow strip at the top of the list says "N sách không tìm thấy file" with "Tìm lại". Emojis were removed from
+  menus and buttons. The tertiary text colour of every theme (and two accent colours) was darkened so all text meets a
+  4.5:1 contrast, checked by a test in all seven themes. Removed the old grain/retro-titlebar overlays and 14 unused
+  theme options.
+- **New "Kệ sách" look, step 10: the reader window.** A top bar with ☰ contents, the title and format, ‹ Trang [n] / N ›,
+  − 110% + (PDF), "Vừa trang | Vừa chiều rộng" and full screen; a contents column on the left (PDF bookmarks, EPUB
+  chapters) that folds away; the page on the theme's reading ground; a bottom bar with the key hints and "Cửa sổ đọc
+  đang mở: 2 / 3". Ctrl+G goes to a page, F11 toggles full screen, Esc leaves it. The number of reader windows open at
+  once comes from Settings > Hiệu năng; opening one more asks whether to close the one open the longest instead of
+  simply refusing.
+- **New "Kệ sách" look, step 9: Settings in ten pages.** A column of pills (Quản lý File, Giao diện, Hiệu năng, Phân
+  loại, AI Tóm tắt, Ảnh bìa, Đánh giá cộng đồng, Sao lưu, Cập nhật & ủng hộ, Quyền riêng tư) and one page per pill, each
+  setting with a bold name and a grey explanation on the left. Changes are saved as they are made. Giao diện shows seven
+  theme cards; Hiệu năng gives every option a ▲/▼ pair of plain-words lines and adds books per page, the cover cache size,
+  reader windows open at once and PDF pages read for content search; Đánh giá cộng đồng can be switched off (nothing is
+  then fetched or sent); Quyền riêng tư lists every network connection MewBook may make. Options that do not exist yet
+  are shown disabled with a "Sắp có" badge. The community-reviews dialog has three columns (average and star spread,
+  the reviews with a sort, your review with a live nick-name check), and "Gửi sang máy đọc sách" shows the device
+  folder, the free space and a tick or the reason per book, with "Gửi lại cuốn lỗi".
+- Background threads of the dialogs no longer hold the dialog itself (`WorkerRelay`): closing a dialog while the server
+  is still answering can no longer destroy the window on the wrong thread (a rare native crash).
 - **New "Kệ sách" look, step 8: smart classification in three steps.** One dialog replaces the strip above the list and
   the two small questions: (1) pick what to look at ("Phần đang lọc" or the books you selected / "Sách chưa phân loại" /
   "Tất cả tài liệu", each with its count and a few covers), (2) watch it work (progress, time left, the last three

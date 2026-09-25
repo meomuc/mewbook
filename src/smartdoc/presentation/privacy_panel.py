@@ -15,8 +15,6 @@ from datetime import datetime
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
-    QGroupBox,
-    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -28,6 +26,9 @@ from PySide6.QtWidgets import (
 
 from smartdoc import APP_PRIVACY_CONTACT
 from smartdoc.application.error_reporter import MODE_ALWAYS, MODE_ASK, MODE_NEVER
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.settings_widgets import SettingsPage, add_note_box
+from smartdoc.presentation.theme_manager import theme_manager
 
 _INTRO = (
     "MewBook có thể gửi báo cáo lỗi ẩn danh để chủ dự án sửa lỗi nhanh hơn. Việc này hoàn toàn tự nguyện: mặc định MewBook "
@@ -44,32 +45,47 @@ _MODES = (
 )
 
 
-class PrivacyPanel(QWidget):
+_CONNECTIONS = (
+    ("Open Library, Google Books (Apple Books, Tiki nếu bạn bật)", "Khi bạn tìm ảnh bìa hoặc thông tin sách.",
+     "Tên sách và tác giả bạn đang tìm."),
+    ("Nhà cung cấp AI bạn chọn", "Khi bạn bấm tóm tắt bằng AI.", "Thông tin của cuốn sách bạn yêu cầu tóm tắt. Ollama chạy trên máy bạn thì không rời máy."),
+    ("Máy chủ đánh giá cộng đồng", "Khi bạn mở hoặc đăng đánh giá (có thể tắt trong Cài đặt).", "Nick name, số sao, nhận xét và mã cuốn sách."),
+    ("Trang phát hành của MewBook", "Chỉ khi bạn bật tự kiểm tra bản mới hoặc bấm “Kiểm tra ngay”.", "Không gửi gì ngoài địa chỉ IP và số phiên bản, như mọi lần truy cập web."),
+    ("Máy chủ nhận báo lỗi", "Chỉ khi bạn cho phép ở phần Khi MewBook gặp lỗi.", "Báo cáo ẩn danh, bạn xem được nội dung trước khi gửi."),
+)
+
+
+class PrivacyPanel(SettingsPage):
     def __init__(self, context, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__("Quyền riêng tư", "MewBook không có thống kê sử dụng. Đây là mọi thứ có thể rời khỏi máy bạn.", parent)
         self.context = context
         reporter = context.error_reports
-        layout = QVBoxLayout(self)
 
         self.intro_label = QLabel(_INTRO, self)
         self.intro_label.setWordWrap(True)
-        layout.addWidget(self.intro_label)
+        self.intro_label.setTextFormat(Qt.PlainText)
+        self.add_block(self.intro_label)
+        self.add_block(add_note_box(
+            self, "<b>Báo cáo lỗi không có:</b> tên hay đường dẫn file sách, tựa sách, tác giả, nội dung tài liệu, "
+                  "tên người dùng Windows, tên máy, email hay khóa API.", "ok"))
 
-        group = QGroupBox("Khi MewBook gặp lỗi bất ngờ", self)
+        group = QWidget(self)
         group_layout = QVBoxLayout(group)
+        group_layout.setContentsMargins(0, 0, 0, 0)
         self.mode_buttons: dict[str, QRadioButton] = {}
         for mode, label, tip in _MODES:
             button = QRadioButton(label, group)
             button.setToolTip(tip)
             button.setChecked(mode == reporter.mode())
             group_layout.addWidget(button)
+            group_layout.addWidget(self._grey(tip))
             self.mode_buttons[mode] = button
-        layout.addWidget(group)
+        self.add_row("Khi MewBook gặp lỗi bất ngờ", "Chỉ bạn quyết định có gửi báo cáo hay không.", group)
 
         self.notice_label = QLabel(self)
         self.notice_label.setWordWrap(True)
-        self.notice_label.setStyleSheet("color: palette(mid);")
-        layout.addWidget(self.notice_label)
+        self.notice_label.setStyleSheet(f"color: {theme_manager().token('ink2')};")
+        self.add_block(self.notice_label)
         if not reporter.enabled:
             self.notice_label.setText(
                 "Bản này chạy từ mã nguồn hoặc chưa được dựng từ một commit sạch nên không thu thập và không gửi báo cáo lỗi; "
@@ -79,22 +95,28 @@ class PrivacyPanel(QWidget):
             self.notice_label.setText("Nội dung thông báo quyền riêng tư đã đổi: MewBook sẽ hỏi lại ở lần lỗi tới.")
 
         self.waiting_label = QLabel(self)
-        self.clear_button = QPushButton("🗑️ Xóa các báo cáo đang chờ", self)
+        self.waiting_label.setWordWrap(True)
+        self.clear_button = QPushButton("Xóa các báo cáo đang chờ", self)
+        self.clear_button.setIcon(line_icon("close", theme_manager().token("ink"), 14))
         self.clear_button.clicked.connect(self._on_clear_waiting)
-        row = QHBoxLayout()
-        row.addWidget(self.waiting_label, stretch=1)
-        row.addWidget(self.clear_button)
-        layout.addLayout(row)
+        waiting = QWidget(self)
+        waiting_layout = QVBoxLayout(waiting)
+        waiting_layout.setContentsMargins(0, 0, 0, 0)
+        waiting_layout.addWidget(self.waiting_label)
+        waiting_layout.addWidget(self.clear_button, 0, Qt.AlignLeft)
+        self.add_row("Báo cáo đang chờ", "Chưa gửi, hoặc đang chờ bạn quyết định.", waiting)
 
+        sent = QWidget(self)
+        sent_layout = QVBoxLayout(sent)
+        sent_layout.setContentsMargins(0, 0, 0, 0)
         self.sent_header = QLabel(self)
-        layout.addWidget(self.sent_header)
+        sent_layout.addWidget(self.sent_header)
         self.sent_list = QListWidget(self)
         self.sent_list.setMaximumHeight(150)
-        layout.addWidget(self.sent_list)
-        self.copy_button = QPushButton("📋 Sao chép mã đã chọn", self)
+        sent_layout.addWidget(self.sent_list)
+        self.copy_button = QPushButton("Sao chép mã đã chọn", self)
         self.copy_button.clicked.connect(self._on_copy_selected)
-        layout.addWidget(self.copy_button, alignment=Qt.AlignLeft)
-
+        sent_layout.addWidget(self.copy_button, 0, Qt.AlignLeft)
         contact = APP_PRIVACY_CONTACT or "cách liên hệ ghi trong chính sách riêng tư của dự án"
         self.deletion_label = QLabel(
             "Muốn xóa một báo cáo đã gửi? Gửi mã báo cáo (ở danh sách trên) cho chủ dự án, báo cáo được xóa theo mã. "
@@ -103,11 +125,29 @@ class PrivacyPanel(QWidget):
         )
         self.deletion_label.setWordWrap(True)
         self.deletion_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        layout.addWidget(self.deletion_label)
+        sent_layout.addWidget(self.deletion_label)
+        self.add_row("Báo cáo đã gửi", "Mã để bạn yêu cầu xóa.", sent)
 
-        layout.addStretch(1)
+        connections = QWidget(self)
+        connections_layout = QVBoxLayout(connections)
+        connections_layout.setContentsMargins(0, 0, 0, 0)
+        for where, when, what in _CONNECTIONS:
+            label = QLabel(f"<b>{where}</b><br>{when} {what}", connections)
+            label.setTextFormat(Qt.RichText)
+            label.setWordWrap(True)
+            label.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px;")
+            connections_layout.addWidget(label)
+        self.add_row("Mọi kết nối mạng của MewBook", "Ngoài danh sách này, MewBook không kết nối đi đâu.", connections)
+
         self.sent_list.itemSelectionChanged.connect(self._update_state)
         self.refresh()
+
+    @staticmethod
+    def _grey(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setWordWrap(True)
+        label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 13px; margin: 0 0 6px 24px;")
+        return label
 
     # -- state ----------------------------------------------------------------------------------------------------
 

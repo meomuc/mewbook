@@ -406,3 +406,38 @@ def test_the_reason_list_uses_the_servers_codes(qapp, app_context, monkeypatch):
     assert dialog._ask_report_reason() == "privacy"
     monkeypatch.setattr(QInputDialog, "getItem", staticmethod(lambda *a: ("", False)))
     assert dialog._ask_report_reason() is None
+
+
+def test_switching_community_reviews_off_opens_nothing_and_says_why(qapp, app_context, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from smartdoc.presentation.review_dialog import open_review_dialog
+
+    app_context.config.config.community_reviews_enabled = False
+    said = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda parent, title, text, *a: said.append(text)))
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.ReviewDialog.exec", lambda self: (_ for _ in ()).throw(AssertionError("opened")))
+
+    open_review_dialog(app_context, _doc())
+
+    assert said and "Cài đặt" in said[0]
+
+
+def test_the_distribution_and_sorting_follow_the_reviews(qapp, app_context, monkeypatch):
+    app_context.config.config.supabase_url = "https://fake.supabase.co"
+    app_context.config.config.supabase_anon_key = "fake-key"
+    reviews = [
+        {"id": 1, "nickname": "A", "rating": 2, "comment": "tạm", "created_at": "2026-01-02T00:00:00Z"},
+        {"id": 2, "nickname": "B", "rating": 5, "comment": "hay", "created_at": "2026-01-01T00:00:00Z"},
+        {"id": 3, "nickname": "C", "rating": 5, "comment": "rất hay", "created_at": "2025-12-01T00:00:00Z"},
+    ]
+    monkeypatch.setattr("smartdoc.presentation.review_dialog.SupabaseReviewSync.fetch_reviews", lambda self, doc_id: reviews)
+    dialog = ReviewDialog(app_context, _doc())
+    assert _pump_until(qapp, lambda: dialog.reviews_list.count() == 3, timeout=3.0)
+    assert dialog.distribution_counts[5].text() == "2" and dialog.distribution_counts[2].text() == "1"
+    assert dialog.reviews_list.item(0).data(Qt.UserRole)["nickname"] == "A"  # the server's order = newest first
+
+    dialog.sort_combo.setCurrentIndex(dialog.sort_combo.findData("highest"))
+
+    assert dialog.reviews_list.item(0).data(Qt.UserRole)["rating"] == 5
+    dialog.deleteLater()

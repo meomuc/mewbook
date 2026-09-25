@@ -79,8 +79,8 @@ def test_single_selection_review_action_opens_review_dialog(qapp, app_context, m
 
     opened_docs = []
     monkeypatch.setattr(
-        "smartdoc.presentation.library_view.ReviewDialog",
-        lambda context, doc, parent: opened_docs.append(doc) or _FakeDialog(),
+        "smartdoc.presentation.library_view.open_review_dialog",
+        lambda context, doc, parent: opened_docs.append(doc),
     )
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xem / Viết đánh giá"))
 
@@ -433,7 +433,7 @@ def test_send_to_ereader_copies_selected_files_using_the_saved_folder(qapp, app_
 
     prompted = []
     monkeypatch.setattr("smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: prompted.append(1) or "")
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    monkeypatch.setattr("smartdoc.presentation.library_view.EreaderSendDialog.exec", lambda self: self.send_all())
 
     widget.send_selected_to_ereader()
 
@@ -453,7 +453,7 @@ def test_send_to_ereader_prompts_and_saves_folder_when_unset(qapp, app_context, 
     monkeypatch.setattr(
         "smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: str(target)
     )
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+    monkeypatch.setattr("smartdoc.presentation.library_view.EreaderSendDialog.exec", lambda self: self.send_all())
 
     widget.send_selected_to_ereader()
 

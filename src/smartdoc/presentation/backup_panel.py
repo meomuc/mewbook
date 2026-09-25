@@ -13,7 +13,6 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QFormLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -36,6 +35,10 @@ from smartdoc.application.backup_service import (
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.schema_migrations import SchemaError
 from smartdoc.presentation.design_dialog import confirm_danger
+from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.settings_widgets import SettingsPage, add_note_box
+from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.worker_relay import WorkerRelay, post
 
 logger = logging.getLogger(__name__)
 
@@ -56,48 +59,51 @@ def describe(info: BackupInfo) -> str:
     return f"{when}  ·  {reason_label(info.reason)}  ·  {info.size / (1024 * 1024):.1f} MB"
 
 
-class BackupPanel(QWidget):
+class BackupPanel(SettingsPage):
     _done = Signal(str, object, str)  # (what, BackupInfo | None, error message) -- crosses back to the GUI thread
 
     def __init__(self, context, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__("Sao lưu", "Bản sao dữ liệu thư viện, để quay lại khi cần. File sách không nằm trong đó.", parent)
         self.context = context
         self._busy = False
         self._available = False  # set by refresh(); read as soon as the list's selection signal fires
+        self._relay = WorkerRelay(self)
+        tm = theme_manager()
 
-        layout = QVBoxLayout(self)
-        note = QLabel(
-            "Bản sao lưu chứa cơ sở dữ liệu thư viện: thông tin sách, thẻ, bộ sưu tập, đánh giá đã lưu và chỉ mục tìm kiếm. "
-            "File sách của bạn không nằm trong đó và không bao giờ bị thay đổi. MewBook tự sao lưu trước mỗi lần nâng cấp thư viện.",
-            self,
-        )
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        self.add_block(add_note_box(
+            self, "Bản sao lưu chứa thông tin sách, thẻ, bộ sưu tập, đánh giá đã lưu và chỉ mục tìm kiếm. "
+                  "MewBook tự sao lưu trước mỗi lần nâng cấp thư viện.", "ok"))
 
-        form = QFormLayout()
         self.retention_spin = QSpinBox(self)
         self.retention_spin.setRange(MIN_RETENTION, MAX_RETENTION)
         self.retention_spin.setValue(context.config.config.backup_retention)
-        form.addRow("Số bản sao lưu giữ lại:", self.retention_spin)
-        layout.addLayout(form)
+        self.add_row("Số bản sao lưu giữ lại", "Bản cũ nhất được xóa khi vượt số này.", self.retention_spin)
+        self.add_row("Thư mục lưu bản sao", "Chọn nơi khác để lưu, ví dụ ổ đĩa ngoài.", QPushButton("Chọn thư mục…", self), soon=True)
 
-        self.backup_list = QListWidget(self)
-        layout.addWidget(self.backup_list, stretch=1)
-
+        holder = QWidget(self)
+        holder_layout = QVBoxLayout(holder)
+        holder_layout.setContentsMargins(0, 0, 0, 0)
+        self.backup_list = QListWidget(holder)
+        self.backup_list.setMinimumHeight(140)
+        holder_layout.addWidget(self.backup_list)
         row = QHBoxLayout()
-        self.backup_button = QPushButton("💾 Sao lưu ngay", self)
+        self.backup_button = QPushButton("Sao lưu ngay", holder)
+        self.backup_button.setIcon(line_icon("archive", tm.token("ink"), 14))
         self.backup_button.clicked.connect(self._on_backup_now)
-        self.restore_button = QPushButton("♻️ Khôi phục bản đã chọn...", self)
+        self.restore_button = QPushButton("Khôi phục…", holder)
+        self.restore_button.setIcon(line_icon("refresh", tm.token("ink"), 14))
         self.restore_button.clicked.connect(self._on_restore)
-        self.folder_button = QPushButton("📂 Mở thư mục", self)
+        self.folder_button = QPushButton("Mở thư mục", holder)
+        self.folder_button.setIcon(line_icon("folder", tm.token("ink"), 14))
         self.folder_button.clicked.connect(self._on_open_folder)
         for button in (self.backup_button, self.restore_button, self.folder_button):
             row.addWidget(button)
-        layout.addLayout(row)
-
-        self.status_label = QLabel(self)
+        row.addStretch(1)
+        holder_layout.addLayout(row)
+        self.status_label = QLabel(holder)
         self.status_label.setWordWrap(True)
-        layout.addWidget(self.status_label)
+        holder_layout.addWidget(self.status_label)
+        self.add_row("Các bản sao lưu", "Khôi phục sẽ nói rõ điều gì sẽ mất trước khi làm.", holder)
 
         self.backup_list.itemSelectionChanged.connect(self._update_buttons)
         self._done.connect(self._on_done)
@@ -140,6 +146,7 @@ class BackupPanel(QWidget):
         self._busy = True
         self._update_buttons()
         self.status_label.setText("Đang sao lưu..." if what == "backup" else "Đang khôi phục...")
+        relay = self._relay
 
         def target() -> None:
             try:
@@ -149,20 +156,20 @@ class BackupPanel(QWidget):
             except Exception as exc:  # noqa: BLE001 -- a worker must always report back, or the buttons stay disabled
                 logger.exception("Backup task %s failed", what)
                 info, error = None, f"Lỗi không mong đợi: {exc}"
-            self._done.emit(what, info, error)
+            post(relay, "_done", what, info, error)
 
         threading.Thread(target=target, name=f"backup-{what}", daemon=True).start()
 
     def _on_done(self, what: str, info, error: str) -> None:
         self._busy = False
         if error:
-            self.status_label.setText(f"⚠️ {error}")
+            self.status_label.setText(error)
         elif what == "backup":
-            self.status_label.setText(f"✅ Đã sao lưu ({describe(info)}).")
+            self.status_label.setText(f"Đã sao lưu ({describe(info)}).")
         else:
             self.context.event_bus.publish(LibraryUpdatedEvent())
             self.status_label.setText(
-                "✅ Đã khôi phục thư viện. Thư viện trước đó được giữ lại trong danh sách "
+                "Đã khôi phục thư viện. Thư viện trước đó được giữ lại trong danh sách "
                 f"({describe(info)}). Nếu màn hình chính chưa cập nhật, hãy khởi động lại MewBook."
             )
         self.refresh()

@@ -42,6 +42,7 @@ from smartdoc.application.metadata_lookup import LookupResult, MetadataLookupSer
 from smartdoc.application.metadata_writer import MetadataWriter
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.worker_relay import WorkerRelay, post
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ class MetadataSuggestDialog(DesignDialog):
         self._applier = applier or MetadataApplier(context)
         self._candidates: list = []
         self._search_number = 0
+        self._relay = WorkerRelay(self)  # what the lookup thread talks to (never the dialog itself)
 
         self.resize(880, 660)
         self.step_label = QLabel(self)
@@ -242,16 +244,15 @@ class MetadataSuggestDialog(DesignDialog):
         self.table.setRowCount(0)
         self._update_apply_enabled()
 
+        service, doc, relay = self._service, self.doc, self._relay
+
         def worker() -> None:
             try:
-                result, error = self._service.lookup(self.doc, title=title, author=author, include_internet=include_internet), ""
+                result, error = service.lookup(doc, title=title, author=author, include_internet=include_internet), ""
             except Exception as exc:  # noqa: BLE001 -- the dialog must show a message, never crash on a lookup bug
                 logger.exception("Metadata lookup failed")
                 result, error = None, str(exc)
-            try:
-                self.lookup_finished.emit(number, result, error)
-            except RuntimeError:
-                pass  # the dialog was closed while searching
+            post(relay, "lookup_finished", number, result, error)
 
         threading.Thread(target=worker, daemon=True).start()
 

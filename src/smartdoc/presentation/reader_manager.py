@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QMessageBox
 
-from smartdoc.presentation.reader_window import ReaderWindow
+from smartdoc.presentation.reader_window import ReaderWindow, reader_events, reader_limit
 
 MAX_OPEN_READERS = 5
 
@@ -40,14 +40,20 @@ def open_reader(context, doc: dict, parent=None) -> ReaderWindow | None:
         return existing
 
     _forget_closed()
-    if len(_open_windows) >= MAX_OPEN_READERS:
-        QMessageBox.information(
+    limit = reader_limit(context)
+    if len(_open_windows) >= limit:
+        # Opening one more than allowed: offer to close the one that has been open longest, instead of just refusing.
+        oldest = _open_windows[0]
+        answer = QMessageBox.question(
             parent,
-            "Đang mở quá nhiều tài liệu",
-            f"Bạn đang mở {len(_open_windows)} tài liệu cùng lúc (tối đa {MAX_OPEN_READERS}).\n\n"
-            "Hãy đóng bớt một cửa sổ đọc rồi thử lại.",
+            "Đang mở nhiều cửa sổ đọc",
+            f"Bạn đang mở {len(_open_windows)} cửa sổ đọc (tối đa {limit}, đổi trong Cài đặt > Hiệu năng).\n\n"
+            f"Đóng cuốn mở lâu nhất (“{oldest.doc.get('title') or 'không tên'}”) để mở cuốn này?",
         )
-        return None
+        if answer != QMessageBox.Yes:
+            return None
+        oldest.close()
+        _forget(oldest)  # closing only schedules the deletion; the slot is free now
 
     window = ReaderWindow(context, doc, parent)
     _open_windows.append(window)
@@ -56,6 +62,7 @@ def open_reader(context, doc: dict, parent=None) -> ReaderWindow | None:
     # isVisible() instead would keep dead entries counting against the cap.
     window.destroyed.connect(lambda: _forget(window))
     window.show()
+    reader_events.changed.emit()
     return window
 
 
@@ -91,4 +98,4 @@ def _forget_closed() -> None:
     leave a stale Python reference behind."""
     import shiboken6
 
-    _open_windows[:] = [w for w in _open_windows if shiboken6.isValid(w)]
+    _open_windows[:] = [w for w in _open_windows if shiboken6.isValid(w) and not getattr(w, "closed", False)]

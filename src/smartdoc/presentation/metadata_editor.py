@@ -59,7 +59,7 @@ class MetadataEditorDialog(QDialog):
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
 
-        self.find_button = QPushButton("🔎 Tìm thông tin...", self)
+        self.find_button = QPushButton("Tìm thông tin...", self)
         self.find_button.setToolTip("Tìm tiêu đề, tác giả, nhà xuất bản... của cuốn sách này trong thư viện và trên internet")
         self.find_button.clicked.connect(self._on_find_metadata)
 

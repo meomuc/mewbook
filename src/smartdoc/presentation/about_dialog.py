@@ -190,17 +190,17 @@ class AboutDialog(QDialog):
         layout.addStretch(1)
 
         support_row = QHBoxLayout()
-        self.copy_support_button = QPushButton("📋 Sao chép thông tin hỗ trợ", page)
+        self.copy_support_button = QPushButton("Sao chép thông tin hỗ trợ", page)
         self.copy_support_button.setToolTip("Phiên bản, hệ điều hành và đường dẫn file nhật ký -- gửi kèm khi báo lỗi.")
         self.copy_support_button.clicked.connect(self._on_copy_support_info)
         support_row.addWidget(self.copy_support_button)
-        self.open_logs_button = QPushButton("📂 Thư mục nhật ký", page)
+        self.open_logs_button = QPushButton("Thư mục nhật ký", page)
         self.open_logs_button.clicked.connect(self._on_open_logs)
         self.open_logs_button.setEnabled(current_log_path() is not None)
         support_row.addWidget(self.open_logs_button)
         layout.addLayout(support_row)
 
-        self.legal_button = QPushButton("📄 Giấy phép, thông báo và quyền riêng tư", page)
+        self.legal_button = QPushButton("Giấy phép, thông báo và quyền riêng tư", page)
         self.legal_button.clicked.connect(lambda: self.stack.setCurrentWidget(self._legal_page))
         layout.addWidget(self.legal_button)
 
@@ -259,7 +259,7 @@ class AboutDialog(QDialog):
 
     def _on_copy_support_info(self) -> None:
         QApplication.clipboard().setText(support_info(self._identity))
-        self.copy_support_button.setText("✅ Đã sao chép")
+        self.copy_support_button.setText("Đã sao chép")
 
     def _on_open_logs(self) -> None:
         log_path = current_log_path()

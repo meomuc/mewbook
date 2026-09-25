@@ -147,6 +147,10 @@ class LibraryToolbar(QWidget):
             self.context.event_bus.publish(SortChangedEvent(order_by=order_by))
             return
 
+        if not self.context.config.config.community_reviews_enabled:
+            self.context.event_bus.publish(SortChangedEvent(order_by=order_by))  # switched off: sort by what is stored locally
+            return
+
         # Only this one sort option ever touches the network -- every other
         # sort works purely off the local index (see rating_sync.py).
         self.sort_combo.setEnabled(False)
