@@ -42,6 +42,14 @@ APP_WEBSITE_URL = "https://meomuc.github.io/"
 # (A self-hosted build with these empty falls back to the Supabase URL and key set in Settings -> Đánh giá cộng đồng.)
 APP_ERROR_REPORT_URL = ""
 APP_ERROR_REPORT_ANON_KEY = ""
+# Community reviews: the Supabase project that holds them -- API URL and public "anon" key (public by design: row-level
+# security on the server decides what any caller may do). This is the app's DEFAULT connection and is always there; whether
+# the feature runs is the person's choice (Settings > Đánh giá cộng đồng, on by default). Empty here means "the same project
+# as the error reports" (APP_ERROR_REPORT_*, one Supabase project serves both); a build with both empty has no server, and
+# the feature says so instead of pretending. The URL and key set by hand in settings.json (supabase_url, supabase_anon_key)
+# override these, for a self-hosted server.
+APP_REVIEWS_URL = ""
+APP_REVIEWS_ANON_KEY = ""
 # How a user asks for an error report they sent to be deleted: an e-mail address or a link to a contact form. Empty until
 # the project owner has chosen one; Settings then points at the privacy policy instead.
 APP_PRIVACY_CONTACT = ""

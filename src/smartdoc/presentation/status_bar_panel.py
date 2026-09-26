@@ -28,6 +28,9 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QStatusBar, QToolTip,
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER
 from smartdoc.application.ai_summary import probe_ollama, provider_requires_key
+from smartdoc.application.review_endpoint import STATE_OFF as STATE_REVIEWS_OFF
+from smartdoc.application.review_endpoint import STATE_ON as STATE_REVIEWS_ON
+from smartdoc.application.review_endpoint import resolve_review_endpoint, review_state
 from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync
 from smartdoc.core.event_bus import (
     AiConnectionChangedEvent,
@@ -530,13 +533,21 @@ class StatusBarPanel(QStatusBar):
         self._refresh_network()
         self._fit_ticker()
 
+    def _cloud_state(self) -> str:
+        return review_state(self.context.config.config)
+
     def _cloud_configured(self) -> bool:
-        config = self.context.config.config
-        return bool(config.supabase_url and config.supabase_anon_key)
+        """The feature is on (the person's switch) AND the build has a server to talk to."""
+        return self._cloud_state() == STATE_REVIEWS_ON
+
+    def _cloud_off_sentence(self) -> str:
+        if self._cloud_state() == STATE_REVIEWS_OFF:
+            return "Đánh giá cộng đồng: bạn đã tắt trong Cài đặt, nên MewBook không lấy hay gửi gì. Bật lại ở Cài đặt > Đánh giá cộng đồng."
+        return "Đánh giá cộng đồng: bản này chưa có máy chủ nên chưa xem được đánh giá của người khác."
 
     def _refresh_cloud(self) -> None:
         if not self._cloud_configured():
-            self.cloud_label.set_state(STATE_OFF, "Đánh giá cộng đồng: chưa được bật trong bản này. Bấm để xem trạng thái")
+            self.cloud_label.set_state(STATE_OFF, self._cloud_off_sentence() + " Bấm để xem lại")
         elif self._cloud_reachable is False:
             self.cloud_label.set_state(STATE_ERROR, "Đánh giá cộng đồng: chưa kết nối được. Bấm để kiểm tra lại")
         else:
@@ -553,14 +564,14 @@ class StatusBarPanel(QStatusBar):
 
     def _on_cloud_clicked(self) -> None:
         if not self._cloud_configured():
-            self._say(self.cloud_label, "Đánh giá cộng đồng: chưa được bật trong bản này, nên chưa xem được đánh giá của người khác.")
+            self._say(self.cloud_label, self._cloud_off_sentence())
             return
         if self._cloud_probe_running:
             return
         self._cloud_probe_running = True
         self._say(self.cloud_label, "Đánh giá cộng đồng: đang kiểm tra kết nối...")
-        config = self.context.config.config
-        url, key = config.supabase_url or "", config.supabase_anon_key or ""
+        endpoint = resolve_review_endpoint(self.context.config.config)
+        url, key = (endpoint.url, endpoint.anon_key) if endpoint else ("", "")
 
         def worker() -> None:
             try:

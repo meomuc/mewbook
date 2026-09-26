@@ -69,6 +69,9 @@ from smartdoc.application.cover_search import (
     CoverSearchError,
 )
 from smartdoc.application.cover_search import test_connection as test_cover_connection
+from smartdoc.application.review_endpoint import STATE_OFF as STATE_REVIEWS_OFF
+from smartdoc.application.review_endpoint import STATE_ON as STATE_REVIEWS_ON
+from smartdoc.application.review_endpoint import review_state
 from smartdoc.core.event_bus import AiConnectionChangedEvent, LibraryUpdatedEvent
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
@@ -822,7 +825,13 @@ class SettingsDialog(QDialog):
         page = SettingsPage("Đánh giá cộng đồng", "Xem và viết nhận xét về sách cùng những người dùng MewBook khác.", self)
         self.community_reviews_check = QCheckBox("Bật đánh giá cộng đồng", page)
         self.community_reviews_check.setChecked(config.community_reviews_enabled)
-        page.add_row("Đánh giá cộng đồng", "Tắt thì MewBook không lấy và không gửi gì cho tính năng này.", self.community_reviews_check)
+        page.add_row("Đánh giá cộng đồng", "Tắt thì MewBook không lấy và không gửi gì cho tính năng này. Mặc định là bật.", self.community_reviews_check)
+        # The connection is the app's own and always defined; only the person's switch decides whether it is used.
+        self.reviews_server_label = QLabel(page)
+        self.reviews_server_label.setWordWrap(True)
+        self._show_reviews_server(config)
+        self.community_reviews_check.toggled.connect(lambda _on: self._show_reviews_server(self._config_with_switch()))
+        page.add_row("Máy chủ", "Kết nối có sẵn trong MewBook; bạn không cần nhập gì.", self.reviews_server_label)
         self.reviewer_nickname_edit = QLineEdit(config.reviewer_nickname or "", page)
         self.reviewer_nickname_edit.setPlaceholderText("Ví dụ: Mèo Mực")
         page.add_row("Nick name", "Tên hiện cạnh nhận xét của bạn. Không cần thật.", self.reviewer_nickname_edit)
@@ -832,6 +841,20 @@ class SettingsDialog(QDialog):
             "<b>Không gửi:</b> file sách, đường dẫn, tên máy, hay danh sách sách của bạn.", "ok"))
         page.add_row("Hiện điểm cộng đồng trên bìa", "Một huy hiệu nhỏ ở góc bìa sách.", QCheckBox("Bật", page), soon=True)
         return page
+
+    def _config_with_switch(self):
+        """The saved config with the checkbox as it is now (before "Đóng" saves it), for the status line."""
+        import dataclasses
+
+        return dataclasses.replace(self.context.config.config, community_reviews_enabled=self.community_reviews_check.isChecked())
+
+    def _show_reviews_server(self, config) -> None:
+        state = review_state(config)
+        by_hand = bool(config.supabase_url and config.supabase_anon_key)
+        self.reviews_server_label.setText({
+            STATE_REVIEWS_ON: "Đang dùng máy chủ của MewBook" + (" (máy chủ riêng do bạn đặt trong settings.json)" if by_hand else "") + ".",
+            STATE_REVIEWS_OFF: "Đã tắt: MewBook không kết nối tới máy chủ đánh giá.",
+        }.get(state, "Bản này chưa có máy chủ đánh giá cộng đồng, nên tính năng chưa chạy được dù đã bật."))
 
     def _add_donation(self, page: SettingsPage) -> SettingsPage:
         """The update page also carries the donation block: the QR code and the mascot with a coffee."""

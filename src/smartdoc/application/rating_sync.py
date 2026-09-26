@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync
+from smartdoc.application.review_endpoint import resolve_review_endpoint
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 
 logger = logging.getLogger(__name__)
@@ -24,10 +25,13 @@ def sync_all_rating_stats(context) -> int:
     Raises CloudReviewError on failure (not configured, network error, ...)
     -- callers decide how to surface that to the user."""
     config = context.config.config
-    if not (config.supabase_url and config.supabase_anon_key):
-        raise CloudReviewError("Chưa cấu hình Supabase (thiếu URL/anon key).")
+    if not config.community_reviews_enabled:
+        raise CloudReviewError("Đánh giá cộng đồng đang tắt trong Cài đặt.")
+    endpoint = resolve_review_endpoint(config)
+    if endpoint is None:
+        raise CloudReviewError("Bản này chưa có máy chủ đánh giá cộng đồng.")
 
-    sync = SupabaseReviewSync(config.supabase_url, config.supabase_anon_key)
+    sync = SupabaseReviewSync(endpoint.url, endpoint.anon_key)
     stats = sync.fetch_all_rating_stats()
 
     known_ids = set(context.db.list_document_ids())

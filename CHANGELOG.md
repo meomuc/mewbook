@@ -60,6 +60,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   the library (accents and case ignored); a tag the book already has is not offered; picking one fills the box.
 
 ### Fixed
+- **Community reviews: the connection is now the app's own, not something to configure.** It was only "connected" when a
+  Supabase URL and key had been typed into settings.json, so on a normal install the status icon said "chưa được bật" and the
+  reviews never loaded. The connection is now built in (`APP_REVIEWS_URL` / `APP_REVIEWS_ANON_KEY`, falling back to the
+  error-report project) and always defined; whether the feature runs is the person's switch in Settings > Đánh giá cộng
+  đồng, on by default, and off means nothing is fetched or sent. The status icon, the review window and Settings now tell
+  "you switched it off" from "this build has no server". A URL and key set by hand still override the default (self-hosted).
 - **E-books are now searchable by their text.** Only a PDF's first pages were indexed, so a word from inside an EPUB, MOBI
   or AZW3 found nothing although the search box says "nội dung". The first pages (the same "Đọc nội dung để tìm kiếm"
   setting, 300 words per page) are read when a book is added; books already in the library are caught up once in the

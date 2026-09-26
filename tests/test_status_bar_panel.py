@@ -496,7 +496,7 @@ def test_clicking_the_cloud_icon_when_off_says_so_and_opens_nothing(qapp, app_co
 
     panel.cloud_label.clicked.emit()
 
-    assert len(shown) == 1 and "chưa được bật" in shown[0]
+    assert len(shown) == 1 and "chưa có máy chủ" in shown[0]
     assert panel.last_status_text == shown[0]
     assert opened == []  # no configuration window
 
@@ -506,7 +506,7 @@ def test_the_cloud_icon_stays_visible_and_still_explains_itself_on_hover(qapp, a
     panel.show()
     qapp.processEvents()
     assert panel.cloud_label.isVisible() and panel.cloud_label.state == STATE_OFF
-    assert "chưa được bật" in panel.cloud_label.toolTip()
+    assert "chưa có máy chủ" in panel.cloud_label.toolTip()
 
 
 def test_clicking_the_cloud_icon_when_configured_checks_the_connection_and_reports(qapp, app_context, monkeypatch):

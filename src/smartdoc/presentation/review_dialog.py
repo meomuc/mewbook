@@ -67,6 +67,7 @@ from smartdoc.application.cloud_reviews import (
     rating_summary,
     reviews_by_user,
 )
+from smartdoc.application.review_endpoint import resolve_review_endpoint
 from smartdoc.application.service_flags import REVIEWS_ENABLED, BANNER_MESSAGE
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.presentation.design_dialog import DesignDialog
@@ -186,8 +187,9 @@ class ReviewDialog(DesignDialog):
         self._reviews: list[dict] = []
         self._user_hash = context.identity.user_hash
         config = context.config.config
-        self._configured = bool(config.supabase_url and config.supabase_anon_key)
-        self._sync = SupabaseReviewSync(config.supabase_url or "", config.supabase_anon_key or "")
+        endpoint = resolve_review_endpoint(config)  # the app's own connection unless one was set by hand
+        self._configured = endpoint is not None
+        self._sync = SupabaseReviewSync(endpoint.url if endpoint else "", endpoint.anon_key if endpoint else "")
         tm = theme_manager()
         self._muted = tm.token("ink2")
         self._accent = tm.token("accent")
@@ -382,7 +384,7 @@ class ReviewDialog(DesignDialog):
 
     def _load_reviews_async(self) -> None:
         if not self._configured:
-            self.status_label.setText("Đánh giá cộng đồng chưa được bật trong bản này.")
+            self.status_label.setText("Bản này chưa có máy chủ đánh giá cộng đồng, nên chưa xem được đánh giá của người khác.")
             return
 
         sync, doc_id, relay = self._sync, self.doc["id"], self._relay

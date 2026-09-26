@@ -34,7 +34,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from smartdoc import __version__
+from smartdoc import APP_ERROR_REPORT_ANON_KEY, APP_REVIEWS_ANON_KEY, __version__
 from smartdoc.application.error_report_queue import (
     REPORTS_DIR_NAME,
     STATUS_APPROVED,
@@ -287,6 +287,7 @@ class ErrorReporter:
         terms += [
             getattr(self._identity, "token", ""), getattr(self._identity, "user_hash", ""), config.ai_api_key or "",
             config.google_image_api_key or "", config.google_image_search_cx or "", config.supabase_anon_key or "",
+            APP_REVIEWS_ANON_KEY, APP_ERROR_REPORT_ANON_KEY,  # public keys, but never part of a report
         ]
         for variable in ("USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOME", "TEMP", "TMP"):
             dirs.append(os.environ.get(variable, ""))
