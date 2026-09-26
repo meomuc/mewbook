@@ -34,7 +34,7 @@ MewBook chỉ đọc và sắp xếp các tệp trên máy bạn. Ứng dụng k
 
 3. Dữ liệu chỉ rời khỏi máy khi bạn dùng một tính năng cần mạng
 • Tìm ảnh bìa và metadata: tên sách, tác giả (đã làm sạch) và ISBN được gửi tới các nguồn bạn bật (Cài đặt → Ảnh bìa).
-• Tóm tắt AI (tắt mặc định): nội dung bạn thấy và duyệt trong hộp thoại, kể cả trích đoạn sách, được gửi tới nhà cung cấp AI bạn chọn, bằng khóa của chính bạn. Khóa được mã hóa và lưu trên máy bạn, không gửi cho dự án. Kết quả AI có thể sai và chỉ để tham khảo.
+• Tóm tắt AI (tắt mặc định): thông tin nhận diện sách bạn thấy và duyệt trong hộp thoại (tên, tác giả, nhà xuất bản, năm…; không có nội dung bên trong sách) được gửi tới nhà cung cấp AI bạn chọn, bằng khóa của chính bạn. Khóa được mã hóa và lưu trên máy bạn, không gửi cho dự án. Kết quả AI có thể sai và chỉ để tham khảo.
 • Đánh giá cộng đồng (tắt mặc định): mã tài liệu (chuỗi băm từ đường dẫn tệp, không có tên sách), biệt danh, điểm, nhận xét bạn viết và mã ẩn danh của bản cài đặt. Nội dung này hiển thị công khai.
 • Báo lỗi ẩn danh: mặc định ứng dụng HỎI MỖI LẦN, cho bạn xem trước nguyên văn nội dung sẽ gửi và không gửi gì nếu bạn không đồng ý. Báo cáo đã che, không chứa tên sách, đường dẫn hay nội dung tài liệu; được giữ tối đa 90 ngày và được một công cụ AI hỗ trợ phân tích (chỉ phần đã lọc: loại lỗi, vị trí trong mã, phiên bản). Đổi hoặc tắt hẳn ở Cài đặt → Quyền riêng tư và báo lỗi.
 • Kiểm tra bản mới (tắt mặc định): chỉ số phiên bản của ứng dụng.

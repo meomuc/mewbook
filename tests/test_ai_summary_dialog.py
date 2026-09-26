@@ -50,10 +50,10 @@ def test_request_content_is_prefilled_with_title_and_author(qapp, app_context):
     assert "Tolkien" in text
 
 
-def test_request_content_includes_full_extracted_text_uncapped(qapp, app_context):
-    long_content = "word " * 5000
-    dialog = AISummaryDialog(app_context, _doc(content=long_content))
-    assert long_content.strip() in dialog.request_content_edit.toPlainText()
+def test_request_content_shows_the_identity_and_none_of_the_books_text(qapp, app_context):
+    dialog = AISummaryDialog(app_context, _doc(content="word " * 5000, publisher="NXB Trẻ", pub_year=2020))
+    shown = dialog.request_content_edit.toPlainText()
+    assert "NXB Trẻ" in shown and "2020" in shown and "word" not in shown
 
 
 def test_generate_success_populates_text_and_enables_save(qapp, app_context, monkeypatch):

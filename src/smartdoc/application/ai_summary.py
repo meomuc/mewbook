@@ -11,10 +11,10 @@ not to read the book for them. Generation and saving are separate steps
 (see presentation/ai_summary_dialog.py): this module only ever returns
 text, it never writes to the database itself.
 
-The request content sent to the model is NOT truncated -- an earlier
-version capped it at a few thousand characters, but a partial excerpt cut
-off mid-paragraph made summaries read less naturally, and the request was
-explicitly to let the model work from the whole thing instead.
+What is sent is the book's IDENTITY only: title, author, publisher, year of publication, language, ISBN and series.
+No text from inside the book is ever sent (an earlier version sent the whole extracted text): the model works from
+what it already knows about the book, and is told to say so rather than invent when it does not know it. If summaries
+turn out clearly poorer for it, a minimal excerpt can be reconsidered in a later release.
 """
 from __future__ import annotations
 
@@ -40,7 +40,9 @@ _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _MAX_RETRIES_ON_TRANSIENT_ERROR = 2
 _RETRY_DELAY_SECONDS = 2.0
 
-_ROLE = "Bạn là một biên tập viên sách chuyên nghiệp. "
+_ROLE = ("Bạn là một biên tập viên sách chuyên nghiệp. Bạn chỉ được cho thông tin nhận diện của cuốn sách (tiêu đề, tác giả, "
+         "nhà xuất bản, năm...), không có nội dung sách. Hãy dùng hiểu biết của bạn về cuốn sách này; nếu bạn không chắc đã biết "
+         "nó, hãy nói rõ là chưa đủ thông tin thay vì bịa ra nội dung. ")
 
 # Summary styles the user can pick per generation (see AISummaryDialog).
 # "intro" is the original, default behavior: a non-spoiler overview that
@@ -49,7 +51,7 @@ _ROLE = "Bạn là một biên tập viên sách chuyên nghiệp. "
 SUMMARY_STYLES: dict[str, tuple[str, str]] = {
     "intro": (
         "Giới thiệu (không tiết lộ nội dung)",
-        "Dựa trên tiêu đề, tác giả, và đoạn trích (nếu có), hãy viết một đoạn giới thiệu giúp người đọc hiểu "
+        "Dựa trên thông tin nhận diện của sách, hãy viết một đoạn giới thiệu giúp người đọc hiểu "
         "được chủ đề, thể loại, văn phong, và đối tượng độc giả phù hợp của cuốn sách này. "
         "TUYỆT ĐỐI KHÔNG được tiết lộ cốt truyện, các tình tiết bất ngờ, nhân vật quan trọng xuất hiện sau, "
         "hay kết thúc của câu chuyện (không được spoil). Chỉ tập trung giúp người đọc quyết định có nên bắt "
@@ -272,23 +274,26 @@ class AISummaryError(Exception):
     pass
 
 
+# The other identifying facts sent after the title and author, when the library knows them. (There is no translator
+# column yet; when there is one it belongs here.)
+_IDENTITY_FIELDS = (
+    ("Nhà xuất bản", "publisher"),
+    ("Năm xuất bản", "pub_year"),
+    ("Ngôn ngữ", "language"),
+    ("ISBN", "isbn"),
+    ("Bộ sách", "series"),
+)
+
+
 def build_request_content(doc: dict) -> str:
-    """The full text that will be sent as the summarization request --
-    exposed (not just used internally) so the UI can show it to the user
-    before generating, and let them edit it first."""
+    """The text that will be sent as the summarization request: the book's identity, nothing from inside it. Exposed
+    (not just used internally) so the UI can show it to the user before generating, and let them edit it first."""
     parts = [f"Tiêu đề: {doc.get('title') or 'Không rõ'}", f"Tác giả: {doc.get('author') or 'Không rõ'}"]
-    tags = doc.get("tags")
-    if tags:
-        parts.append(f"Thể loại/Tag: {tags}")
-    content = (doc.get("content") or "").strip()
-    if content:
-        parts.append(f"Trích đoạn nội dung sách:\n{content}")
-    else:
-        parts.append(
-            "(Không có trích đoạn nội dung -- định dạng file này chưa được trích xuất văn bản. "
-            "Chỉ dựa vào tiêu đề/tác giả/thể loại ở trên.)"
-        )
-    return "\n\n".join(parts)
+    for label, key in _IDENTITY_FIELDS:
+        value = str(doc.get(key) or "").strip()
+        if value and value.lower() != "unknown":
+            parts.append(f"{label}: {value}")
+    return "\n".join(parts)
 
 
 def generate_summary_from_content(

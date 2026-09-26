@@ -107,10 +107,8 @@ def test_generate_summary_raises_on_malformed_response(monkeypatch):
         generate_summary("gemini", "key", _doc())
 
 
-def test_prompt_sends_full_content_uncapped(monkeypatch):
-    """No artificial truncation -- the model gets the whole extracted text,
-    not a cut-off excerpt (an earlier cap made summaries read less
-    naturally when they were cut off mid-paragraph)."""
+def test_prompt_sends_only_the_books_identity_never_text_from_inside_it(monkeypatch):
+    """Only title, author, publisher, year and the like leave the machine -- not the extracted text, not the tags."""
     captured = {}
 
     def fake_post(url, json=None, timeout=None, **kwargs):
@@ -119,17 +117,28 @@ def test_prompt_sends_full_content_uncapped(monkeypatch):
 
     monkeypatch.setattr(requests, "post", fake_post)
 
-    long_content = "x" * 50_000
-    generate_summary("gemini", "key", _doc(content=long_content))
+    secret = "DOAN-TRICH-BI-MAT " * 2000
+    generate_summary("gemini", "key", _doc(content=secret, publisher="NXB Kim Đồng", pub_year=1937, tags="fantasy"))
 
     sent_text = captured["json"]["contents"][0]["parts"][0]["text"]
-    assert long_content in sent_text
+    assert "DOAN-TRICH-BI-MAT" not in sent_text and "fantasy" not in sent_text
+    assert "The Hobbit" in sent_text and "J.R.R. Tolkien" in sent_text and "NXB Kim Đồng" in sent_text and "1937" in sent_text
 
 
-def test_build_request_content_includes_full_content():
-    long_content = "word " * 5000
-    result = build_request_content(_doc(content=long_content))
-    assert long_content.strip() in result
+def test_build_request_content_lists_the_identity_fields_it_knows():
+    result = build_request_content(_doc(publisher="Allen & Unwin", pub_year=1937, language="en", isbn="9780261102217",
+                                        series="Middle-earth", content="x" * 10_000))
+    assert result.splitlines() == [
+        "Tiêu đề: The Hobbit", "Tác giả: J.R.R. Tolkien", "Nhà xuất bản: Allen & Unwin", "Năm xuất bản: 1937",
+        "Ngôn ngữ: en", "ISBN: 9780261102217", "Bộ sách: Middle-earth"]
+    assert build_request_content({"title": "", "author": "Unknown"}).splitlines() == ["Tiêu đề: Không rõ", "Tác giả: Unknown"]
+
+
+def test_the_prompt_tells_the_model_to_say_so_rather_than_invent():
+    from smartdoc.application.ai_summary import build_system_prompt
+
+    prompt = build_system_prompt()
+    assert "không có nội dung sách" in prompt and "bịa" in prompt
 
 
 def test_generate_summary_from_content_uses_given_text_verbatim(monkeypatch):
@@ -209,21 +218,6 @@ def test_does_not_retry_on_non_transient_error(monkeypatch):
         generate_summary("gemini", "bad-key", _doc())
 
     assert calls["n"] == 1  # 401 is not retried
-
-
-def test_prompt_notes_missing_content_when_absent(monkeypatch):
-    captured = {}
-
-    def fake_post(url, json=None, timeout=None, **kwargs):
-        captured["json"] = json
-        return _FakeResponse(json_data={"candidates": [{"content": {"parts": [{"text": "summary"}]}}]})
-
-    monkeypatch.setattr(requests, "post", fake_post)
-
-    generate_summary("gemini", "key", _doc(content=""))
-
-    sent_text = captured["json"]["contents"][0]["parts"][0]["text"]
-    assert "chưa được trích xuất" in sent_text
 
 
 def _capture_post(monkeypatch, response_json):

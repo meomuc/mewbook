@@ -14,7 +14,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 | Apple Books (iTunes Search API) | ảnh bìa, metadata | không | **Chưa rõ / rủi ro** (điều khoản giới hạn mục đích dùng ảnh) | **Tắt** (quyết định 2026-09-19) |
 | Tiki (`tiki.vn/api/v2/products`) | ảnh bìa sách tiếng Việt | không | **Chưa rõ** (API nội bộ, không có điều khoản công bố) | **Tắt** |
 | Google Custom Search JSON API | ảnh bìa từ toàn web | khóa + cx của người dùng | Được phép cho khách hàng **hiện có**; **đã đóng với khách hàng mới** | Tắt (cần khóa) |
-| Nhà cung cấp AI (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, OpenRouter, Ollama) | tóm tắt sách | khóa của người dùng | Theo điều khoản từng nhà cung cấp; **nội dung sách rời khỏi máy** | Tắt (cần khóa) |
+| Nhà cung cấp AI (OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, OpenRouter, Ollama) | tóm tắt sách | khóa của người dùng | Theo điều khoản từng nhà cung cấp; **chỉ thông tin nhận diện sách (tên, tác giả, nhà xuất bản, năm) rời khỏi máy** | Tắt (cần khóa) |
 | Supabase (dịch vụ đánh giá) | đánh giá cộng đồng | khóa công khai (publishable/anon) | Do chủ dự án vận hành (`MODERATION_RUNBOOK.md`); văn bản riêng tư/điều khoản là **bản nháp chờ luật sư** | Tắt (cần cấu hình) |
 | Supabase (máy chủ nhận báo lỗi ẩn danh) | báo lỗi tự nguyện | khóa công khai; chỉ gọi được một hàm | Do chủ dự án vận hành (`ERROR_OPS_RUNBOOK.md`); bản nháp chờ luật sư | **Hỏi mỗi lần**; chưa điền `APP_ERROR_REPORT_URL` thì không gửi |
 | Anthropic (Claude Code; tác tử phân loại của chủ dự án) | đọc báo lỗi đã lọc | khóa của chủ dự án, trên máy của chủ dự án | Theo điều khoản của Anthropic; **không chạy trên máy người dùng** | Tắt (chủ dự án tự chạy, mức L0) |
@@ -73,7 +73,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 
 - **Điểm cuối:** `api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`, `api.deepseek.com`, `api.groq.com`, `api.mistral.ai`, `openrouter.ai`, và Ollama chạy trên máy (`localhost`). Mã: `application/ai_summary.py`.
 - **Khóa:** của người dùng, lưu mã hóa (`SecretStore`); dự án không gửi hay chuyển tiếp khóa của mình.
-- **Dữ liệu rời khỏi máy:** phần **nội dung yêu cầu** hiện trong ô "nội dung gửi" của hộp thoại Tóm tắt AI (người dùng xem và sửa được trước khi gửi); mã không cắt ngắn nội dung đó. Nội dung gồm tiêu đề, tác giả, thẻ và, nếu đã trích xuất, **trích đoạn nội dung sách** (`build_request_content`). Điều này cần được nói rõ trong thông báo quyền riêng tư (phần 3 của hộp thoại hiện có nhắc khóa API; S2-06 sẽ rà soát).
+- **Dữ liệu rời khỏi máy:** phần **nội dung yêu cầu** hiện trong ô "nội dung gửi" của hộp thoại Tóm tắt AI (người dùng xem và sửa được trước khi gửi); từ bản sau 1.1.0 nội dung đó chỉ gồm **thông tin nhận diện sách**: tiêu đề, tác giả, nhà xuất bản, năm xuất bản, ngôn ngữ, ISBN, bộ sách (`build_request_content`). **Không còn gửi trích đoạn nội dung sách** (bản 1.0 và 1.1.0 có gửi).
 - **Điều khoản:** mỗi nhà cung cấp có điều khoản riêng, người dùng là bên ký với nhà cung cấp. Không có nhà cung cấp nào được bật mặc định.
 
 ### 2.8 Supabase (đánh giá cộng đồng)
@@ -112,7 +112,7 @@ Nguyên tắc của dự án (`CLAUDE.md`): chỉ dùng API chính thức hoặc
 |---|---|
 | Open Library, Google Books, Apple Books, Tiki | Tên sách và tác giả (đã làm sạch), ISBN nếu có; địa chỉ IP của người dùng (như mọi lời gọi HTTP) |
 | Google Custom Search | Tên sách, tác giả, khóa API và cx của người dùng |
-| Nhà cung cấp AI | Nội dung yêu cầu người dùng đã duyệt (có thể chứa trích đoạn sách), khóa API |
+| Nhà cung cấp AI | Nội dung yêu cầu người dùng đã duyệt (chỉ thông tin nhận diện sách, không có nội dung bên trong sách), khóa API |
 | Supabase (đánh giá) | Mã tài liệu (băm của đường dẫn), biệt danh, điểm, nhận xét, mã bí mật (máy chủ chỉ lưu bản băm); hiển thị công khai |
 | Supabase (báo lỗi, chỉ khi người dùng đồng ý) | Báo cáo đã che: loại lỗi, khung ngăn xếp, phiên bản, hệ điều hành, mã máy báo lỗi (băm); ghi chú/nhật ký chỉ khi báo thủ công |
 | Anthropic (tác tử của chủ dự án, không phải từ máy người dùng) | Chỉ phần báo lỗi đã lọc: loại lỗi, khung ngăn xếp, khu vực, phiên bản, bộ đếm |

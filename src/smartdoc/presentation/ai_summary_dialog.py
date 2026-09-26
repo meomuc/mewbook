@@ -7,7 +7,7 @@ application/ai_summary.SUMMARY_STYLES). Generating and saving are
 separate, deliberate steps -- a fresh generation is only a preview until
 the user clicks "Lưu tóm tắt".
 
-The request content (title/author/tags + extracted text, uncapped -- see
+The request content (the book's identity only: title, author, publisher, year... -- see
 application/ai_summary.py) is shown in its own editable box so the user can
 see exactly what's being sent and adjust it before generating, rather than
 it being a hidden implementation detail.
@@ -59,8 +59,8 @@ class AISummaryDialog(QDialog):
         self.request_content_edit = QTextEdit(self)
         self.request_content_edit.setPlainText(build_request_content(doc))
         self.request_content_edit.setToolTip(
-            "Đây là toàn bộ nội dung sẽ gửi cho AI -- không giới hạn độ dài. "
-            "Bạn có thể chỉnh sửa trước khi tạo tóm tắt."
+            "Đây là toàn bộ những gì sẽ gửi cho AI: chỉ thông tin nhận diện sách (tên, tác giả, nhà xuất bản, năm...), "
+            "không có nội dung bên trong sách. Bạn có thể chỉnh sửa trước khi tạo tóm tắt."
         )
 
         # What kind of summary to ask for -- remembered across dialogs.
