@@ -1,15 +1,31 @@
 {
   "meta": {
-    "latest": "1.0.0",
+    "latest": "1.1.0",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/"
   },
   "versions": [
     {
-      "ver": "v1.0.0",
-      "date": "2026-09-19",
+      "ver": "v1.1.0",
+      "date": "2026-09-26",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "bullets": [
+        "Giao diện \"Kệ sách\" mới: trạng thái trống, cửa sổ đọc sách và Cài đặt 10 trang",
+        "Thêm sách không còn popup: một thẻ tiến độ, một bản tóm tắt, thả file vào cửa sổ để thêm",
+        "Phân loại thông minh ba bước có hoàn tác; hộp thoại xác nhận thống nhất cho mọi thao tác nguy hiểm"
+      ],
+      "link": "",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.1.0/MewBook-Setup-1.1.0.exe",
+        "size": "98 MB"
+      }
+    },
+    {
+      "ver": "v1.0.0",
+      "date": "2026-09-19",
+      "tag": "Khởi đầu",
+      "tagColor": "bg-white border text-[#8B6B5E]",
       "auto": false,
       "bullets": [
         "Bản phát hành đầu tiên cho Windows, miễn phí, mã nguồn mở",
@@ -98,6 +114,62 @@
       "status": "Đang tìm hiểu",
       "priority": "Vừa",
       "color": "bg-zinc-400"
+    },
+    {
+      "id": "#7944",
+      "desc": "Settings and other dialogs no longer open with their top cut off",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#EC47",
+      "desc": "The status bar's icons no longer sway while the donate line scrolls",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#C3C8",
+      "desc": "The main window and the reader no longer cover the taskbar",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#39A9",
+      "desc": "The status bar now shows Ollama as connected",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#67A2",
+      "desc": "A new cover now shows in the list and the grid straight away",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#DFC8",
+      "desc": "\"Sao chép thông tin hỗ trợ\" no longer reveals your Windows account name",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#0BFE",
+      "desc": "A book that was already in the library could be imported again during a busy import",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#44E0",
+      "desc": "PDF reading is now serialised across import threads",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
     }
   ],
   "donate": {
@@ -178,7 +250,33 @@
       "imgHash": "2e91098228"
     }
   ],
-  "pendingShots": [],
+  "pendingShots": [
+    {
+      "theme": "woodshelf",
+      "name": "Walnut Library",
+      "reason": "changed"
+    },
+    {
+      "theme": "healing",
+      "name": "Không Gian Chữa Lành",
+      "reason": "changed"
+    },
+    {
+      "theme": "retro_tech",
+      "name": "Hoài Niệm Kỹ Thuật Số",
+      "reason": "changed"
+    },
+    {
+      "theme": "japandi",
+      "name": "Japandi Tối Giản",
+      "reason": "changed"
+    },
+    {
+      "theme": "zen_dark",
+      "name": "Zen Dark Mode",
+      "reason": "changed"
+    }
+  ],
   "announcements": [
     {
       "date": "2026-09-25",
