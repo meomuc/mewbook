@@ -3,14 +3,17 @@
 choice -- which copy to keep.
 
 Exact matches compare the *content* of the files (a hash), so a renamed copy is found and two different books with the
-same title are not. "Gần giống" is the older title/author comparison, run on a background thread (a few seconds on a
-big library; closing the dialog cancels it) and shown as a second list.
+same title are not. "Gợi ý" is only a hint: books whose title/author look alike (run on a background thread; closing the
+dialog cancels it), with a matching file size mentioned as a further hint -- name and size never prove that two files are
+the same book.
 
-Nothing happens to a file until a button is pressed, and the two actions are kept apart on purpose:
+MewBook never picks what to remove. Every group starts with *no* copy chosen: the person looks at the group and picks
+the one to keep, and only then do the buttons come alive. (The copy that knows most about the book is pointed out as a
+suggestion, nothing more.) The two actions are kept apart on purpose:
   * "Bỏ N bản kia khỏi thư viện" only removes the other copies from the MewBook library; the files stay on the disk.
-  * "Xóa N file khỏi máy…" deletes them from the disk for good, behind the "Tôi hiểu" confirmation
-    (design_dialog.DangerConfirmDialog) that also says what is NOT touched.
-The book that is kept is never removed by either. "Chuyển vào khu vực lưu tạm" is shown but switched off ("Sắp có").
+  * "Chuyển N file vào Thùng rác" moves them into MewBook's trash (application/trash_service.py), from where they can
+    be restored until the period the person set is over; a file that cannot be moved stays where it is.
+The book that is kept is never touched by either.
 """
 from __future__ import annotations
 
@@ -28,6 +31,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -38,7 +42,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
-from smartdoc.presentation.design_dialog import DesignDialog, confirm_danger
+from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.theme_manager import theme_manager
@@ -70,21 +74,31 @@ def completeness_score(doc: dict) -> tuple:
     return score, -(doc.get("created_at") or 0)
 
 
-def default_keeper(group: list[dict]) -> dict:
+def suggested_keeper(group: list[dict]) -> dict:
+    """The copy that knows most about the book -- pointed out to the person, never chosen for them."""
     return max(group, key=completeness_score)
 
 
-def note_for(doc: dict, keeper: dict, mode: str) -> str:
+default_keeper = suggested_keeper  # the group list still names a group after its richest copy
+
+
+def note_for(doc: dict, keeper: dict | None, mode: str, suggested: dict | None = None) -> str:
+    """The note under one file. `keeper` is what the person chose (None: nothing yet); `suggested` the copy that is
+    most complete."""
     parts = []
-    if doc is keeper or doc.get("id") == keeper.get("id"):
-        if doc.get("cover_path") and (doc.get("author") or "") not in ("", "Unknown"):
-            parts.append("Có thông tin đầy đủ, có bìa")
-        elif doc.get("cover_path"):
-            parts.append("Có bìa")
+    if keeper is not None and doc.get("id") == keeper.get("id"):
+        parts.append("Bản bạn giữ")
     elif mode == MODE_EXACT:
         parts.append("Giống hệt từng byte")
     else:
-        parts.append("Tên/tác giả gần giống")
+        parts.append("Chỉ là gợi ý: tên/tác giả gần giống")
+        if keeper is not None and doc.get("file_size") and doc.get("file_size") == keeper.get("file_size"):
+            parts.append("cùng dung lượng")
+    if suggested is not None and doc.get("id") == suggested.get("id") and (keeper is None or keeper.get("id") != doc.get("id")):
+        if doc.get("cover_path") and (doc.get("author") or "") not in ("", "Unknown"):
+            parts.append("gợi ý giữ: đủ thông tin, có bìa")
+        elif doc.get("cover_path"):
+            parts.append("gợi ý giữ: có bìa")
     if doc.get("file_status") == "missing":
         parts.append("không thấy file")
     return ", ".join(parts)
@@ -114,7 +128,7 @@ class DuplicateFinderDialog(DesignDialog):
 
         # -- left: the groups --
         self.exact_button = QPushButton("Giống hệt", self)
-        self.fuzzy_button = QPushButton("Gần giống", self)
+        self.fuzzy_button = QPushButton("Gợi ý", self)
         for button in (self.exact_button, self.fuzzy_button):
             button.setCheckable(True)
         self.exact_button.setChecked(True)
@@ -169,39 +183,26 @@ class DuplicateFinderDialog(DesignDialog):
         self.remove_button.clicked.connect(self._on_remove_from_library)
         self.delete_button = QPushButton(self)
         self.delete_button.setProperty("role", "danger")
-        self.delete_button.clicked.connect(self._on_delete_files)
+        self.delete_button.clicked.connect(self._on_trash_files)
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         buttons.addWidget(self.remove_button)
         buttons.addWidget(self.delete_button)
         buttons.addStretch(1)
         self.hint_label = QLabel(
-            "“Bỏ khỏi thư viện”: file vẫn nằm trên máy. “Xóa file khỏi máy”: sẽ hỏi lại kỹ trước khi xóa.", self)
+            "MewBook không tự chọn bản nào để xóa: hãy xem từng nhóm và chọn bản giữ lại. “Bỏ khỏi thư viện”: file vẫn nằm "
+            "trên máy. “Chuyển vào Thùng rác”: file vào thùng rác của MewBook, khôi phục được trước hạn.", self)
         self.hint_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
         self.hint_label.setWordWrap(True)
 
-        # "Sắp có": shown, switched off, no logic behind it.
-        self.soon_box = QFrame(self)
-        self.soon_box.setObjectName("SoonBox")
-        self.soon_box.setStyleSheet(
-            f"#SoonBox {{ border: 1px dashed {theme_manager().token('line2')}; border-radius: 6px; }}"
-            f" QLabel {{ color: {theme_manager().token('ink3')}; }}")
-        self.soon_toggle = QPushButton("Chuyển vào khu vực lưu tạm thay vì xóa ngay", self.soon_box)
-        self.soon_toggle.setCheckable(True)
-        self.soon_toggle.setEnabled(False)
-        self.soon_toggle.setFlat(True)
-        soon_badge = QLabel("Sắp có", self.soon_box)
-        soon_note = QLabel("File sẽ nằm trong khu lưu tạm và tự xóa hẳn sau số ngày bạn đặt. "
-                           "Chưa dùng được ở phiên bản này.", self.soon_box)
-        soon_note.setWordWrap(True)
-        top_row = QHBoxLayout()
-        top_row.addWidget(self.soon_toggle)
-        top_row.addWidget(soon_badge)
-        top_row.addStretch(1)
-        soon = QVBoxLayout(self.soon_box)
-        soon.setContentsMargins(12, 8, 12, 10)
-        soon.addLayout(top_row)
-        soon.addWidget(soon_note)
+        self.trash_note = QLabel(self)
+        self.trash_note.setWordWrap(True)
+        self.trash_note.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
+        self.trash_button = QPushButton("Mở Thùng rác…", self)
+        self.trash_button.clicked.connect(self._on_open_trash)
+        trash_row = QHBoxLayout()
+        trash_row.addWidget(self.trash_note, 1)
+        trash_row.addWidget(self.trash_button)
 
         right = QVBoxLayout()
         right.setSpacing(10)
@@ -209,7 +210,7 @@ class DuplicateFinderDialog(DesignDialog):
         right.addWidget(self.file_table, 1)
         right.addLayout(buttons)
         right.addWidget(self.hint_label)
-        right.addWidget(self.soon_box)
+        right.addLayout(trash_row)
         right_box = QWidget(self)
         right_box.setLayout(right)
 
@@ -277,9 +278,15 @@ class DuplicateFinderDialog(DesignDialog):
         groups = self._groups[self._mode]
         self._show_group(groups[row] if 0 <= row < len(groups) else None)
 
-    def _keeper_of(self, group: list[dict]) -> dict:
+    def _keeper_of(self, group: list[dict]) -> dict | None:
+        """The copy the person chose to keep in this group, or None while they have not chosen."""
         wanted = self._keepers.get((self._mode, self._current))
-        return next((d for d in group if d.get("id") == wanted), None) or default_keeper(group)
+        return next((d for d in group if d.get("id") == wanted), None)
+
+    @staticmethod
+    def _group_heading(group: list[dict], keeper: dict | None) -> str:
+        title = (keeper or suggested_keeper(group)).get("title") or "(không có tên)"
+        return f"{title} — " + ("bản giữ lại đã chọn" if keeper else "chưa chọn bản giữ: hãy chọn một bản")
 
     def _show_group(self, group: list[dict] | None) -> None:
         self.file_table.setRowCount(0)
@@ -293,13 +300,14 @@ class DuplicateFinderDialog(DesignDialog):
             self._update_action_buttons(None)
             return
         keeper = self._keeper_of(group)
-        self.group_title.setText(f"{keeper.get('title') or '(không có tên)'} — chọn bản giữ lại")
+        suggested = suggested_keeper(group)
+        self.group_title.setText(self._group_heading(group, keeper))
         self.file_table.setRowCount(len(group))
         self._radio_group = QButtonGroup(self.file_table)
         tm = theme_manager()
         for row, doc in enumerate(group):
             radio = QRadioButton(self.file_table)
-            radio.setChecked(doc.get("id") == keeper.get("id"))
+            radio.setChecked(keeper is not None and doc.get("id") == keeper.get("id"))
             radio.setProperty("doc_id", doc.get("id"))
             radio.toggled.connect(lambda checked, d=doc: checked and self._on_keeper_chosen(d))
             self._radio_group.addButton(radio)
@@ -308,13 +316,14 @@ class DuplicateFinderDialog(DesignDialog):
             holder.layout().setContentsMargins(0, 0, 0, 0)
             self.file_table.setCellWidget(row, _COL_KEEP, holder)
             path_text = doc.get("file_path", "")
-            path_item = QTableWidgetItem(path_text + ("  · giữ" if doc.get("id") == keeper.get("id") else ""))
+            kept = keeper is not None and doc.get("id") == keeper.get("id")
+            path_item = QTableWidgetItem(path_text + ("  · giữ" if kept else ""))
             path_item.setToolTip(path_text)
             path_item.setData(_DOC_ROLE, doc)
             self.file_table.setItem(row, _COL_PATH, path_item)
             self.file_table.setItem(row, _COL_SIZE, QTableWidgetItem(_size(doc.get("file_size"))))
             self.file_table.setItem(row, _COL_DATE, QTableWidgetItem(_format_date(doc.get("created_at"))))
-            note = QTableWidgetItem(note_for(doc, keeper, self._mode))
+            note = QTableWidgetItem(note_for(doc, keeper, self._mode, suggested))
             note.setForeground(tm.color("ink3"))
             self.file_table.setItem(row, _COL_NOTE, note)
         self._update_action_buttons(group)
@@ -333,12 +342,14 @@ class DuplicateFinderDialog(DesignDialog):
             title = item.text().split("\n")[0]
             total = _size(sum(d.get("file_size") or 0 for d in group))
             item.setText(f"{title}\n{len(group)} file · {total} · đã chọn cái giữ")
-        self.group_title.setText(f"{keeper.get('title') or '(không có tên)'} — chọn bản giữ lại")
+        self.group_title.setText(self._group_heading(group, keeper))
+        suggested = suggested_keeper(group)
         for row in range(self.file_table.rowCount()):
             path_item = self.file_table.item(row, _COL_PATH)
             row_doc = path_item.data(_DOC_ROLE)
-            path_item.setText(row_doc.get("file_path", "") + ("  · giữ" if row_doc.get("id") == keeper.get("id") else ""))
-            self.file_table.item(row, _COL_NOTE).setText(note_for(row_doc, keeper, self._mode))
+            kept = keeper is not None and row_doc.get("id") == keeper.get("id")
+            path_item.setText(row_doc.get("file_path", "") + ("  · giữ" if kept else ""))
+            self.file_table.item(row, _COL_NOTE).setText(note_for(row_doc, keeper, self._mode, suggested))
         self._update_action_buttons(group)
 
     def _others(self) -> list[dict]:
@@ -347,12 +358,17 @@ class DuplicateFinderDialog(DesignDialog):
             return []
         group = groups[self._current]
         keeper = self._keeper_of(group)
+        if keeper is None:  # nothing is offered for removal until the person has chosen what to keep
+            return []
         return [d for d in group if d.get("id") != keeper.get("id")]
 
     def _update_action_buttons(self, group: list[dict] | None) -> None:
         count = len(self._others()) if group else 0
         self.remove_button.setText(f"Bỏ {count} bản kia khỏi thư viện")
-        self.delete_button.setText(f"Xóa {count} file khỏi máy…")
+        self.delete_button.setText(f"Chuyển {count} file vào Thùng rác…")
+        days = self.context.trash.retention_days()
+        self.trash_note.setText(f"Tự xóa hẳn sau {days} ngày; bạn đổi được ở cửa sổ Thùng rác." if days
+                                else "Giữ trong thùng rác đến khi bạn tự xóa.")
         self.remove_button.setEnabled(count > 0)
         self.delete_button.setEnabled(count > 0)
 
@@ -370,29 +386,36 @@ class DuplicateFinderDialog(DesignDialog):
         self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=False)
         self._forget({d["id"] for d in others})
 
-    def _on_delete_files(self) -> None:
+    def _on_trash_files(self) -> None:
+        """Move the other copies' files into MewBook's trash (they can come back), after one plain confirmation."""
         others = self._others()
         if not others:
             return
-        group = self._groups[self._mode][self._current]
-        keeper = self._keeper_of(group)
         count = len(others)
-        confirmed = confirm_danger(
-            self,
-            title=f"Xóa {count} file khỏi máy?",
-            message=(f"{'Hai' if count == 2 else str(count)} file dưới đây sẽ bị <b>xóa khỏi ổ cứng</b> và không nằm trong "
-                     f"Thùng rác của Windows. MewBook không thể hoàn tác việc này."),
-            items=[f"{d.get('file_path', '')} — {_size(d.get('file_size'))}" for d in others],
-            safe_text=(f"<b>Không bị đụng tới:</b> bản bạn giữ lại ({keeper.get('file_path', '')}), "
-                       "thông tin sách, hashtag và bộ sưu tập của cuốn này."),
-            ack_text=f"Tôi hiểu {count} file sẽ bị xóa vĩnh viễn",
-            action_text=f"Xóa {count} file",
-            cancel_text="Không xóa",
-        )
-        if not confirmed:
+        days = self.context.trash.retention_days()
+        answer = QMessageBox.question(
+            self, f"Chuyển {count} file vào Thùng rác?",
+            f"{count} file sẽ rời khỏi thư mục hiện tại và nằm trong Thùng rác của MewBook"
+            + (f", tự xóa hẳn sau {days} ngày" if days else "") + ". Bạn khôi phục được bất cứ lúc nào trước hạn.\n\n"
+            "Bản bạn giữ lại không bị đụng tới.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if answer != QMessageBox.Yes:
             return
-        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=True)
-        self._forget({d["id"] for d in others})
+        result = self.context.trash.send([(d["id"], d.get("file_path")) for d in others])
+        if result.failed:
+            QMessageBox.warning(
+                self, "Có file chưa chuyển được",
+                "Những file này vẫn nằm nguyên chỗ cũ và vẫn trong thư viện:\n\n"
+                + "\n".join(f"• {next((d.get('file_path') for d in others if d['id'] == doc_id), doc_id)}: {reason}"
+                            for doc_id, reason in result.failed))
+        self._forget(set(result.moved) | set(result.missing))
+
+    def _on_open_trash(self) -> None:
+        from smartdoc.presentation.trash_dialog import TrashDialog
+
+        dialog = TrashDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+        self.refresh()  # a restored book may be a duplicate again
 
     def _forget(self, deleted_ids: set[str]) -> None:
         """Removing copies can only shrink groups, never create new ones: drop them from what was found."""
@@ -416,7 +439,7 @@ class DuplicateFinderDialog(DesignDialog):
         self._scan_generation += 1
         generation, cancel = self._scan_generation, self._cancel_scan
         self._groups[MODE_FUZZY] = []
-        self.fuzzy_button.setText("Gần giống …")
+        self.fuzzy_button.setText("Gợi ý …")
         self.scan_status_label.setText("Đang tìm sách có tên/tác giả gần giống nhau…")
         self.scan_progress.setRange(0, 0)  # indeterminate until the first progress report
         self.scan_progress.show()
@@ -467,11 +490,11 @@ class DuplicateFinderDialog(DesignDialog):
             return
         self.scan_progress.hide()
         if error:
-            self.fuzzy_button.setText("Gần giống")
+            self.fuzzy_button.setText("Gợi ý")
             self.scan_status_label.setText(f"Không quét được sách gần giống: {error}")
             return
         self._groups[MODE_FUZZY] = groups
-        self.fuzzy_button.setText(f"Gần giống ({len(groups)})")
+        self.fuzzy_button.setText(f"Gợi ý ({len(groups)})")
         self.scan_status_label.hide()
         if self._mode == MODE_FUZZY:
             self._fill_groups()

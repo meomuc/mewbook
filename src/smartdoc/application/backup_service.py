@@ -110,17 +110,54 @@ def _verify(path: Path, expected_documents: int | None = None) -> None:
 
 
 class BackupService:
-    def __init__(self, db: DatabaseManager, retention: Callable[[], int] | int = DEFAULT_RETENTION) -> None:
+    def __init__(self, db: DatabaseManager, retention: Callable[[], int] | int = DEFAULT_RETENTION,
+                 folder: Callable[[], str] | str = "") -> None:
         self._db = db
         self._retention = retention
+        self._folder = folder
 
     # -- where and how many ----------------------------------------------------------------------------------
 
     @property
-    def directory(self) -> Path:
+    def default_directory(self) -> Path:
         if self._db.db_path == ":memory:":
             raise BackupError("Thư viện đang ở bộ nhớ tạm, không có tệp để sao lưu.")
         return Path(self._db.db_path).resolve().parent / BACKUP_DIR_NAME
+
+    @property
+    def custom_folder(self) -> str:
+        return (self._folder() if callable(self._folder) else self._folder or "").strip()
+
+    @property
+    def directory(self) -> Path:
+        """Where backups are kept: the folder the user chose, else `backups/` next to the library."""
+        if not self.custom_folder:
+            return self.default_directory
+        return Path(self.custom_folder)
+
+    def check_folder(self, folder: str | Path | None = None) -> str:
+        """"" when backups can be written to `folder` (default: the current one), else the reason in plain words."""
+        target = Path(folder) if folder else self.directory
+        if not target.exists():
+            try:
+                target.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                return f"Không tạo được thư mục sao lưu \"{target}\" (ổ đĩa chưa cắm hoặc không có quyền ghi)."
+        if not target.is_dir():
+            return f"\"{target}\" không phải là thư mục."
+        probe = target / f".mewbook-write-test-{os.getpid()}"
+        try:
+            probe.write_bytes(b"")
+            probe.unlink()
+        except OSError:
+            return f"Không ghi được vào thư mục sao lưu \"{target}\". Hãy chọn thư mục khác."
+        return ""
+
+    def _writable_directory(self) -> Path:
+        problem = self.check_folder() if self.custom_folder else ""
+        if problem:
+            raise BackupError(problem)
+        return self.directory
 
     def retention(self) -> int:
         value = self._retention() if callable(self._retention) else self._retention
@@ -128,18 +165,20 @@ class BackupService:
 
     # -- create ----------------------------------------------------------------------------------------------
 
-    def _new_path(self, reason: str) -> Path:
+    def _new_path(self, reason: str, folder: Path | None = None) -> Path:
         safe = re.sub(r"[^a-z0-9-]+", "-", reason.lower()).strip("-") or REASON_MANUAL
         now = time.time()
         stamp = f"{time.strftime('%Y%m%d-%H%M%S', time.localtime(now))}-{int((now % 1) * 1000):03d}"
-        path = self.directory / f"library-{stamp}-{safe}.db"
+        folder = folder or self.directory
+        path = folder / f"library-{stamp}-{safe}.db"
         counter = 1
         while path.exists():  # two backups in the same millisecond
-            path = self.directory / f"library-{stamp}{counter}-{safe}.db"
+            path = folder / f"library-{stamp}{counter}-{safe}.db"
             counter += 1
         return path
 
     def create_backup(self, reason: str = REASON_MANUAL) -> BackupInfo:
+        self._writable_directory()  # a chosen folder that cannot be used is reported, not replaced by another one
         with self._db.write_lock:
             path = self._new_path(reason)
             snapshot(self._db.connection, path)
@@ -149,7 +188,13 @@ class BackupService:
 
     def before_migration(self, from_version: int, to_version: int) -> None:
         """`DatabaseManager.initialize_tables(before_migrate=...)` hook. Runs under the write lock already."""
-        path = self._new_path(f"{REASON_PRE_UPGRADE}-v{from_version}-to-v{to_version}")
+        # Upgrading must still be possible with the chosen folder gone (an unplugged drive): this one safety copy
+        # then goes to the default folder, and the log says so.
+        if self.custom_folder and self.check_folder():
+            logger.warning("Backup folder %s is not usable; the pre-upgrade backup goes to the default folder", self.custom_folder)
+            path = self._new_path(f"{REASON_PRE_UPGRADE}-v{from_version}-to-v{to_version}", self.default_directory)
+        else:
+            path = self._new_path(f"{REASON_PRE_UPGRADE}-v{from_version}-to-v{to_version}")
         snapshot(self._db.connection, path)
         logger.info("Library backed up to %s before upgrading its schema", path.name)
         self.prune()

@@ -174,3 +174,33 @@ def test_a_backup_stays_a_single_file_even_after_it_is_opened_and_listed(tmp_pat
     service.create_backup()
     service.list_backups()  # opens each backup read-only to read its schema version
     assert sorted(p.suffix for p in (tmp_path / "backups").iterdir()) == [".db"]  # no -wal / -shm / .part beside it
+
+
+def test_backups_go_to_the_chosen_folder(tmp_path):
+    db = _library(tmp_path)
+    elsewhere = tmp_path / "usb" / "mew"
+    service = BackupService(db, folder=str(elsewhere))
+    assert service.check_folder() == "" and elsewhere.is_dir()
+    info = service.create_backup()
+    assert info.path.parent == elsewhere and not (tmp_path / "backups").exists()
+    assert [b.path for b in service.list_backups()] == [info.path]
+
+
+def test_an_unusable_chosen_folder_is_reported_not_replaced(tmp_path):
+    db = _library(tmp_path)
+    blocker = tmp_path / "a-file"
+    blocker.write_text("x")
+    service = BackupService(db, folder=str(blocker / "sub"))  # a folder cannot live inside a file
+    assert "Không tạo được" in service.check_folder() or "không phải" in service.check_folder()
+    with pytest.raises(BackupError):
+        service.create_backup()
+    assert not (tmp_path / "backups").exists()  # nothing quietly went to the default place
+
+
+def test_the_pre_upgrade_backup_still_happens_when_the_chosen_folder_is_gone(tmp_path):
+    db = _library(tmp_path)
+    blocker = tmp_path / "a-file"
+    blocker.write_text("x")
+    service = BackupService(db, folder=str(blocker / "sub"))
+    service.before_migration(1, 2)
+    assert len(list((tmp_path / "backups").glob("*pre-upgrade*.db"))) == 1

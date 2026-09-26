@@ -14,6 +14,7 @@ from smartdoc.application.error_reporter import ErrorReporter
 from smartdoc.application.error_uploader import ErrorUploader
 from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.application.relink_service import RelinkService
+from smartdoc.application.trash_service import TrashService
 from smartdoc.application.update_checker import UpdateChecker
 from smartdoc.core.config import ConfigManager
 from smartdoc.core.event_bus import EventBus
@@ -30,10 +31,13 @@ class AppContext:
         self.event_bus = event_bus or EventBus()
         self.db = db or DatabaseManager(self.config.config.db_path or "library.db")
         # An existing library is backed up before its schema is upgraded (S1-03); a failing backup stops the upgrade.
-        self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_retention)
+        self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_retention,
+                                     folder=lambda: self.config.config.backup_dir)
         self.db.initialize_tables(before_migrate=None if self.db.db_path == ":memory:" else self.backups.before_migration)
         # Missing-file detection and relinking (S1-04).
         self.relink = RelinkService(self.db, self.event_bus)
+        # MewBook's own trash: files removed as duplicates wait here before they are deleted for good.
+        self.trash = TrashService(self)
         # Optional, off-by-default, notify-only check for a newer release (S1-05).
         self.updates = UpdateChecker(self.config, self.event_bus)
         # What the library is filtered by (search text + sidebar selection) --

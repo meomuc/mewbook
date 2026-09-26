@@ -154,6 +154,12 @@ class AppConfig:
     disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
     # How many backups of library.db to keep in the "backups" folder next to it (application/backup_service.py).
     backup_retention: int = 5
+    # Where backups go instead of that "backups" folder ("" = the default). Must be a folder MewBook can write to;
+    # when it is not (a drive that is unplugged) the backup says so instead of quietly going elsewhere.
+    backup_dir: str = ""
+    # Days a file stays in MewBook's trash (application/trash_service.py) before it is deleted for good; 0 = keep until
+    # the user empties it.
+    trash_retention_days: int = 30
     # Optional "newer version?" check (application/update_checker.py): off unless the user turns it on; notify-only.
     update_check_enabled: bool = False
     update_last_checked: float = 0.0

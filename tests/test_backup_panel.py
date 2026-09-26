@@ -111,3 +111,21 @@ def test_settings_saves_the_retention_and_can_open_on_the_backup_tab(qapp, app_c
     dialog._on_save()
 
     assert app_context.config.config.backup_retention == 9
+
+
+def test_choosing_a_folder_sends_backups_there_and_a_bad_one_is_refused(qapp, file_context, tmp_path):
+    panel = BackupPanel(file_context)
+    target = tmp_path / "external"
+    assert panel._set_folder(str(target)) == "" and file_context.config.config.backup_dir == str(target)
+    panel._on_backup_now()
+    _wait(qapp, panel)
+    assert list(target.glob("library-*.db"))
+
+    blocker = tmp_path / "plain-file"
+    blocker.write_text("x")
+    assert panel._set_folder(str(blocker / "sub"))  # a reason is returned
+    assert file_context.config.config.backup_dir == str(target)  # the previous choice stays
+    assert panel.folder_warning.text()
+
+    panel._set_folder("")
+    assert file_context.config.config.backup_dir == "" and "mặc định" in panel.folder_label.text()

@@ -241,6 +241,7 @@ class MainWindow(QMainWindow):
         menu.addAction(vi.TOOL_SMART_CLASSIFY, lambda: self.open_smart_classify())
         menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
         menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
+        menu.addAction(vi.TOOL_TRASH, self._on_open_trash)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
         menu.addSeparator()
@@ -356,6 +357,13 @@ class MainWindow(QMainWindow):
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
+
+    def _on_open_trash(self) -> None:
+        from smartdoc.presentation.trash_dialog import TrashDialog
+
+        dialog = TrashDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_open_relink(self) -> None:
         dialog = RelinkDialog(self.context, self)

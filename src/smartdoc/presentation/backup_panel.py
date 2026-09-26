@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QFileDialog,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -78,7 +79,29 @@ class BackupPanel(SettingsPage):
         self.retention_spin.setRange(MIN_RETENTION, MAX_RETENTION)
         self.retention_spin.setValue(context.config.config.backup_retention)
         self.add_row("Số bản sao lưu giữ lại", "Bản cũ nhất được xóa khi vượt số này.", self.retention_spin)
-        self.add_row("Thư mục lưu bản sao", "Chọn nơi khác để lưu, ví dụ ổ đĩa ngoài.", QPushButton("Chọn thư mục…", self), soon=True)
+        folder_box = QWidget(self)
+        folder_layout = QVBoxLayout(folder_box)
+        folder_layout.setContentsMargins(0, 0, 0, 0)
+        folder_layout.setSpacing(6)
+        self.folder_label = QLabel(folder_box)
+        self.folder_label.setWordWrap(True)
+        self.folder_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.choose_folder_button = QPushButton("Chọn thư mục…", folder_box)
+        self.choose_folder_button.clicked.connect(self._on_choose_folder)
+        self.default_folder_button = QPushButton("Dùng thư mục mặc định", folder_box)
+        self.default_folder_button.clicked.connect(lambda: self._set_folder(""))
+        folder_buttons = QHBoxLayout()
+        folder_buttons.addWidget(self.choose_folder_button)
+        folder_buttons.addWidget(self.default_folder_button)
+        folder_buttons.addStretch(1)
+        self.folder_warning = QLabel(folder_box)
+        self.folder_warning.setWordWrap(True)
+        self.folder_warning.setStyleSheet(f"color: {tm.token('err')};")
+        folder_layout.addWidget(self.folder_label)
+        folder_layout.addLayout(folder_buttons)
+        folder_layout.addWidget(self.folder_warning)
+        self.add_row("Thư mục lưu bản sao", "Chọn nơi khác để lưu, ví dụ ổ đĩa ngoài. Thư mục không dùng được thì MewBook báo rõ, "
+                     "không tự đổi chỗ khác.", folder_box)
 
         holder = QWidget(self)
         holder_layout = QVBoxLayout(holder)
@@ -114,8 +137,45 @@ class BackupPanel(SettingsPage):
     def _service(self):
         return self.context.backups
 
+    def _on_choose_folder(self) -> None:
+        start = self._service().custom_folder or str(self._service().directory)
+        chosen = QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu bản sao lưu", start)
+        if chosen:
+            self._set_folder(chosen)
+
+    def _set_folder(self, folder: str) -> str:
+        """Use `folder` ("" = the default one) for backups. A folder that cannot be written to is refused with the reason
+        (and the previous choice stays); returns that reason, "" when it was accepted."""
+        service = self._service()
+        problem = service.check_folder(folder) if folder else ""
+        if problem:
+            self.folder_warning.setText(problem)
+            return problem
+        self.context.config.config.backup_dir = folder
+        self.context.config.save()
+        self.status_label.setText("")
+        self.refresh()
+        return ""
+
+    def folder(self) -> str:
+        return self.context.config.config.backup_dir
+
+    def _show_folder(self) -> None:
+        service = self._service()
+        try:
+            where = str(service.directory)
+        except BackupError:
+            self.folder_label.setText("")
+            self.folder_warning.setText("")
+            return
+        custom = service.custom_folder
+        self.folder_label.setText(where if custom else f"{where}  (mặc định, cạnh thư viện)")
+        self.default_folder_button.setEnabled(bool(custom))
+        self.folder_warning.setText(service.check_folder() if custom else "")
+
     def refresh(self) -> None:
         self.backup_list.clear()
+        self._show_folder()
         try:
             backups = self._service().list_backups()
             available = True
@@ -133,7 +193,8 @@ class BackupPanel(SettingsPage):
 
     def _update_buttons(self) -> None:
         idle = not self._busy and self._available
-        self.backup_button.setEnabled(idle)
+        self.backup_button.setEnabled(idle and not self.folder_warning.text())
+        self.choose_folder_button.setEnabled(self._available and not self._busy)
         self.restore_button.setEnabled(idle and self.backup_list.currentItem() is not None)
         self.folder_button.setEnabled(self._available)
 
