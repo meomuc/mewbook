@@ -23,6 +23,13 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
+def _no_cover_search_from_the_find_info_dialog(monkeypatch):
+    """"Tìm thêm thông tin" also searches covers on the internet. No test may reach the network by accident: the dialog
+    finds no covers unless a test puts its own search in place."""
+    monkeypatch.setattr("smartdoc.presentation.metadata_suggest_dialog.search_covers_for_text", lambda *a, **k: [])
+
+
+@pytest.fixture(autouse=True)
 def _destroy_widgets_on_main_thread():
     """Widgets left over from a test must be destroyed here, on the GUI
     thread. Otherwise Python's cyclic GC may collect them later from

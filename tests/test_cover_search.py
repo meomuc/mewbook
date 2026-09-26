@@ -784,3 +784,62 @@ def test_the_cache_does_not_serve_results_from_a_source_that_was_switched_off(mo
 
     with pytest.raises(CoverSearchError):
         search_covers("Anything", limit=3, min_score=0, disabled_sources={"Open Library", "Google Books", "Apple Books"})
+
+
+# -- One search box ---------------------------------------------------------------------------------------------------
+
+def test_split_query_reads_an_explicit_separator_as_title_and_author():
+    from smartdoc.application.cover_search import split_query
+
+    assert split_query("Nhà giả kim - Paulo Coelho") == [("Nhà giả kim", "Paulo Coelho"), ("Paulo Coelho", "Nhà giả kim")]
+    assert split_query("Dune by Frank Herbert")[0] == ("Dune", "Frank Herbert")
+    assert split_query("Đắc nhân tâm | Dale Carnegie")[0] == ("Đắc nhân tâm", "Dale Carnegie")
+    assert split_query("   ") == []
+
+
+def test_split_query_without_a_separator_tries_the_whole_text_then_a_trailing_name():
+    from smartdoc.application.cover_search import split_query
+
+    assert split_query("Nhà giả kim") == [("Nhà giả kim", "")]
+    assert split_query("Nhà giả kim Paulo Coelho") == [
+        ("Nhà giả kim Paulo Coelho", ""), ("Nhà giả kim", "Paulo Coelho"), ("Nhà giả", "kim Paulo Coelho")]
+    assert split_query("Trần-Trọng-Kim, Việt Nam sử lược")[0][1] == ""  # a comma is not a separator
+
+
+def test_a_title_with_a_hyphen_inside_a_word_is_not_split():
+    from smartdoc.application.cover_search import split_query
+
+    assert split_query("Gia-Định Thành Thông-Chí") == [("Gia-Định Thành Thông-Chí", "")]  # 3 words: too short to hold a name
+
+
+def test_the_whole_text_is_also_scored_against_title_and_author_together():
+    from smartdoc.application.cover_search import score_candidate
+
+    hit = _candidate("Nhà Giả Kim", author="Paulo Coelho")
+    assert score_candidate(hit, "Nhà giả kim Paulo Coelho", "") >= MIN_MATCH_SCORE  # one box, nothing to tell them apart
+    assert score_candidate(hit, "Nhà giả kim", "") >= 0.95  # a bare title that IS the title still ranks highest
+    assert score_candidate(_candidate("Đắc nhân tâm", author="Dale Carnegie"), "Nhà giả kim Paulo Coelho", "") < MIN_MATCH_SCORE
+
+
+def test_search_for_text_stops_at_the_first_reading_that_finds_something():
+    from smartdoc.application.cover_search import search_covers_for_text
+
+    calls = []
+
+    def searcher(title, author, **kwargs):
+        calls.append((title, author))
+        if author == "Paulo Coelho":
+            hit = CoverSearchResult("http://x/1.jpg", "Nhà giả kim", "Paulo Coelho", None, "Open Library")
+            hit.score = 0.98
+            return [hit]
+        return []
+
+    found = search_covers_for_text("Nhà giả kim Paulo Coelho", searcher=searcher)
+    assert calls == [("Nhà giả kim Paulo Coelho", ""), ("Nhà giả kim", "Paulo Coelho")] and len(found) == 1
+
+
+def test_the_default_threshold_keeps_another_authors_book_out_but_a_looser_one_admits_it():
+    other = _candidate("Nhà Giả Kim", author="Someone Else")
+    score = score_candidate(other, "Nhà giả kim", "Paulo Coelho")
+    assert score < MIN_MATCH_SCORE and score >= 0.6  # visible to a person who loosens the setting
+    assert MIN_MATCH_SCORE == 0.70

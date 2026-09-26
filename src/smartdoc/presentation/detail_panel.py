@@ -3,7 +3,7 @@
 place.
 
 Layout, top to bottom: header "CHI TIẾT" (refresh, close) · the cover with a "Bấm để đọc" pill beside a column of four
-actions (★ Sẽ đọc, Đổi bìa, Tìm thông tin, Gửi máy đọc) · title and author as editable fields with the link to the
+actions (★ Sẽ đọc, Đổi bìa, Tìm thêm thông tin, Gửi máy đọc) · title and author as editable fields with the link to the
 author's other books · a read-only table (format, publisher, year and language, ISBN, added/modified, rating, file
 location) · hashtag chips · the AI summary card. Editable fields are dashed with a pen icon; read-only rows have
 neither (see editable_field.py) -- the difference is a shape, not only a colour.
@@ -268,7 +268,7 @@ class DocumentDetailPanel(QFrame):
         self.cover_label.clicked.connect(self._on_read)
         self.star_button = self._action_button("Sẽ đọc", "star", "Thêm vào / bỏ khỏi danh sách Sẽ đọc")
         self.cover_search_label = self._action_button("Đổi bìa", "image", "Tìm hoặc chọn ảnh bìa khác")
-        self.metadata_button = self._action_button("Tìm thông tin", "search", "Tìm thông tin còn thiếu của sách")
+        self.metadata_button = self._action_button("Tìm thêm thông tin", "search", "Tìm thông tin và ảnh bìa của sách")
         self.ereader_button = self._action_button("Gửi máy đọc", "send", "Chép file sách sang máy đọc sách")
         self.star_button.clicked.connect(self._on_toggle_star)
         self.cover_search_label.clicked.connect(self._on_search_cover)

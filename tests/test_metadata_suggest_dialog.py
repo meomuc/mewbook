@@ -74,7 +74,7 @@ def test_opening_searches_and_lists_candidates_with_the_first_selected(qapp, app
     doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
     dialog, service = _open(qapp, app_context, doc)
 
-    assert service.calls == [{"title": "scan_0042", "author": "Unknown", "include_internet": False}]
+    assert service.calls == [{"title": "scan_0042", "author": "", "include_internet": False}]  # one box; "Unknown" is not typed in
     assert dialog.candidate_list.count() == 1 and dialog.candidate_list.currentRow() == 0
     assert "Open Library" in dialog.candidate_list.item(0).text() and "95%" in dialog.candidate_list.item(0).text()
 
@@ -273,3 +273,99 @@ def test_the_footer_counts_the_ticked_rows_and_the_steps_follow(qapp, app_contex
     assert dialog.apply_button.text() == f"Áp dụng {ticked} mục"
     assert dialog.table.item(0, 4).text() == "Open Library"  # the source column
     dialog.deleteLater()
+
+
+# -- Tìm thêm thông tin: one box, cover and information applied independently, "Tìm trên Internet" ------------------
+
+def _cover_bytes():
+    from PySide6.QtCore import QBuffer, QIODevice
+    from PySide6.QtGui import QColor, QImage
+
+    image = QImage(60, 90, QImage.Format_RGB32)
+    image.fill(QColor("#336699"))
+    buffer = QBuffer()
+    buffer.open(QIODevice.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
+def _with_cover(monkeypatch):
+    from smartdoc.application.cover_search import CoverSearchResult
+
+    hit = CoverSearchResult("http://x/c.png", "Gia Định thành thông chí", "Trịnh Hoài Đức", 1820, "Open Library")
+    hit.score = 0.93
+    monkeypatch.setattr("smartdoc.presentation.metadata_suggest_dialog.search_covers_for_text", lambda *a, **k: [hit])
+    monkeypatch.setattr("smartdoc.presentation.metadata_suggest_dialog.download_cover_image", lambda c, validate=False: _cover_bytes())
+
+
+def test_one_box_holds_title_and_author_and_the_dialog_is_renamed(qapp, app_context, tmp_path):
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf", title="Nhà giả kim", author="Paulo Coelho")
+    dialog, service = _open(qapp, app_context, doc)
+    assert dialog.title_edit.text() == "Nhà giả kim - Paulo Coelho" and not hasattr(dialog, "author_edit")
+    assert service.calls[0]["title"] == "Nhà giả kim" and service.calls[0]["author"] == "Paulo Coelho"
+    assert dialog.windowTitle() == "Tìm thêm thông tin" or "Tìm thêm thông tin" in dialog.title_label.text()
+
+
+def test_text_without_a_separator_is_tried_whole_first_then_as_title_and_author(qapp, app_context, tmp_path):
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    nothing = LookupResult([], searched_internet=True)
+    dialog = MetadataSuggestDialog(app_context, doc, service=_FakeService(nothing))
+    service = dialog._service
+    assert _pump_until(qapp, lambda: len(service.calls) >= 1 and dialog.search_button.isEnabled())
+    service.calls.clear()
+    dialog.title_edit.setText("Nhà giả kim Paulo Coelho")
+    dialog.search_button.click()
+    assert _pump_until(qapp, lambda: len(service.calls) == 3 and dialog.search_button.isEnabled())
+    assert [(c["title"], c["author"]) for c in service.calls][:2] == [("Nhà giả kim Paulo Coelho", ""), ("Nhà giả kim", "Paulo Coelho")]
+
+
+def test_covers_are_listed_and_only_the_picture_can_be_applied(qapp, app_context, tmp_path, monkeypatch):
+    _with_cover(monkeypatch)
+    _quiet(monkeypatch)
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    dialog, _ = _open(qapp, app_context, doc)
+    assert _pump_until(qapp, lambda: dialog.cover_list.count() == 1)
+    dialog.cover_list.setCurrentRow(0)
+    dialog.apply_info_check.setChecked(False)  # the picture only
+    assert dialog.apply_button.isEnabled() and dialog.apply_button.text() == "Áp dụng ảnh bìa"
+    dialog._on_apply()
+    after = app_context.db.get_document("d1")
+    assert after["cover_path"] and after["author"] == "Unknown"  # information untouched
+
+
+def test_both_the_picture_and_the_information_can_be_applied_together(qapp, app_context, tmp_path, monkeypatch):
+    _with_cover(monkeypatch)
+    _quiet(monkeypatch)
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    dialog, _ = _open(qapp, app_context, doc)
+    assert _pump_until(qapp, lambda: dialog.cover_list.count() == 1)
+    dialog.cover_list.setCurrentRow(0)
+    assert dialog.apply_button.text().endswith("+ ảnh bìa")
+    dialog._on_apply()
+    after = app_context.db.get_document("d1")
+    assert after["cover_path"] and after["author"] == "Trịnh Hoài Đức"  # ("Unknown" is a placeholder: ticked by default)
+
+
+def test_information_only_leaves_the_cover_alone(qapp, app_context, tmp_path, monkeypatch):
+    _with_cover(monkeypatch)
+    _quiet(monkeypatch)
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    dialog, _ = _open(qapp, app_context, doc)
+    assert _pump_until(qapp, lambda: dialog.cover_list.count() == 1)
+    dialog.cover_list.setCurrentRow(0)
+    dialog.apply_cover_check.setChecked(False)
+    dialog._on_apply()
+    after = app_context.db.get_document("d1")
+    assert not after["cover_path"] and after["author"] == "Trịnh Hoài Đức"
+
+
+def test_the_internet_button_only_opens_the_browser_with_the_keywords(qapp, app_context, tmp_path, monkeypatch):
+    from smartdoc.presentation import metadata_suggest_dialog as module
+
+    opened = []
+    monkeypatch.setattr(module.QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url.toString())))
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf", title="Nhà giả kim", author="Paulo Coelho")
+    dialog, _ = _open(qapp, app_context, doc)
+    dialog.web_button.click()
+    assert opened and opened[0].startswith("https://www.google.com/search?q=") and "Paulo+Coelho" in opened[0]
+    assert module.web_search_url("  a   b ") == "https://www.google.com/search?q=a+b+s%C3%A1ch"

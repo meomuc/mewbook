@@ -1236,8 +1236,8 @@ class LibraryListWidget(QWidget):
         reveal_action = menu.addAction("Mở vị trí file")
         edit_action = menu.addAction("Chỉnh sửa thông tin")
         review_action = menu.addAction("Xem / Viết đánh giá")
-        cover_search_action = menu.addAction("Tìm ảnh bìa...")
-        metadata_search_action = menu.addAction("Tìm thông tin sách...")
+        metadata_search_action = menu.addAction("Tìm thêm thông tin...")  # information and cover, one window
+        cover_search_action = menu.addAction("Đổi ảnh bìa...")  # by link or from a file
         ai_summary_action = menu.addAction("Tóm tắt AI...")
         smart_classify_action = menu.addAction("Phân loại thông minh")
         menu.addSeparator()

@@ -52,6 +52,7 @@ from smartdoc.application.cover_search import (
     normalize_image_url,
     read_cover_file,
     search_covers,
+    search_covers_for_text,
 )
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.cover_manager import CoverCacheManager
@@ -213,16 +214,17 @@ class CoverSearchDialog(DesignDialog):
         self.setMaximumSize(1040, 820)  # a grid of many thumbnails shouldn't be able to balloon the window
         tm = theme_manager()
 
-        self.title_edit = QLineEdit(doc.get("title", "") or "", self)
-        self.author_edit = QLineEdit(doc.get("author", "") or "", self)
+        # One box for title and author (application/cover_search.split_query works out which is which).
+        author = (doc.get("author", "") or "").strip()
+        start = (doc.get("title", "") or "").strip()
+        self.title_edit = QLineEdit(f"{start} - {author}" if start and author and author.lower() != "unknown" else start, self)
+        self.title_edit.setPlaceholderText("Tên sách và tác giả, ví dụ: Nhà giả kim - Paulo Coelho")
+        self.title_edit.returnPressed.connect(self._on_search)
         self.search_button = QPushButton("Tìm kiếm", self)
         self.search_button.setProperty("role", "primary")
         self.search_button.clicked.connect(self._on_search)
         form_row = QHBoxLayout()
-        form_row.addWidget(QLabel("Tiêu đề", self))
         form_row.addWidget(self.title_edit, 1)
-        form_row.addWidget(QLabel("Tác giả", self))
-        form_row.addWidget(self.author_edit, 1)
         form_row.addWidget(self.search_button)
 
         # Which sources will be asked: a chip per source; Google Images needs the person's own key and is dimmed
@@ -243,10 +245,11 @@ class CoverSearchDialog(DesignDialog):
                                f" background: {tm.token('surface') if on else 'transparent'};")
             self.source_chips[source] = chip
         chips.set_widgets(list(self.source_chips.values()))
-        self.include_weak_check = QCheckBox(f"Hiện cả kết quả khớp dưới {round(MIN_MATCH_SCORE * 100)}%", self)
+        self._match_percent = max(0, min(100, int(context.config.config.cover_match_percent)))
+        self.include_weak_check = QCheckBox(f"Hiện cả kết quả khớp dưới {self._match_percent}%", self)
         self.include_weak_check.setToolTip(
-            "Mặc định chỉ hiện ảnh bìa khớp tiêu đề/tác giả từ "
-            f"{round(MIN_MATCH_SCORE * 100)}% trở lên. Bật tùy chọn này nếu sách hiếm, ít có trong các kho ảnh bìa."
+            f"Mặc định chỉ hiện ảnh bìa khớp tiêu đề/tác giả từ {self._match_percent}% trở lên (chỉnh ở Cài đặt › Ảnh bìa). "
+            "Bật tùy chọn này nếu sách hiếm, ít có trong các kho ảnh bìa."
         )
 
         self.status_label = QLabel("", self)
@@ -365,9 +368,8 @@ class CoverSearchDialog(DesignDialog):
             self._set_preview(self.new_preview, pixmap)
 
     def _on_search(self) -> None:
-        title = self.title_edit.text().strip()
-        author = self.author_edit.text().strip()
-        if not title:
+        text = self.title_edit.text().strip()
+        if not text:
             QMessageBox.warning(self, "Thiếu tiêu đề", "Vui lòng nhập tiêu đề để tìm ảnh bìa.")
             return
 
@@ -380,14 +382,14 @@ class CoverSearchDialog(DesignDialog):
         self._on_selection_changed()
 
         config = self.context.config.config
-        min_score = 0.0 if self.include_weak_check.isChecked() else MIN_MATCH_SCORE
+        min_score = 0.0 if self.include_weak_check.isChecked() else self._match_percent / 100
         relay = self._relay
 
         def worker() -> None:
             try:
-                candidates = search_covers(
-                    title,
-                    author,
+                candidates = search_covers_for_text(
+                    text,
+                    searcher=search_covers,  # (the module-level name, so a test can stand in for the network)
                     google_api_key=config.google_image_api_key,
                     google_cx=config.google_image_search_cx,
                     min_score=min_score,
@@ -415,7 +417,7 @@ class CoverSearchDialog(DesignDialog):
             return
         if not downloaded:
             self.status_label.setText(
-                f"Không tìm thấy ảnh bìa nào khớp từ {round(MIN_MATCH_SCORE * 100)}% trở lên. "
+                f"Không tìm thấy ảnh bìa nào khớp từ {self._match_percent}% trở lên. "
                 "Hãy thử sửa tiêu đề/tác giả, hoặc bật \"Hiện cả kết quả khớp thấp\"."
             )
             return

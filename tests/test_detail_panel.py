@@ -562,7 +562,7 @@ def test_editable_field_paints_differently_at_rest_and_while_editing(qapp, app_c
 def test_the_four_actions_and_the_close_button_exist(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     names = [b.text() for b in (panel.star_button, panel.cover_search_label, panel.metadata_button, panel.ereader_button)]
-    assert names == ["Sẽ đọc", "Đổi bìa", "Tìm thông tin", "Gửi máy đọc"]
+    assert names == ["Sẽ đọc", "Đổi bìa", "Tìm thêm thông tin", "Gửi máy đọc"]
     closed, sent = [], []
     panel.close_requested.connect(lambda: closed.append(1))
     panel.ereader_requested.connect(lambda: sent.append(1))

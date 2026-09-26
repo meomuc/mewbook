@@ -1,5 +1,11 @@
-"""Tìm thông tin sách (stage G7): look a book up, review the differences, apply what you accept -- in three visible
-steps (Tìm, Chọn kết quả, Xem khác biệt).
+"""Tìm thêm thông tin (was "Tìm thông tin sách" + "Tìm ảnh bìa"): look a book up -- its information AND its cover -- review
+the differences, and apply what you accept, the picture and the information independently or both. Three visible steps
+(Tìm, Chọn kết quả, Xem khác biệt).
+
+One search box takes the title and the author together ("Nhà giả kim - Paulo Coelho", or just the words in any order);
+application/cover_search.split_query works out the readings and the search tries them, so this finds what two boxes did.
+"Tìm trên Internet" only opens the default browser on a web search of that text -- the person carries on there; MewBook
+does not read the page that comes back.
 
 Nothing is changed until "Áp dụng" is pressed. The table lists, for the chosen
 candidate, every field whose suggested value differs from the current one --
@@ -16,9 +22,11 @@ from __future__ import annotations
 
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -37,9 +45,26 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc.application.cover_search import (
+    CoverSearchError,
+    download_cover_image,
+    search_covers_for_text,
+    split_query,
+)
 from smartdoc.application.metadata_applier import MetadataApplier, MetadataApplyError
 from smartdoc.application.metadata_lookup import LookupResult, MetadataLookupService
 from smartdoc.application.metadata_writer import MetadataWriter
+from smartdoc.core.event_bus import LibraryUpdatedEvent
+from smartdoc.infrastructure.cover_manager import CoverCacheManager
+from smartdoc.presentation.cover_search_dialog import (
+    _CELL_SIZE,
+    _IMAGE_BYTES_ROLE,
+    _SCORE_ROLE,
+    _THUMB_SIZE,
+    _ResultDelegate,
+    _result_label,
+    _result_tooltip,
+)
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.worker_relay import WorkerRelay, post
@@ -90,9 +115,10 @@ def _shorten(text: str) -> str:
 
 class MetadataSuggestDialog(DesignDialog):
     lookup_finished = Signal(int, object, str)  # (search number, LookupResult | None, error message)
+    covers_finished = Signal(int, list, str)  # (search number, [(CoverSearchResult, image bytes)], error message)
 
     def __init__(self, context, doc: dict, parent=None, service=None, applier=None) -> None:
-        super().__init__(parent, title="Tìm thông tin sách", subtitle=doc.get("title", "") or "", icon="search",
+        super().__init__(parent, title="Tìm thêm thông tin", subtitle=doc.get("title", "") or "", icon="search",
                          width=860)
         self.context = context
         self.doc = doc
@@ -100,24 +126,34 @@ class MetadataSuggestDialog(DesignDialog):
         self._service = service or MetadataLookupService(context)
         self._applier = applier or MetadataApplier(context)
         self._candidates: list = []
+        self._cover_pending = False  # the cover search of the current search number is still running
+        self._info_pending = False
+        self._cover_manager = CoverCacheManager(context)
         self._search_number = 0
         self._relay = WorkerRelay(self)  # what the lookup thread talks to (never the dialog itself)
 
-        self.resize(880, 660)
+        self.resize(900, 780)
         self.step_label = QLabel(self)
         self.step_label.setTextFormat(Qt.RichText)
         self.body.addWidget(self.step_label)
 
-        self.title_edit = QLineEdit(doc.get("title", "") or "", self)
-        self.author_edit = QLineEdit(doc.get("author", "") or "", self)
+        # ONE box for title and author; a book whose author is known starts as "title - author".
+        author = (doc.get("author", "") or "").strip()
+        known_author = author and author.lower() != "unknown"
+        start = (doc.get("title", "") or "").strip()
+        self.title_edit = QLineEdit(f"{start} - {author}" if start and known_author else start, self)
+        self.title_edit.setPlaceholderText("Tên sách và tác giả, ví dụ: Nhà giả kim - Paulo Coelho")
+        self.title_edit.setClearButtonEnabled(True)
+        self.title_edit.returnPressed.connect(lambda: self._start_search(include_internet=False))
         self.search_button = QPushButton("Tìm kiếm", self)
         self.search_button.clicked.connect(lambda: self._start_search(include_internet=False))
+        self.web_button = QPushButton("Tìm trên Internet", self)
+        self.web_button.setToolTip("Mở trình duyệt của bạn với trang tìm kiếm cho từ khóa này. MewBook không đọc kết quả.")
+        self.web_button.clicked.connect(self._on_search_web)
         search_row = QHBoxLayout()
-        search_row.addWidget(QLabel("Tiêu đề"))
         search_row.addWidget(self.title_edit, stretch=1)
-        search_row.addWidget(QLabel("Tác giả"))
-        search_row.addWidget(self.author_edit, stretch=1)
         search_row.addWidget(self.search_button)
+        search_row.addWidget(self.web_button)
 
         self.status_label = QLabel("", self)
         self.status_label.setWordWrap(True)
@@ -129,8 +165,23 @@ class MetadataSuggestDialog(DesignDialog):
         status_row.addWidget(self.internet_button)
 
         self.candidate_list = QListWidget(self)
-        self.candidate_list.setMaximumHeight(150)
+        self.candidate_list.setMaximumHeight(110)
         self.candidate_list.currentRowChanged.connect(self._show_candidate)
+
+        # Covers found for the same search: pick one to use as the book's picture (independent of the information).
+        self.cover_list = QListWidget(self)
+        self.cover_list.setViewMode(QListWidget.IconMode)
+        self.cover_list.setIconSize(_THUMB_SIZE)
+        self.cover_list.setGridSize(_CELL_SIZE)
+        self.cover_list.setUniformItemSizes(True)
+        self.cover_list.setItemDelegate(_ResultDelegate(self.cover_list))
+        self.cover_list.setResizeMode(QListWidget.Adjust)
+        self.cover_list.setMovement(QListWidget.Static)
+        self.cover_list.setWrapping(False)  # one row, scrolled sideways: the information table keeps the height
+        self.cover_list.setFixedHeight(_CELL_SIZE.height() + 24)
+        self.cover_list.itemSelectionChanged.connect(self._update_apply_enabled)
+        self.cover_status = QLabel("", self)
+        self.cover_status.setWordWrap(True)
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(["", "MỤC", "HIỆN TẠI", "ĐỀ XUẤT", "NGUỒN"])
@@ -169,15 +220,33 @@ class MetadataSuggestDialog(DesignDialog):
         self.write_check.toggled.connect(lambda _checked: self._update_backup_row())
         self._setup_write_option()
 
+        self.apply_info_check = QCheckBox("Áp dụng thông tin sách", self)
+        self.apply_info_check.setChecked(True)
+        self.apply_cover_check = QCheckBox("Áp dụng ảnh bìa đã chọn", self)
+        self.apply_cover_check.setChecked(True)
+        for check in (self.apply_info_check, self.apply_cover_check):
+            check.toggled.connect(lambda _checked: self._update_apply_enabled())
+        apply_row = QHBoxLayout()
+        apply_row.addWidget(self.apply_info_check)
+        apply_row.addWidget(self.apply_cover_check)
+        apply_row.addStretch(1)
+        self.other_cover_button = QPushButton("Đổi bìa bằng đường dẫn / file…", self)
+        self.other_cover_button.clicked.connect(self._on_other_cover)
+        apply_row.addWidget(self.other_cover_button)
+
         self.body.addLayout(search_row)
         self.body.addLayout(status_row)
-        self.body.addWidget(QLabel("KẾT QUẢ TÌM ĐƯỢC", self))
+        self.body.addWidget(QLabel("THÔNG TIN TÌM ĐƯỢC", self))
         self.body.addWidget(self.candidate_list)
         self.body.addWidget(self.table, 1)
+        self.body.addWidget(QLabel("ẢNH BÌA TÌM ĐƯỢC", self))
+        self.body.addWidget(self.cover_status)
+        self.body.addWidget(self.cover_list)
         self.body.addWidget(self.locked_note)
         self.body.addWidget(self.write_check)
         self.body.addWidget(self.write_hint)
         self.body.addWidget(self.backup_row)
+        self.body.addLayout(apply_row)
 
         self.undo_button = self.add_footer_link("Hoàn tác lần gần nhất", "refresh", self._on_undo)
         self.selected_label = self.add_footer_note("0 mục được chọn")
@@ -186,6 +255,7 @@ class MetadataSuggestDialog(DesignDialog):
         self.apply_button.setEnabled(False)
 
         self.lookup_finished.connect(self._on_lookup_finished)
+        self.covers_finished.connect(self._on_covers_finished)
         self._refresh_undo_button()
         self._set_step(1)
         if self.title_edit.text().strip():
@@ -229,9 +299,26 @@ class MetadataSuggestDialog(DesignDialog):
 
     # -- search -----------------------------------------------------------------------
 
+    def _min_score(self) -> float:
+        return max(0.0, min(1.0, int(self.context.config.config.cover_match_percent) / 100))
+
+    def _on_search_web(self) -> None:
+        text = self.title_edit.text().strip()
+        if not text:
+            QMessageBox.warning(self, "Thiếu từ khóa", "Vui lòng nhập tên sách (và tác giả) để tìm.")
+            return
+        QDesktopServices.openUrl(QUrl(web_search_url(text)))
+
+    def _on_other_cover(self) -> None:
+        from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
+
+        dialog = CoverSearchDialog(self.context, self._current_doc(), self)
+        dialog.exec()
+        dialog.deleteLater()
+
     def _start_search(self, *, include_internet: bool) -> None:
-        title, author = self.title_edit.text().strip(), self.author_edit.text().strip()
-        if not title:
+        text = self.title_edit.text().strip()
+        if not text:
             QMessageBox.warning(self, "Thiếu tiêu đề", "Vui lòng nhập tiêu đề để tìm thông tin sách.")
             return
         self._search_number += 1
@@ -242,23 +329,92 @@ class MetadataSuggestDialog(DesignDialog):
         self.internet_button.setEnabled(False)
         self.candidate_list.clear()
         self.table.setRowCount(0)
+        self.cover_list.clear()
+        self.cover_status.setText("Đang tìm ảnh bìa...")
+        self._info_pending = self._cover_pending = True
         self._update_apply_enabled()
 
         service, doc, relay = self._service, self.doc, self._relay
+        readings, min_score = split_query(text), self._min_score()
+        config = self.context.config.config
 
-        def worker() -> None:
+        def lookup_worker() -> None:
             try:
-                result, error = service.lookup(doc, title=title, author=author, include_internet=include_internet), ""
+                result, error = self._lookup(service, doc, readings, include_internet, min_score), ""
             except Exception as exc:  # noqa: BLE001 -- the dialog must show a message, never crash on a lookup bug
                 logger.exception("Metadata lookup failed")
                 result, error = None, str(exc)
             post(relay, "lookup_finished", number, result, error)
 
-        threading.Thread(target=worker, daemon=True).start()
+        def cover_worker() -> None:
+            try:
+                found = search_covers_for_text(
+                    text, google_api_key=config.google_image_api_key, google_cx=config.google_image_search_cx,
+                    min_score=min_score, disabled_sources=config.disabled_cover_sources)
+            except CoverSearchError as exc:
+                post(relay, "covers_finished", number, [], str(exc))
+                return
+            except Exception as exc:  # noqa: BLE001 -- the cover part failing must not spoil the information part
+                logger.exception("Cover search failed")
+                post(relay, "covers_finished", number, [], str(exc))
+                return
+
+            def fetch(candidate):
+                try:
+                    return candidate, download_cover_image(candidate, validate=True)
+                except CoverSearchError:
+                    return None  # one bad picture must not sink the rest
+
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                downloaded = [pair for pair in pool.map(fetch, found) if pair is not None]
+            post(relay, "covers_finished", number, downloaded, "")
+
+        threading.Thread(target=lookup_worker, daemon=True).start()
+        threading.Thread(target=cover_worker, daemon=True).start()
+
+    @staticmethod
+    def _lookup(service, doc: dict, readings: list[tuple[str, str]], include_internet: bool, min_score: float) -> LookupResult:
+        """The information lookup for one line of text: the first reading of it (whole text as the title) that finds
+        something wins; the next readings are only tried when it found nothing from outside the book's own file."""
+        merged = LookupResult()
+        for title, author in readings or [("", "")]:
+            result = service.lookup(doc, title=title, author=author, include_internet=include_internet, min_score=min_score)
+            merged.searched_internet = merged.searched_internet or result.searched_internet
+            merged.errors.extend(e for e in result.errors if e not in merged.errors)
+            merged.candidates.extend(result.candidates)
+            if any(c.tier != 0 for c in result.candidates):
+                break
+        merged.candidates = MetadataLookupService._drop_duplicates(merged.candidates)
+        return merged
+
+    def _on_covers_finished(self, number: int, downloaded: list, error: str) -> None:
+        if number != self._search_number:
+            return
+        self._cover_pending = False
+        if error:
+            self.cover_status.setText(f"Chưa tìm được ảnh bìa: {error}")
+        elif not downloaded:
+            self.cover_status.setText(f"Không có ảnh bìa nào khớp từ {round(self._min_score() * 100)}% trở lên. "
+                                      "Bạn đổi được mức khớp ở Cài đặt › Ảnh bìa.")
+        else:
+            self.cover_status.setText(f"{len(downloaded)} ảnh bìa -- bấm vào một ảnh để dùng.")
+        for candidate, image_bytes in downloaded:
+            pixmap = QPixmap()
+            if not pixmap.loadFromData(image_bytes):
+                continue
+            thumb = pixmap.scaled(_THUMB_SIZE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            item = QListWidgetItem(QIcon(thumb), _result_label(candidate))
+            item.setToolTip(_result_tooltip(candidate))
+            item.setData(_IMAGE_BYTES_ROLE, image_bytes)
+            score = getattr(candidate, "score", 0.0)
+            item.setData(_SCORE_ROLE, round(score * 100) if score else 0)
+            self.cover_list.addItem(item)
+        self._update_apply_enabled()
 
     def _on_lookup_finished(self, number: int, result: LookupResult | None, error: str) -> None:
         if number != self._search_number:
             return  # a newer search superseded this one
+        self._info_pending = False
         self.search_button.setEnabled(True)
         if result is None:
             self.status_label.setText(f"Tìm kiếm thất bại: {error}")
@@ -347,15 +503,57 @@ class MetadataSuggestDialog(DesignDialog):
                 changes[check.data(Qt.UserRole)] = self.table.item(row, _COL_SUGGESTED).toolTip()
         return changes
 
+    def _picked_cover(self) -> bytes | None:
+        items = self.cover_list.selectedItems()
+        return items[0].data(_IMAGE_BYTES_ROLE) if items else None
+
+    def _will_apply_info(self) -> bool:
+        return self.apply_info_check.isChecked() and bool(self.checked_changes())
+
+    def _will_apply_cover(self) -> bool:
+        return self.apply_cover_check.isChecked() and self._picked_cover() is not None
+
     def _update_apply_enabled(self) -> None:
         count = len(self.checked_changes())
-        self.apply_button.setEnabled(count > 0)
-        self.apply_button.setText(f"Áp dụng {count} mục" if count else "Áp dụng")
-        self.selected_label.setText(f"{count} mục được chọn")
+        cover = self._picked_cover() is not None
+        self.apply_info_check.setEnabled(count > 0)
+        self.apply_cover_check.setEnabled(cover)
+        info_on, cover_on = self._will_apply_info(), self._will_apply_cover()
+        self.apply_button.setEnabled(info_on or cover_on)
+        parts = ([f"{count} mục"] if info_on else []) + (["ảnh bìa"] if cover_on else [])
+        self.apply_button.setText("Áp dụng " + " + ".join(parts) if parts else "Áp dụng")
+        self.selected_label.setText(f"{count} mục được chọn" + (" · 1 ảnh bìa" if cover else ""))
 
     # -- apply / undo -------------------------------------------------------------------
 
+    def _apply_cover(self) -> bool:
+        """Use the picked picture as the book's cover; False (and a message) when it could not be saved."""
+        data = self._picked_cover()
+        doc_id = self.doc.get("id")
+        if data is None or not doc_id:
+            return False
+        cover_path = self._cover_manager.save_cover(doc_id, data)
+        if not cover_path:
+            QMessageBox.warning(self, "Lỗi", "Không lưu được ảnh bìa.")
+            return False
+        self.context.db.update_document_cover(doc_id, cover_path)
+        self.context.event_bus.publish(LibraryUpdatedEvent())
+        return True
+
     def _on_apply(self) -> None:
+        """Applies what is ticked: the information, the picture, or both -- each on its own."""
+        want_cover = self._will_apply_cover()
+        if not self._will_apply_info():
+            if want_cover and self._apply_cover():
+                QMessageBox.information(self, "Đã cập nhật", "Đã đổi ảnh bìa.")
+                self.applied = True
+                self.accept()
+            return
+        if want_cover and self._apply_cover():
+            self.applied = True
+        self._apply_info(also_cover=want_cover and self.applied)
+
+    def _apply_info(self, also_cover: bool = False) -> None:
         changes = self.checked_changes()
         row = self.candidate_list.currentRow()
         if not changes or not 0 <= row < len(self._candidates):
@@ -386,6 +584,8 @@ class MetadataSuggestDialog(DesignDialog):
         QApplication.restoreOverrideCursor()
 
         lines = [f"Đã cập nhật {len(result.changed_fields)} mục thông tin trong thư viện."]
+        if also_cover:
+            lines.append("Đã đổi ảnh bìa.")
         if result.written_fields:
             lines.append(f"Đã ghi đè {len(result.written_fields)} mục thông tin lên file sách gốc (file cũ đã được sao lưu, có thể hoàn tác).")
         if result.index_only_fields:
@@ -430,3 +630,10 @@ class MetadataSuggestDialog(DesignDialog):
 
     def _refresh_undo_button(self) -> None:
         self.undo_button.setEnabled(self._applier.can_undo(self.doc["id"]))
+
+
+def web_search_url(text: str) -> str:
+    """The web search page for `text`, opened in the person's own browser."""
+    from urllib.parse import quote_plus
+
+    return "https://www.google.com/search?q=" + quote_plus(" ".join(text.split()) + " sách")

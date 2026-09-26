@@ -21,7 +21,7 @@ except the optional Google Images one is free and needs no key:
 
 Accuracy: sources are queried in parallel and every candidate is scored
 by how closely its title/author match what was asked for (diacritics- and
-case-insensitive). Candidates under MIN_MATCH_SCORE (80%) are dropped --
+case-insensitive). Candidates under MIN_MATCH_SCORE (70%; the person can move it in Settings) are dropped --
 catalog searches are fuzzy and mostly return near-misses, which showed up
 as a jumble of unrelated covers -- and the rest are ranked, so the best
 match comes first no matter which source found it.
@@ -53,7 +53,7 @@ import threading
 import time
 import unicodedata
 import xml.etree.ElementTree as ET
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from urllib.parse import urlsplit
@@ -232,10 +232,17 @@ def _author_similarity(wanted: str, found: str) -> float:
     return score
 
 
-# Below this a candidate is a different book, not a worse copy of this one.
-MIN_MATCH_SCORE = 0.80
+# Below this a candidate is a different book, not a worse copy of this one. It was 0.80; 0.70 keeps every same-book
+# variant a fixed test set of catalogue spellings had at 0.80 (subtitle added, author written "Coelho, Paulo", no
+# diacritics, a translated subtitle needs 0.60) and lets more of the thinly catalogued Vietnamese books through. The
+# person can tighten or loosen it (AppConfig.cover_match_percent, Settings > Ảnh bìa); each result shows its own match
+# percentage, so a sibling title by the same author (which scores 70-85%) is visibly a weaker match.
+MIN_MATCH_SCORE = 0.70
+MIN_MATCH_PERCENT, MAX_MATCH_PERCENT = 40, 95
 _TITLE_WEIGHT = 0.65
 _AUTHOR_WEIGHT = 0.35
+_AUTHOR_MISMATCH = 0.4  # an author similarity below this is "someone else"
+_AUTHOR_MISMATCH_CAP = MIN_MATCH_SCORE - 0.01
 
 
 def score_candidate(candidate: CoverSearchResult, title: str, author: str) -> float:
@@ -252,9 +259,49 @@ def score_candidate(candidate: CoverSearchResult, title: str, author: str) -> fl
             return 0.97 if wanted_author and f" {wanted_author} " in f" {found} " else 0.85
         return min(_title_similarity(title, candidate.title), 0.75)
     title_score = _title_similarity(title, candidate.title)
+    if not author and candidate.author:
+        # One search box: what was typed may be "title author" (or "author title") with nothing to tell them apart, so
+        # the whole text is also compared with the catalogue's title and author together. Capped a little under an exact
+        # title match, so a bare title that IS the catalogue title still ranks first.
+        for joined in (f"{candidate.title} {candidate.author}", f"{candidate.author} {candidate.title}"):
+            title_score = max(title_score, min(_title_similarity(title, joined), 0.95))
     if not author or not candidate.author:
         return title_score
-    return title_score * _TITLE_WEIGHT + _author_similarity(author, candidate.author) * _AUTHOR_WEIGHT
+    author_score = _author_similarity(author, candidate.author)
+    score = title_score * _TITLE_WEIGHT + author_score * _AUTHOR_WEIGHT
+    if author_score < _AUTHOR_MISMATCH:
+        # The same title by someone else is another book of that name: it stays under the default threshold however
+        # well the title matches (only a person who loosens the threshold in Settings will see it).
+        score = min(score, _AUTHOR_MISMATCH_CAP)
+    return score
+
+
+# -- One search box: telling the title from the author -------------------------------------------------------------
+
+# "Title - Author", "Title – Author", "Title | Author", "Title / Author", "Title by Author", "Title của Author",
+# "Title, Author" is NOT split: a comma is as likely to be inside a title.
+_SPLIT_SEPARATORS = re.compile(r"\s+[-–—|/]\s+|\s+(?:by|của|tác giả)\s+", re.IGNORECASE)
+
+
+def split_query(text: str) -> list[tuple[str, str]]:
+    """What one search box might mean, most likely first, as (title, author) pairs.
+
+    An explicit separator ("Nhà giả kim - Paulo Coelho", "Dune by Frank Herbert") means exactly that pair (the reverse
+    is tried too: "Paulo Coelho - Nhà giả kim"). Without one, the whole text is the title, and -- when it has enough
+    words -- its last two or three words are also tried as the author, which is how names are typed. The catalogue
+    search then decides which reading finds the book; scoring judges every one against what the catalogue says."""
+    text = " ".join((text or "").split())
+    if not text:
+        return []
+    parts = [part.strip() for part in _SPLIT_SEPARATORS.split(text, maxsplit=1)]
+    if len(parts) == 2 and all(parts):
+        return [(parts[0], parts[1]), (parts[1], parts[0])]
+    readings = [(text, "")]
+    words = text.split()
+    for name_words in (2, 3):
+        if len(words) >= name_words + 2:
+            readings.append((" ".join(words[:-name_words]), " ".join(words[-name_words:])))
+    return readings
 
 
 _QUERY_PUNCTUATION = re.compile(r"[\W_]+", re.UNICODE)
@@ -735,6 +782,44 @@ def search_covers(
         # next search should get a chance to include it.
         _cache_put(cache_key, results)
     return results
+
+
+def search_covers_for_text(
+    text: str,
+    limit: int = 8,
+    *,
+    google_api_key: str | None = None,
+    google_cx: str | None = None,
+    min_score: float = MIN_MATCH_SCORE,
+    disabled_sources: Collection[str] = (),
+    searcher: Callable[..., list[CoverSearchResult]] | None = None,
+) -> list[CoverSearchResult]:
+    """`search_covers` for ONE line of text. The readings of it (see split_query) are tried in order, and the first that
+    finds a match at `min_score` wins -- so "Nhà giả kim Paulo Coelho" typed in one box is searched whole, and as title +
+    author only if that found nothing, which is what two boxes would have found without asking the catalogues three
+    times. Raises CoverSearchError only when every reading failed. `searcher` is what runs one reading."""
+    readings = split_query(text)
+    if not readings:
+        return []
+    run = searcher or search_covers
+    best: dict[str, CoverSearchResult] = {}
+    errors: list[CoverSearchError] = []
+    for title, author in readings:
+        try:
+            found = run(title, author, limit=limit, google_api_key=google_api_key, google_cx=google_cx,
+                        min_score=min_score, disabled_sources=disabled_sources)
+        except CoverSearchError as exc:
+            errors.append(exc)
+            continue
+        for candidate in found:
+            if candidate.image_url not in best or candidate.score > best[candidate.image_url].score:
+                best[candidate.image_url] = candidate
+        if best:
+            break
+    if not best and len(errors) == len(readings):
+        raise errors[0]
+    ranked = sorted(best.values(), key=lambda c: -round(c.score, 2))
+    return _diversify(ranked, limit)
 
 
 def validate_cover_image(data: bytes) -> tuple[int, int]:

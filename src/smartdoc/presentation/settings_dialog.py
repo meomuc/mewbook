@@ -60,6 +60,8 @@ from smartdoc.application.ai_summary import (
     test_connection,
 )
 from smartdoc.application.cover_search import (
+    MAX_MATCH_PERCENT,
+    MIN_MATCH_PERCENT,
     SOURCE_APPLE_BOOKS,
     SOURCE_GOOGLE_BOOKS,
     SOURCE_OPEN_LIBRARY,
@@ -761,6 +763,13 @@ class SettingsDialog(QDialog):
             sources_layout.addWidget(checkbox)
         page.add_row("Nguồn được phép tra cứu", "Gửi tên sách/tác giả ra ngoài để tìm ảnh.", sources)
 
+        self.cover_match_spin = QSpinBox(page)
+        self.cover_match_spin.setRange(MIN_MATCH_PERCENT, MAX_MATCH_PERCENT)
+        self.cover_match_spin.setSuffix(" %")
+        self.cover_match_spin.setValue(max(MIN_MATCH_PERCENT, min(MAX_MATCH_PERCENT, int(config.cover_match_percent))))
+        page.add_row("Độ khớp tối thiểu", "Thấp hơn: ra nhiều kết quả hơn, có thể kém liên quan. Cao hơn: ít kết quả, sát hơn. "
+                     "Mỗi kết quả vẫn hiện % khớp của nó.", self.cover_match_spin)
+
         self.google_image_api_key_edit = QLineEdit(config.google_image_api_key or "", page)
         self.google_image_api_key_edit.setEchoMode(QLineEdit.Password)
         self.google_image_api_key_edit.setPlaceholderText("Dán API key vào đây...")
@@ -1059,6 +1068,7 @@ class SettingsDialog(QDialog):
         config.ai_model = self.ai_model_edit.text().strip() or None
         config.ai_base_url = self.ai_base_url_edit.text().strip().rstrip("/") or None
 
+        config.cover_match_percent = self.cover_match_spin.value()
         config.google_image_api_key = self.google_image_api_key_edit.text().strip() or None
         config.google_image_search_cx = self.google_image_cx_edit.text().strip() or None
         # Keep entries this tab has no checkbox for (e.g. a hand-added "Google Images").

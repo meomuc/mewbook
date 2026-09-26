@@ -117,13 +117,25 @@ def test_weak_matches_checkbox_lowers_the_score_threshold(qapp, app_context, mon
 
     monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers", fake_search)
 
-    dialog = CoverSearchDialog(app_context, _doc())  # searches once on open
-    assert _pump_until(qapp, lambda: len(seen) == 1)
+    dialog = CoverSearchDialog(app_context, _doc())  # searches once on open (every reading of the text, none found)
+    assert _pump_until(qapp, lambda: len(seen) >= 1 and "Không tìm thấy" in dialog.status_label.text())
+    assert set(seen) == {MIN_MATCH_SCORE}  # the threshold now comes from Settings (70% by default)
+    seen.clear()
     dialog.include_weak_check.setChecked(True)
     dialog._on_search()
-    assert _pump_until(qapp, lambda: len(seen) == 2)
+    assert _pump_until(qapp, lambda: len(seen) >= 1)
 
-    assert seen == [MIN_MATCH_SCORE, 0.0]
+    assert set(seen) == {0.0}
+
+
+def test_the_threshold_follows_the_setting(qapp, app_context, monkeypatch):
+    app_context.config.config.cover_match_percent = 55
+    seen = []
+    monkeypatch.setattr("smartdoc.presentation.cover_search_dialog.search_covers",
+                        lambda t, a, **kw: seen.append(kw["min_score"]) or [])
+    dialog = CoverSearchDialog(app_context, _doc())
+    assert _pump_until(qapp, lambda: bool(seen))
+    assert set(seen) == {0.55} and "55%" in dialog.include_weak_check.text()
 
 
 def test_result_label_puts_title_author_source_and_score_on_separate_lines():

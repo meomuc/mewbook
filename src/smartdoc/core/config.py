@@ -154,6 +154,9 @@ class AppConfig:
     disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
     # How many backups of library.db to keep in the "backups" folder next to it (application/backup_service.py).
     backup_retention: int = 5
+    # How closely a cover/metadata result must match the title and author to be offered, in percent (application/
+    # cover_search.MIN_MATCH_SCORE is the default). Lower = more results, some less related; higher = fewer, stricter.
+    cover_match_percent: int = 70
     # Where backups go instead of that "backups" folder ("" = the default). Must be a folder MewBook can write to;
     # when it is not (a drive that is unplugged) the backup says so instead of quietly going elsewhere.
     backup_dir: str = ""
