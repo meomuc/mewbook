@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
-New features, so the next release is a MINOR bump (1.1.0).
+## [1.1.0] - 2026-09-26
+
+New features, backwards compatible: a MINOR release.
 
 ### Added
 - **New "Kệ sách" look, step 11: states, wording, colours.** An empty library, or a filter that matches nothing, now
