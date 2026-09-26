@@ -159,3 +159,44 @@ def test_lists_do_not_carry_the_text_of_each_book_but_get_document_still_does(db
     for row in (db.query_documents(limit=5)[0], db.query_documents(fts_query="noi dung", limit=5)[0], db.list_all_documents(limit=5)[0]):
         assert "content" not in row and "title" in row and "file_path" in row and "cover_path" in row
     assert db.get_document("x1")["content"].startswith("đoạn văn dài")
+
+
+def test_one_connection_shared_by_writers_and_readers_never_fails(tmp_path):
+    """Measured before the connection was wrapped in a lock: 4 writers + 3 readers on one library failed about one run in
+    three ("bad parameter or other API misuse" -- two threads sharing a prepared statement -- or rows of None)."""
+    import threading
+
+    shared = DatabaseManager(str(tmp_path / "shared.db"))
+    shared.initialize_tables()
+    errors: list[str] = []
+    stop = threading.Event()
+
+    def write(k):
+        try:
+            for i in range(120):
+                shared.add_or_update_document(f"w{k}-{i}", {"title": f"Sách {k} {i}", "author": "A", "file_path": f"{k}/{i}.pdf", "created_at": float(i)},
+                                              extracted_text="nội dung " * 100)
+        except Exception as exc:  # noqa: BLE001 -- the test reports whatever a thread hit
+            errors.append(f"writer: {exc!r}")
+
+    def read():
+        try:
+            while not stop.is_set():
+                shared.query_documents(fts_query="sach", limit=24)
+                shared.count_documents_matching(fts_query="noi dung")
+                shared.list_all_documents(limit=30)
+                shared.count_by_tag()
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"reader: {exc!r}")
+
+    writers = [threading.Thread(target=write, args=(k,)) for k in range(4)]
+    readers = [threading.Thread(target=read) for _ in range(3)]
+    for thread in writers + readers:
+        thread.start()
+    for thread in writers:
+        thread.join()
+    stop.set()
+    for thread in readers:
+        thread.join()
+    assert errors == [] and shared.count_documents() == 480
+    shared.connection.close()

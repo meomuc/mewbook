@@ -272,7 +272,7 @@ class BackupService:
                 self._db.connection.commit()
                 source = _open_readonly(path)
                 try:
-                    source.backup(self._db.connection)
+                    source.backup(self._db.connection.raw)  # the real sqlite3 connection: `backup` needs one
                 finally:
                     source.close()
         except sqlite3.Error as exc:

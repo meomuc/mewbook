@@ -228,12 +228,110 @@ def parse_locked_fields(value: str | None) -> set[str]:
     return {field for field in parsed if isinstance(field, str)} if isinstance(parsed, list) else set()
 
 
+class _BufferedResult:
+    """What `_LockedConnection.execute` returns: the rows already fetched (so no cursor is left open on the shared
+    connection), with the parts of a sqlite3 cursor the code uses."""
+
+    def __init__(self, cursor: sqlite3.Cursor) -> None:
+        self.description = cursor.description
+        self.rowcount = cursor.rowcount
+        self.lastrowid = cursor.lastrowid
+        self._rows = cursor.fetchall() if cursor.description is not None else []
+        self._position = 0
+
+    def fetchone(self):
+        if self._position >= len(self._rows):
+            return None
+        self._position += 1
+        return self._rows[self._position - 1]
+
+    def fetchall(self):
+        rows, self._position = self._rows[self._position:], len(self._rows)
+        return rows
+
+    def fetchmany(self, size: int = 1):
+        rows = self._rows[self._position:self._position + size]
+        self._position += len(rows)
+        return rows
+
+    def __iter__(self):
+        return iter(self.fetchall())
+
+    def close(self) -> None:
+        return
+
+
+class _LockedConnection:
+    """One sqlite3 connection shared by the GUI thread, the import workers and the background jobs, made safe to share.
+
+    Python's sqlite3 caches the prepared statement of an SQL text per connection, so two threads running the same SQL at the
+    same moment used the same statement ("bad parameter or other API misuse", and once -- while a list of columns was read
+    -- rows whose values were None). Measured before this class: four writers and three readers on the library failed
+    about one run in three. Every call now runs under one re-entrant lock and its rows are fetched before the lock is
+    released; a call is short (WAL: nothing waits on a disk write for long), so the price is small. `write_lock` still
+    groups several statements into one unit (it is taken first, this lock inside it, so they cannot deadlock)."""
+
+    def __init__(self, raw: sqlite3.Connection) -> None:
+        self.raw = raw  # for the one thing that needs the real object (`Connection.backup(target)`)
+        self._lock = threading.RLock()
+
+    @property
+    def row_factory(self):
+        return self.raw.row_factory
+
+    @row_factory.setter
+    def row_factory(self, value) -> None:
+        self.raw.row_factory = value
+
+    @property
+    def in_transaction(self) -> bool:
+        return self.raw.in_transaction
+
+    def execute(self, sql: str, parameters=()):
+        with self._lock:
+            return _BufferedResult(self.raw.execute(sql, parameters))
+
+    def executemany(self, sql: str, seq_of_parameters):
+        with self._lock:
+            return _BufferedResult(self.raw.executemany(sql, seq_of_parameters))
+
+    def executescript(self, script: str):
+        with self._lock:
+            return self.raw.executescript(script)
+
+    def commit(self) -> None:
+        with self._lock:
+            self.raw.commit()
+
+    def rollback(self) -> None:
+        with self._lock:
+            self.raw.rollback()
+
+    def close(self) -> None:
+        with self._lock:
+            self.raw.close()
+
+    def create_function(self, *args, **kwargs) -> None:
+        with self._lock:
+            self.raw.create_function(*args, **kwargs)
+
+    def set_trace_callback(self, callback) -> None:
+        with self._lock:
+            self.raw.set_trace_callback(callback)
+
+    def backup(self, target, **kwargs) -> None:
+        """This database copied into `target` (a plain sqlite3.Connection) -- see snapshot()."""
+        with self._lock:
+            self.raw.backup(target.raw if isinstance(target, _LockedConnection) else target, **kwargs)
+
+
 class DatabaseManager:
     def __init__(self, db_path: str = "library.db") -> None:
         self.db_path = db_path
         self.write_lock = threading.Lock()
-        self.connection = sqlite3.connect(db_path, check_same_thread=False)
-        self.connection.row_factory = sqlite3.Row
+        raw = sqlite3.connect(db_path, check_same_thread=False)
+        raw.row_factory = sqlite3.Row
+        self.connection = _LockedConnection(raw)
         self.connection.execute("PRAGMA journal_mode=WAL;")
         self.connection.execute("PRAGMA foreign_keys=ON;")
         # WAL + NORMAL is the documented safe pairing: a crash can lose the last transaction, never corrupt the file
