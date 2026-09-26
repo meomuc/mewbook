@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog, suggested_keeper
-from smartdoc.presentation.duplicate_list_pane import _C_NOTE, _C_TICK, _C_TITLE, DuplicateListPane
+from smartdoc.presentation.duplicate_list_pane import _C_NOTE, _C_TICK, DuplicateListPane
 
 
 def _doc(doc_id, title, author="X", path=None, size=1000, created=1.0, **extra):
