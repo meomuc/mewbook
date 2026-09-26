@@ -315,8 +315,56 @@ class ReaderWindow(QMainWindow):
             self._build_fallback(file_path)
 
         self._install_shortcuts()
+        self._start_reading_history()
         reader_events.changed.connect(self._update_open_count)
         self._update_open_count()
+
+    # ── Reading history: when it was opened and where the reader is (the "Trang đầu" screen) ──────────
+
+    _POSITION_SAVE_DELAY_MS = 800  # a page turn is remembered a moment later, not written on every keypress
+
+    def _reading_unit_and_total(self) -> tuple[str, int]:
+        if hasattr(self, "pdf_view"):
+            return "page", max(1, self._pdf_document.pageCount())
+        if getattr(self, "_epub_doc", None) is not None:
+            return "chapter", max(1, self._epub_doc.chapter_count)
+        return "page", 0
+
+    def _start_reading_history(self) -> None:
+        self._history_ready = False
+        self._pending_position = 0
+        self._position_timer = QTimer(self)
+        self._position_timer.setSingleShot(True)
+        self._position_timer.setInterval(self._POSITION_SAVE_DELAY_MS)
+        self._position_timer.timeout.connect(self._flush_position)
+        doc_id = self.doc.get("id")
+        if not doc_id:
+            return
+        unit, total = self._reading_unit_and_total()
+        saved = self.context.db.get_reading_progress(doc_id) or {}
+        self.context.db.record_reading_open(doc_id, unit=unit, total=total)
+        target = int(saved.get("position") or 0)
+        self._history_ready = True  # from here on a page change is the reader's own, not the initial load
+        if 1 < target <= max(total, 1) and total:
+            self._resume_at(unit, target)
+
+    def _resume_at(self, unit: str, position: int) -> None:
+        """Back to where the reader left off (1-based page or chapter)."""
+        if unit == "chapter" and getattr(self, "_epub_doc", None) is not None:
+            self._go_to_chapter(position - 1)
+        elif hasattr(self, "pdf_view"):
+            QTimer.singleShot(0, lambda: self._go_to_page(position))  # after the view has laid out its pages
+
+    def _remember_position(self, position: int) -> None:
+        if getattr(self, "_history_ready", False) and self.doc.get("id"):
+            self._pending_position = position
+            self._position_timer.start()
+
+    def _flush_position(self) -> None:
+        if self._pending_position > 0 and self.doc.get("id"):
+            _, total = self._reading_unit_and_total()
+            self.context.db.record_reading_position(self.doc["id"], self._pending_position, total=total)
+            self._pending_position = 0
 
     # ── The frame: top bar, contents column, page area, bottom bar ──────────
 
@@ -434,6 +482,8 @@ class ReaderWindow(QMainWindow):
         self._update_open_count()
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        self._position_timer.stop()
+        self._flush_position()  # the last page turn is not lost to the delay
         epub_doc = getattr(self, "_epub_doc", None)
         if epub_doc is not None:
             epub_doc.close()
@@ -655,6 +705,7 @@ class ReaderWindow(QMainWindow):
         self.page_spin.blockSignals(True)
         self.page_spin.setValue(page + 1)
         self.page_spin.blockSignals(False)
+        self._remember_position(page + 1)
 
     def _adjust_zoom(self, delta: float) -> None:
         self._set_zoom(self.pdf_view.zoomFactor() + delta)
@@ -732,6 +783,7 @@ class ReaderWindow(QMainWindow):
         model = self.toc_view.model()
         if model is not None and 0 <= index < model.rowCount():
             self.toc_view.setCurrentIndex(model.index(index, 0))
+        self._remember_position(index + 1)
 
     # ── Full screen ───────────────────────────────────────────────────
 

@@ -68,9 +68,26 @@ def _add_file_status_columns(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_status ON documents(file_status)")
 
 
+def _add_reading_progress(connection: sqlite3.Connection) -> None:
+    """Where the reader left off (the "Trang đầu" screen): one row per book that was ever opened -- the last time,
+    the page (PDF) or chapter (EPUB) reached, how many there are, and how often it was opened. Purely additive; a
+    library that never opened a book simply has no rows."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS reading_progress ("
+        " doc_id TEXT PRIMARY KEY,"
+        " last_opened_at REAL NOT NULL,"
+        " position INTEGER NOT NULL DEFAULT 0,"  # 1-based page or chapter; 0 = not known yet
+        " total INTEGER NOT NULL DEFAULT 0,"  # pages or chapters in the book; 0 = not known
+        " unit TEXT NOT NULL DEFAULT 'page',"  # 'page' | 'chapter'
+        " open_count INTEGER NOT NULL DEFAULT 0)"
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_reading_progress_last ON reading_progress(last_opened_at DESC)")
+
+
 # 1.0.0 is the baseline (version 0). The device tables (S3) will be the next entries.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "documents.file_status / file_checked_at (missing-file detection)", _add_file_status_columns),
+    Migration(2, "reading_progress (last opened, page/chapter reached)", _add_reading_progress),
 )
 
 

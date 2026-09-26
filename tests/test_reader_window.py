@@ -450,3 +450,58 @@ def test_f11_toggles_full_screen_and_escape_leaves_it(qapp, app_context, tmp_pat
     window._leave_fullscreen()
     assert not window.isFullScreen() and not window.top_bar.fullscreen_button.isChecked()
     window.deleteLater()
+
+
+# -- reading history (the "Trang đầu" screen) -----------------------------------------------------------------------------
+
+
+def _db_doc(app_context, tmp_path, name="book.pdf", extension="pdf"):
+    path = tmp_path / name
+    if extension == "pdf":
+        _make_pdf(path, 5)
+    else:
+        _make_epub(path, 5)
+    app_context.db.add_or_update_document("d1", {"title": "Demo", "author": "Someone", "file_path": str(path),
+                                                 "extension": extension, "file_size": 1, "created_at": 1.0})
+    return _doc(file_path=str(path), extension=extension)
+
+
+def test_opening_a_pdf_is_recorded_with_its_page_count(qapp, app_context, tmp_path):
+    ReaderWindow(app_context, _db_doc(app_context, tmp_path))
+    progress = app_context.db.get_reading_progress("d1")
+    assert (progress["unit"], progress["total"], progress["open_count"]) == ("page", 5, 1)
+
+
+def test_the_page_reached_is_saved_when_the_window_closes_and_the_next_open_resumes_there(qapp, app_context, tmp_path):
+    doc = _db_doc(app_context, tmp_path)
+    window = ReaderWindow(app_context, doc)
+    window._go_next_page()
+    window._go_next_page()  # page 3 of 5
+    window.close()  # the delayed save must not be lost
+    assert app_context.db.get_reading_progress("d1")["position"] == 3
+
+    again = ReaderWindow(app_context, doc)
+    for _ in range(3):
+        qapp.processEvents()
+    assert again.pdf_view.pageNavigator().currentPage() == 2  # back on page 3
+    assert app_context.db.get_reading_progress("d1")["open_count"] == 2
+
+
+def test_an_epub_remembers_its_chapter(qapp, app_context, tmp_path):
+    doc = _db_doc(app_context, tmp_path, "book.epub", "epub")
+    window = ReaderWindow(app_context, doc)
+    assert app_context.db.get_reading_progress("d1")["unit"] == "chapter"
+    window._go_to_chapter(3)
+    window.close()
+    assert app_context.db.get_reading_progress("d1")["position"] == 4
+    again = ReaderWindow(app_context, doc)
+    assert again._current_chapter == 3
+
+
+def test_a_book_without_an_id_is_read_without_touching_the_history(qapp, app_context, tmp_path):
+    pdf_path = tmp_path / "x.pdf"
+    _make_pdf(pdf_path, 2)
+    window = ReaderWindow(app_context, _doc(id=None, file_path=str(pdf_path)))
+    window._go_next_page()
+    window.close()
+    assert app_context.db.recent_reading() == []

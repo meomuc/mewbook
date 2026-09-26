@@ -755,7 +755,83 @@ class DatabaseManager:
             self.connection.execute("DELETE FROM collection_documents WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM smart_classification WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM metadata_history WHERE doc_id = ?", (doc_id,))
+            self.connection.execute("DELETE FROM reading_progress WHERE doc_id = ?", (doc_id,))
             self.connection.commit()
+
+    # -- Reading history ("Trang đầu") -----------------------------------------------------------------------------------
+    def record_reading_open(self, doc_id: str, *, unit: str = "page", total: int = 0, now: float | None = None) -> None:
+        """The book was opened just now: stamp the time, count the opening, keep the position it had reached."""
+        moment = time.time() if now is None else now
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT INTO reading_progress (doc_id, last_opened_at, position, total, unit, open_count)"
+                " VALUES (?, ?, 0, ?, ?, 1)"
+                " ON CONFLICT(doc_id) DO UPDATE SET last_opened_at = excluded.last_opened_at,"
+                " total = CASE WHEN excluded.total > 0 THEN excluded.total ELSE total END,"
+                " unit = excluded.unit, open_count = open_count + 1",
+                (doc_id, moment, int(total), unit),
+            )
+            self.connection.commit()
+
+    def record_reading_position(self, doc_id: str, position: int, *, total: int | None = None, now: float | None = None) -> None:
+        """The reader reached page/chapter `position` (1-based). A book that was never opened gets a row too."""
+        moment = time.time() if now is None else now
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT INTO reading_progress (doc_id, last_opened_at, position, total, unit, open_count)"
+                " VALUES (?, ?, ?, ?, 'page', 0)"
+                " ON CONFLICT(doc_id) DO UPDATE SET position = excluded.position, last_opened_at = excluded.last_opened_at,"
+                " total = CASE WHEN excluded.total > 0 THEN excluded.total ELSE total END",
+                (doc_id, moment, max(0, int(position)), int(total or 0)),
+            )
+            self.connection.commit()
+
+    def get_reading_progress(self, doc_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute("SELECT * FROM reading_progress WHERE doc_id = ?", (doc_id,)).fetchone()
+        return dict(row) if row else None
+
+    def recent_reading(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Books that were opened, latest first: the document's columns plus `last_opened_at`, `position`, `total`,
+        `unit` and `open_count` of its reading progress."""
+        rows = self.connection.execute(
+            "SELECT documents.*, rp.last_opened_at, rp.position, rp.total, rp.unit, rp.open_count"
+            " FROM reading_progress AS rp JOIN documents ON documents.id = rp.doc_id"
+            " ORDER BY rp.last_opened_at DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def author_of_the_month(self, days: int = 30, now: float | None = None) -> dict[str, Any] | None:
+        """The author with the most books added or opened in the last `days` days: {"author", "books" (in the whole
+        library), "active" (added/opened in the period), "cover_paths" (up to 3)}, or None when nobody qualifies.
+        Books with no known author never count; several authors in one field count for each of them."""
+        cutoff = (time.time() if now is None else now) - days * 86400
+        rows = self.connection.execute(
+            "SELECT documents.id, documents.author, documents.cover_path, documents.created_at, rp.last_opened_at"
+            " FROM documents LEFT JOIN reading_progress AS rp ON rp.doc_id = documents.id"
+        ).fetchall()
+        from smartdoc.domain.author_names import is_unknown_author, split_author_names
+
+        books: dict[str, list] = {}
+        for row in rows:
+            for name in split_author_names(row["author"]):
+                if not is_unknown_author(name):
+                    books.setdefault(name, []).append(row)
+        best: tuple | None = None
+        for name, mine in books.items():
+            recent = [r for r in mine if r["created_at"] >= cutoff or (r["last_opened_at"] or 0) >= cutoff]
+            if not recent:
+                continue
+            latest = max(max(r["created_at"], r["last_opened_at"] or 0) for r in recent)
+            score = (len(recent), latest)
+            if best is None or score > best[0]:
+                best = (score, name, mine, recent)
+        if best is None:
+            return None
+        _, name, mine, recent = best
+        recent.sort(key=lambda r: max(r["created_at"], r["last_opened_at"] or 0), reverse=True)
+        covers = [r["cover_path"] for r in recent if r["cover_path"]][:3]
+        return {"author": name, "books": len(mine), "active": len(recent), "cover_paths": covers}
 
     def get_document(self, doc_id: str) -> dict[str, Any] | None:
         """Fetch a single document by ID, or None if it no longer exists."""
