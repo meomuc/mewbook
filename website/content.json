@@ -1,7 +1,7 @@
 {
   "meta": {
     "latest": "1.0.0",
-    "downloadUrl": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d",
+    "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/"
   },
   "versions": [
@@ -18,7 +18,7 @@
       ],
       "link": "",
       "download": {
-        "win": "https://drive.google.com/drive/u/1/folders/1lp4b_J3wK1sLqxp9jqn1Z159M-m7rF4d",
+        "win": "https://github.com/meomuc/mewbook/releases/latest",
         "size": "97 MB"
       }
     }

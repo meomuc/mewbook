@@ -19,7 +19,7 @@ declines or the request fails, the local clock decides (night after 18:00). Pick
 ## Content: where each part comes from (`scripts/update-content.js`)
 | content.json | Source |
 |---|---|
-| `versions` | `CHANGELOG.md` released sections + `__version__`; download link = `meta.downloadUrl` (Google Drive folder) |
+| `versions` | `CHANGELOG.md` released sections + `__version__`; download link = `meta.downloadUrl` (the latest GitHub release) |
 | `roadmap`  | `docs/ROADMAP.md` |
 | `bugs`     | `docs/KNOWN_ISSUES.md` (open), `### Fixed` of released versions ("Đã sửa"), and GitHub Issues labelled `bug` when `--repo owner/name` or `MEWBOOK_GITHUB_REPO` is set |
 | `gallery`  | the app's themes (`presentation/theme.py`) against the pictures in `public/assets/gallery/` |
