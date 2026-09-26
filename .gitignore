@@ -76,3 +76,7 @@ node_modules/
 # (provenance of the artwork is unconfirmed, same as Sample theme/ above).
 Setup/
 Social/
+
+# Theme packages waiting to be imported / already imported (themes/incoming); the imported theme lives in themes/<id>/
+themes/incoming/*.zip
+themes/incoming/_da-nhap/*.zip
