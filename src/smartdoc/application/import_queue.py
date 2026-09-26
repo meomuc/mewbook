@@ -17,8 +17,10 @@ import logging
 import os
 import queue
 import threading
+import multiprocessing
 import time
 import uuid
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,9 +61,13 @@ class _BatchProgress:
 
 
 class ImportQueueManager:
-    def __init__(self, context, num_workers: int = 4) -> None:
+    def __init__(self, context, num_workers: int = 4, use_process_pool: bool = False) -> None:
         self.context = context
         self.num_workers = num_workers
+        # Reading PDFs in separate processes (infrastructure/pdf_worker.py): PyMuPDF is not thread-safe, so the import
+        # threads otherwise take turns on the heavy part. The app turns it on; a test or a tool leaves it off.
+        self._use_process_pool = use_process_pool
+        self._pdf_pool: ProcessPoolExecutor | None = None
         self._queue: queue.Queue[tuple[str, str | None] | None] = queue.Queue()
         self._threads: list[threading.Thread] = []
         self._stop_event = threading.Event()
@@ -271,6 +277,10 @@ class ImportQueueManager:
 
     def start(self) -> None:
         self._stop_event.clear()
+        if self._use_process_pool and self._pdf_pool is None:
+            # spawn, like the classifier's pool (fork does not exist on Windows); processes start on the first PDF.
+            self._pdf_pool = ProcessPoolExecutor(max_workers=max(1, min(self.num_workers, 8)), mp_context=multiprocessing.get_context("spawn"))
+            self._pdf_extractor.pool = self._pdf_pool
         for _ in range(self.num_workers):
             thread = threading.Thread(target=self._worker_loop, daemon=True)
             thread.start()
@@ -285,6 +295,10 @@ class ImportQueueManager:
         for thread in self._threads:
             thread.join(timeout=5)
         self._threads.clear()
+        if self._pdf_pool is not None:
+            self._pdf_extractor.pool = None
+            self._pdf_pool.shutdown(wait=False, cancel_futures=True)
+            self._pdf_pool = None
 
     def _worker_loop(self) -> None:
         while not self._stop_event.is_set():

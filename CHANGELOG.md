@@ -49,6 +49,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   the library (accents and case ignored); a tag the book already has is not offered; picking one fills the box.
 
 ### Fixed
+- **A book you dropped from the library stays dropped.** Removing a duplicate "from the library" while its file stays
+  where it is used to be undone the next time the file was touched (antivirus, a sync client) or the folder was scanned.
+  Such files are now remembered and skipped by the folder watcher; adding the file by hand brings it back.
+- **A renamed or moved file is the same book.** Renaming a file inside a watched folder used to import it as a second book
+  and leave the first "missing" (losing hashtags, collections, reviews and reading progress); the book now follows its file.
+- **Files that arrived while MewBook was closed are found at start-up** (the watcher only saw changes made while it ran),
+  and a book whose file was moved meanwhile is pointed at its new place instead of being imported twice.
 - **Searching without accents now works for Vietnamese.** "dac nhan tam", "nguyen nhat anh", "tuoi tho" or "vu huu tiep"
   found nothing (only single-accent letters were folded; ễ ậ ắ ổ and "đ" were not). Accents are now optional everywhere,
   including "đ" ("dac" finds "Đắc", "đac" finds "Dac"), in the title, author, hashtags and the text of the book. Existing
@@ -63,6 +70,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   now 0.1 s. Also SQLite `synchronous=NORMAL` (safe with WAL), a larger page cache and in-memory temporary tables.
 - Restoring a book from the trash now also restores its publisher, ISBN, year, series, AI summary, the fields you typed by
   hand (so later suggestions cannot overwrite them) and its reading progress.
+
+### Changed (speed)
+- **Importing is faster.** PDFs are read in separate worker processes (PyMuPDF is not thread-safe, so the import threads used
+  to take turns: four threads were no faster than one on scanned books). Measured on sixteen 6 MB scans: 2.5 s -> 0.8 s with
+  4 workers. A file is no longer read through to compute its content hash unless another book has the same size (only
+  those can be identical); duplicate detection completes the missing hashes in the background when it is opened.
+- **Lists no longer load each book's whole text** (about 30 KB per book) that no screen used.
 
 ### Changed
 - **"Tìm ảnh bìa" and "Tìm thông tin sách" are now one window, "Tìm thêm thông tin".** It finds the book's information

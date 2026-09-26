@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import BrokenExecutor, Executor
 
 import fitz  # PyMuPDF
 
@@ -23,6 +24,8 @@ class PdfExtractor:
     def __init__(self, context) -> None:
         self.context = context
         self.cache_mgr = CoverCacheManager(context)
+        # A ProcessPoolExecutor running pdf_worker.read_pdf, set by the import queue; None = read in this process.
+        self.pool: Executor | None = None
 
     def extract_metadata(self, file_path: str) -> dict:
         try:
@@ -57,6 +60,18 @@ class PdfExtractor:
         not a cheap seek) is a big chunk of why bulk imports were slow.
         """
         try:
+            pool = self.pool
+            if pool is not None:
+                try:
+                    from smartdoc.infrastructure.pdf_worker import read_pdf
+
+                    metadata, png, text = pool.submit(read_pdf, file_path, max_pages).result()
+                    return metadata, (self.cache_mgr.save_cover(doc_id, png) if png else None), text
+                except BrokenExecutor:
+                    # The pool cannot run here (a frozen build without the worker, a killed child): read in this
+                    # process from now on rather than fail every book.
+                    logger.warning("PDF worker pool is unusable; reading PDFs in the main process", exc_info=True)
+                    self.pool = None
             with pymupdf_lock, fitz.open(file_path) as doc:
                 metadata = self._metadata_from_doc(doc, file_path)
                 cover_path = self._cover_from_doc(doc, doc_id)
@@ -81,14 +96,19 @@ class PdfExtractor:
             "extension": "pdf",
         }
 
-    def _cover_from_doc(self, doc: fitz.Document, doc_id: str) -> str | None:
+    @staticmethod
+    def _cover_png_from_doc(doc: fitz.Document) -> bytes | None:
+        """The first page as PNG bytes (the heavy part of a cover), or None for an encrypted / empty PDF."""
         if doc.is_encrypted or doc.page_count == 0:
             return None
         page = doc[0]
         page_width = page.rect.width or 1
         zoom = min(1.0, _COVER_RENDER_TARGET_WIDTH / page_width)
-        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-        return self.cache_mgr.save_cover(doc_id, pixmap.tobytes("png"))
+        return page.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
+
+    def _cover_from_doc(self, doc: fitz.Document, doc_id: str) -> str | None:
+        png = self._cover_png_from_doc(doc)
+        return self.cache_mgr.save_cover(doc_id, png) if png else None
 
     @staticmethod
     def _text_from_doc(doc: fitz.Document, max_pages: int) -> str:

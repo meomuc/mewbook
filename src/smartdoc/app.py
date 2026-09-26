@@ -157,7 +157,7 @@ def main() -> None:
     # it up front so it's visible in the sidebar before the first star.
     context.db.ensure_reading_list()
 
-    import_manager = ImportQueueManager(context, num_workers=context.config.config.worker_thread_count)
+    import_manager = ImportQueueManager(context, num_workers=context.config.config.worker_thread_count, use_process_pool=True)
     import_manager.start()
 
     watcher = LibraryWatcher(context)
