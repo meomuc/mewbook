@@ -160,6 +160,7 @@ Dựng từ **bản clone sạch** của tag/commit phát hành, **ngoài thư m
 - [ ] Đăng bản phát hành lên nơi lưu mã nguồn (O6), đính kèm các file ở mục 10.
 - [ ] Đối chiếu: liên kết mã nguồn trong hộp thoại Giới thiệu trỏ tới đúng tag vừa đăng.
 - [ ] Tải lại bản cài **từ chính trang phát hành** và kiểm mã băm khớp `SHA256SUMS.txt`.
+- [ ] **[CC]** Đồng bộ website (`meomuc.github.io`, dựng từ repo `meomuc/meomuc.github.io`, KHÔNG phải từ `meomuc/mewbook`) sau khi bản phát hành GitHub đã có file cài: phiên bản/ngày/dung lượng, 3 ý chính tiếng Việt (`auto: false`), thông báo (`announcements`), ảnh gallery chụp lại nếu giao diện đổi (`pendingShots` rỗng), roadmap và lỗi đã biết, link tải trực tiếp trả 200; đẩy lên repo `meomuc.github.io`, đợi Actions xanh, kiểm trang thật. Chi tiết từng bước: skill cục bộ `.claude/skills/website-release-sync` (hook nhắc tự động sau mỗi lần chạy `build.ps1`).
 - [ ] Nếu có đối tác: gửi bộ phát hành cùng `PARTNERS.md` và `TRADEMARK.md`. Họ phải giữ nguyên giấy phép, thông báo bản quyền và đường dẫn mã nguồn. **Nếu họ định nhúng vào firmware thiết bị, dừng lại và hỏi luật sư trước.**
 
 ## 12. Sau phát hành
