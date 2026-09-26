@@ -190,12 +190,13 @@ class ThemeCard(QFrame):
 
     chosen = Signal(str)
 
-    def __init__(self, key: str, name: str, caption: str, parent: QWidget | None = None) -> None:
+    def __init__(self, key: str, name: str, caption: str, parent: QWidget | None = None, *, tokens: dict | None = None) -> None:
         super().__init__(parent)
         from smartdoc.presentation.theme_manager import load_tokens, token_key_for
 
         self.key = key
-        self._tokens = load_tokens().get(token_key_for(key), {})
+        # `tokens`: the theme composed for the layout being chosen (a layout may retune colours), else the plain theme.
+        self._tokens = tokens if tokens is not None else load_tokens().get(token_key_for(key), {})
         self._selected = False
         self.setFixedSize(150, 138)
         self.setCursor(Qt.PointingHandCursor)
@@ -265,6 +266,104 @@ class ThemeCard(QFrame):
         painter.setFont(font)
         painter.setPen(tm.color("ink3"))
         painter.drawText(outer.adjusted(10, 0, -8, -8), Qt.AlignLeft | Qt.AlignBottom, self.caption)
+
+
+class LayoutCard(QFrame):
+    """One layout ("kiểu giao diện") to pick: a thumbnail of the window's shape drawn from the layout's own metrics and
+    the colours of its default theme (no picture files, so a new layout package needs no artwork)."""
+
+    chosen = Signal(str)
+
+    def __init__(self, key: str, name: str, description: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        from smartdoc.presentation.layouts import compose_tokens, layout_for
+        from smartdoc.presentation.theme_manager import load_tokens
+
+        self.key = key
+        self.name = name
+        self.description = description
+        self._spec = layout_for(key, any_shape=True)
+        themes = load_tokens()
+        default = self._spec.default_theme if self._spec.default_theme in themes else next(iter(themes))
+        self._tokens = compose_tokens(themes[default], self._spec, default)
+        self._selected = False
+        self.setFixedSize(190, 168)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setToolTip(description)
+        self.setAccessibleName(f"{name}. {description}")
+
+    def sizeHint(self) -> QSize:  # noqa: N802 -- Qt override
+        return QSize(190, 168)
+
+    def set_selected(self, selected: bool) -> None:
+        self._selected = selected
+        self.update()
+
+    def is_selected(self) -> bool:
+        return self._selected
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        self.chosen.emit(self.key)
+        super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+            self.chosen.emit(self.key)
+        else:
+            super().keyPressEvent(event)
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 -- Qt override
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QPainter, QPen
+
+        from smartdoc.presentation.theme_manager import parse_color
+
+        tm = theme_manager()
+        spec = self._spec
+
+        def colour(name: str):
+            return parse_color(self._tokens.get(name, "#888888"))
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        outer = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        painter.setPen(QPen(tm.color("accent") if self._selected else tm.color("line"), 2 if self._selected else 1))
+        painter.setBrush(tm.color("surface"))
+        painter.drawRoundedRect(outer, 8, 8)
+        art = QRectF(outer.left() + 6, outer.top() + 6, outer.width() - 12, 100)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(colour("bg"))
+        painter.drawRoundedRect(art, 6, 6)
+        area = art.adjusted(6, 6, -6, -6)
+        if spec.content_surface == "panel":  # the content sits on a rounded sheet inside the window ground
+            radius = min(14.0, float(spec.metric("sheet_radius", 0)) * 0.55)
+            painter.setBrush(colour("panel"))
+            painter.drawRoundedRect(area, radius, radius)
+            area = area.adjusted(6, 5, -6, -5)
+        pill = float(spec.metric("control_radius", 0)) >= 100
+        for i in range(3):  # the top bar's items
+            painter.setBrush(colour("accent") if i == 0 else colour("surface2"))
+            painter.drawRoundedRect(QRectF(area.left() + 4 + i * 26, area.top() + 2, 22, 7), 3.5 if pill else 1.5, 3.5 if pill else 1.5)
+        base = area.bottom() - 10
+        for x, height, brush in ((12, 34, colour("accent")), (40, 28, colour("ink")), (66, 38, colour("surface2"))):
+            painter.setBrush(brush)
+            painter.drawRoundedRect(QRectF(area.left() + x, base - height, 20, height), 2, 2)
+        thick = max(3.0, float(spec.metric("ledge_thickness", 6)) / 3)
+        overhang = 4.0 if spec.content_surface == "panel" else 0.0
+        painter.setBrush(colour("shelf"))
+        painter.drawRect(QRectF(area.left() + 2 - overhang, base, area.width() - 4 + 2 * overhang, thick))
+        painter.setPen(tm.color("ink"))
+        font = painter.font()
+        font.setBold(True)
+        painter.setFont(font)
+        prefix = "✓ " if self._selected else ""
+        painter.drawText(outer.adjusted(10, 110, -8, -30).toRect(), Qt.AlignLeft | Qt.TextWordWrap, prefix + self.name)
+        font.setBold(False)
+        font.setPointSizeF(max(6.5, font.pointSizeF() - 1.5))
+        painter.setFont(font)
+        painter.setPen(tm.color("ink3"))
+        painter.drawText(outer.adjusted(10, 128, -8, -6).toRect(), Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, self.description)
 
 
 def add_note_box(parent: QWidget, text: str, kind: str = "ok") -> QWidget:

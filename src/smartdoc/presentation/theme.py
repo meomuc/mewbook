@@ -623,9 +623,13 @@ def current_colors() -> ThemeColors:
     return _current
 
 
-def apply_theme(app: QApplication, name: str) -> ThemeColors:
+def apply_theme(app: QApplication, name: str, tokens: dict | None = None) -> ThemeColors:
+    """`tokens`: the composed tokens of the applied layout + theme (ThemeManager.tokens()); the ThemeColors then carry
+    the layout's retuned colours too, so widgets that still read ThemeColors match the ones ThemeManager styles."""
     global _current
     colors = colors_for(name)
+    if tokens is not None:
+        colors = _with_tokens(colors, tokens)
     _current = colors
 
     app.setStyle("Fusion")

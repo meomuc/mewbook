@@ -80,3 +80,5 @@ Social/
 # Theme packages waiting to be imported / already imported (themes/incoming); the imported theme lives in themes/<id>/
 themes/incoming/*.zip
 themes/incoming/_da-nhap/*.zip
+layouts/incoming/*.zip
+layouts/incoming/_da-nhap/*.zip

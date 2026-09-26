@@ -2,56 +2,199 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://mewbook.local/theme.schema.json",
   "title": "MewBook theme package — theme.json",
-  "description": "Chuẩn dữ liệu theme MewBook (Mèo Mực). schema_version 1.x. Mọi màu là #RRGGBB, riêng under/shadow/scrim là rgba().",
+  "description": "Chuẩn dữ liệu theme MewBook (Mèo Mực). schema_version 1.x (1.1 thêm token link và khối layouts). Mọi màu là #RRGGBB, riêng under/shadow/scrim là rgba().",
   "type": "object",
-  "required": ["schema_version", "id", "name", "dark", "description", "tokens", "fonts"],
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "dark",
+    "description",
+    "tokens",
+    "fonts"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "type": "string", "pattern": "^1\\.[0-9]+$", "description": "Phiên bản chuẩn. Bản này: 1.0" },
-    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 40, "description": "Mã theme, chữ thường không dấu, nối bằng gạch ngang. Là tên file/thư mục." },
-    "name": { "type": "string", "minLength": 2, "maxLength": 32, "description": "Tên hiển thị tiếng Việt trên thẻ theme." },
-    "dark": { "type": "boolean", "description": "true = nền tối." },
-    "description": { "type": "string", "maxLength": 90, "description": "Một câu mô tả hiện dưới tên theme trong Cài đặt." },
-    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$", "default": "1.0.0" },
-    "author": { "type": "string" },
-    "created": { "type": "string", "format": "date" },
-    "inspired_by": { "type": "string", "description": "Ghi chú nguồn cảm hứng (không hiển thị)." },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$",
+      "description": "Phiên bản chuẩn: 1.0 hoặc 1.1. Validator 1.1 đọc được cả 1.0."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 40,
+      "description": "Mã theme, chữ thường không dấu, nối bằng gạch ngang. Là tên file/thư mục."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 32,
+      "description": "Tên hiển thị tiếng Việt trên thẻ theme."
+    },
+    "dark": {
+      "type": "boolean",
+      "description": "true = nền tối."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 90,
+      "description": "Một câu mô tả hiện dưới tên theme trong Cài đặt."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "default": "1.0.0"
+    },
+    "author": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string",
+      "format": "date"
+    },
+    "inspired_by": {
+      "type": "string",
+      "description": "Ghi chú nguồn cảm hứng (không hiển thị)."
+    },
     "tokens": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["bg","rail","panel","surface","surface2","ink","ink2","ink3","line","line2","accent","accentink","accentsoft","shelf","shelftop","under","shadow","ok","warn","err","scrim"],
+      "required": [
+        "bg",
+        "rail",
+        "panel",
+        "surface",
+        "surface2",
+        "ink",
+        "ink2",
+        "ink3",
+        "line",
+        "line2",
+        "accent",
+        "accentink",
+        "accentsoft",
+        "shelf",
+        "shelftop",
+        "under",
+        "shadow",
+        "ok",
+        "warn",
+        "err",
+        "scrim"
+      ],
       "properties": {
-        "bg":        { "$ref": "#/$defs/hex", "description": "Nền vùng nội dung (kệ sách)." },
-        "rail":      { "$ref": "#/$defs/hex", "description": "Nền thanh bên, thanh tiêu đề, thanh trạng thái." },
-        "panel":     { "$ref": "#/$defs/hex", "description": "Nền panel chi tiết, hộp thoại." },
-        "surface":   { "$ref": "#/$defs/hex", "description": "Nền ô nhập, nút, thẻ." },
-        "surface2":  { "$ref": "#/$defs/hex", "description": "Nền phụ: thanh Đang lọc, chân hộp thoại, bìa giả." },
-        "ink":       { "$ref": "#/$defs/hex", "description": "Chữ chính." },
-        "ink2":      { "$ref": "#/$defs/hex", "description": "Chữ phụ." },
-        "ink3":      { "$ref": "#/$defs/hex", "description": "Chữ mờ, nhãn nhóm, số đếm (chỉ chữ ≥ 10px đậm hoặc thông tin không bắt buộc)." },
-        "line":      { "$ref": "#/$defs/hex", "description": "Đường kẻ nhạt." },
-        "line2":     { "$ref": "#/$defs/hex", "description": "Viền nút, ô nhập, pill." },
-        "accent":    { "$ref": "#/$defs/hex", "description": "Nút chính, mục đang chọn, liên kết, focus." },
-        "accentink": { "$ref": "#/$defs/hex", "description": "Chữ trên nền accent." },
-        "accentsoft":{ "$ref": "#/$defs/hex", "description": "Nền nhạt của mục đang chọn." },
-        "shelf":     { "$ref": "#/$defs/hex", "description": "Màu thân vạch kệ." },
-        "shelftop":  { "$ref": "#/$defs/hex", "description": "Màu mặt trên (điểm sáng) của vạch kệ." },
-        "under":     { "$ref": "#/$defs/rgba", "description": "Bóng mờ dưới kệ." },
-        "shadow":    { "$ref": "#/$defs/rgba", "description": "Bóng đổ của bìa sách." },
-        "ok":        { "$ref": "#/$defs/hex", "description": "Trạng thái dùng được / xong (luôn đi kèm hình tròn + ✓)." },
-        "warn":      { "$ref": "#/$defs/hex", "description": "Cảnh báo (luôn đi kèm tam giác + chữ)." },
-        "err":       { "$ref": "#/$defs/hex", "description": "Có vấn đề / nguy hiểm (luôn đi kèm hình vuông + ✕)." },
-        "scrim":     { "$ref": "#/$defs/rgba", "description": "Lớp phủ tối sau hộp thoại." }
+        "bg": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền vùng nội dung (kệ sách)."
+        },
+        "rail": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền thanh bên, thanh tiêu đề, thanh trạng thái."
+        },
+        "panel": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền panel chi tiết, hộp thoại."
+        },
+        "surface": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền ô nhập, nút, thẻ."
+        },
+        "surface2": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền phụ: thanh Đang lọc, chân hộp thoại, bìa giả."
+        },
+        "ink": {
+          "$ref": "#/$defs/hex",
+          "description": "Chữ chính."
+        },
+        "ink2": {
+          "$ref": "#/$defs/hex",
+          "description": "Chữ phụ."
+        },
+        "ink3": {
+          "$ref": "#/$defs/hex",
+          "description": "Chữ mờ, nhãn nhóm, số đếm (chỉ chữ ≥ 10px đậm hoặc thông tin không bắt buộc)."
+        },
+        "line": {
+          "$ref": "#/$defs/hex",
+          "description": "Đường kẻ nhạt."
+        },
+        "line2": {
+          "$ref": "#/$defs/hex",
+          "description": "Viền nút, ô nhập, pill."
+        },
+        "accent": {
+          "$ref": "#/$defs/hex",
+          "description": "Nút chính, mục đang chọn, liên kết, focus."
+        },
+        "accentink": {
+          "$ref": "#/$defs/hex",
+          "description": "Chữ trên nền accent."
+        },
+        "accentsoft": {
+          "$ref": "#/$defs/hex",
+          "description": "Nền nhạt của mục đang chọn."
+        },
+        "shelf": {
+          "$ref": "#/$defs/hex",
+          "description": "Màu thân vạch kệ."
+        },
+        "shelftop": {
+          "$ref": "#/$defs/hex",
+          "description": "Màu mặt trên (điểm sáng) của vạch kệ."
+        },
+        "under": {
+          "$ref": "#/$defs/rgba",
+          "description": "Bóng mờ dưới kệ."
+        },
+        "shadow": {
+          "$ref": "#/$defs/rgba",
+          "description": "Bóng đổ của bìa sách."
+        },
+        "ok": {
+          "$ref": "#/$defs/hex",
+          "description": "Trạng thái dùng được / xong (luôn đi kèm hình tròn + ✓)."
+        },
+        "warn": {
+          "$ref": "#/$defs/hex",
+          "description": "Cảnh báo (luôn đi kèm tam giác + chữ)."
+        },
+        "err": {
+          "$ref": "#/$defs/hex",
+          "description": "Có vấn đề / nguy hiểm (luôn đi kèm hình vuông + ✕)."
+        },
+        "scrim": {
+          "$ref": "#/$defs/rgba",
+          "description": "Lớp phủ tối sau hộp thoại."
+        },
+        "link": {
+          "$ref": "#/$defs/hex",
+          "description": "(1.1, tùy chọn) Màu chữ liên kết. Thiếu = dùng accent. Dùng khi accent là màu nền sáng (vd. caramel) không đủ tương phản làm chữ."
+        }
       }
     },
     "fonts": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ui", "content", "display"],
+      "required": [
+        "ui",
+        "content",
+        "display"
+      ],
       "properties": {
-        "ui":      { "$ref": "#/$defs/font", "description": "Phông ứng dụng: menu, nút, bảng." },
-        "content": { "$ref": "#/$defs/font", "description": "Phông nội dung: tên sách, tóm tắt, cửa sổ đọc, tiêu đề hộp thoại." },
-        "display": { "$ref": "#/$defs/font", "description": "Phông nhãn in hoa: pill thanh bên, nhãn nhóm, tiêu đề cột." }
+        "ui": {
+          "$ref": "#/$defs/font",
+          "description": "Phông ứng dụng: menu, nút, bảng."
+        },
+        "content": {
+          "$ref": "#/$defs/font",
+          "description": "Phông nội dung: tên sách, tóm tắt, cửa sổ đọc, tiêu đề hộp thoại."
+        },
+        "display": {
+          "$ref": "#/$defs/font",
+          "description": "Phông nhãn in hoa: pill thanh bên, nhãn nhóm, tiêu đề cột."
+        }
       }
     },
     "ornaments": {
@@ -60,63 +203,214 @@
       "additionalProperties": false,
       "properties": {
         "shelf": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "properties": {
-            "style":     { "enum": ["flat", "wood", "glass"], "default": "flat" },
-            "thickness": { "type": "integer", "minimum": 4, "maximum": 16, "default": 6, "description": "Độ dày vạch kệ (px)." },
-            "grain":     { "$ref": "#/$defs/hex", "description": "Màu vân gỗ (chỉ khi style = wood)." },
-            "edge":      { "$ref": "#/$defs/hex", "description": "Màu mép dưới vạch kệ." },
-            "brackets":  { "type": "boolean", "default": false, "description": "Vẽ hai ke đỡ kim loại nhỏ dưới hai đầu kệ." },
-            "bracket_color": { "$ref": "#/$defs/hex" }
+            "style": {
+              "enum": [
+                "flat",
+                "wood",
+                "glass"
+              ],
+              "default": "flat"
+            },
+            "thickness": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 16,
+              "default": 6,
+              "description": "Độ dày vạch kệ (px)."
+            },
+            "grain": {
+              "$ref": "#/$defs/hex",
+              "description": "Màu vân gỗ (chỉ khi style = wood)."
+            },
+            "edge": {
+              "$ref": "#/$defs/hex",
+              "description": "Màu mép dưới vạch kệ."
+            },
+            "brackets": {
+              "type": "boolean",
+              "default": false,
+              "description": "Vẽ hai ke đỡ kim loại nhỏ dưới hai đầu kệ."
+            },
+            "bracket_color": {
+              "$ref": "#/$defs/hex"
+            }
           }
         },
         "frame": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "description": "Khung/dải gỗ cho tiêu đề nhóm thanh bên, header panel chi tiết, tiêu đề cột Cài đặt.",
           "properties": {
-            "style": { "enum": ["none", "wood"], "default": "none" },
-            "light": { "$ref": "#/$defs/hex" },
-            "dark":  { "$ref": "#/$defs/hex" },
-            "ink":   { "$ref": "#/$defs/hex", "description": "Chữ trên khung (phải đạt 4.5:1 với light)." }
+            "style": {
+              "enum": [
+                "none",
+                "wood"
+              ],
+              "default": "none"
+            },
+            "light": {
+              "$ref": "#/$defs/hex"
+            },
+            "dark": {
+              "$ref": "#/$defs/hex"
+            },
+            "ink": {
+              "$ref": "#/$defs/hex",
+              "description": "Chữ trên khung (phải đạt 4.5:1 với light)."
+            }
           }
         },
         "notice": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "description": "Kiểu thẻ thông báo nhẹ (tóm tắt nhập, có bản mới, dải cảnh báo mất file).",
           "properties": {
-            "style": { "enum": ["card", "chalkboard"], "default": "card" },
-            "bg":    { "$ref": "#/$defs/hex" },
-            "ink":   { "$ref": "#/$defs/hex", "description": "Chữ trên bảng (phải đạt 4.5:1 với bg)." },
-            "frame": { "$ref": "#/$defs/hex" }
+            "style": {
+              "enum": [
+                "card",
+                "chalkboard"
+              ],
+              "default": "card"
+            },
+            "bg": {
+              "$ref": "#/$defs/hex"
+            },
+            "ink": {
+              "$ref": "#/$defs/hex",
+              "description": "Chữ trên bảng (phải đạt 4.5:1 với bg)."
+            },
+            "frame": {
+              "$ref": "#/$defs/hex"
+            }
           }
         },
         "cover_frame": {
-          "type": "object", "additionalProperties": false,
+          "type": "object",
+          "additionalProperties": false,
           "description": "Viền khung quanh bìa lớn ở panel chi tiết.",
           "properties": {
-            "style": { "enum": ["none", "wood", "line"], "default": "none" },
-            "width": { "type": "integer", "minimum": 0, "maximum": 14, "default": 0 }
+            "style": {
+              "enum": [
+                "none",
+                "wood",
+                "line"
+              ],
+              "default": "none"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 14,
+              "default": 0
+            }
           }
         }
       }
     },
     "preview": {
-      "type": "array", "items": { "type": "string" },
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
       "description": "Đường dẫn tương đối tới ảnh xem trước trong gói (preview/*.png)."
+    },
+    "layouts": {
+      "type": "object",
+      "description": "(1.1, tùy chọn) Theme tự khai báo dùng được với kiểu giao diện nào, kèm màu chỉnh riêng cho kiểu đó. Khóa = id kiểu giao diện (vd. toi-gian). Giá trị ở đây đè lên giá trị mặc định mà gói kiểu giao diện đặt cho theme này.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "supported": {
+            "type": "boolean",
+            "default": true
+          },
+          "tokens": {
+            "type": "object",
+            "description": "Chỉ những token cần đổi khi ở kiểu này.",
+            "propertyNames": {
+              "enum": [
+                "bg",
+                "rail",
+                "panel",
+                "surface",
+                "surface2",
+                "ink",
+                "ink2",
+                "ink3",
+                "line",
+                "line2",
+                "accent",
+                "accentink",
+                "accentsoft",
+                "shelf",
+                "shelftop",
+                "under",
+                "shadow",
+                "ok",
+                "warn",
+                "err",
+                "scrim",
+                "link"
+              ]
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   },
   "$defs": {
-    "hex":  { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
-    "rgba": { "type": "string", "pattern": "^rgba\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*(0|1|0?\\.\\d+)\\s*\\)$" },
+    "hex": {
+      "type": "string",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
+    "rgba": {
+      "type": "string",
+      "pattern": "^rgba\\(\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*(0|1|0?\\.\\d+)\\s*\\)$"
+    },
     "font": {
-      "type": "object", "additionalProperties": false,
-      "required": ["family"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family"
+      ],
       "properties": {
-        "family":   { "type": "string", "description": "Tên họ phông như QFontDatabase báo." },
-        "fallback": { "type": "array", "items": { "type": "string" }, "default": ["Segoe UI"] },
-        "files":    { "type": "array", "items": { "type": "string", "pattern": "^fonts/.+\\.(ttf|otf)$" }, "description": "File phông kèm gói (bỏ trống nếu MewBook đã nhúng sẵn phông này)." },
-        "license":  { "type": "string", "pattern": "^fonts/.+\\.txt$", "description": "Bắt buộc khi có files. Chỉ chấp nhận OFL hoặc Apache 2.0." },
-        "vietnamese": { "const": true, "description": "Xác nhận phông có đủ dấu tiếng Việt." }
+        "family": {
+          "type": "string",
+          "description": "Tên họ phông như QFontDatabase báo."
+        },
+        "fallback": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Segoe UI"
+          ]
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^fonts/.+\\.(ttf|otf)$"
+          },
+          "description": "File phông kèm gói (bỏ trống nếu MewBook đã nhúng sẵn phông này)."
+        },
+        "license": {
+          "type": "string",
+          "pattern": "^fonts/.+\\.txt$",
+          "description": "Bắt buộc khi có files. Chỉ chấp nhận OFL hoặc Apache 2.0."
+        },
+        "vietnamese": {
+          "const": true,
+          "description": "Xác nhận phông có đủ dấu tiếng Việt."
+        }
       }
     }
   }

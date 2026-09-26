@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   The seven themes look as before, apart from small colour corrections that keep status colours and links apart
   (Không Gian Chữa Lành accent, and the warning/error/success colours of Hoài Niệm, Walnut Library and Zen Dark).
   A saved choice from 1.0/1.1 still opens the same theme.
+- **Layouts (kiểu giao diện), the second choice next to the theme.** `layouts/<id>/layout.json` describes a window shape
+  (radii, sizes, which themes it accepts and how it retunes their colours); Settings > Giao diện now picks the layout
+  first, then a colour theme from those it accepts, and remembers the theme per layout. Theme standard 1.1 adds the
+  optional `link` colour. The "Tối giản" package is imported and validated (four themes), but stays hidden until its
+  screens (a Home page, round sheet, vertical labels) are built.
 - **New theme "Gỗ Thông Trời Xanh"** (light): pine shelves with metal brackets on a sky-blue ground, wood-framed group
   labels and cover, green chalkboard notice cards, Nunito typeface (OFL, shipped with the theme).
 

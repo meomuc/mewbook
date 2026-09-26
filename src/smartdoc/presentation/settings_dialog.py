@@ -77,9 +77,10 @@ from smartdoc.presentation.library_view import PAGE_SIZE
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.privacy_panel import PrivacyPanel
 from smartdoc.presentation.resources import donate_qr_path
-from smartdoc.presentation.settings_widgets import PillList, SettingsPage, ThemeCard, add_note_box, hint_pair
+from smartdoc.presentation.layouts import compose_tokens, layout_for, selectable_layouts, theme_label
+from smartdoc.presentation.settings_widgets import LayoutCard, PillList, SettingsPage, ThemeCard, add_note_box, hint_pair
 from smartdoc.presentation.theme import colors_for, current_colors, resolve_font_family
-from smartdoc.presentation.theme_manager import available_themes, theme_manager
+from smartdoc.presentation.theme_manager import available_themes, load_tokens, theme_manager
 from smartdoc.presentation.update_panel import UpdatePanel
 from smartdoc.presentation.worker_relay import WorkerRelay, post
 
@@ -333,27 +334,45 @@ class SettingsDialog(QDialog):
         """Everything about how the app looks, in one place: the theme itself plus both font axes -- the app's own
         chrome font, and the separate "content" font used for document text (see AppConfig's docstring on
         content_font_family for why those two stay distinct settings even though they now live on one page)."""
-        themes = available_themes()  # scanned from themes/*/theme.json, no fixed list
-        page = SettingsPage("Giao diện", f"Chọn một trong {len(themes)} giao diện màu và kiểu chữ. Đổi xong là áp dụng khi đóng cửa sổ này.", self)
+        page = SettingsPage("Giao diện", "Chọn kiểu giao diện, rồi bảng màu và kiểu chữ. Đổi xong là áp dụng khi đóng cửa sổ này.", self)
 
-        # The combo stays the single source of truth (and what the tests and _apply_settings read); the cards drive it.
+        # Two layers: the layout (the window's shape, code) and, inside it, the theme (colour and type, data). The
+        # hidden combos stay the single source of truth (what the tests and _apply_settings read); the cards drive them.
+        layouts = selectable_layouts()
+        self._layout_id = config.layout if config.layout in layouts else next(iter(layouts))
+        self._theme_memory: dict[str, str] = dict(config.theme_by_layout)  # layout id -> the theme last used with it
+        self._theme_memory[self._layout_id] = config.theme
+        self.layout_combo = QComboBox(page)
+        for spec in layouts.values():
+            self.layout_combo.addItem(spec.name, spec.id)
+        self.layout_combo.setCurrentIndex(max(0, self.layout_combo.findData(self._layout_id)))
+        self.layout_combo.hide()
+        layout_cards = FlowWidget(page, h_spacing=12, v_spacing=12)
+        self.layout_cards: dict[str, LayoutCard] = {}
+        for spec in layouts.values():
+            card = LayoutCard(spec.id, spec.name, spec.description, layout_cards)
+            card.chosen.connect(self._on_layout_card_chosen)
+            self.layout_cards[spec.id] = card
+        layout_cards.set_widgets(list(self.layout_cards.values()))
+        self._sync_layout_cards()
+        page.add_row("Kiểu giao diện", "Hình khối và cách bố trí của cửa sổ.", self.layout_combo)
+        page.add_block(layout_cards)
+
         self.theme_combo = QComboBox(page)
-        for info in themes:
-            self.theme_combo.addItem(info.name, info.key)
-        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(config.theme)))
         self.theme_combo.hide()
-        cards = FlowWidget(page, h_spacing=12, v_spacing=12)
+        self._theme_cards_holder = FlowWidget(page, h_spacing=12, v_spacing=12)
         self.theme_cards: dict[str, ThemeCard] = {}
-        for info in themes:
-            card = ThemeCard(info.key, info.name, "Nền tối" if info.dark else "Nền sáng", cards)
-            card.setToolTip(info.description)
-            card.chosen.connect(self._on_theme_card_chosen)
-            self.theme_cards[info.key] = card
-        cards.set_widgets(list(self.theme_cards.values()))
-        self._sync_theme_cards()
+        self._other_layout_note = QLabel(page)
+        self._other_layout_note.setWordWrap(True)
+        self._other_layout_note.setTextFormat(Qt.RichText)
+        self._other_layout_note.linkActivated.connect(self._on_layout_link)
+        self._theme_row_hint = QLabel(page)
+        self._fill_theme_cards()
         self.theme_combo.currentIndexChanged.connect(self._sync_theme_cards)
-        page.add_row("Giao diện", f"{len(themes)} lựa chọn, sáng và tối.", self.theme_combo)
-        page.add_block(cards)  # full width, so the cards wrap to as many rows as the window needs
+        self.layout_combo.currentIndexChanged.connect(self._on_layout_changed)
+        page.add_row("Bảng màu", "Chỉ hiện những bảng màu dùng được với kiểu đang chọn.", self.theme_combo)
+        page.add_block(self._theme_cards_holder)  # full width, so the cards wrap to as many rows as the window needs
+        page.add_block(self._other_layout_note)
 
         # With no font chosen by the user, a font picker shows the theme's own typeface -- and follows the theme
         # cards as they change.
@@ -426,6 +445,66 @@ class SettingsDialog(QDialog):
 
     def _on_theme_card_chosen(self, name: str) -> None:
         self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(name)))
+
+    def _on_layout_card_chosen(self, layout_id: str) -> None:
+        self.layout_combo.setCurrentIndex(max(0, self.layout_combo.findData(layout_id)))
+
+    def _on_layout_link(self, target: str) -> None:
+        self._on_layout_card_chosen(target)
+
+    def _on_layout_changed(self, _index: int = 0) -> None:
+        """Another layout: remember the theme chosen in the old one, list the themes the new one accepts, and if the
+        current theme is not among them switch to the layout's default (the old choice comes back on the way back)."""
+        current = self.theme_combo.currentData()
+        if current is not None:
+            self._theme_memory[self._layout_id] = str(current)
+        self._layout_id = str(self.layout_combo.currentData())
+        self._sync_layout_cards()
+        self._fill_theme_cards()
+
+    def _sync_layout_cards(self) -> None:
+        for layout_id, card in self.layout_cards.items():
+            card.set_selected(layout_id == self.layout_combo.currentData())
+
+    def _fill_theme_cards(self) -> None:
+        """(Re)build the theme combo and cards for the selected layout."""
+        spec = layout_for(self._layout_id)
+        themes = load_tokens()
+        infos = available_themes(spec.id)
+        remembered = self._theme_memory.get(spec.id)
+        keys = [info.key for info in infos]
+        wanted = remembered if remembered in keys else next(
+            (i.key for i in infos if i.theme_id == spec.default_theme), keys[0] if keys else "")
+        self.theme_combo.blockSignals(True)
+        self.theme_combo.clear()
+        for info in infos:
+            self.theme_combo.addItem(info.name, info.key)
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(wanted)))
+        self.theme_combo.blockSignals(False)
+        for card in self.theme_cards.values():
+            card.setParent(None)
+            card.deleteLater()  # a discarded widget is destroyed by Qt, not left to the cycle collector
+        self.theme_cards = {}
+        for info in infos:
+            tokens = compose_tokens(themes[info.theme_id], spec, info.theme_id)
+            caption = theme_label(spec, info.theme_id) or ("Nền tối" if info.dark else "Nền sáng")
+            card = ThemeCard(info.key, info.name, caption, self._theme_cards_holder, tokens=tokens)
+            card.setToolTip(info.description)
+            card.chosen.connect(self._on_theme_card_chosen)
+            self.theme_cards[info.key] = card
+        self._theme_cards_holder.set_widgets(list(self.theme_cards.values()))
+        self._sync_theme_cards()
+        parts = []
+        for other in (o for o in selectable_layouts().values() if o.id != spec.id):
+            other_id, other_name = other.id, other.name
+            only_there = [i.name for i in available_themes(other_id) if i.key not in keys]
+            if only_there:
+                parts.append(f"Bảng màu chỉ dùng ở kiểu {other_name}: {', '.join(only_there)}. "
+                             f"<a href=\"{other_id}\">Chuyển sang kiểu {other_name}</a>.")
+        self._other_layout_note.setText(" ".join(parts))
+        self._other_layout_note.setVisible(bool(parts))
+        if hasattr(self, "_font_touched"):
+            self._on_theme_preview_changed(self.theme_combo.currentIndex())
 
     def _sync_theme_cards(self, _index: int = 0) -> None:
         current = self.theme_combo.currentData()
@@ -919,10 +998,14 @@ class SettingsDialog(QDialog):
         config.metadata_backup_keep = self.metadata_backup_spin.value()
 
         new_theme = self.theme_combo.currentData()
+        new_layout = str(self.layout_combo.currentData())
         theme_changed = new_theme != config.theme
-        if theme_changed:
+        if theme_changed or new_layout != config.layout:
             self.appearance_changed = True
             config.theme = new_theme
+            config.layout = new_layout
+        self._theme_memory[new_layout] = str(new_theme)
+        config.theme_by_layout = dict(self._theme_memory)  # so switching layout and back finds each choice again
 
         # A font the user picked by hand wins; otherwise a theme change must
         # drop any font saved earlier, or the old typeface would stick to the

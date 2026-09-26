@@ -32,6 +32,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication
 
+from smartdoc.presentation.layouts import DEFAULT_LAYOUT_ID, LayoutSpec, compose_tokens, layout_for, theme_supported
 from smartdoc.presentation.resources import assets_dir, themes_dir
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,7 @@ def _flatten(theme: dict, folder: Path) -> dict:
     fonts = theme["fonts"]
     flat.update(name=theme["name"], dark=bool(theme["dark"]), description=theme.get("description", ""),
                 version=theme.get("version", "1.0.0"), ornaments=dict(theme.get("ornaments") or {}),
+                layouts=dict(theme.get("layouts") or {}),
                 ui=fonts["ui"]["family"], content=fonts["content"]["family"], disp=fonts["display"]["family"],
                 font_files=[str(folder / rel) for role in fonts.values() for rel in role.get("files", [])])
     return flat
@@ -129,11 +131,13 @@ class ThemeInfo:
     dark: bool
 
 
-def available_themes() -> list[ThemeInfo]:
-    """The themes Settings offers, generated from the packages on disk (no fixed list)."""
+def available_themes(layout_id: str | None = None) -> list[ThemeInfo]:
+    """The themes Settings offers, generated from the packages on disk (no fixed list). With `layout_id`, only those
+    the layout can be used with."""
     saved_for_id = {v: k for k, v in TOKEN_KEY_FOR_THEME.items()}
+    layout = layout_for(layout_id) if layout_id else None
     return [ThemeInfo(saved_for_id.get(tid, tid), tid, str(t["name"]), str(t["description"]), bool(t["dark"]))
-            for tid, t in load_tokens().items()]
+            for tid, t in load_tokens().items() if layout is None or theme_supported(layout, tid, t)]
 
 
 def default_token_key() -> str:
@@ -198,7 +202,8 @@ class ThemeManager(QObject):
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._key = default_token_key()
-        self._tokens: dict[str, str | bool] = dict(load_tokens()[self._key])
+        self._layout: LayoutSpec = layout_for(DEFAULT_LAYOUT_ID)
+        self._tokens: dict[str, str | bool] = compose_tokens(load_tokens()[self._key], self._layout, self._key)
         self._fonts_loaded = False
 
     # -- reading ---------------------------------------------------------
@@ -217,8 +222,23 @@ class ThemeManager(QObject):
     def token(self, name: str) -> str:
         return str(self._tokens[name])
 
+    @property
+    def layout(self) -> LayoutSpec:
+        return self._layout
+
+    def tokens(self) -> dict:
+        """The composed tokens of the applied (layout, theme) pair -- what ThemeColors is rebuilt from."""
+        return dict(self._tokens)
+
+    def metric(self, name: str, default=0):
+        """A number of the applied layout (radii, sizes, densities), see layouts/<id>/LAYOUT_SPEC.md."""
+        return self._layout.metric(name, default)
+
     def ornament(self, block: str) -> dict:
-        """The theme's decoration parameters for `shelf`, `frame`, `notice` or `cover_frame`; {} = the flat default."""
+        """The theme's decoration parameters for `shelf`, `frame`, `notice` or `cover_frame`; {} = the flat default
+        (also when the layout ignores ornaments)."""
+        if not self._layout.ornaments_apply:
+            return {}
         return dict(self._tokens.get("ornaments", {}).get(block) or {})
 
     def color(self, name: str) -> QColor:
@@ -234,6 +254,7 @@ class ThemeManager(QObject):
         template = Template((_STYLES_DIR / "base.qss.tpl").read_text(encoding="utf-8"))
         values = {name: _qss_color(self.token(name)) for name in COLOR_TOKENS}
         values.update({name: _qss_font(self.token(name)) for name in FONT_TOKENS})
+        values["link"] = _qss_color(self.token("link"))  # 1.1 token; equals the accent when a theme has none
         return template.substitute(values)
 
     def palette(self) -> QPalette:
@@ -256,11 +277,16 @@ class ThemeManager(QObject):
             palette.setColor(QPalette.Disabled, role, c("ink3"))
         return palette
 
-    def apply(self, app: QApplication, theme_key: str) -> None:
-        """Switch to the saved theme `theme_key` (a `THEME_CHOICES` value); unknown keys get the default look."""
+    def apply(self, app: QApplication, theme_key: str, layout_id: str = DEFAULT_LAYOUT_ID) -> None:
+        """Switch to the saved theme `theme_key` (a `THEME_CHOICES` value or a theme id) shown in layout `layout_id`;
+        unknown keys get the default look, and a theme the layout cannot use is replaced by the layout's default."""
         token_key = token_key_for(theme_key)
+        self._layout = layout_for(layout_id)
+        themes = load_tokens()
+        if not theme_supported(self._layout, token_key, themes[token_key]):
+            token_key = self._layout.default_theme if self._layout.default_theme in themes else default_token_key()
         self._key = token_key
-        self._tokens = dict(load_tokens()[token_key])
+        self._tokens = compose_tokens(themes[token_key], self._layout, token_key)
         if not self._fonts_loaded:
             load_app_fonts()
             self._fonts_loaded = True

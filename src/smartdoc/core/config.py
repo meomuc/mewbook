@@ -69,6 +69,10 @@ def default_app_data_dir() -> Path:
 class AppConfig:
     watch_folders: list[str] = field(default_factory=list)
     theme: str = "broadsheet"
+    # The layout ("kiểu giao diện": window shape, see presentation/layouts.py) and, per layout, the theme last used
+    # with it -- so switching layout and back finds the choice again. `theme` above is the theme in the active layout.
+    layout: str = "ke-sach"
+    theme_by_layout: dict[str, str] = field(default_factory=dict)
     view_mode: str = "grid"  # "grid" | "list"
     db_path: str | None = None
     cover_cache_dir: str | None = None
@@ -231,6 +235,10 @@ class ConfigManager:
             # Not one of the original seven and not a theme-package id either (a theme package is saved by its id and
             # the app falls back to the default look if that package is gone).
             config.theme = "broadsheet"
+        if not _THEME_ID.match(str(config.layout)):
+            config.layout = "ke-sach"  # a well-formed but unknown id is kept: the app falls back if the package is gone
+        if not isinstance(config.theme_by_layout, dict):
+            config.theme_by_layout = {}
         if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
             config.smart_classify_on_import = "ask"  # a hand-edited settings.json must not disable the prompt by typo
         if config.error_report_mode not in ERROR_REPORT_MODE_CHOICES:

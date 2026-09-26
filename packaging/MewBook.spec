@@ -109,13 +109,15 @@ _datas += [
     ('../src/smartdoc/data/*.json', 'smartdoc/data'),
     ('../src/smartdoc/data/*.json.gz', 'smartdoc/data'),
 ]
-# Theme packages: themes/<id>/ (theme.json, fonts/, preview/) plus themes/_schema (schema + validator), each keeping its
-# own folder -- a glob would flatten them into one. `incoming/` (unimported zips) and `preview/` pictures never ship. presentation/resources.py
-# themes_dir() finds them again.
-for _file in sorted((_ROOT / 'themes').rglob('*')):
-    _rel = _file.relative_to(_ROOT / 'themes')
-    if _file.is_file() and _rel.parts[0] != 'incoming' and not {'preview', '__pycache__'} & set(_rel.parts):
-        _datas.append((str(_file), str(Path('themes') / _rel.parent)))
+# Theme and layout packages: themes/<id>/ (theme.json, fonts/, preview/) with themes/_schema (schema + validators), and
+# layouts/<id>/ (layout.json, LAYOUT_SPEC.md, preview/). Each keeps its own folder -- a glob would flatten them.
+# `incoming/` (unimported zips) and `preview/` pictures never ship. presentation/resources.py themes_dir()/layouts_dir()
+# find them again.
+for _pack in ('themes', 'layouts'):
+    for _file in sorted((_ROOT / _pack).rglob('*')):
+        _rel = _file.relative_to(_ROOT / _pack)
+        if _file.is_file() and _rel.parts[0] != 'incoming' and not {'preview', '__pycache__'} & set(_rel.parts):
+            _datas.append((str(_file), str(Path(_pack) / _rel.parent)))
 _datas += collect_data_files('pyvi')
 # Every redistributed dependency's dist-info (METADATA + licence files), so its licence text ships
 # with the exe as THIRD_PARTY_NOTICES.md promises. Names as in THIRD_PARTY_NOTICES.md.

@@ -6,6 +6,7 @@ Kiểm tra gói theme MewBook trước khi nhập.
 Cách dùng:
     python validate_theme.py <thư mục gói | file .zip | theme.json> [--schema đường/dẫn/theme.schema.json]
 
+Hỗ trợ chuẩn 1.0 và 1.1 (token link, khối layouts).
 Mã thoát: 0 = đạt, 1 = có LỖI (không được nhập), 2 = không đọc được gói.
 CẢNH BÁO không chặn việc nhập nhưng phải báo lại cho người dùng.
 Không cần thư viện ngoài; nếu có `jsonschema` thì dùng thêm để kiểm tra chặt hơn.
@@ -14,6 +15,7 @@ import json, math, os, re, sys, tempfile, zipfile
 
 TOKENS = ["bg","rail","panel","surface","surface2","ink","ink2","ink3","line","line2","accent","accentink",
           "accentsoft","shelf","shelftop","under","shadow","ok","warn","err","scrim"]
+OPTIONAL_TOKENS = ["link"]   # 1.1
 RGBA_KEYS = {"under", "shadow", "scrim"}
 HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 RGBA = re.compile(r"^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0?\.\d+)\s*\)$")
@@ -43,12 +45,17 @@ CONTRAST_TEXT = 4.5      # chữ thường
 CONTRAST_UI = 3.0        # viền điều khiển, accent trên nền, chữ lớn/đậm
 DELTA_E_MIN = 20         # ok / warn / err / accent phải khác nhau rõ
 
-def check(theme, root):
+def check(theme, root, content_bg="bg"):
     E, W = [], []
     need = ["schema_version", "id", "name", "dark", "description", "tokens", "fonts"]
     for k in need:
         if k not in theme: E.append(f"Thiếu trường bắt buộc: {k}")
     if E: return E, W
+    lays = theme.get("layouts", {})
+    if not isinstance(lays, dict): E.append("layouts phải là object")
+    for lid, lv in (lays.items() if isinstance(lays, dict) else []):
+        for k in (lv.get("tokens") or {}):
+            if k not in TOKENS + OPTIONAL_TOKENS: E.append(f"layouts.{lid}.tokens có token lạ: {k}")
     if not str(theme["schema_version"]).startswith("1."):
         E.append(f"schema_version {theme['schema_version']} không được hỗ trợ (cần 1.x)")
     if not ID.match(theme["id"]): E.append(f"id '{theme['id']}' phải là chữ thường không dấu, nối bằng gạch ngang")
@@ -59,7 +66,8 @@ def check(theme, root):
         if k not in t: E.append(f"Thiếu token: {k}"); continue
         pat = RGBA if k in RGBA_KEYS else HEX
         if not pat.match(str(t[k])): E.append(f"Token {k} = '{t[k]}' sai định dạng ({'rgba(...)' if k in RGBA_KEYS else '#RRGGBB'})")
-    extra = set(t) - set(TOKENS)
+    extra = set(t) - set(TOKENS) - set(OPTIONAL_TOKENS)
+    if "link" in t and not HEX.match(str(t["link"])): E.append(f"Token link = '{t['link']}' sai định dạng (#RRGGBB)")
     if extra: E.append(f"Token lạ (không có trong chuẩn): {', '.join(sorted(extra))}")
     if E: return E, W
 
@@ -78,11 +86,12 @@ def check(theme, root):
         if c < CONTRAST_UI: W.append(f"ink3 trên {bgk} = {c:.2f}:1 (nên ≥ {CONTRAST_UI}; chỉ dùng cho chữ phụ không bắt buộc)")
     c = contrast(t["accentink"], t["accent"])
     if c < CONTRAST_TEXT: E.append(f"Chữ accentink trên nền accent = {c:.2f}:1 (cần ≥ {CONTRAST_TEXT})")
+    lk = "link" if "link" in t else "accent"
     for bgk in ("panel", "surface"):
-        c = contrast(t["accent"], t[bgk])
-        if c < CONTRAST_TEXT: E.append(f"accent (liên kết) trên {bgk} = {c:.2f}:1 (cần ≥ {CONTRAST_TEXT})")
-    c = contrast(t["accent"], t["bg"])
-    if c < CONTRAST_UI: E.append(f"accent trên bg = {c:.2f}:1 (cần ≥ {CONTRAST_UI} cho viền chọn bìa, nút chính)")
+        c = contrast(t[lk], t[bgk])
+        if c < CONTRAST_TEXT: E.append(f"{lk} (chữ liên kết) trên {bgk} = {c:.2f}:1 (cần ≥ {CONTRAST_TEXT})")
+    c = contrast(t["accent"], t[content_bg])
+    if c < CONTRAST_UI: E.append(f"accent trên nền nội dung {content_bg} = {c:.2f}:1 (cần ≥ {CONTRAST_UI} cho viền chọn bìa, nút chính)")
     for k in ("ok", "warn", "err"):
         for bgk in ("panel", "surface", "rail"):
             c = contrast(t[k], t[bgk])
@@ -102,7 +111,7 @@ def check(theme, root):
             if d < DELTA_E_MIN: E.append(f"{ks[i]} và {ks[j]} quá giống nhau (ΔE = {d:.1f}, cần ≥ {DELTA_E_MIN})")
 
     # kệ nổi trên nền
-    c = max(contrast(t["shelf"], t["bg"]), contrast(t["shelftop"], t["bg"]))
+    c = max(contrast(t["shelf"], t[content_bg]), contrast(t["shelftop"], t[content_bg]))
     if c < 1.25: W.append(f"Vạch kệ gần như lẫn vào nền (tương phản {c:.2f}:1)")
 
     # phông

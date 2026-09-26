@@ -120,3 +120,39 @@ Thiếu khối nào = dùng kiểu mặc định phẳng. Kiểu không nhận r
 - `presentation/theme.py::colors_for()` cho widget còn đọc `ThemeColors`: theme mới nhận cấu trúc mặc định + màu của gói.
 - Gói theme nằm ở thư mục gốc `themes/` và được `packaging/MewBook.spec` đưa vào bản dựng (trừ `incoming/`).
 - Màu chữ mờ `ink3` phải đạt 4.5:1 (test hợp đồng theme của dự án), chặt hơn cảnh báo 3:1 của validator.
+
+## 6. Kiểu giao diện (layout) — chuẩn gói v1.1
+
+MewBook có HAI LỚP chọn giao diện: KIỂU GIAO DIỆN (bố cục, hình khối) và THEME (màu, phông — dữ liệu). Cấu hình lưu cặp
+`AppConfig.layout` + `AppConfig.theme` (và `theme_by_layout`, theme đã dùng cho từng kiểu để đổi qua lại không mất lựa chọn).
+
+### Thư mục
+```
+layouts/<id>/layout.json  layouts/<id>/LAYOUT_SPEC.md  layouts/<id>/preview/
+layouts/incoming/  layouts/incoming/_da-nhap/
+themes/_schema/  (theme.schema.json 1.1, layout.schema.json, validate_theme.py, validate_layout.py)
+```
+`ke-sach` (kiểu gốc) là layout id `ke-sach`: dùng được với MỌI theme (`metrics.supports_all_themes`), `ornaments: apply`.
+
+### Tổ hợp màu
+token cuối = `theme.tokens` ← `layout.themes[theme].tokens` ← `theme.layouts[layout].tokens`. Theme dùng được với một kiểu nếu có
+trong `layout.themes` HOẶC tự khai báo `layouts.<id>.supported = true`. Token `link` (1.1) thiếu thì dùng `accent`.
+Mã: `presentation/layouts.py` (không Qt), `ThemeManager.apply(app, theme, layout)`, `ThemeManager.metric()/tokens()`.
+`ornaments: ignore` → `ThemeManager.ornament()` trả `{}`.
+
+### Gói kiểu = dữ liệu + mã
+Gói `layout.json` chỉ là số đo và màu; HÌNH DẠNG cửa sổ là mã cài một lần ở tầng Presentation theo `LAYOUT_SPEC.md`. Một kiểu
+chỉ được đưa ra Cài đặt và áp dụng khi id của nó nằm trong `layouts.IMPLEMENTED_LAYOUTS` (thêm id ở CÙNG thay đổi cài hình dạng).
+Chưa cài thì gói vẫn được kiểm và ghép màu nhưng bị ẩn, để không có kiểu "chỉ đổi màu".
+
+### Khi chủ dự án nói "Nhập kiểu giao diện mới trong layouts/incoming"
+1. Giải nén; nếu gói có `_schema_1.1/` (hoặc bản mới hơn) thì cập nhật `themes/_schema/` trước (giữ tương thích 1.0) và chạy lại
+   `validate_theme.py` cho mọi theme đã cài.
+2. `python themes/_schema/validate_layout.py <zip> --themes themes`. LỖI → dừng, báo.
+3. Chép vào `layouts/<id>/`. Đọc `LAYOUT_SPEC.md`, cài hình dạng MỘT LẦN ở Presentation (không sửa tầng logic, không `if theme.id`),
+   rồi thêm id vào `IMPLEMENTED_LAYOUTS`.
+4. Cài đặt › Giao diện có hai lớp chọn (kiểu, rồi bảng màu); đổi kiểu lúc chạy không cần khởi động lại.
+5. `tests/test_layouts.py` (mọi layout qua validator; mọi tổ hợp dùng được ghép đủ token, đạt tương phản 4.5:1 của dự án, sinh QSS
+   không còn `$token`). Màu chỉnh riêng của gói không đạt 4.5:1 thì làm đậm tối thiểu, nâng patch version, báo lại.
+6. Chụp từng màn trong `preview/` ở đúng theme ghi trong tên file, so và báo khác biệt.
+7. Chuyển zip vào `layouts/incoming/_da-nhap/`, báo lại ngắn.

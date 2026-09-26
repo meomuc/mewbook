@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "id": "toi-gian",
+  "name": "Tối giản",
+  "version": "1.0.1",
+  "description": "Tấm nền bo tròn, một thanh kệ lớn, nhiều khoảng trống, nhãn dọc.",
+  "author": "Claude cho MewBook",
+  "created": "2026-09-26",
+  "inspired_by": "Trang sách kiểu kem-caramel: tiêu đề serif lớn, bìa nổi bật đứng trên một kệ dày, thẻ tác giả, nhãn chữ dọc.",
+  "content_surface": "panel",
+  "metrics": {
+    "sheet_radius": 26,
+    "sheet_margin_x": 22,
+    "sheet_margin_y": 14,
+    "card_radius": 18,
+    "control_radius": 999,
+    "cover_radius": 3,
+    "topbar_height": 72,
+    "headline_size": 46,
+    "headline_font": "content",
+    "section_label": "vertical",
+    "ledge_thickness": 18,
+    "ledge_overhang": 18,
+    "hero_cover_height": 300,
+    "grid_cover_height": 168,
+    "grid_gap": 28,
+    "table_row_height": 56,
+    "filter_width": 216,
+    "detail_width": 320,
+    "min_width": 1024,
+    "min_height": 640
+  },
+  "ornaments": "ignore",
+  "default_theme": "japandi",
+  "themes": {
+    "japandi": {
+      "label": "Mặc định — gần ảnh mẫu nhất",
+      "tokens": {
+        "bg": "#EFE3D3",
+        "rail": "#EFE3D3",
+        "panel": "#FAF7F2",
+        "surface": "#FFFFFF",
+        "surface2": "#F3EEE7",
+        "ink": "#2A2522",
+        "ink2": "#665D55",
+        "ink3": "#6C645C",
+        "line": "#ECE4D9",
+        "line2": "#D6CABA",
+        "accent": "#B07A36",
+        "accentink": "#231A10",
+        "accentsoft": "#F4E7D5",
+        "link": "#7A531F",
+        "shelf": "#DCD2C4",
+        "shelftop": "#FFFFFF",
+        "under": "rgba(90,70,50,.12)",
+        "shadow": "rgba(70,50,30,.32)",
+        "warn": "#777400"
+      }
+    },
+    "editorial-light": {
+      "label": "Sáng, mát",
+      "tokens": {
+        "bg": "#E7E8EA",
+        "rail": "#E7E8EA",
+        "panel": "#FFFFFF",
+        "surface2": "#F4F5F6",
+        "shelf": "#DADCDF",
+        "shelftop": "#FFFFFF",
+        "ink3": "#626871"
+      }
+    },
+    "zen-dark": {
+      "label": "Tối, ấm",
+      "tokens": {
+        "bg": "#141613",
+        "rail": "#141613",
+        "panel": "#1F221E",
+        "surface": "#272B25",
+        "surface2": "#2B2F29",
+        "shelf": "#2F332C",
+        "shelftop": "#4A5044"
+      }
+    },
+    "midnight-ink": {
+      "label": "Tối, lạnh",
+      "tokens": {
+        "bg": "#15181E",
+        "rail": "#15181E",
+        "panel": "#20252E",
+        "shelf": "#2C323D",
+        "shelftop": "#4E5665"
+      }
+    }
+  },
+  "preview": [
+    "preview/01_trang-dau_editorial-light.png",
+    "preview/01_trang-dau_japandi.png",
+    "preview/01_trang-dau_midnight-ink.png",
+    "preview/01_trang-dau_zen-dark.png",
+    "preview/02_thu-vien-luoi_japandi.png",
+    "preview/02_thu-vien-luoi_zen-dark.png",
+    "preview/03_thu-vien-bang_editorial-light.png",
+    "preview/03_thu-vien-bang_midnight-ink.png",
+    "preview/04_hop-thoai_japandi.png",
+    "preview/04_hop-thoai_zen-dark.png",
+    "preview/05_cai-dat-giao-dien_japandi.png",
+    "preview/05_cai-dat-giao-dien_midnight-ink.png",
+    "preview/06_thu-vien-trong_japandi.png",
+    "preview/06_thu-vien-trong_zen-dark.png",
+    "preview/07_cua-so-hep-1024x640_japandi.png",
+    "preview/08_thanh-trang-thai_japandi.png"
+  ]
+}

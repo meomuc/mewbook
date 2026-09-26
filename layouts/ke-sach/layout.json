@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "id": "ke-sach",
+  "name": "Kệ sách",
+  "version": "1.0.0",
+  "description": "Kệ gỗ nhiều tầng: bìa đứng trên vạch kệ, thanh bên và panel chi tiết có viền.",
+  "author": "MewBook",
+  "created": "2026-09-26",
+  "content_surface": "bg",
+  "metrics": {
+    "supports_all_themes": true,
+    "topbar_height": 54,
+    "filter_width": 226,
+    "detail_width": 324,
+    "ledge_thickness": 6,
+    "min_width": 1024,
+    "min_height": 640
+  },
+  "ornaments": "apply",
+  "default_theme": "editorial-light",
+  "themes": {
+    "editorial-light": {
+      "label": "Mặc định",
+      "tokens": {}
+    }
+  }
+}

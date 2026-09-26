@@ -26,6 +26,14 @@ def themes_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "themes"
 
 
+def layouts_dir() -> Path:
+    """The layout packages (`layouts/<id>/layout.json`), next to `themes/`; bundled like it in the frozen exe."""
+    frozen_base = getattr(sys, "_MEIPASS", None)
+    if frozen_base:
+        return Path(frozen_base) / "layouts"
+    return Path(__file__).resolve().parents[3] / "layouts"
+
+
 def app_icon_path() -> Path:
     return assets_dir() / "app_icon.ico"
 

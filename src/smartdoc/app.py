@@ -29,9 +29,11 @@ from smartdoc.presentation.theme_manager import theme_manager
 
 
 def _apply_appearance(app: QApplication, context: AppContext) -> None:
-    colors = apply_theme(app, context.config.config.theme)
     manager = theme_manager()
-    manager.apply(app, context.config.config.theme)  # palette + base stylesheet + fonts; also re-run on a theme switch
+    # Palette + base stylesheet + fonts for the saved (layout, theme) pair; also re-run on a switch. A theme the layout
+    # cannot use is replaced by the layout's default inside apply(), so the legacy colours follow manager.key.
+    manager.apply(app, context.config.config.theme, context.config.config.layout)
+    colors = apply_theme(app, manager.key, manager.tokens())
     font_family = context.config.config.font_family
     # The design's own typeface (Be Vietnam Pro) unless the user picked one in Settings; the legacy per-theme font
     # stack (theme_font) is only the fallback if the bundled font failed to load.
