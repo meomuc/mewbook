@@ -225,7 +225,7 @@ class ImportQueueManager:
         db = self.context.db
         allowed = {f".{e}" for e in self.context.config.config.allowed_extensions}
         known = {os.path.normcase(os.path.abspath(path)) for _id, path in db.files_to_check()}
-        excluded = db.excluded_path_keys()
+        excluded = db.excluded_path_sizes()
         missing = db.missing_documents_by_name()
         queued = relinked = 0
         for folder in folders if folders is not None else list(self.context.config.config.watch_folders):
@@ -237,12 +237,14 @@ class ImportQueueManager:
                         continue
                     path = os.path.join(root, name)
                     key = os.path.normcase(os.path.abspath(path))
-                    if key in known or key in excluded or self.context.self_writes.is_recent(path):
+                    if key in known or self.context.self_writes.is_recent(path):
                         continue
                     try:
                         size = os.stat(path).st_size
                     except OSError:
                         continue
+                    if key in excluded and excluded[key] in (0, size):
+                        continue  # dropped on purpose (and still the same file)
                     owner = missing.pop((name.lower(), size), None)
                     if owner is not None and db.relocate_document(owner, path, size):
                         relinked += 1

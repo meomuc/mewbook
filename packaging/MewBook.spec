@@ -143,7 +143,8 @@ a = Analysis(
     datas=_datas,
     # pyvi is imported lazily inside the classification worker process, so
     # PyInstaller's static scan may not see its dependency chain.
-    hiddenimports=['pyvi.ViTokenizer', 'sklearn_crfsuite', 'pycrfsuite'],
+    hiddenimports=['pyvi.ViTokenizer', 'sklearn_crfsuite', 'pycrfsuite',
+                   'smartdoc.infrastructure.pdf_worker'],  # run by the import worker processes (imported lazily)
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

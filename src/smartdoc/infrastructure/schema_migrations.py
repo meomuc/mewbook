@@ -93,6 +93,7 @@ def _add_excluded_paths(connection: sqlite3.Connection) -> None:
         "CREATE TABLE IF NOT EXISTS excluded_paths ("
         " path_key TEXT PRIMARY KEY,"  # normcase(abspath): Windows paths compare without case
         " path TEXT NOT NULL,"
+        " file_size INTEGER NOT NULL DEFAULT 0,"  # the file as it was: a different file saved under that name is not excluded
         " excluded_at REAL NOT NULL)"
     )
     connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_size ON documents(file_size)")

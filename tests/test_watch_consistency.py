@@ -154,3 +154,16 @@ def test_the_duplicate_dialog_hashes_pending_files_in_the_background_and_then_li
     assert _wait_until(pumped, timeout=10)
     assert app_context.db.get_document("d0")["content_hash"] == app_context.db.get_document("d1")["content_hash"]
     dialog.deleteLater()
+
+
+def test_a_different_file_saved_under_a_dropped_name_is_a_new_book(tmp_path, app_context, manager):
+    path = tmp_path / "a.pdf"
+    doc_id = _import(app_context, manager, path, "Sách bỏ")
+    FileActionEngine(app_context).delete_documents([(doc_id, str(path))], delete_physical_file=False)
+    assert app_context.db.is_path_excluded(str(path))
+    _make_pdf(path, "Một cuốn hoàn toàn khác", "Người khác", "nội dung dài hơn nhiều " * 50)  # same name, another file
+    assert not app_context.db.is_path_excluded(str(path))  # forgotten: it is not the file that was dropped
+    assert app_context.db.list_excluded_paths() == []
+    folder = tmp_path
+    app_context.config.config.watch_folders = [str(folder)]
+    assert manager.catch_up_scan() == 1  # ... so the start-up scan imports it

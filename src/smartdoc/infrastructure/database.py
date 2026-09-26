@@ -71,6 +71,7 @@ _SEARCH_FIELD_RE = re.compile(r"^(title|author|tags|content):(.+)$", re.IGNORECA
 # (bm25 is lower for a better match). Plain `rank` weighted the four columns equally, so a long text that happened to
 # mention the words could outrank the book that is called that.
 _RELEVANCE = "bm25(documents_fts, 10.0, 5.0, 3.0, 1.0)"
+_MAX_QUERY_WORDS = 30  # a pasted paragraph would otherwise become an FTS5 expression too deep to run (and silently find nothing)
 _MAX_D_VARIANT_LETTERS = 4  # a word with more d/đ than this is tried only all-d and all-đ (2^n spellings would explode)
 
 
@@ -534,10 +535,17 @@ class DatabaseManager:
     def exclude_paths(self, paths: list[str]) -> None:
         """Remember that these files were dropped from the library on purpose: the watcher must not bring them back."""
         now = time.time()
+        rows = []
+        for path in paths:
+            if path:
+                try:
+                    size = os.path.getsize(path)
+                except OSError:
+                    size = 0
+                rows.append((self._path_key(path), path, size, now))
         with self.write_lock:
             self.connection.executemany(
-                "INSERT OR REPLACE INTO excluded_paths (path_key, path, excluded_at) VALUES (?, ?, ?)",
-                [(self._path_key(p), p, now) for p in paths if p])
+                "INSERT OR REPLACE INTO excluded_paths (path_key, path, file_size, excluded_at) VALUES (?, ?, ?, ?)", rows)
             self.connection.commit()
 
     def unexclude_paths(self, paths: list[str]) -> None:
@@ -545,13 +553,28 @@ class DatabaseManager:
             self.connection.executemany("DELETE FROM excluded_paths WHERE path_key = ?", [(self._path_key(p),) for p in paths if p])
             self.connection.commit()
 
-    def is_path_excluded(self, path: str) -> bool:
-        with self.write_lock:  # same reason as find_id_by_path: one shared connection, several import workers
-            return self.connection.execute("SELECT 1 FROM excluded_paths WHERE path_key = ?", (self._path_key(path),)).fetchone() is not None
-
-    def excluded_path_keys(self) -> set[str]:
+    def is_path_excluded(self, path: str, size: int | None = None) -> bool:
+        """Was the file at `path` dropped on purpose? Only while it is still that file: a different file saved under the same
+        name later (another size) is a new book, and the old exclusion is forgotten."""
+        key = self._path_key(path)
         with self.write_lock:
-            return {row[0] for row in self.connection.execute("SELECT path_key FROM excluded_paths")}
+            row = self.connection.execute("SELECT file_size FROM excluded_paths WHERE path_key = ?", (key,)).fetchone()
+        if row is None:
+            return False
+        if size is None:
+            try:
+                size = os.path.getsize(path)
+            except OSError:
+                return True
+        if row[0] and row[0] != size:
+            self.unexclude_paths([path])
+            return False
+        return True
+
+    def excluded_path_sizes(self) -> dict[str, int]:
+        """path key -> the size the file had when it was dropped (0 = not known)."""
+        with self.write_lock:
+            return {row[0]: row[1] for row in self.connection.execute("SELECT path_key, file_size FROM excluded_paths")}
 
     def list_excluded_paths(self) -> list[str]:
         with self.write_lock:
@@ -1103,7 +1126,7 @@ class DatabaseManager:
         letter "đ", which has no accent to remove: "dac" must find "Đắc" and "đac" must find "Dac", so a word
         containing d or đ is offered in each spelling (`_d_variants`)."""
         tokens: list[str] = []
-        for raw_token in keyword.split():
+        for raw_token in keyword.split()[:_MAX_QUERY_WORDS]:
             field_match = _SEARCH_FIELD_RE.match(raw_token)
             if field_match:
                 field = field_match.group(1).lower()

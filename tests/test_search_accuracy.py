@@ -200,3 +200,11 @@ def test_one_connection_shared_by_writers_and_readers_never_fails(tmp_path):
         thread.join()
     assert errors == [] and shared.count_documents() == 480
     shared.connection.close()
+
+
+def test_a_pasted_paragraph_is_cut_to_a_search_that_can_run(db, caplog):
+    caplog.set_level("ERROR")
+    paragraph = " ".join(f"từ{i}" for i in range(2000))
+    db.query_documents(fts_query=paragraph, limit=5)
+    assert not [r for r in caplog.records if "failed" in r.getMessage()]
+    assert len(db._sanitize_query(paragraph).split(" AND ")) == 30

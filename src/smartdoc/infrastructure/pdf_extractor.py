@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from concurrent.futures import BrokenExecutor, Executor
+from concurrent.futures import BrokenExecutor, CancelledError, Executor
 
 import fitz  # PyMuPDF
 
@@ -12,6 +12,9 @@ from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_PAGES = 10
+# A PDF that makes MuPDF spin must not hold an import thread for ever. (The worker process stays busy with it -- a process
+# cannot be interrupted from here -- but the book is reported as unreadable and the import goes on.)
+POOL_TIMEOUT_SECONDS = 300
 # Render the cover at roughly the size CoverCacheManager will keep anyway
 # (MAX_WIDTH, doubled for a bit of headroom on high-DPI displays) instead of
 # a flat 50% zoom: a flat zoom on a large-format/high-DPI source page (a
@@ -65,7 +68,7 @@ class PdfExtractor:
                 try:
                     from smartdoc.infrastructure.pdf_worker import read_pdf
 
-                    metadata, png, text = pool.submit(read_pdf, file_path, max_pages).result()
+                    metadata, png, text = pool.submit(read_pdf, file_path, max_pages).result(timeout=POOL_TIMEOUT_SECONDS)
                     return metadata, (self.cache_mgr.save_cover(doc_id, png) if png else None), text
                 except BrokenExecutor:
                     # The pool cannot run here (a frozen build without the worker, a killed child): read in this
@@ -77,6 +80,8 @@ class PdfExtractor:
                 cover_path = self._cover_from_doc(doc, doc_id)
                 text = self._text_from_doc(doc, max_pages)
                 return metadata, cover_path, text
+        except CancelledError:
+            raise  # the import is being shut down: the book must not be filed as an empty record
         except Exception:
             logger.exception("Failed to process PDF: %s", file_path)
             return {"file_path": file_path, "extension": "pdf", "encrypted": False}, None, ""

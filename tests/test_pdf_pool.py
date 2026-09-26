@@ -69,3 +69,37 @@ def test_a_corrupt_pdf_is_reported_as_a_bare_record_not_an_exception(tmp_path, a
     finally:
         manager.stop()
     assert metadata["extension"] == "pdf" and cover is None and text == ""
+
+
+def test_shutting_down_mid_import_does_not_file_the_book_as_an_empty_record(tmp_path, app_context):
+    from concurrent.futures import CancelledError
+
+    import pytest
+
+    class Cancelled:
+        def submit(self, *_a, **_k):
+            raise CancelledError()
+
+    path = tmp_path / "b.pdf"
+    _make_pdf(path, "Đang nhập thì tắt", "Tác giả", "noi dung")
+    extractor = PdfExtractor(app_context)
+    extractor.pool = Cancelled()
+    with pytest.raises(CancelledError):
+        extractor.extract_all(str(path), "id1")  # the worker loop logs it as a failed import and writes nothing
+
+
+def test_a_pdf_that_never_finishes_is_reported_as_unreadable(tmp_path, app_context, monkeypatch):
+    from concurrent.futures import Future
+
+    from smartdoc.infrastructure import pdf_extractor
+
+    monkeypatch.setattr(pdf_extractor, "POOL_TIMEOUT_SECONDS", 0.05)
+
+    class Hangs:
+        def submit(self, *_a, **_k):
+            return Future()  # never completed
+
+    extractor = PdfExtractor(app_context)
+    extractor.pool = Hangs()
+    metadata, cover, text = extractor.extract_all(str(tmp_path / "x.pdf"), "id1")
+    assert metadata["extension"] == "pdf" and cover is None and text == ""
