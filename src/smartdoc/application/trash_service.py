@@ -192,7 +192,9 @@ class TrashService:
     def delete_forever(self, item_id: str) -> None:
         folder = self._folder(item_id)
         if folder.is_dir():
+            meta = self._read_meta(folder) or {}
             shutil.rmtree(folder, ignore_errors=False)
+            logger.info("Trash: deleted for good %s (from %s)", meta.get("file_name", item_id), meta.get("original_path", "?"))
 
     def empty(self) -> int:
         """Delete everything in the trash for good; returns how many items went."""

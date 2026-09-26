@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import shiboken6
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
@@ -242,6 +243,8 @@ class MainWindow(QMainWindow):
         menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
         menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
         menu.addAction(vi.TOOL_TRASH, self._on_open_trash)
+        menu.addAction(vi.TOOL_GATHER, self._on_open_gather)
+        menu.addAction(vi.TOOL_REFRESH, self._on_refresh_info)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
         menu.addSeparator()
@@ -357,6 +360,27 @@ class MainWindow(QMainWindow):
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
+
+    def _on_refresh_info(self) -> None:
+        """"Cập nhật ngay": a window that is not modal, so the library stays usable while the scan runs."""
+        from smartdoc.presentation.info_refresh_dialog import InfoRefreshDialog
+
+        old = getattr(self, "_refresh_dialog", None)
+        if old is not None and shiboken6.isValid(old) and old.isVisible():
+            old.raise_()
+            return
+        dialog = InfoRefreshDialog(self.context, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self._refresh_dialog = dialog
+        dialog.show()
+        dialog.start()
+
+    def _on_open_gather(self) -> None:
+        from smartdoc.presentation.gather_dialog import GatherDialog
+
+        dialog = GatherDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_open_trash(self) -> None:
         from smartdoc.presentation.trash_dialog import TrashDialog

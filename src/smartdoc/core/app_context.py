@@ -13,6 +13,8 @@ from smartdoc.application.backup_service import BackupService
 from smartdoc.application.error_reporter import ErrorReporter
 from smartdoc.application.error_uploader import ErrorUploader
 from smartdoc.application.facet_counter import FacetCounter
+from smartdoc.application.gather_service import GatherService
+from smartdoc.application.info_refresh import InfoRefresh
 from smartdoc.application.relink_service import RelinkService
 from smartdoc.application.trash_service import TrashService
 from smartdoc.application.update_checker import UpdateChecker
@@ -38,6 +40,10 @@ class AppContext:
         self.relink = RelinkService(self.db, self.event_bus)
         # MewBook's own trash: files removed as duplicates wait here before they are deleted for good.
         self.trash = TrashService(self)
+        # "Gom sách về một thư mục": copy or move the library's files into one folder.
+        self.gather = GatherService(self)
+        # "Cập nhật ngay": re-read what the files say (size, hash, pages) on demand, next to the background work.
+        self.info_refresh = InfoRefresh(self)
         # Optional, off-by-default, notify-only check for a newer release (S1-05).
         self.updates = UpdateChecker(self.config, self.event_bus)
         # What the library is filtered by (search text + sidebar selection) --

@@ -291,7 +291,7 @@ class SettingsDialog(QDialog):
         page.add_row("Nhập từ Calibre", "Đọc thư viện Calibre của bạn; Calibre không bị thay đổi.", self.calibre_button)
 
         page.add_block(add_note_box(page, "<b>MewBook không bao giờ di chuyển, đổi tên hay xóa file sách gốc của bạn.</b> "
-                                    "Chỉ khi bạn tự bấm một nút xóa file, và luôn có bước xác nhận.", "ok"))
+                                    "Chỉ khi chính bạn chọn (chuyển file trùng vào Thùng rác của MewBook, hoặc “Gom sách” bằng cách di chuyển), và luôn có bước xác nhận.", "ok"))
         page.add_row("Gom sách về một thư mục", "Sao chép hoặc di chuyển sách về một nơi cho gọn.", QPushButton("Gom sách…", page),
                      soon=True)
 

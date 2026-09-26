@@ -357,6 +357,19 @@ class DatabaseManager:
             ).fetchone()
         return row["id"] if row else None
 
+    def documents_for_refresh(self) -> list[dict[str, Any]]:
+        """What "Cập nhật ngay" needs of every book: where its file is and what was last recorded about it."""
+        rows = self.connection.execute(
+            "SELECT id, file_path, extension, file_size, content_hash, fingerprint, page_count FROM documents"
+            " ORDER BY doc_rowid").fetchall()
+        return [dict(r) for r in rows]
+
+    def documents_for_gather(self, doc_ids: list[str] | None = None) -> list[dict[str, Any]]:
+        """(id, title, file_path) of the given books, or of every book, for gathering files into one folder."""
+        rows = self.connection.execute("SELECT id, title, file_path FROM documents ORDER BY title COLLATE NOCASE").fetchall()
+        wanted = None if doc_ids is None else set(doc_ids)
+        return [dict(r) for r in rows if wanted is None or r["id"] in wanted]
+
     def relocate_document(self, doc_id: str, new_path: str, file_size: int | None = None) -> bool:
         """Point an existing book at a new file location. The id (an md5 of the OLD path) stays: collections,
         reviews and tags refer to it. Only the database changes; no file is touched."""
