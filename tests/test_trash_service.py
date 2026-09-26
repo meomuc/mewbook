@@ -110,3 +110,19 @@ def test_the_trash_dialog_lists_restores_and_sets_the_period(qapp, app_context, 
     dialog.empty_button.click()
     assert dialog.table.rowCount() == 0 and "trống" in dialog.empty_note.text()
     dialog.deleteLater()
+
+
+def test_restore_brings_back_every_column_a_book_had_not_only_the_basics(app_context, library):
+    app_context.db.apply_metadata("d1", "r1", {"publisher": "NXB Trẻ", "pub_year": 2019, "isbn": "9780261102217"}, source="test")
+    app_context.db.lock_fields("d1", ["title"]) if hasattr(app_context.db, "lock_fields") else None
+    app_context.db.connection.execute("UPDATE documents SET ai_summary = 'tóm tắt', locked_fields = '[\"author\"]' WHERE id = 'd1'")
+    app_context.db.connection.commit()
+    app_context.db.record_reading_open("d1", total=10)
+    app_context.db.record_reading_position("d1", 4, total=10)
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    (item,) = app_context.trash.list_items()
+    app_context.trash.restore(item.item_id)
+    row = app_context.db.get_document("d1")
+    assert (row["publisher"], row["pub_year"], row["ai_summary"]) == ("NXB Trẻ", 2019, "tóm tắt")
+    assert row["locked_fields"] == '["author"]'  # what the person typed stays protected from later suggestions
+    assert app_context.db.get_reading_progress("d1")["position"] == 4

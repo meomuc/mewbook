@@ -111,7 +111,7 @@ class TrashService:
             (folder / _CONTENT).write_text(doc.get("content") or "", encoding="utf-8")
             self.context.self_writes.mark(str(path))  # the watcher will see it vanish; that is not news
             shutil.move(str(path), str(folder / path.name))
-            meta = {"doc": row, "collections": collections, "original_path": str(path), "file_name": path.name,
+            meta = {"doc": row, "collections": collections, "reading": self.context.db.get_reading_progress(doc["id"]), "original_path": str(path), "file_name": path.name,
                     "trashed_at": time.time()}
             (folder / _META).write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         except OSError:
@@ -181,6 +181,9 @@ class TrashService:
             content = ""
         self.context.self_writes.mark(str(target))  # the folder watcher must not import it a second time
         self.context.db.add_or_update_document(doc["id"], doc, extracted_text=content)
+        self.context.db.restore_document_columns(doc["id"], doc)  # publisher, ISBN, locked fields, AI summary...
+        if meta.get("reading"):
+            self.context.db.restore_reading_progress(doc["id"], meta["reading"])
         existing = {c["id"] for c in self.context.db.list_collections()}
         for collection_id in meta.get("collections", []):
             if collection_id in existing:

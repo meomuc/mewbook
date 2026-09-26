@@ -357,6 +357,28 @@ class DatabaseManager:
             ).fetchone()
         return row["id"] if row else None
 
+    # Columns add_or_update_document does not write: kept with a book by the trash and put back on restore.
+    RESTORABLE_COLUMNS = ("publisher", "pub_year", "language", "isbn", "series", "description", "locked_fields",
+                          "ai_summary", "avg_rating", "review_count")
+
+    def restore_document_columns(self, doc_id: str, row: dict[str, Any]) -> None:
+        """Puts back the columns `add_or_update_document` does not write (a book returning from the trash)."""
+        values = {name: row[name] for name in self.RESTORABLE_COLUMNS if row.get(name) is not None}
+        if not values:
+            return
+        assignments = ", ".join(f"{name} = ?" for name in values)
+        with self.write_lock:
+            self.connection.execute(f"UPDATE documents SET {assignments} WHERE id = ?", (*values.values(), doc_id))
+            self.connection.commit()
+
+    def restore_reading_progress(self, doc_id: str, row: dict[str, Any]) -> None:
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT OR REPLACE INTO reading_progress (doc_id, last_opened_at, position, total, unit, open_count)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (doc_id, row["last_opened_at"], row["position"], row["total"], row["unit"], row["open_count"]))
+            self.connection.commit()
+
     def documents_for_refresh(self) -> list[dict[str, Any]]:
         """What "Cập nhật ngay" needs of every book: where its file is and what was last recorded about it."""
         rows = self.connection.execute(
