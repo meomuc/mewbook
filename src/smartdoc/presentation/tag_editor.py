@@ -4,12 +4,31 @@
 A chip has two parts: the tag (click = show every book with it) and a "×" (remove it). Typing in the box and pressing
 Enter (or a comma) adds one or several tags -- "Python, AI" adds two. The widget never touches the database: it
 reports the whole new list through `changed` (as the comma-joined text the library stores) and the panel saves it.
+
+Hashtag hints: from two typed characters on, the hashtags that already exist in the library and match what is being
+typed (ignoring case and accents; those that start with it first) are offered in a small list under the box, never
+including one the book already has. Picking one -- click, or Down + Enter -- fills the box with it, so the whole word
+need not be typed; Enter then adds it like anything typed. The list never takes the keyboard focus.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QRectF, Qt, Signal
+from collections.abc import Callable, Iterable
+
+from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLineEdit, QPushButton, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from smartdoc.application.duplicate_finder import normalize
 
 from smartdoc.presentation.editable_field import HALO
 from smartdoc.presentation.flow_widget import FlowWidget
@@ -17,8 +36,82 @@ from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
 
 
+MIN_HINT_CHARS = 2  # hints start from this many typed characters
+MAX_HINTS = 6
+
+
 def _clean(tag: str) -> str:
     return tag.strip().lstrip("#").strip()
+
+
+def current_segment(text: str) -> str:
+    """The hashtag being typed: what follows the last comma, without a leading #."""
+    return _clean(text.rsplit(",", 1)[-1])
+
+
+def suggest_tags(typed: str, known: dict[str, int], already: Iterable[str], limit: int = MAX_HINTS) -> list[str]:
+    """The library hashtags to offer for the text being typed (`known`: tag -> number of books).
+
+    Nothing below MIN_HINT_CHARS characters. A tag matches when it contains what was typed, ignoring case and accents
+    ("van hoc" finds "văn-học"); those that start with it come first, then the more used ones. A tag the book already has
+    is never offered."""
+    fragment = normalize(current_segment(typed))
+    if len(fragment.replace(" ", "")) < MIN_HINT_CHARS:
+        return []
+    have = {normalize(tag) for tag in already}
+    starts: list[tuple[int, str]] = []
+    inside: list[tuple[int, str]] = []
+    for tag, count in known.items():
+        folded = normalize(tag)
+        if not folded or folded in have or fragment not in folded:
+            continue
+        (starts if folded.startswith(fragment) else inside).append((-count, tag))
+    ranked = sorted(starts) + sorted(inside)
+    return [tag for _count, tag in ranked[:limit]]
+
+
+class _HintPopup(QListWidget):
+    """The list of hints under the text box. A tool window that never takes focus, so typing goes on uninterrupted."""
+
+    def __init__(self, anchor: QWidget) -> None:
+        super().__init__(anchor.window())
+        self._anchor = anchor
+        self.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setMouseTracking(True)
+        self.restyle()
+
+    def restyle(self) -> None:
+        tm = theme_manager()
+        self.setStyleSheet(
+            f"QListWidget {{ background: {tm.token('surface')}; border: 1px solid {tm.token('line2')}; border-radius: 6px;"
+            f" color: {tm.token('ink')}; font-size: 12px; }}"
+            f" QListWidget::item {{ padding: 3px 10px; }}"
+            f" QListWidget::item:selected {{ background: {tm.token('accentsoft')}; color: {tm.token('ink')}; }}")
+
+    def show_hints(self, tags: list[str]) -> None:
+        self.clear()
+        for tag in tags:
+            self.addItem(QListWidgetItem(f"#{tag}"))
+        if not tags:
+            self.hide()
+            return
+        row_height = self.sizeHintForRow(0) or 24
+        self.setFixedSize(max(self._anchor.width(), 180), row_height * len(tags) + 4)
+        self.move(self._anchor.mapTo(self.parentWidget(), QPoint(0, self._anchor.height() + 2)))
+        self.show()
+        self.raise_()
+
+    def move_selection(self, delta: int) -> None:
+        row = self.currentRow()
+        self.setCurrentRow(max(0, min(self.count() - 1, row + delta)) if row >= 0 else (0 if delta > 0 else self.count() - 1))
+
+    def chosen(self) -> str:
+        item = self.currentItem()
+        return item.text().lstrip("#") if item is not None and self.isVisible() else ""
 
 
 class _Chip(QFrame):
@@ -64,6 +157,9 @@ class TagEditor(QFrame):
         super().__init__(parent)
         self._tags: list[str] = []
         self._chips: list[_Chip] = []
+        self._known_source: Callable[[], dict[str, int]] | None = None
+        self._known: dict[str, int] = {}
+        self._popup: _HintPopup | None = None
         self.setProperty("editable", True)
         self.setAttribute(Qt.WA_Hover, True)
         self._hovered = False
@@ -80,6 +176,8 @@ class TagEditor(QFrame):
         self.line_edit.hide()
         self.line_edit.returnPressed.connect(self._commit)
         self.line_edit.editingFinished.connect(self._finish_adding)
+        self.line_edit.textEdited.connect(self._update_hints)
+        self.line_edit.installEventFilter(self)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(HALO + 8, HALO + 8, HALO + 8, HALO + 8)
@@ -87,6 +185,53 @@ class TagEditor(QFrame):
         self._restyle()
         theme_manager().themeChanged.connect(self._restyle)
         self._rebuild()
+
+    # -- hashtag hints -----------------------------------------------------------------------------------------------
+    def set_known_tags_source(self, source: Callable[[], dict[str, int]]) -> None:
+        """Where the library's existing hashtags (tag -> books) come from; asked when the box opens, not per keystroke."""
+        self._known_source = source
+
+    def _hint_popup(self) -> _HintPopup:
+        if self._popup is None:
+            self._popup = _HintPopup(self.line_edit)
+            self._popup.itemClicked.connect(lambda _item: self._fill_from_hint())
+        return self._popup
+
+    def _update_hints(self, text: str) -> None:
+        hints = suggest_tags(text, self._known, self._tags)
+        if hints:
+            self._hint_popup().show_hints(hints)
+        elif self._popup is not None:
+            self._popup.hide()
+
+    def _hide_hints(self) -> None:
+        if self._popup is not None:
+            self._popup.hide()
+
+    def _fill_from_hint(self) -> None:
+        tag = self._popup.chosen() if self._popup is not None else ""
+        if not tag:
+            return
+        head = self.line_edit.text().rsplit(",", 1)[0] + ", " if "," in self.line_edit.text() else ""
+        self.line_edit.setText(head + tag)  # into the box: Enter adds it like anything typed
+        self._hide_hints()
+        self.line_edit.setFocus()
+        self.line_edit.setCursorPosition(len(self.line_edit.text()))
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: N802 -- Qt override
+        """Down/Up move through the hints, Enter takes the highlighted one, Esc closes the list -- while it is showing."""
+        if watched is self.line_edit and event.type() == QEvent.KeyPress and self._popup is not None and self._popup.isVisible():
+            key = event.key()
+            if key in (Qt.Key_Down, Qt.Key_Up):
+                self._popup.move_selection(1 if key == Qt.Key_Down else -1)
+                return True
+            if key in (Qt.Key_Return, Qt.Key_Enter) and self._popup.chosen():
+                self._fill_from_hint()
+                return True
+            if key == Qt.Key_Escape:
+                self._hide_hints()
+                return True
+        return super().eventFilter(watched, event)
 
     # -- state -------------------------------------------------------------------------------------------------------
     def set_tags(self, tags: list[str]) -> None:
@@ -117,12 +262,16 @@ class TagEditor(QFrame):
         self.changed.emit(",".join(self._tags))
 
     def _start_adding(self) -> None:
+        if self._known_source is not None:
+            self._known = self._known_source()
+        self._hide_hints()
         self.add_button.hide()
         self.line_edit.show()
         self.line_edit.setFocus()
         self._flow.set_widgets([*self._chips, self.line_edit])
 
     def _commit(self) -> None:
+        self._hide_hints()
         added = [t for t in (_clean(part) for part in self.line_edit.text().split(",")) if t]
         self.line_edit.clear()
         known = {t.casefold() for t in self._tags}
@@ -138,6 +287,7 @@ class TagEditor(QFrame):
             self.changed.emit(",".join(self._tags))
 
     def _finish_adding(self) -> None:
+        self._hide_hints()
         if self.line_edit.text().strip():
             return  # Enter was pressed with text: _commit handles it
         if not self.line_edit.isHidden() and not self.line_edit.hasFocus():
@@ -156,6 +306,8 @@ class TagEditor(QFrame):
             f" padding: 0 8px; min-height: 22px; font-size: 12px; }}")
         for chip in self._chips:
             chip.restyle()
+        if self._popup is not None:
+            self._popup.restyle()
         self.update()
 
     def enterEvent(self, event) -> None:  # noqa: N802 -- Qt override

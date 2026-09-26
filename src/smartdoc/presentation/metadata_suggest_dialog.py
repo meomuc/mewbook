@@ -132,7 +132,7 @@ class MetadataSuggestDialog(DesignDialog):
         self._search_number = 0
         self._relay = WorkerRelay(self)  # what the lookup thread talks to (never the dialog itself)
 
-        self.resize(900, 780)
+        self.resize(900, 900)
         self.step_label = QLabel(self)
         self.step_label.setTextFormat(Qt.RichText)
         self.body.addWidget(self.step_label)
@@ -195,6 +195,7 @@ class MetadataSuggestDialog(DesignDialog):
         header.setSectionResizeMode(_COL_CURRENT, QHeaderView.Stretch)
         header.setSectionResizeMode(_COL_SUGGESTED, QHeaderView.Stretch)
         header.setSectionResizeMode(_COL_SOURCE, QHeaderView.ResizeToContents)
+        self.table.setMinimumHeight(150)
         self.table.itemChanged.connect(lambda _item: self._update_apply_enabled())
 
         self.write_check = QCheckBox("Ghi đè lên file sách gốc", self)
@@ -330,6 +331,7 @@ class MetadataSuggestDialog(DesignDialog):
         self.candidate_list.clear()
         self.table.setRowCount(0)
         self.cover_list.clear()
+        self.cover_list.hide()  # nothing to show until pictures arrive
         self.cover_status.setText("Đang tìm ảnh bìa...")
         self._info_pending = self._cover_pending = True
         self._update_apply_enabled()
@@ -409,6 +411,7 @@ class MetadataSuggestDialog(DesignDialog):
             score = getattr(candidate, "score", 0.0)
             item.setData(_SCORE_ROLE, round(score * 100) if score else 0)
             self.cover_list.addItem(item)
+        self.cover_list.setVisible(self.cover_list.count() > 0)
         self._update_apply_enabled()
 
     def _on_lookup_finished(self, number: int, result: LookupResult | None, error: str) -> None:

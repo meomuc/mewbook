@@ -335,6 +335,7 @@ class DocumentDetailPanel(QFrame):
         self.tags_title_label = self._caption("Hashtag")
         self.tag_editor = TagEditor(self)
         self.tags_edit = self.tag_editor.line_edit  # the "+ thêm" text box
+        self.tag_editor.set_known_tags_source(self.context.db.count_by_tag)  # hashtag hints while typing
         self.tag_editor.changed.connect(lambda text: self._save_field("tags", text))
         self.tag_editor.tag_clicked.connect(self._on_tag_clicked)
 

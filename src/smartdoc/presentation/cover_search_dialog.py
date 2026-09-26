@@ -45,7 +45,6 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.cover_search import (
-    MIN_MATCH_SCORE,
     CoverSearchError,
     download_cover_from_url,
     download_cover_image,

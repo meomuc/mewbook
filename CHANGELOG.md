@@ -26,6 +26,42 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **New theme "Gỗ Thông Trời Xanh"** (light): pine shelves with metal brackets on a sky-blue ground, wood-framed group
   labels and cover, green chalkboard notice cards, Nunito typeface (OFL, shipped with the theme).
 
+### Added
+- **Safer duplicates.** "Tìm file trùng" never picks what to remove: every group starts with no copy chosen, and the
+  buttons stay off until you choose the copy to keep (the most complete one is only pointed out as a suggestion).
+  Matching by content comes first ("Giống hệt"); similar names are a separate "Gợi ý" list, and a matching file size is
+  only mentioned as a further hint.
+- **MewBook's own trash ("Thùng rác…" in Công cụ).** Files removed as duplicates go to the trash first, not to oblivion;
+  you set after how many days they are deleted for good (0 = never), can restore any item (with its hashtags,
+  collections and search text; a name clash gets " (khôi phục)"), delete one, or empty the trash. Expiry is logged.
+  A file that cannot be moved stays where it is and in the library, and is reported.
+- **"Gom sách về một thư mục…" (Công cụ).** Choose a target folder and copy or move every book there. A preview says
+  how many books and how much space, and warns when the drive is too small; a move says plainly that files leave their
+  folders (the library paths follow) and asks first. A name clash at the target gets " (2)" - nothing is overwritten - and
+  a file that fails half way is left as it was.
+- **Backup folder.** Settings > Sao lưu can send backups to a folder of your choice (an external drive). A folder that
+  cannot be written to (unplugged, no rights) is reported instead of quietly falling back to another place; the safety copy
+  before a library upgrade still happens, in the default folder, if the chosen one is gone.
+- **"Cập nhật thông tin sách ngay…" (Công cụ).** Scans the files now, in the background, with progress: size, content
+  hash, fingerprint and page count are brought up to date; at the end it says how many books got new information. What you
+  typed (title, author, hashtags) is never touched, and you can keep using MewBook meanwhile.
+- **Hashtag hints.** Typing two or more characters in the hashtag box of the detail panel lists matching hashtags from
+  the library (accents and case ignored); a tag the book already has is not offered; picking one fills the box.
+
+### Changed
+- **"Tìm ảnh bìa" and "Tìm thông tin sách" are now one window, "Tìm thêm thông tin".** It finds the book's information
+  and its cover together; you can apply the picture, the information or both, independently. A new "Tìm trên Internet"
+  button opens your browser on a web search of the keywords (MewBook does not read the page). Changing a cover by pasting
+  a link or choosing a file stays under "Đổi ảnh bìa".
+- **One search box instead of separate title and author boxes.** Type "Nhà giả kim - Paulo Coelho", or just the words; the
+  search works out which is which.
+- **More cover results by default.** The minimum match is lowered from 80% to 70% and can be changed in Settings > Ảnh
+  bìa (40-95%); every result still shows its own match percentage. The same title by a different author stays under the
+  default. (Tuned on a fixed set of catalogue spellings, not on live catalogues: tell us if you get too much or too little.)
+- **AI summaries send only the book's identity** (title, author, publisher, year, language, ISBN, series) and never text
+  from inside the book; the prompt tells the model to say so rather than invent when it does not know the book. If
+  summaries become clearly poorer, a minimal excerpt can be reconsidered later. The privacy texts were updated.
+
 ## [1.1.0] - 2026-09-26
 
 New features, backwards compatible: a MINOR release.

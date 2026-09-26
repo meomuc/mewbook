@@ -4,9 +4,8 @@ is chosen until the person chooses; then two clearly different actions: remove t
 or move them into MewBook's trash (restorable)."""
 from PySide6.QtWidgets import QDialog
 
-from smartdoc.presentation import duplicate_finder_dialog as module
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog, default_keeper, note_for
-from PySide6.QtWidgets import QMessageBox, QRadioButton
+from PySide6.QtWidgets import QMessageBox
 
 
 def _seed_exact_duplicates(app_context, tmp_path=None):
