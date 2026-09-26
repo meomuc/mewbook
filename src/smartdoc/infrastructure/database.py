@@ -66,6 +66,32 @@ _SANITIZE_RE = re.compile(r"[^\w\sÀ-ỹ]", re.UNICODE)
 # so this can't be used to smuggle arbitrary syntax into the MATCH expression.
 _SEARCH_FIELD_RE = re.compile(r"^(title|author|tags|content):(.+)$", re.IGNORECASE | re.UNICODE)
 
+# Relevance order: a hit in the title counts most, then the author, then the hashtags, and only then the book's text
+# (bm25 is lower for a better match). Plain `rank` weighted the four columns equally, so a long text that happened to
+# mention the words could outrank the book that is called that.
+_RELEVANCE = "bm25(documents_fts, 10.0, 5.0, 3.0, 1.0)"
+_MAX_D_VARIANT_LETTERS = 4  # a word with more d/đ than this is tried only all-d and all-đ (2^n spellings would explode)
+
+
+def _d_variants(word: str) -> list[str]:
+    """The spellings of `word` that differ in d / đ (the one letter accent removal cannot fold)."""
+    letters = [i for i, ch in enumerate(word) if ch in "dDđĐ"]
+    if not letters:
+        return [word]
+    if len(letters) > _MAX_D_VARIANT_LETTERS:
+        return [re.sub("[dDđĐ]", "d", word), re.sub("[dDđĐ]", "đ", word)]
+    variants = [word]
+    for index in letters:
+        variants = [v[:index] + repl + v[index + 1:] for v in variants for repl in ("d", "đ")]
+    return list(dict.fromkeys(variants))
+
+
+def _prefix_term(word: str) -> str:
+    """`word` as a quoted FTS5 prefix term, in every d/đ spelling: "dac"* -> ("dac"* OR "đac"*)."""
+    variants = [f'"{variant}"*' for variant in _d_variants(word)]
+    return variants[0] if len(variants) == 1 else "(" + " OR ".join(variants) + ")"
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
     doc_rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +115,8 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
     title, author, tags, content,
     content='documents',
-    content_rowid='doc_rowid'
+    content_rowid='doc_rowid',
+    tokenize='unicode61 remove_diacritics 2'
 );
 
 CREATE TRIGGER IF NOT EXISTS documents_ai AFTER INSERT ON documents BEGIN
@@ -102,7 +129,9 @@ CREATE TRIGGER IF NOT EXISTS documents_ad AFTER DELETE ON documents BEGIN
     VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
 END;
 
-CREATE TRIGGER IF NOT EXISTS documents_au AFTER UPDATE ON documents BEGIN
+-- Only when an indexed column is written: recording a file's status, a page count or a cover must not re-index the
+-- book's whole text (see schema_migrations._rebuild_search_index).
+CREATE TRIGGER IF NOT EXISTS documents_au AFTER UPDATE OF title, author, tags, content ON documents BEGIN
     INSERT INTO documents_fts(documents_fts, rowid, title, author, tags, content)
     VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
     INSERT INTO documents_fts(rowid, title, author, tags, content)
@@ -206,6 +235,12 @@ class DatabaseManager:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA journal_mode=WAL;")
         self.connection.execute("PRAGMA foreign_keys=ON;")
+        # WAL + NORMAL is the documented safe pairing: a crash can lose the last transaction, never corrupt the file
+        # (the default FULL fsyncs at every commit -- every imported book). A bigger page cache and in-memory temp
+        # tables help the sorts and the FTS joins.
+        self.connection.execute("PRAGMA synchronous=NORMAL;")
+        self.connection.execute("PRAGMA cache_size=-65536;")  # 64 MB
+        self.connection.execute("PRAGMA temp_store=MEMORY;")
         # Person/tag matching that SQLite's own LIKE can't do: it only folds
         # ASCII case ("NHÃ CA" != "Nhã Ca") and can't split co-author lists.
         self.connection.create_function("mb_has_author", 2, _mb_has_author, deterministic=True)
@@ -893,10 +928,14 @@ class DatabaseManager:
 
     @staticmethod
     def _sanitize_query(keyword: str) -> str:
-        """Strip FTS5 syntax characters and turn each token into a prefix
-        match -- except a "field:term" token (field one of
-        title/author/tags/content), which becomes a column-filtered prefix
-        match instead of a plain keyword search across every column."""
+        """Turn what the person typed into an FTS5 MATCH expression that can never be a syntax error.
+
+        Every word is stripped of FTS5 syntax characters, then written as a quoted prefix term ("word"*): quoted, so the
+        words AND / OR / NOT / NEAR are ordinary words (unquoted, `AND*` was a syntax error that made the search return
+        nothing without a word of explanation). A "field:term" token (field one of title/author/tags/content) becomes a
+        column-filtered prefix match. Accent-insensitivity is the tokenizer's job (remove_diacritics 2), except for the
+        letter "đ", which has no accent to remove: "dac" must find "Đắc" and "đac" must find "Dac", so a word
+        containing d or đ is offered in each spelling (`_d_variants`)."""
         tokens: list[str] = []
         for raw_token in keyword.split():
             field_match = _SEARCH_FIELD_RE.match(raw_token)
@@ -909,23 +948,23 @@ class DatabaseManager:
                     # already, so this only affects "author:jane" glued
                     # to extra text with no space, which is an edge case
                     # either way.
-                    tokens.append(f"{field}:{words[0]}*")
-                    tokens.extend(f"{w}*" for w in words[1:])
+                    tokens.append(f"{field} : {_prefix_term(words[0])}")
+                    tokens.extend(_prefix_term(w) for w in words[1:])
                 continue
             words = _SANITIZE_RE.sub(" ", raw_token).split()
-            tokens.extend(f"{w}*" for w in words)
-        return " ".join(tokens)
+            tokens.extend(_prefix_term(w) for w in words)
+        return " AND ".join(tokens)  # explicit: two adjacent (a OR b) groups are not an implicit AND in FTS5
 
     def search(self, query_string: str) -> list[dict[str, Any]]:
         match_expr = self._sanitize_query(query_string)
         if not match_expr:
             return []
-        sql = """
+        sql = f"""
             SELECT documents.*
             FROM documents_fts
             JOIN documents ON documents.doc_rowid = documents_fts.rowid
             WHERE documents_fts MATCH ?
-            ORDER BY rank
+            ORDER BY {_RELEVANCE}
         """
         try:
             cursor = self.connection.execute(sql, (match_expr,))
@@ -1028,7 +1067,7 @@ class DatabaseManager:
         try:
             if match_expr:
                 extra = f"AND ({where_sql})" if where_sql else ""
-                order_clause = order_by or "rank"
+                order_clause = order_by or _RELEVANCE
                 sql = f"""
                     SELECT documents.*
                     FROM documents_fts

@@ -84,10 +84,56 @@ def _add_reading_progress(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_reading_progress_last ON reading_progress(last_opened_at DESC)")
 
 
+# The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
+FTS_TOKENIZER = "unicode61 remove_diacritics 2"
+_FTS_TRIGGERS = """
+CREATE TRIGGER documents_ai AFTER INSERT ON documents BEGIN
+    INSERT INTO documents_fts(rowid, title, author, tags, content)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags, new.content);
+END;
+CREATE TRIGGER documents_ad AFTER DELETE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags, content)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
+END;
+CREATE TRIGGER documents_au AFTER UPDATE OF title, author, tags, content ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags, content)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
+    INSERT INTO documents_fts(rowid, title, author, tags, content)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags, new.content);
+END;
+"""
+
+
+def _rebuild_search_index(connection: sqlite3.Connection) -> None:
+    """Two changes to the full-text index, made together because the second needs the index built again anyway.
+
+    1. Accent-insensitive Vietnamese search: the default tokenizer strips only single accents, so "nguyen nhat anh" did
+       not find "Nguyễn Nhật Ánh" (letters with two marks: ễ ậ ắ ổ...). `remove_diacritics 2` handles all of them; the one
+       letter it cannot fold, "đ", is dealt with when a search is built (database._d_variants).
+    2. The update trigger fired on *every* UPDATE of a book, so recording that a file is present, a page count or a
+       cover re-indexed the book's whole text (6 s at every start for 2,000 books). It now fires only when an indexed
+       column is written.
+
+    The index holds no data of its own (it is built from `documents`), so this loses nothing; it is rebuilt from the rows.
+    """
+    for trigger in ("documents_ai", "documents_ad", "documents_au"):
+        connection.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+    connection.execute("DROP TABLE IF EXISTS documents_fts")
+    connection.execute(
+        "CREATE VIRTUAL TABLE documents_fts USING fts5(title, author, tags, content,"
+        f" content='documents', content_rowid='doc_rowid', tokenize='{FTS_TOKENIZER}')"
+    )
+    for statement in _FTS_TRIGGERS.split("END;"):
+        if statement.strip():
+            connection.execute(statement + "END;")
+    connection.execute("INSERT INTO documents_fts(documents_fts) VALUES ('rebuild')")
+
+
 # 1.0.0 is the baseline (version 0). The device tables (S3) will be the next entries.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "documents.file_status / file_checked_at (missing-file detection)", _add_file_status_columns),
     Migration(2, "reading_progress (last opened, page/chapter reached)", _add_reading_progress),
+    Migration(3, "search index: accent-insensitive Vietnamese tokenizer, trigger only on indexed columns", _rebuild_search_index),
 )
 
 

@@ -48,6 +48,22 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **Hashtag hints.** Typing two or more characters in the hashtag box of the detail panel lists matching hashtags from
   the library (accents and case ignored); a tag the book already has is not offered; picking one fills the box.
 
+### Fixed
+- **Searching without accents now works for Vietnamese.** "dac nhan tam", "nguyen nhat anh", "tuoi tho" or "vu huu tiep"
+  found nothing (only single-accent letters were folded; ễ ậ ắ ổ and "đ" were not). Accents are now optional everywhere,
+  including "đ" ("dac" finds "Đắc", "đac" finds "Dac"), in the title, author, hashtags and the text of the book. Existing
+  libraries are upgraded once (the search index is rebuilt after an automatic backup; a large library may take a moment
+  on the first start).
+- **A search can no longer fail silently.** Words such as AND, OR, NOT or NEAR (or odd characters) made the search return
+  nothing without a message; they are now ordinary search words.
+- **Better ordering of results.** A book whose *title* matches now comes before a book that only mentions the words
+  somewhere in its text.
+- **Faster start and background updates.** Recording that files are present, page counts, fingerprints and covers used
+  to re-index every book's whole text: about 6 s at every start for 2,000 books (measured), growing with the library;
+  now 0.1 s. Also SQLite `synchronous=NORMAL` (safe with WAL), a larger page cache and in-memory temporary tables.
+- Restoring a book from the trash now also restores its publisher, ISBN, year, series, AI summary, the fields you typed by
+  hand (so later suggestions cannot overwrite them) and its reading progress.
+
 ### Changed
 - **"Tìm ảnh bìa" and "Tìm thông tin sách" are now one window, "Tìm thêm thông tin".** It finds the book's information
   and its cover together; you can apply the picture, the information or both, independently. A new "Tìm trên Internet"
