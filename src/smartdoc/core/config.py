@@ -112,6 +112,8 @@ class AppConfig:
     # (0 = the default of 10); the in-memory cover cache in MB (0 = the default of 300).
     max_reader_windows: int = 0
     content_search_pages: int = 0
+    # The one-time pass that reads the text of e-books imported before it was read for search (application/content_backfill.py).
+    content_backfill_done: bool = False
     cover_cache_mb: int = 0
     # Settings > Đánh giá cộng đồng: switch the whole feature off (nothing is fetched or sent).
     community_reviews_enabled: bool = True

@@ -409,7 +409,10 @@ class ImportQueueManager:
         elif extension in _EPUB_LIKE_EXTENSIONS:
             raw_metadata = self._epub_extractor.extract_metadata(path)
             cover_path = self._epub_extractor.extract_cover(path, doc_id)
-            extracted_text = ""
+            # The text of the first pages, like a PDF's, so a word from inside the book finds it (same setting).
+            from smartdoc.infrastructure.text_sampler import extract_search_text  # lazily: the GUI process stays light
+
+            extracted_text = extract_search_text(path, extension, self.context.config.config.content_search_pages or DEFAULT_MAX_PAGES)
         else:
             logger.info("Unsupported extension, skipping: %s", path)
             return "failed"

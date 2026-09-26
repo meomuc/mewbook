@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   the library (accents and case ignored); a tag the book already has is not offered; picking one fills the box.
 
 ### Fixed
+- **E-books are now searchable by their text.** Only a PDF's first pages were indexed, so a word from inside an EPUB, MOBI
+  or AZW3 found nothing although the search box says "nội dung". The first pages (the same "Đọc nội dung để tìm kiếm"
+  setting, 300 words per page) are read when a book is added; books already in the library are caught up once in the
+  background after the update, and "Cập nhật thông tin sách ngay" reads any e-book that still has no text. DRM-protected
+  books and text in a scrambled legacy encoding are not indexed.
 - **A book you dropped from the library stays dropped.** Removing a duplicate "from the library" while its file stays
   where it is used to be undone the next time the file was touched (antivirus, a sync client) or the folder was scanned.
   Such files are now remembered and skipped by the folder watcher; adding the file by hand brings it back.

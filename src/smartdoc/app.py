@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER, __version__
 from smartdoc.application.file_watcher import LibraryWatcher
+from smartdoc.application.content_backfill import ContentBackfill
 from smartdoc.application.fingerprint_backfill import FingerprintBackfill
 from smartdoc.application.import_queue import ImportQueueManager
 from smartdoc.application.smart_classifier import AutoClassifyOnImport, SmartClassifyService
@@ -241,6 +242,8 @@ def main() -> None:
     # Books imported before fingerprints existed get theirs in the background.
     fingerprint_backfill = FingerprintBackfill(context)
     fingerprint_backfill.start()
+    content_backfill = ContentBackfill(context)  # e-books imported before their text was read for search: once
+    content_backfill.start()
 
     # Which books have lost their file (moved, deleted, drive unplugged)? Checked in the background so a big or
     # networked library never delays the window; the status bar shows the answer (S1-04).
@@ -256,6 +259,7 @@ def main() -> None:
 
     exit_code = app.exec()
     fingerprint_backfill.stop()
+    content_backfill.stop()
     auto_classifier.stop()
     smart_classifier.stop()
     context.error_uploader.stop()  # ends a send in progress at its next step and keeps the queue (ERR-A15)

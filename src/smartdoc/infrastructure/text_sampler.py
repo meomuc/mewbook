@@ -493,6 +493,31 @@ def _sample_mobi(path: str, max_words: int) -> TextSample:
 _MOBI_LIKE = {"mobi", "azw3", "azw", "prc"}
 
 
+WORDS_PER_PAGE = 300  # a printed page, the same idea as page_count.CHARS_PER_PAGE (1800 characters)
+_MAX_SEARCH_WORDS = 150_000
+SEARCH_TEXT_EXTENSIONS = frozenset({"epub"} | _MOBI_LIKE)  # the formats whose text is read for search besides PDF
+
+
+def extract_search_text(path: str, extension: str | None = None, pages: int = 10) -> str:
+    """The text of the first `pages` "pages" (300 words each) of an EPUB / MOBI / AZW3, for the library's full-text search.
+
+    A PDF's first pages were always indexed (PdfExtractor); an e-book had no text at all, so a word from inside it found
+    nothing although the search box says "nội dung". Reading is the same as classification's (spine order, chapter by
+    chapter, stopping at the budget), only the budget is the person's own setting (Cài đặt > Hiệu năng) instead of 2,000-5,000
+    words. Empty for a DRM-protected book, for text that is an encoding accident (legacy fonts) and for any file that cannot
+    be read: never raises."""
+    ext = (extension or Path(path).suffix).lower().lstrip(".")
+    words = max(1, min(_MAX_SEARCH_WORDS, int(pages or 10) * WORDS_PER_PAGE))
+    try:
+        if ext == "epub":
+            return _sample_epub(path, words).body
+        if ext in _MOBI_LIKE:
+            return _sample_mobi(path, words).body
+    except Exception:  # noqa: BLE001 -- a corrupt e-book must never stop an import; it just has no searchable text
+        logger.debug("No searchable text for %s", path, exc_info=True)
+    return ""
+
+
 class TextSampler:
     """`TextSampler(max_words).sample(path)` -> TextSample, never raising."""
 

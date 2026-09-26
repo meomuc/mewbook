@@ -20,11 +20,13 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from smartdoc.application.content_backfill import SEARCH_TEXT_EXTENSIONS
 from smartdoc.core.event_bus import LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.infrastructure.cloud_files import is_cloud_only
 from smartdoc.infrastructure.file_hash import sha256_file
 from smartdoc.infrastructure.fingerprint import fingerprint_file
 from smartdoc.infrastructure.page_count import SUPPORTED_EXTENSIONS, count_pages
+from smartdoc.infrastructure.pdf_extractor import DEFAULT_MAX_PAGES
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +106,17 @@ class InfoRefresh:
             if fingerprint != (row["fingerprint"] or "") or row["fingerprint"] is None:
                 db.set_fingerprint(row["id"], fingerprint)  # "" = looked at, nothing to find
             changed = changed or (bool(fingerprint) and fingerprint != (row["fingerprint"] or ""))
-        if extension.lower().lstrip(".") in SUPPORTED_EXTENSIONS and (size_changed or not row["page_count"]):
+        ext = extension.lower().lstrip(".")
+        if ext in SEARCH_TEXT_EXTENSIONS and (size_changed or not row["has_text"]):
+            # An e-book imported before its text was read for search (or whose file changed): read it now.
+            from smartdoc.infrastructure.text_sampler import extract_search_text  # lazily: see content_backfill
+
+            pages = self.context.config.config.content_search_pages or DEFAULT_MAX_PAGES
+            text = extract_search_text(path, extension, pages)
+            if text:
+                db.set_document_content(row["id"], text)
+                changed = True
+        if ext in SUPPORTED_EXTENSIONS and (size_changed or not row["page_count"]):
             pages = count_pages(path, extension)
             if pages and pages != row["page_count"]:
                 db.set_page_count(row["id"], pages)

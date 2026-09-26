@@ -603,10 +603,24 @@ class DatabaseManager:
             " (SELECT file_size FROM documents WHERE file_size > 0 GROUP BY file_size HAVING COUNT(*) > 1)").fetchall()
         return [dict(r) for r in rows]
 
+    def documents_without_text(self, extensions: tuple[str, ...], after_rowid: int = 0, limit: int = 25) -> list[dict[str, Any]]:
+        """Books of these formats whose extracted text is empty, in stable order (`after_rowid` continues a pass)."""
+        marks = ",".join("?" for _ in extensions)
+        rows = self.connection.execute(
+            f"SELECT doc_rowid, id, file_path, extension FROM documents WHERE content = '' AND lower(extension) IN ({marks})"
+            " AND doc_rowid > ? ORDER BY doc_rowid LIMIT ?", (*extensions, after_rowid, limit)).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_document_content(self, doc_id: str, text: str) -> None:
+        """Stores the searchable text of a book (the full-text index follows through its trigger)."""
+        with self.write_lock:
+            self.connection.execute("UPDATE documents SET content = ? WHERE id = ?", (text, doc_id))
+            self.connection.commit()
+
     def documents_for_refresh(self) -> list[dict[str, Any]]:
         """What "Cập nhật ngay" needs of every book: where its file is and what was last recorded about it."""
         rows = self.connection.execute(
-            "SELECT id, file_path, extension, file_size, content_hash, fingerprint, page_count FROM documents"
+            "SELECT id, file_path, extension, file_size, content_hash, fingerprint, page_count, length(content) > 0 AS has_text FROM documents"
             " ORDER BY doc_rowid").fetchall()
         return [dict(r) for r in rows]
 

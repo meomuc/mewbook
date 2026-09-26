@@ -582,7 +582,7 @@ class SettingsDialog(QDialog):
             "Tăng lên thì đọc song song nhiều cuốn, tốn thêm bộ nhớ.",
             "Giảm xuống thì nhẹ máy hơn; mở cuốn mới sẽ đóng cuốn cũ nhất."))
         self.content_pages_combo = self._choice_combo(page, self._CONTENT_PAGE_CHOICES, config.content_search_pages or 10, "{} trang đầu")
-        page.add_row("Đọc nội dung để tìm kiếm", "Số trang đầu của mỗi file PDF được đọc khi thêm sách.", self.content_pages_combo,
+        page.add_row("Đọc nội dung để tìm kiếm", "Số trang đầu của mỗi sách (PDF, EPUB, MOBI) được đọc khi thêm sách.", self.content_pages_combo,
                      extra=hint_pair("Tăng lên thì tìm theo nội dung chính xác hơn, thêm sách lâu hơn.",
                                      "Giảm xuống thì thêm sách nhanh hơn, có thể bỏ sót chữ ở cuối sách."))
         return page
