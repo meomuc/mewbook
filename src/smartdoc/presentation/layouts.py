@@ -35,7 +35,7 @@ DEFAULT_LAYOUT_ID = "ke-sach"
 # the presentation layer are offered and applied; an imported package whose shape is not written yet (its LAYOUT_SPEC.md
 # describes screens that do not exist) stays validated and composable but hidden, so nobody gets a layout that only
 # recolours the old window. Add the id here in the same change that installs the shape.
-IMPLEMENTED_LAYOUTS = frozenset({"ke-sach"})
+IMPLEMENTED_LAYOUTS = frozenset({"ke-sach", "toi-gian"})  # keys of window_shapes.WINDOW_CLASS_FOR_LAYOUT
 
 
 @dataclass(frozen=True)
@@ -143,6 +143,7 @@ def compose_tokens(theme: dict, layout: LayoutSpec, theme_id: str) -> dict:
     tokens.update((layout.theme_overrides.get(theme_id) or {}).get("tokens") or {})
     tokens.update(((theme.get("layouts") or {}).get(layout.id) or {}).get("tokens") or {})
     tokens.setdefault("link", tokens["accent"])  # 1.1: text links, falls back to the accent
+    tokens["content_surface"] = layout.content_surface  # "bg" or "panel": the ground the content widgets sit on
     return tokens
 
 

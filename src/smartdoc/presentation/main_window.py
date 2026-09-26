@@ -97,16 +97,40 @@ class MainWindow(QMainWindow):
         self.library_view = LibraryListWidget(context, import_manager=import_manager)
         self.library_view.set_view_mode(config.view_mode)
         self.detail_panel = DocumentDetailPanel(context)
-        self.detail_panel.close_requested.connect(lambda: self.app_toolbar.detail_button.setChecked(False))
+        self.detail_panel.close_requested.connect(self._on_detail_close_requested)
         self.detail_panel.ereader_requested.connect(self._on_send_to_ereader)
 
         # The menu bar is hidden but alive: its actions carry the shortcuts and feed the toolbar's menus.
         self._build_menu()
+        self.sidebar = LibrarySidebar(context)
+        # How adding books is going (progress, then ONE summary) -- a card in the library, never a pop-up.
+        self.import_card = ImportStatusCard(context, import_manager, self.smart_classifier)
+        self.missing_strip = MissingFilesStrip(context)
+        self.missing_strip.relink_requested.connect(self._on_open_relink)
+        self.classify_wizard: SmartClassifyWizard | None = None  # made when asked for (Công cụ, or a right-click)
+        # What the list is filtered by, with a one-click way out; hidden when nothing is.
+        self.filter_bar = ActiveFilterBar(context)
+        self.library_view.smart_classify_requested.connect(self._on_classify_selected)
+        self.library_view.add_files_requested.connect(self._on_add_files)
+        self.library_view.add_folder_requested.connect(self._on_add_folder)
+        self._detail_floating = False
+        self._narrow = self.width() < COMPACT_BELOW
+        self._show_detail = config.show_detail_panel
+        self._compose()  # the shape of the window: this class draws the shelf look, a subclass another
+
+        status_bar = StatusBarPanel(context, self)
+        status_bar.relink_requested.connect(self._on_open_relink)
+        self.setStatusBar(status_bar)
+
+        self.drop_overlay = DropOverlay(self)  # not a child of the splitter: it would become a pane of it
+
+    def _compose(self) -> None:
+        """Arranges the parts built in __init__ (toolbar, sidebar, import card, filter bar, library, detail panel) into the
+        window: [sidebar | toolbar + list | detail panel]. A layout with another shape overrides this and `_relayout`."""
+        config = self.context.config.config
         self.app_toolbar = AppToolbar(self.omnibar, self.toolbar, self._build_add_menu(), self._build_tools_menu())
         self.app_toolbar.detail_button.setChecked(config.show_detail_panel)
         self.app_toolbar.detail_toggled.connect(self._on_toggle_detail_panel)
-
-        self.sidebar = LibrarySidebar(context)
         self.sidebar_shell = SidebarShell(self.sidebar)
         self.sidebar_shell.settings_requested.connect(self._on_open_settings)
 
@@ -117,20 +141,10 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         main_layout.addWidget(self.app_toolbar)
-        # How adding books is going (progress, then ONE summary) -- a card here, never a pop-up.
-        self.import_card = ImportStatusCard(context, import_manager, self.smart_classifier)
         main_layout.addWidget(self.import_card)
-        self.missing_strip = MissingFilesStrip(context)
-        self.missing_strip.relink_requested.connect(self._on_open_relink)
         main_layout.addWidget(self.missing_strip)
-        self.classify_wizard: SmartClassifyWizard | None = None  # made when asked for (Công cụ, or a right-click)
-        # What the list is filtered by, with a one-click way out; hidden when nothing is.
-        self.filter_bar = ActiveFilterBar(context)
         main_layout.addWidget(self.filter_bar)
         main_layout.addWidget(self.library_view, stretch=1)
-        self.library_view.smart_classify_requested.connect(self._on_classify_selected)
-        self.library_view.add_files_requested.connect(self._on_add_files)
-        self.library_view.add_folder_requested.connect(self._on_add_folder)
 
         self._splitter = QSplitter(Qt.Horizontal)
         self._splitter.setHandleWidth(1)
@@ -142,17 +156,15 @@ class MainWindow(QMainWindow):
         self._splitter.setStretchFactor(1, 1)
         self._splitter.setStretchFactor(2, 0)
         self._splitter.splitterMoved.connect(self._remember_column_widths)
-        self._detail_floating = False
-        self._narrow = self.width() < COMPACT_BELOW
-        self._show_detail = config.show_detail_panel
         self.setCentralWidget(self._splitter)
         self._relayout()
 
-        status_bar = StatusBarPanel(context, self)
-        status_bar.relink_requested.connect(self._on_open_relink)
-        self.setStatusBar(status_bar)
+    def _on_detail_close_requested(self) -> None:
+        self.app_toolbar.detail_button.setChecked(False)
 
-        self.drop_overlay = DropOverlay(self)  # not a child of the splitter: it would become a pane of it
+    def _content_rect(self):
+        """The area the drop overlay covers: everything the window shows above its status bar."""
+        return self._splitter.geometry()
 
     def _apply_window_style(self, _key: str = "") -> None:
         tm = theme_manager()
@@ -202,7 +214,7 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:  # noqa: N802 -- Qt override
         super().resizeEvent(event)
-        if hasattr(self, "_splitter"):
+        if hasattr(self, "_splitter") and self._splitter is not None:
             narrow = self.width() < COMPACT_BELOW
             self._relayout(resize_columns=narrow != self._narrow)
             self._narrow = narrow
@@ -443,7 +455,7 @@ class MainWindow(QMainWindow):
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.drop_overlay.show_over(self._splitter.geometry())
+            self.drop_overlay.show_over(self._content_rect())
 
     def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- Qt naming convention
         self.drop_overlay.hide()

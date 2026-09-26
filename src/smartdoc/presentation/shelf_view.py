@@ -10,6 +10,10 @@ menu all work exactly as they do for the list it replaces; only the geometry and
 Model contract (see library_view.ShelfModel): `document_at(row) -> dict | None` and
 `cover_state(row) -> ("ready" | "loading" | "none", QPixmap | None)`. Nothing here reads a file or the database.
 Colours come from ThemeManager, so a theme switch (which rebuilds the window) restyles it; nothing is hard-coded.
+
+A layout whose metrics ask for it (`grid_cover_height` > 0, the "Tối giản" look) turns the same view into a plain
+captioned grid: no boards, no group labels, no lift -- each cover has its stars, title and author underneath and a
+ring when selected. Geometry and painting branch on that one metric, never on a layout or theme id.
 """
 from __future__ import annotations
 
@@ -26,6 +30,8 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QRegion,
+    QTextLayout,
+    QTextOption,
 )
 from PySide6.QtWidgets import QAbstractItemView, QFrame
 
@@ -49,6 +55,8 @@ PLACEHOLDER_ASPECT = 1.4
 COVER_RADIUS = 3
 STAR = 22
 HINT_TEXT = "Bấm để xem · bấm đúp để đọc"
+CAPTION_H = 70  # captioned grid: stars + two title lines + author under a cover
+CAPTION_TOP = 22  # from the bottom of a cover box to the stars (room for the selection ring)
 
 
 @dataclass
@@ -101,21 +109,41 @@ class ShelfView(QAbstractItemView):
             self._relayout()
 
     # -- geometry --------------------------------------------------------------------------------------------------
+    def _captioned(self) -> bool:
+        """The layout wants a captioned grid without shelves (see the module docstring)."""
+        return theme_manager().metric("grid_cover_height", 0) > 0
+
+    def _grid_gap(self) -> int:
+        return int(theme_manager().metric("grid_gap", GAP))
+
     def _box_h(self) -> int:
         return int(self._icon_size.height())
 
     def _row_height(self) -> int:
+        if self._captioned():
+            return 10 + self._box_h() + CAPTION_TOP + CAPTION_H + self._grid_gap() // 2
         return TOP_PAD + self._box_h() + shelf_thickness(theme_manager()) + UNDER_H // 2
 
     def _board_rect_x(self) -> tuple[int, int]:
         width = self.viewport().width()
+        if self._captioned():
+            return LEFT_PAD, max(LEFT_PAD + 40, width - LEFT_PAD)
         left = LEFT_PAD + LABEL_W
         return left, max(left + 40, width - LEFT_PAD)
 
     def _per_row(self) -> int:
         left, right = self._board_rect_x()
+        if self._captioned():
+            return max(1, (right - left + self._grid_gap()) // (self._icon_size.width() + self._grid_gap()))
         usable = right - left - 2 * BOARD_INSET
         return max(1, (usable + GAP) // (self._icon_size.width() + GAP))
+
+    def _column_x(self, slot: int, per_row: int, left: int, right: int, width: int) -> int:
+        """x of column `slot` in the captioned grid: the free width is shared out between the columns, up to a limit."""
+        if per_row <= 1:
+            return left
+        spare = (right - left - per_row * width) // (per_row - 1)
+        return left + slot * (width + max(self._grid_gap(), min(spare, 2 * self._grid_gap())))
 
     def _relayout(self) -> None:
         self._shelves = []
@@ -127,6 +155,19 @@ class ShelfView(QAbstractItemView):
         width, box_h = self._icon_size.width(), self._box_h()
         row_h = self._row_height()
         y = 0
+        if self._captioned():
+            _left, right = self._board_rect_x()
+            for start in range(0, count, per_row):
+                chunk = list(range(start, min(count, start + per_row)))
+                shelf = _Shelf(top=y, height=row_h, label=None, rows=chunk)
+                for slot, row in enumerate(chunk):
+                    self._rects[row] = QRect(self._column_x(slot, per_row, left, right, width), y + 10, width, box_h)
+                self._shelves.append(shelf)
+                y += row_h
+            self._content_h = y + 12
+            self.updateGeometries()
+            self.viewport().update()
+            return
         # First pass: which shelf (group) each book stands on, in order.
         groups: list[tuple[str, tuple[str, str], list[int]]] = []
         titles: dict[str, object] = {}
@@ -196,7 +237,7 @@ class ShelfView(QAbstractItemView):
         if rect is None:
             return QRect()
         rect = rect.translated(0, -self._offset())
-        if self._is_selected_row(row):
+        if self._is_selected_row(row) and not self._captioned():
             rect = rect.translated(0, -LIFT)
         return rect
 
@@ -225,7 +266,8 @@ class ShelfView(QAbstractItemView):
         if rect is None:
             return
         bar = self.verticalScrollBar()
-        top, bottom = rect.top() - TOP_PAD, rect.bottom() + shelf_thickness(theme_manager()) + 8
+        top = rect.top() - TOP_PAD
+        bottom = rect.bottom() + (CAPTION_TOP + CAPTION_H if self._captioned() else shelf_thickness(theme_manager()) + 8)
         if top < bar.value():
             bar.setValue(top)
         elif bottom > bar.value() + self.viewport().height():
@@ -357,8 +399,9 @@ class ShelfView(QAbstractItemView):
         tm = theme_manager()
         offset = self._offset()
         visible = QRect(0, 0, self.viewport().width(), self.viewport().height())
-        painter.fillRect(visible, QColor(tm.token("bg")))
+        painter.fillRect(visible, QColor(tm.token(tm.layout.content_surface)))  # the ground the layout puts covers on
         model = self.model()
+        captioned = self._captioned()
         selection = self.selectionModel()
         single = selection is not None and len(selection.selectedIndexes()) == 1
         current_row = selection.selectedIndexes()[0].row() if single else -1
@@ -366,9 +409,12 @@ class ShelfView(QAbstractItemView):
             top = shelf.top - offset
             if top > visible.bottom() or top + shelf.height < visible.top():
                 continue
-            self._paint_shelf(painter, shelf, offset, tm)
+            if not captioned:
+                self._paint_shelf(painter, shelf, offset, tm)
             for row in shelf.rows:
-                self._paint_cover(painter, model, row, tm, show_hint=row == current_row)
+                self._paint_cover(painter, model, row, tm, show_hint=row == current_row and not captioned)
+                if captioned:
+                    self._paint_caption(painter, model, row, tm)
         painter.end()
 
     def _paint_shelf(self, painter: QPainter, shelf: _Shelf, offset: int, tm) -> None:
@@ -418,7 +464,7 @@ class ShelfView(QAbstractItemView):
         else:
             height, width = min(base.height(), int(base.width() * PLACEHOLDER_ASPECT)), base.width()
         cover = QRect(base.x() + (base.width() - width) // 2, base.bottom() - height + 1, width, height)
-        if selected:
+        if selected and not self._captioned():
             cover.translate(0, -LIFT)
         cover_f = QRectF(cover)
 
@@ -452,8 +498,9 @@ class ShelfView(QAbstractItemView):
             ring = QPen(QColor(tm.token("accent")), RING_W)
             painter.setPen(ring)
             painter.setBrush(Qt.NoBrush)
-            painter.drawRoundedRect(cover_f.adjusted(-(RING_GAP + RING_W / 2), -(RING_GAP + RING_W / 2),
-                                                     RING_GAP + RING_W / 2, RING_GAP + RING_W / 2),
+            gap = 4 if self._captioned() else RING_GAP
+            painter.drawRoundedRect(cover_f.adjusted(-(gap + RING_W / 2), -(gap + RING_W / 2),
+                                                     gap + RING_W / 2, gap + RING_W / 2),
                                     COVER_RADIUS + 3, COVER_RADIUS + 3)
         if show_hint:
             font = QFont(tm.font_family("content"))
@@ -463,6 +510,62 @@ class ShelfView(QAbstractItemView):
             painter.setPen(QColor(tm.token("ink3")))
             hint_rect = QRect(cover.left() - 10, cover.top() - 24, max(cover.width() + 60, 190), 14)
             painter.drawText(hint_rect, Qt.AlignLeft | Qt.AlignVCenter, HINT_TEXT)
+
+    def _paint_caption(self, painter: QPainter, model, row: int, tm) -> None:
+        """Under a cover of the captioned grid: the rating stars, the title (two lines at most) and the author."""
+        doc = model.document_at(row) or {}
+        box = self._rects[row].translated(0, -self._offset())
+        x, width, top = box.x(), box.width(), box.bottom() + CAPTION_TOP - 6
+        painter.save()
+        rating = doc.get("avg_rating")
+        if rating:
+            stars = max(0, min(5, round(float(rating))))
+            star_font = QFont(tm.font_family("ui"))
+            star_font.setPixelSize(10)
+            painter.setFont(star_font)
+            painter.setPen(QColor(tm.token("accent")))
+            painter.drawText(QRect(x, top, width, 12), Qt.AlignLeft | Qt.AlignVCenter, "★" * stars + "☆" * (5 - stars))
+            top += 14
+        title_font = QFont(tm.font_family("ui"))
+        title_font.setPixelSize(13)
+        title_font.setWeight(QFont.DemiBold)
+        metrics = QFontMetrics(title_font)
+        painter.setFont(title_font)
+        painter.setPen(QColor(tm.token("ink")))
+        for line_no, line in enumerate(self._two_lines(doc.get("title") or "", title_font, width)):
+            painter.drawText(QRect(x, top + line_no * metrics.lineSpacing(), width, metrics.lineSpacing()),
+                             Qt.AlignLeft | Qt.AlignVCenter, line)
+        author_font = QFont(tm.font_family("ui"))
+        author_font.setPixelSize(12)
+        painter.setFont(author_font)
+        painter.setPen(QColor(tm.token("ink2")))
+        author = doc.get("author") or ""
+        if author and author.strip().lower() != "unknown":
+            painter.drawText(QRect(x, top + metrics.lineSpacing() * 2 + 2, width, 16), Qt.AlignLeft | Qt.AlignVCenter,
+                             QFontMetrics(author_font).elidedText(author, Qt.ElideRight, width))
+        painter.restore()
+
+    @staticmethod
+    def _two_lines(text: str, font: QFont, width: int) -> list[str]:
+        """`text` wrapped to `width` px and cut to two lines; the second ends in an ellipsis if there was more."""
+        layout = QTextLayout(text, font)
+        option = QTextOption()
+        option.setWrapMode(QTextOption.WordWrap)
+        layout.setTextOption(option)
+        layout.beginLayout()
+        lines: list[tuple[int, int]] = []
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            line.setLineWidth(width)
+            lines.append((line.textStart(), line.textLength()))
+        layout.endLayout()
+        pieces = [text[start:start + length].strip() for start, length in lines]
+        if len(pieces) <= 2:
+            return pieces
+        rest = " ".join(pieces[1:])
+        return [pieces[0], QFontMetrics(font).elidedText(rest, Qt.ElideRight, width)]
 
     def _paint_placeholder(self, painter: QPainter, cover: QRect, doc: dict, tm) -> None:
         """No cover: dashed outline, a book icon, the title, and "Chưa có bìa" -- the title stays readable."""

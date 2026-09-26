@@ -441,12 +441,19 @@ class DocumentDetailPanel(QFrame):
                 edit.setStyleSheet(f"QLineEdit {{ background: transparent; border: none; padding: 0;"
                                    f" color: {config.content_text_color}; }}")
 
+    @staticmethod
+    def _panel_css(tm, line: str) -> str:
+        """The panel's own box: a bordered column, or -- when the layout puts content on a rounded sheet -- a card."""
+        if tm.layout.content_surface == "panel":
+            return f"#DetailPanel {{ background: {tm.token('surface2')}; border: none; border-radius: {int(tm.metric('card_radius', 18)) + 2}px; }}"
+        return f"#DetailPanel {{ background: {tm.token('panel')}; border-left: 1px solid {line}; }}"
+
     def _restyle(self, _key: str = "") -> None:
         tm = theme_manager()
         ink, ink2, ink3, line = tm.token("ink"), tm.token("ink2"), tm.token("ink3"), tm.token("line")
         self.setStyleSheet(
-            f"#DetailPanel {{ background: {tm.token('panel')}; border-left: 1px solid {line}; }}"
-            f" #DetailHeader, #DetailContent {{ background: transparent; }}"
+            self._panel_css(tm, line)
+            + f" #DetailHeader, #DetailContent {{ background: transparent; }}"
             + (f" #DetailHeader {{ {frame_qss(tm)} }} #DetailTitle {{ color: {frame_ink(tm)}; background: transparent; border: none; padding: 0; }}"
                if frame_ink(tm) else "") +
             f" QScrollArea {{ background: transparent; }}"

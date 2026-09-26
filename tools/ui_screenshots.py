@@ -3,13 +3,14 @@
 screenshots per theme and window size, to compare with the design mock-ups in `Sample theme/Bookshelf`.
 Not part of the app bundle. Run on the real platform (offscreen has no fonts):
 
-    uv run python tools/ui_screenshots.py OUT_DIR [theme ...] [--size 1280x800]
+    uv run python tools/ui_screenshots.py OUT_DIR [theme ...] [--size=1280x800] [--layout=toi-gian] [--page=home|library]
 """
 from __future__ import annotations
 
 import random
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -17,7 +18,8 @@ from PySide6.QtWidgets import QApplication
 
 from smartdoc.app import _apply_appearance
 from smartdoc.core.app_context import AppContext
-from smartdoc.presentation.main_window import MainWindow
+from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.window_shapes import window_class_for
 
 _TITLES = [
     ("Thiết kế hệ thống điện nhẹ", "Nguyễn Văn Hải", "pdf"), ("Camera giám sát cho nhà máy", "Nguyễn Văn Hải", "pdf"),
@@ -54,20 +56,32 @@ def main() -> None:
     out = Path(args[0])
     themes = args[1:] or ["broadsheet", "inkynight"]
     size = next((a[7:] for a in sys.argv if a.startswith("--size=")), "1280x800")
+    layout = next((a[9:] for a in sys.argv if a.startswith("--layout=")), "ke-sach")
+    page = next((a[7:] for a in sys.argv if a.startswith("--page=")), "library")
     width, height = (int(v) for v in size.split("x"))
     out.mkdir(parents=True, exist_ok=True)
     app = QApplication([])
     with tempfile.TemporaryDirectory() as tmp:
         context = AppContext.create_in_memory(Path(tmp))
         build_demo(context, Path(tmp))
+        if "--history" in sys.argv:  # something read, so the home screen has a book being read and a recent-reading card
+            now = time.time()
+            for n, (doc_id, position, total) in enumerate((("d0", 57, 248), ("d5", 71, 196), ("d9", 12, 340))):
+                context.db.record_reading_open(doc_id, unit="page", total=total, now=now - n * 3600)
+                context.db.record_reading_position(doc_id, position, total=total, now=now - n * 3600)
         for theme in themes:
             context.config.config.theme = theme
+            context.config.config.layout = layout
             _apply_appearance(app, context)
-            window = MainWindow(context)
+            window = window_class_for(theme_manager().layout.id)(context)
             window.resize(width, height)
             window.show()
             for _ in range(5):
                 app.processEvents()
+            if hasattr(window, "go_to"):  # a layout with a home screen: pick the page to shoot
+                window.go_to("home" if page == "home" else "library")
+                for _ in range(3):
+                    app.processEvents()
             if "--list" in sys.argv:
                 window.library_view.set_view_mode("list")
                 window.toolbar.list_view_button.setChecked(True)
@@ -79,7 +93,8 @@ def main() -> None:
                 for _ in range(3):
                     app.processEvents()
             suffix = "_list" if "--list" in sys.argv else ""
-            window.grab().save(str(out / f"main_{theme}_{size}{suffix}.png"))
+            tag = f"{layout}_{page}_" if layout != "ke-sach" else ""
+            window.grab().save(str(out / f"main_{tag}{theme}_{size}{suffix}.png"))
             window.close()
         context.shutdown()
 

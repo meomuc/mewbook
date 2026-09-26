@@ -71,7 +71,7 @@ class ActiveFilterBar(QFrame):
     def _apply_style(self) -> None:
         tm = theme_manager()
         self.setStyleSheet(
-            f"#ActiveFilterBar {{ background: {tm.token('bg')}; border-bottom: 1px solid {tm.token('line')}; }}"
+            f"#ActiveFilterBar {{ background: {tm.token(tm.layout.content_surface)}; border-bottom: 1px solid {tm.token('line')}; }}"
             f" QLabel {{ color: {tm.token('ink2')}; background: transparent; font-size: 12px; }}"
             f" #FilterTitle {{ color: {tm.token('ink')}; font-size: 13px; font-weight: 600; }}"
             f" #FilterCount {{ color: {tm.token('ink2')}; font-size: 13px; }}"

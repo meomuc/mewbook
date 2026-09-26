@@ -785,7 +785,8 @@ class LibraryListWidget(QWidget):
         # excess boxes/borders in favor of whitespace).
         self.table_view.setAlternatingRowColors(False)
         self.table_view.setIconSize(TABLE_THUMB_SIZE)
-        self.table_view.verticalHeader().setDefaultSectionSize(TABLE_THUMB_SIZE.height() + 8)
+        row_height = int(theme_manager().metric("table_row_height", 0))  # the layout's own row height, if it has one
+        self.table_view.verticalHeader().setDefaultSectionSize(max(TABLE_THUMB_SIZE.height() + 8, row_height))
         self.table_view.setItemDelegate(_ThemedRowDelegate(self.table_view, self._is_starred, self.toggle_reading_list))
         self.table_view.verticalHeader().setVisible(False)
         self.table_view.setWordWrap(False)
@@ -888,7 +889,7 @@ class LibraryListWidget(QWidget):
     def _restyle_pagination(self, _key: str = "") -> None:
         tm = theme_manager()
         self.pagination_bar.setStyleSheet(
-            f"#PaginationBar {{ background: {tm.token('bg')}; }}"
+            f"#PaginationBar {{ background: {tm.token(tm.layout.content_surface)}; }}"
             f" QLabel {{ color: {tm.token('ink2')}; font-size: 13px; }}"
             f" QToolButton {{ border: 1px solid transparent; border-radius: 6px; min-width: 26px; min-height: 26px;"
             f" color: {tm.token('ink')}; background: transparent; font-size: 13px; }}"

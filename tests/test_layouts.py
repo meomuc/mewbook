@@ -92,10 +92,23 @@ def test_a_layout_retunes_the_theme_without_touching_the_theme_file():
     assert compose_tokens(load_tokens()["japandi"], layout_for("ke-sach"), "japandi")["link"] == base["accent"]  # 1.1 fallback
 
 
-def test_only_layouts_with_an_installed_shape_are_offered():
+def test_a_layout_is_offered_only_with_a_window_that_draws_it():
+    from smartdoc.presentation.window_shapes import WINDOW_CLASS_FOR_LAYOUT, window_class_for
+
+    assert set(IMPLEMENTED_LAYOUTS) == set(WINDOW_CLASS_FOR_LAYOUT)  # the two lists cannot drift apart
     assert set(selectable_layouts()) == set(IMPLEMENTED_LAYOUTS) <= set(load_layouts())
-    assert layout_for("toi-gian").id == DEFAULT_LAYOUT_ID  # not installed yet: applying it falls back
-    assert layout_for("toi-gian", any_shape=True).id == "toi-gian"
+    assert layout_for("toi-gian").id == "toi-gian"
+    assert layout_for("no-such-layout").id == DEFAULT_LAYOUT_ID  # a removed package: the default look
+    assert window_class_for("no-such-layout") is window_class_for(DEFAULT_LAYOUT_ID)
+
+
+def test_an_imported_layout_without_a_shape_is_hidden(monkeypatch):
+    from smartdoc.presentation import layouts
+
+    monkeypatch.setattr(layouts, "IMPLEMENTED_LAYOUTS", frozenset({"ke-sach"}))
+    assert set(selectable_layouts()) == {"ke-sach"}
+    assert layout_for("toi-gian").id == "ke-sach"  # not installed: applying it falls back
+    assert layout_for("toi-gian", any_shape=True).id == "toi-gian"  # tools and tests can still reach it
 
 
 @pytest.mark.parametrize("layout_id", sorted(IMPLEMENTED_LAYOUTS))
@@ -107,10 +120,7 @@ def test_applying_a_pair_fills_the_stylesheet(qapp, layout_id):
         assert not re.search(r"\$[a-z]", manager.stylesheet())
 
 
-def test_a_theme_the_layout_cannot_use_is_replaced_by_its_default(qapp, monkeypatch):
-    from smartdoc.presentation import layouts
-
-    monkeypatch.setattr(layouts, "IMPLEMENTED_LAYOUTS", frozenset({"ke-sach", "toi-gian"}))
+def test_a_theme_the_layout_cannot_use_is_replaced_by_its_default(qapp):
     manager = ThemeManager()
     manager.apply(qapp, "healing", "toi-gian")  # Chữa Lành is not one of the four Tối giản accepts
     assert manager.layout.id == "toi-gian" and manager.key == "japandi"
@@ -134,7 +144,7 @@ def test_settings_has_two_layers_and_saves_the_pair(qapp, app_context):
     from smartdoc.presentation.settings_dialog import SettingsDialog
 
     dialog = SettingsDialog(app_context)
-    assert set(dialog.layout_cards) == set(selectable_layouts())  # only layouts whose shape is installed
+    assert set(dialog.layout_cards) == set(selectable_layouts()) == {"ke-sach", "toi-gian"}
     assert dialog.layout_cards["ke-sach"].is_selected()
     assert len(dialog.theme_cards) == len(available_themes("ke-sach"))
     dialog.theme_cards["inkynight"].chosen.emit("inkynight")
@@ -142,3 +152,21 @@ def test_settings_has_two_layers_and_saves_the_pair(qapp, app_context):
     config = app_context.config.config
     assert (config.layout, config.theme) == ("ke-sach", "inkynight")
     assert config.theme_by_layout["ke-sach"] == "inkynight"
+
+
+def test_switching_layout_lists_only_its_themes_and_remembers_the_old_choice(qapp, app_context):
+    from smartdoc.presentation.settings_dialog import SettingsDialog
+
+    app_context.config.config.theme = "healing"  # a theme Tối giản does not accept
+    dialog = SettingsDialog(app_context)
+    dialog.layout_cards["toi-gian"].chosen.emit("toi-gian")
+    assert set(dialog.theme_cards) == {i.key for i in available_themes("toi-gian")}
+    assert dialog.theme_combo.currentData() == "japandi"  # healing is not usable here: the layout's default
+    dialog.layout_cards["ke-sach"].chosen.emit("ke-sach")
+    assert dialog.theme_combo.currentData() == "healing"  # and the old choice comes back
+    dialog.layout_cards["toi-gian"].chosen.emit("toi-gian")
+    dialog._on_save()
+    config = app_context.config.config
+    assert (config.layout, config.theme) == ("toi-gian", "japandi")
+    assert config.theme_by_layout == {"ke-sach": "healing", "toi-gian": "japandi"}
+    assert dialog.appearance_changed

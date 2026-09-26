@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later
    Base look of every standard control ("Kệ sách" design, docs: Sample theme/.../07_quy-tac).
    Placeholders (a dollar sign plus a token name) come from styles/theme_tokens.json; ThemeManager fills them in, because QSS has no variables.
-   Sizes: controls 30 px high, radius 6, dialogs radius 10 (spacing in multiples of 4). Widgets that paint
+   Sizes: controls 30 px high, radius $r_control (the layout's control_radius: 6, or a pill), dialogs radius 10
+   (spacing in multiples of 4). $ground / $dlg_bg are the layout's content and dialog surfaces. Widgets that paint
    themselves (shelf, covers, badges) read the same tokens from ThemeManager instead of this file. */
 
 QToolTip { background: $surface; color: $ink; border: 1px solid $line2; padding: 4px 8px; }
 
 QPushButton {
-    background: $surface; color: $ink; border: 1px solid $line2; border-radius: 6px;
+    background: $surface; color: $ink; border: 1px solid $line2; border-radius: $r_control;
     min-height: 30px; padding: 0 12px;
 }
 QPushButton:hover { border-color: $accent; }
@@ -22,7 +23,7 @@ QPushButton[role="dangerSolid"]:disabled { background: $surface2; color: $ink3; 
 
 /* Left-rail pill: upper-case, spaced, display font; the selected pill is filled with the accent. */
 QPushButton[role="pill"], QToolButton[role="pill"] {
-    background: transparent; color: $ink2; border: 1px solid $line2; border-radius: 6px;
+    background: transparent; color: $ink2; border: 1px solid $line2; border-radius: $r_control;
     min-height: 30px; padding: 0 12px; text-align: left;
     font-family: $disp; font-size: 10px; font-weight: 600;
 }
@@ -30,7 +31,7 @@ QPushButton[role="pill"]:hover, QToolButton[role="pill"]:hover { border-color: $
 QPushButton[role="pill"]:checked, QToolButton[role="pill"]:checked { background: $accent; color: $accentink; border-color: $accent; }
 
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit, QTextEdit {
-    background: $surface; color: $ink; border: 1px solid $line2; border-radius: 6px;
+    background: $surface; color: $ink; border: 1px solid $line2; border-radius: $r_control;
     selection-background-color: $accent; selection-color: $accentink;
 }
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox { min-height: 28px; padding: 0 8px; }
@@ -67,19 +68,19 @@ QSlider::groove:horizontal { height: 4px; background: $line2; border-radius: 2px
 QSlider::sub-page:horizontal { background: $accent; border-radius: 2px; }
 QSlider::handle:horizontal { background: $accent; width: 12px; height: 12px; margin: -4px 0; border-radius: 6px; }
 
-QTableView { background: $bg; border: none; outline: 0; gridline-color: transparent; }
+QTableView { background: $ground; border: none; outline: 0; gridline-color: transparent; }
 QTableView::item { border-bottom: 1px solid $line; padding: 0 8px; color: $ink; }
-QHeaderView { background: $bg; }
+QHeaderView { background: $ground; }
 
 QTabWidget::pane { border: 1px solid $line; }
-QHeaderView::section { background: $bg; color: $ink3; border: none; border-bottom: 1px solid $line2; padding: 8px 8px;
+QHeaderView::section { background: $ground; color: $ink3; border: none; border-bottom: 1px solid $line2; padding: 8px 8px;
     font-family: $disp; font-size: 10px; font-weight: 600; }
 
 QStatusBar { background: $rail; color: $ink2; border-top: 1px solid $line; }
 QStatusBar::item { border: none; }
 
 /* Dialog frame; the footer strip uses surface2. */
-QDialog { background: $bg; }
+QDialog { background: $dlg_bg; }
 QFrame[role="dialogFooter"] { background: $surface2; border-top: 1px solid $line; }
 QLabel[role="hint"] { color: $ink3; }
 QLabel[role="groupLabel"] { color: $ink3; font-family: $disp; font-size: 10px; font-weight: 600; }

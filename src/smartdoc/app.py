@@ -26,6 +26,7 @@ from smartdoc.presentation.main_window import MainWindow
 from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.theme import apply_theme, theme_font
 from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.window_shapes import window_class_for
 
 
 def _apply_appearance(app: QApplication, context: AppContext) -> None:
@@ -202,7 +203,7 @@ def main() -> None:
 
     def build_and_show_window() -> MainWindow:
         _apply_appearance(app, context)
-        window = MainWindow(
+        window = window_class_for(theme_manager().layout.id)(  # the shape of the layout just applied
             context,
             watcher=watcher,
             import_manager=import_manager,

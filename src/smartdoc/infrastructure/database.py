@@ -801,6 +801,22 @@ class DatabaseManager:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def most_common_tag(self) -> str | None:
+        """The hashtag on the most books (ties: alphabetical), or None when nothing is tagged."""
+        from smartdoc.domain.author_names import split_tags
+
+        counts: dict[str, int] = {}
+        for row in self.connection.execute("SELECT tags FROM documents WHERE tags != ''"):
+            for tag in split_tags(row[0]):
+                counts[tag] = counts.get(tag, 0) + 1
+        return max(counts, key=lambda t: (counts[t], t)) if counts else None
+
+    def most_common_extension(self) -> str | None:
+        row = self.connection.execute(
+            "SELECT extension FROM documents WHERE extension != '' GROUP BY extension ORDER BY COUNT(*) DESC, extension LIMIT 1"
+        ).fetchone()
+        return str(row[0]) if row else None
+
     def author_of_the_month(self, days: int = 30, now: float | None = None) -> dict[str, Any] | None:
         """The author with the most books added or opened in the last `days` days: {"author", "books" (in the whole
         library), "active" (added/opened in the period), "cover_paths" (up to 3)}, or None when nobody qualifies.

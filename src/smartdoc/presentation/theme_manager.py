@@ -255,6 +255,11 @@ class ThemeManager(QObject):
         values = {name: _qss_color(self.token(name)) for name in COLOR_TOKENS}
         values.update({name: _qss_font(self.token(name)) for name in FONT_TOKENS})
         values["link"] = _qss_color(self.token("link"))  # 1.1 token; equals the accent when a theme has none
+        # The layout's shape: control radius (a pill is capped at half the 30 px control height) and the surfaces its
+        # content and dialogs sit on (bg for the shelf look, the rounded sheet's panel colour for the sheet look).
+        values["r_control"] = f"{min(int(self.metric('control_radius', 6)), 15)}px"
+        values["ground"] = _qss_color(self.token(self._layout.content_surface))
+        values["dlg_bg"] = _qss_color(self.token("panel" if self._layout.content_surface == "panel" else "bg"))
         return template.substitute(values)
 
     def palette(self) -> QPalette:

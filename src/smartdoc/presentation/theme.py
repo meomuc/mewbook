@@ -460,9 +460,13 @@ ZEN_DARK = ThemeColors(  # "Zen Dark Mode"
 def _with_tokens(colors: ThemeColors, t: dict) -> ThemeColors:
     """`colors` with its colours taken from a theme package's tokens (themes/<id>/theme.json), so widgets that still
     read ThemeColors and widgets styled by ThemeManager show one palette. Structure and type options stay."""
+    # A layout that puts the content on a rounded sheet ("content_surface": "panel") has the sidebar, list and header sit
+    # on the sheet's colour instead of the window ground / rail colour.
+    ground = t["panel"] if t.get("content_surface") == "panel" else t["bg"]
     return dataclasses.replace(
-        colors, background=t["bg"], content_bg=t["bg"], surface=t["surface"], sidebar_bg=t["rail"],
-        sidebar_text=t["ink"], panel_bg=t["panel"], panel_text=t["ink"], header_bg=t["bg"], text=t["ink"],
+        colors, background=t["bg"], content_bg=ground, surface=t["surface"],
+        sidebar_bg=ground if t.get("content_surface") == "panel" else t["rail"],
+        sidebar_text=t["ink"], panel_bg=t["panel"], panel_text=t["ink"], header_bg=ground, text=t["ink"],
         muted_text=t["ink2"], border=t["line"], accent=t["accent"], accent_text=t["accentink"],
         selected_bg=t["accentsoft"], selected_border=t["accent"], selected_text=t["ink"],
     )
