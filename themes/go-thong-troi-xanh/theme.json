@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "id": "go-thong-troi-xanh",
+  "name": "Gỗ Thông Trời Xanh",
+  "dark": false,
+  "description": "Kệ gỗ thông trên nền trời xanh, bảng phấn xanh lá cho thông báo.",
+  "version": "1.0.1",
+  "author": "Claude cho MewBook",
+  "created": "2026-09-26",
+  "inspired_by": "Thư viện số trường học: nền xanh trời, kệ gỗ có ke đỡ, khung gỗ, bảng phấn xanh.",
+  "tokens": {
+    "bg": "#A9D4DF",
+    "rail": "#D6ECF2",
+    "panel": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "surface2": "#EAF5F8",
+    "ink": "#173F4D",
+    "ink2": "#2C5968",
+    "ink3": "#395B68",
+    "line": "#CFE5EB",
+    "line2": "#8DBBC8",
+    "accent": "#943B0C",
+    "accentink": "#FFFFFF",
+    "accentsoft": "#FCE9DC",
+    "shelf": "#E0BD85",
+    "shelftop": "#F7E4C0",
+    "under": "rgba(28,74,90,.20)",
+    "shadow": "rgba(18,52,64,.38)",
+    "ok": "#246238",
+    "warn": "#784E00",
+    "err": "#A61F3A",
+    "scrim": "rgba(20,55,68,.42)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Nunito",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "files": [
+        "fonts/Nunito[wght].ttf"
+      ],
+      "license": "fonts/OFL-Nunito.txt",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "fallback": [
+        "Georgia"
+      ],
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Nunito",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "files": [
+        "fonts/Nunito[wght].ttf"
+      ],
+      "license": "fonts/OFL-Nunito.txt",
+      "vietnamese": true
+    }
+  },
+  "ornaments": {
+    "shelf": {
+      "style": "wood",
+      "thickness": 12,
+      "grain": "#D2AA6E",
+      "edge": "#B98E55",
+      "brackets": true,
+      "bracket_color": "#7F8C92"
+    },
+    "frame": {
+      "style": "wood",
+      "light": "#F3D9AE",
+      "dark": "#D9B57D",
+      "ink": "#5B3A12"
+    },
+    "notice": {
+      "style": "chalkboard",
+      "bg": "#2F6B45",
+      "ink": "#F3F1E4",
+      "frame": "#E0BD85"
+    },
+    "cover_frame": {
+      "style": "wood",
+      "width": 8
+    }
+  },
+  "preview": [
+    "preview/01_cua-so-chinh.png",
+    "preview/02_nhap-sach_bang-phan.png",
+    "preview/03_hop-thoai.png",
+    "preview/04_cai-dat-giao-dien.png",
+    "preview/05_thanh-trang-thai.png"
+  ]
+}

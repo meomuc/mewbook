@@ -51,7 +51,7 @@ from smartdoc.presentation.reader_manager import open_reader
 from smartdoc.presentation.review_dialog import open_review_dialog
 from smartdoc.presentation.sidebar_style import section_font
 from smartdoc.presentation.tag_editor import TagEditor
-from smartdoc.presentation.ornaments import cover_frame_width, frame_qss, paint_cover_frame
+from smartdoc.presentation.ornaments import cover_frame_width, frame_ink, frame_qss, paint_cover_frame
 from smartdoc.presentation.theme_manager import DETAIL_W, theme_manager
 
 COVER_W, COVER_H = 140, 186  # the design's cover in the panel
@@ -447,7 +447,8 @@ class DocumentDetailPanel(QFrame):
         self.setStyleSheet(
             f"#DetailPanel {{ background: {tm.token('panel')}; border-left: 1px solid {line}; }}"
             f" #DetailHeader, #DetailContent {{ background: transparent; }}"
-            f" #DetailTitle {{ {frame_qss(tm)} }}"  # empty unless the theme has a wood frame
+            + (f" #DetailHeader {{ {frame_qss(tm)} }} #DetailTitle {{ color: {frame_ink(tm)}; background: transparent; border: none; padding: 0; }}"
+               if frame_ink(tm) else "") +
             f" QScrollArea {{ background: transparent; }}"
             f" QLabel {{ color: {ink}; font-size: 13px; background: transparent; }}"
             f" #FieldCaption {{ color: {ink3}; font-size: 11px; font-style: italic; }}"

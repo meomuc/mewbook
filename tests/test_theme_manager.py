@@ -20,8 +20,8 @@ from smartdoc.presentation.theme_manager import (
 
 
 def test_every_saved_theme_maps_to_a_token_set():
-    assert set(TOKEN_KEY_FOR_THEME) == set(THEME_CHOICES)
-    assert set(TOKEN_KEY_FOR_THEME.values()) == set(load_tokens())
+    assert set(TOKEN_KEY_FOR_THEME) == set(THEME_CHOICES)  # the seven originals keep their saved key
+    assert set(TOKEN_KEY_FOR_THEME.values()) <= set(load_tokens())  # packages added later come on top
 
 
 @pytest.mark.parametrize("token_key", list(load_tokens()))

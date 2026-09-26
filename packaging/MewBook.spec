@@ -110,11 +110,11 @@ _datas += [
     ('../src/smartdoc/data/*.json.gz', 'smartdoc/data'),
 ]
 # Theme packages: themes/<id>/ (theme.json, fonts/, preview/) plus themes/_schema (schema + validator), each keeping its
-# own folder -- a glob would flatten them into one. `incoming/` (unimported zips) never ships. presentation/resources.py
+# own folder -- a glob would flatten them into one. `incoming/` (unimported zips) and `preview/` pictures never ship. presentation/resources.py
 # themes_dir() finds them again.
 for _file in sorted((_ROOT / 'themes').rglob('*')):
     _rel = _file.relative_to(_ROOT / 'themes')
-    if _file.is_file() and _rel.parts[0] != 'incoming' and '__pycache__' not in _rel.parts:
+    if _file.is_file() and _rel.parts[0] != 'incoming' and not {'preview', '__pycache__'} & set(_rel.parts):
         _datas.append((str(_file), str(Path('themes') / _rel.parent)))
 _datas += collect_data_files('pyvi')
 # Every redistributed dependency's dist-info (METADATA + licence files), so its licence text ships

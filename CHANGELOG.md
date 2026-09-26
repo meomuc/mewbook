@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   The seven themes look as before, apart from small colour corrections that keep status colours and links apart
   (Không Gian Chữa Lành accent, and the warning/error/success colours of Hoài Niệm, Walnut Library and Zen Dark).
   A saved choice from 1.0/1.1 still opens the same theme.
+- **New theme "Gỗ Thông Trời Xanh"** (light): pine shelves with metal brackets on a sky-blue ground, wood-framed group
+  labels and cover, green chalkboard notice cards, Nunito typeface (OFL, shipped with the theme).
 
 ## [1.1.0] - 2026-09-26
 

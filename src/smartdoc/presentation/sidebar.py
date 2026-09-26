@@ -67,8 +67,7 @@ class CollectionListPanel(QWidget):
         header_label = section_label("Thư viện", self)
         header_row = QHBoxLayout()
         header_row.setContentsMargins(8, 4, 0, 4)
-        header_row.addWidget(header_label)
-        header_row.addStretch(1)
+        header_row.addWidget(header_label, 1)
 
         self.collections_list = QListWidget(self)
         # Rows are drawn by CountRowDelegate (name left, muted count right,

@@ -567,7 +567,10 @@ def test_the_performance_page_saves_its_new_options(qapp, app_context):
 
 def test_the_theme_cards_drive_the_theme_and_show_the_current_one(qapp, app_context):
     dialog = SettingsDialog(app_context)
-    assert len(dialog.theme_cards) == 7 and dialog.theme_cards["broadsheet"].is_selected()
+    from smartdoc.presentation.theme_manager import available_themes
+
+    assert len(dialog.theme_cards) == len(available_themes()) >= 7  # one card per theme package
+    assert dialog.theme_cards["broadsheet"].is_selected()
     dialog.theme_cards["inkynight"].chosen.emit("inkynight")
     assert dialog.theme_combo.currentData() == "inkynight" and dialog.theme_cards["inkynight"].is_selected()
     assert not dialog.theme_cards["broadsheet"].is_selected()

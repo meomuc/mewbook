@@ -210,3 +210,21 @@ def test_widgets_use_the_ornaments_through_the_manager(qapp):
     """The wiring: no widget asks for a theme id, it only reads the manager's ornament parameters."""
     source = Path(ornaments.__file__).read_text(encoding="utf-8")
     assert not re.search(r"\.(theme_id|key)\s*[!=]=\s*[\"']", source)
+
+
+def test_frame_band_paints_only_for_a_theme_with_a_frame(themes_tmp, qapp):
+    themes_tmp("plain-two")
+    themes_tmp("framed-two", ornaments={"frame": {"style": "wood", "light": "#c8a26b", "dark": "#8a6a3b", "ink": "#1b120a"}})
+
+    def band(theme_id):
+        image = QImage(80, 30, QImage.Format_ARGB32)
+        image.fill(QColor("#ffffff"))
+        painter = QPainter(image)
+        ink = ornaments.paint_frame_band(painter, QRect(0, 0, 80, 30), _manager_for(qapp, theme_id))
+        painter.end()
+        return ink, image
+
+    ink, image = band("plain-two")
+    assert ink is None and QColor(image.pixel(40, 15)) == QColor("#ffffff")
+    ink, image = band("framed-two")
+    assert ink == QColor("#1b120a") and QColor(image.pixel(40, 15)) != QColor("#ffffff")

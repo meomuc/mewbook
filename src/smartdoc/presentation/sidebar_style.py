@@ -13,10 +13,10 @@ import re
 
 from PySide6.QtCore import QPointF, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen, QPolygonF
-from PySide6.QtWidgets import QLabel, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
+from PySide6.QtWidgets import QLabel, QSizePolicy, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from smartdoc.presentation.line_icons import icon_pixmap
-from smartdoc.presentation.ornaments import frame_qss
+from smartdoc.presentation.ornaments import frame_qss, paint_frame_band
 from smartdoc.presentation.theme import current_colors, item_text, section_text
 from smartdoc.presentation.theme_manager import theme_manager
 
@@ -62,6 +62,8 @@ def section_label(text: str, parent: QWidget | None = None) -> QLabel:
     label.setFont(section_font(label.font()))
     frame = frame_qss(theme_manager())  # a theme with a wood frame puts its group labels on it
     label.setStyleSheet(frame or f"color: {current_colors().muted_text}; background: transparent;")
+    if frame:
+        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)  # the band runs the sidebar's full width
     return label
 
 
@@ -112,8 +114,10 @@ class CountRowDelegate(QStyledItemDelegate):
         painter.save()
         if self._is_section(index):
             painter.setFont(section_font(opt.font))
-            painter.setPen(QColor(colors.muted_text))
-            text_rect = QRect(rect.x() + 4, rect.y() + 10, rect.width() - 8, rect.height() - 10)
+            band = QRect(rect.x() + 2, rect.y() + 8, rect.width() - 4, rect.height() - 10)
+            on_frame = paint_frame_band(painter, band, theme_manager())  # a theme with a wood frame draws a band
+            painter.setPen(on_frame or QColor(colors.muted_text))
+            text_rect = QRect(rect.x() + (12 if on_frame else 4), rect.y() + 10, rect.width() - (24 if on_frame else 8), rect.height() - 10)
             painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, section_text(text, colors))
             painter.restore()
             return
@@ -202,8 +206,9 @@ class CountRowDelegate(QStyledItemDelegate):
             painter.save()
             font = section_font(opt.font)
             painter.setFont(font)
-            painter.setPen(QColor(tm.token("ink3")))
-            area = QRectF(opt.rect).adjusted(4, 8, -4, 0)
+            on_frame = paint_frame_band(painter, opt.rect.adjusted(2, 6, -2, -2), tm)  # wood-frame themes: a band
+            painter.setPen(on_frame or QColor(tm.token("ink3")))
+            area = QRectF(opt.rect).adjusted(12 if on_frame else 4, 8, -4, 0)
             painter.drawText(area, Qt.AlignLeft | Qt.AlignVCenter, section_text(index.data(Qt.DisplayRole) or ""))
             painter.drawPixmap(QPointF(area.right() - 14, area.center().y() - 7), icon_pixmap("plus", tm.token("ink2"), 14))
             painter.restore()

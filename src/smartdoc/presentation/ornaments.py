@@ -103,6 +103,33 @@ def frame_qss(tm: ThemeManager) -> str:
             f"background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {p['light']}, stop:1 {p['dark']});")
 
 
+def frame_ink(tm: ThemeManager) -> str | None:
+    """The text colour that goes on the frame, or None when the theme has no wood frame."""
+    p = spec(tm, "frame")
+    if p["style"] != "wood" or not (p.get("light") and p.get("dark")):
+        return None
+    return str(p.get("ink") or tm.token("ink"))
+
+
+def paint_frame_band(painter: QPainter, rect: QRect, tm: ThemeManager) -> QColor | None:
+    """A full-width frame band (for group headings painted by a delegate); returns the text colour to use on it, or
+    None (and paints nothing) when the theme has no frame."""
+    ink = frame_ink(tm)
+    if ink is None:
+        return None
+    p = spec(tm, "frame")
+    gradient = QLinearGradient(0, rect.top(), 0, rect.bottom() + 1)
+    gradient.setColorAt(0, parse_color(str(p["light"])))
+    gradient.setColorAt(1, parse_color(str(p["dark"])))
+    painter.save()
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(QPen(parse_color(str(p["dark"])), 1))
+    painter.setBrush(gradient)
+    painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3)
+    painter.restore()
+    return parse_color(ink)
+
+
 def notice_qss(tm: ThemeManager, selector: str) -> str:
     """Style sheet rules turning `selector` (a QFrame) into a chalkboard notice; "" for the ordinary card."""
     p = spec(tm, "notice")

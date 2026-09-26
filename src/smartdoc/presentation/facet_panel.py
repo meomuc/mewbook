@@ -58,6 +58,7 @@ from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.quick_filter import QuickFilterBox
+from smartdoc.presentation.ornaments import frame_ink, frame_qss
 from smartdoc.presentation.sidebar_style import ROW_HEIGHT, CountRowDelegate, section_font
 from smartdoc.presentation.theme import current_colors, section_text
 from smartdoc.presentation.theme_manager import theme_manager
@@ -136,7 +137,9 @@ class _Section(QWidget):
         self.body_layout.setContentsMargins(0, 0, 0, 0)
         self.body_layout.setSpacing(4)
 
-        head = QHBoxLayout()
+        self.head_bar = QFrame(self)  # the heading row; a theme with a wood frame paints it as a band (ornaments.py)
+        self.head_bar.setObjectName("FacetHead")
+        head = QHBoxLayout(self.head_bar)
         head.setContentsMargins(0, 0, 0, 0)
         head.addWidget(self.header)
         head.addStretch(1)
@@ -144,7 +147,7 @@ class _Section(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 6, 0, 6)
         layout.setSpacing(2)
-        layout.addLayout(head)
+        layout.addWidget(self.head_bar)
         layout.addWidget(self.body)
         self.refresh_header()
 
@@ -162,7 +165,12 @@ class _Section(QWidget):
     def refresh_header(self) -> None:
         badge = f"  ·  {self._badge}" if self._badge else ""
         self.header.setText(f"{section_text(self.title)}{badge}")
-        self.header.setIcon(line_icon("chevron_right" if self.collapsed else "chevron_down", theme_manager().token("ink3"), 12))
+        tm = theme_manager()
+        ink = frame_ink(tm)
+        self.head_bar.setStyleSheet(
+            f"#FacetHead {{ {frame_qss(tm)} }} #FacetHead QToolButton {{ color: {ink}; background: transparent; border: none; }}"
+            if ink else "")
+        self.header.setIcon(line_icon("chevron_right" if self.collapsed else "chevron_down", ink or tm.token("ink3"), 12))
         self.body.setVisible(not self.collapsed)
 
 

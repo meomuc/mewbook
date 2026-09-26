@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Every colour a person has to READ meets 4.5:1 against the grounds it is drawn on, in all seven themes (stage G11).
+"""Every colour a person has to READ meets 4.5:1 against the grounds it is drawn on, in every theme package (stage G11).
 Decorative colours (lines, shadows, the shelf) are not text and are not checked."""
 import re
 
@@ -60,5 +60,5 @@ def test_text_on_the_accent_button_is_readable(theme):
     assert contrast(tokens["accentink"], tokens["accent"]) >= 4.5
 
 
-def test_there_are_seven_themes():
-    assert len(_THEMES) == 7
+def test_the_seven_original_themes_are_still_there():
+    assert len(_THEMES) >= 7
