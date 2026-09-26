@@ -119,6 +119,9 @@ class DuplicateFinderDialog(DesignDialog):
         # mid-scan is a hard crash); it writes plain values into this dict and a timer owned by the dialog reads them.
         self._scan_generation = 0
         self._cancel_scan = threading.Event()
+        self._cancel_hash = threading.Event()
+        self._hash_state: dict = {}
+        self._hash_poll: QTimer | None = None
         self._scan_state: dict = {}
         self._scan_poll = QTimer(self)
         self._scan_poll.setInterval(50)
@@ -241,7 +244,49 @@ class DuplicateFinderDialog(DesignDialog):
         self._groups[MODE_EXACT] = self.engine.find_exact_duplicates()
         self._keepers = {key: v for key, v in self._keepers.items() if key[0] != MODE_EXACT}
         self._fill_groups()
+        self._start_hashing()
         self._start_fuzzy_scan()
+
+    # -- hashing the files that could still be duplicates, on a worker thread -------------------------------------------
+    def _start_hashing(self) -> None:
+        """Import does not read a file through to hash it unless another book has the same size; the books that share a
+        size and have no hash yet are completed here, in the background, and the exact list is refreshed when done."""
+        self._hash_state = {}
+        pending = self.engine.pending_hash_count()
+        if not pending:
+            return
+        self.scan_status_label.setText(f"Đang đọc {pending} file để so nội dung…")
+        self.scan_status_label.show()
+        self._cancel_hash.clear()
+        state, engine, cancel = self._hash_state, self.engine, self._cancel_hash  # (not the fuzzy scan's: it is replaced)
+
+        def worker() -> None:
+            try:
+                state["hashed"] = engine.hash_pending(progress=lambda d, t: state.__setitem__("progress", (d, t)), should_cancel=cancel.is_set)
+            except Exception as exc:  # noqa: BLE001 -- a failed read must not take the dialog down
+                state["hashed"] = 0
+                state["error"] = str(exc)
+
+        threading.Thread(target=worker, daemon=True).start()
+        self._hash_poll = QTimer(self)
+        self._hash_poll.setInterval(100)
+        self._hash_poll.timeout.connect(self._poll_hashing)
+        self._hash_poll.start()
+
+    def _poll_hashing(self) -> None:
+        state = self._hash_state
+        if "hashed" not in state:
+            if "progress" in state:
+                done, total = state["progress"]
+                self.scan_status_label.setText(f"Đang đọc file để so nội dung: {done}/{total}")
+            return
+        self._hash_poll.stop()
+        if state["hashed"]:
+            self._groups[MODE_EXACT] = self.engine.find_exact_duplicates()
+            self._keepers = {key: v for key, v in self._keepers.items() if key[0] != MODE_EXACT}
+            if self._mode == MODE_EXACT:
+                self._fill_groups()
+        self.scan_status_label.setVisible(self.scan_progress.isVisible())
 
     def _set_mode(self, mode: str) -> None:
         self._mode = mode
@@ -516,7 +561,10 @@ class DuplicateFinderDialog(DesignDialog):
     def done(self, result: int) -> None:  # noqa: D401 -- Qt override
         # Closing (any way: Xong, Esc, ×) stops a scan in progress rather than leaving it churning in the background.
         self._cancel_scan.set()
+        self._cancel_hash.set()
         self._scan_poll.stop()
+        if self._hash_poll is not None:
+            self._hash_poll.stop()
         super().done(result)
 
 

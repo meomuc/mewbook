@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -246,9 +247,21 @@ class DatabaseManager:
         self.connection.create_function("mb_has_author", 2, _mb_has_author, deterministic=True)
         self.connection.create_function("mb_has_tag", 2, _mb_has_tag, deterministic=True)
 
+    _list_columns_cache: str | None = None
+
+    def _list_columns(self) -> str:
+        """Every column of `documents` except `content` (the book's whole extracted text, ~30 KB each) -- what a list of
+        books needs. No widget reads a listed book's text, and it used to be loaded for every row of every list (and
+        of every non-paged one: duplicates, missing files...). `get_document` still returns everything."""
+        if self._list_columns_cache is None:
+            names = [row["name"] for row in self.connection.execute("PRAGMA table_info(documents)")]
+            self._list_columns_cache = ", ".join(f"documents.{name}" for name in names if name != "content")
+        return self._list_columns_cache
+
     def initialize_tables(self, before_migrate: Callable[[int, int], None] | None = None) -> None:
         """Create/upgrade the schema. `before_migrate(from, to)` runs before the first pending versioned
         migration and only when the database already held data (the automatic backup hooks in here)."""
+        self._list_columns_cache = None  # the columns may change (an upgrade, a restored backup)
         with self.write_lock:
             schema_migrations.check_not_newer(self.connection)  # before anything is touched
             had_data = bool(self.connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone())
@@ -413,6 +426,61 @@ class DatabaseManager:
                 " VALUES (?, ?, ?, ?, ?, ?)",
                 (doc_id, row["last_opened_at"], row["position"], row["total"], row["unit"], row["open_count"]))
             self.connection.commit()
+
+    # -- Paths the person removed from the library (see schema_migrations._add_excluded_paths) ---------------------
+
+    @staticmethod
+    def _path_key(path: str) -> str:
+        return os.path.normcase(os.path.abspath(path))
+
+    def exclude_paths(self, paths: list[str]) -> None:
+        """Remember that these files were dropped from the library on purpose: the watcher must not bring them back."""
+        now = time.time()
+        with self.write_lock:
+            self.connection.executemany(
+                "INSERT OR REPLACE INTO excluded_paths (path_key, path, excluded_at) VALUES (?, ?, ?)",
+                [(self._path_key(p), p, now) for p in paths if p])
+            self.connection.commit()
+
+    def unexclude_paths(self, paths: list[str]) -> None:
+        with self.write_lock:
+            self.connection.executemany("DELETE FROM excluded_paths WHERE path_key = ?", [(self._path_key(p),) for p in paths if p])
+            self.connection.commit()
+
+    def is_path_excluded(self, path: str) -> bool:
+        with self.write_lock:  # same reason as find_id_by_path: one shared connection, several import workers
+            return self.connection.execute("SELECT 1 FROM excluded_paths WHERE path_key = ?", (self._path_key(path),)).fetchone() is not None
+
+    def excluded_path_keys(self) -> set[str]:
+        with self.write_lock:
+            return {row[0] for row in self.connection.execute("SELECT path_key FROM excluded_paths")}
+
+    def list_excluded_paths(self) -> list[str]:
+        with self.write_lock:
+            return [row[0] for row in self.connection.execute("SELECT path FROM excluded_paths ORDER BY excluded_at DESC")]
+
+    def missing_documents_by_name(self) -> dict[tuple[str, int], str]:
+        """(lower-case file name, size) -> id of the books whose file is missing: what a file found later may be."""
+        found: dict[tuple[str, int], str] = {}
+        for row in self.connection.execute("SELECT id, file_path, file_size FROM documents WHERE file_status = 'missing'"):
+            found[(os.path.basename(row["file_path"]).lower(), int(row["file_size"] or 0))] = row["id"]
+        return found
+
+    # -- Lazy content hashes: only files that share a size can be identical ---------------------------------------
+
+    def documents_with_size(self, size: int) -> list[dict[str, Any]]:
+        """(id, file_path, content_hash) of the books whose file has exactly this size."""
+        if size <= 0:
+            return []
+        rows = self.connection.execute("SELECT id, file_path, content_hash FROM documents WHERE file_size = ?", (size,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def size_collisions_without_hash(self) -> list[dict[str, Any]]:
+        """Books with no content hash yet whose size equals another book's: the only ones that can be exact duplicates."""
+        rows = self.connection.execute(
+            "SELECT id, file_path FROM documents WHERE content_hash IS NULL AND file_size > 0 AND file_size IN"
+            " (SELECT file_size FROM documents WHERE file_size > 0 GROUP BY file_size HAVING COUNT(*) > 1)").fetchall()
+        return [dict(r) for r in rows]
 
     def documents_for_refresh(self) -> list[dict[str, Any]]:
         """What "Cập nhật ngay" needs of every book: where its file is and what was last recorded about it."""
@@ -864,7 +932,7 @@ class DatabaseManager:
         """Books that were opened, latest first: the document's columns plus `last_opened_at`, `position`, `total`,
         `unit` and `open_count` of its reading progress."""
         rows = self.connection.execute(
-            "SELECT documents.*, rp.last_opened_at, rp.position, rp.total, rp.unit, rp.open_count"
+            f"SELECT {self._list_columns()}, rp.last_opened_at, rp.position, rp.total, rp.unit, rp.open_count"
             " FROM reading_progress AS rp JOIN documents ON documents.id = rp.doc_id"
             " ORDER BY rp.last_opened_at DESC LIMIT ?",
             (int(limit),),
@@ -960,7 +1028,7 @@ class DatabaseManager:
         if not match_expr:
             return []
         sql = f"""
-            SELECT documents.*
+            SELECT {self._list_columns()}
             FROM documents_fts
             JOIN documents ON documents.doc_rowid = documents_fts.rowid
             WHERE documents_fts MATCH ?
@@ -976,7 +1044,7 @@ class DatabaseManager:
     def list_all_documents(self, limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
         """Browse the library without a search query (e.g. initial UI load)."""
         cursor = self.connection.execute(
-            "SELECT * FROM documents ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            f"SELECT {self._list_columns()} FROM documents ORDER BY created_at DESC LIMIT ? OFFSET ?",
             (limit, offset),
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -1069,7 +1137,7 @@ class DatabaseManager:
                 extra = f"AND ({where_sql})" if where_sql else ""
                 order_clause = order_by or _RELEVANCE
                 sql = f"""
-                    SELECT documents.*
+                    SELECT {self._list_columns()}
                     FROM documents_fts
                     JOIN documents ON documents.doc_rowid = documents_fts.rowid
                     WHERE documents_fts MATCH ? {extra}
@@ -1081,7 +1149,7 @@ class DatabaseManager:
                 extra = f"WHERE {where_sql}" if where_sql else ""
                 order_clause = order_by or "created_at DESC"
                 sql = f"""
-                    SELECT * FROM documents
+                    SELECT {self._list_columns()} FROM documents
                     {extra}
                     ORDER BY {order_clause}
                     LIMIT ? OFFSET ?

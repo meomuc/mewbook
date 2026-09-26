@@ -84,6 +84,20 @@ def _add_reading_progress(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_reading_progress_last ON reading_progress(last_opened_at DESC)")
 
 
+def _add_excluded_paths(connection: sqlite3.Connection) -> None:
+    """Also an index on the file size (only files of equal size can be identical, so that is what duplicate detection asks
+    by). Files the person removed from the library while the file itself stayed where it was. The folder watcher and the
+    start-up scan skip them, so a book dropped as a duplicate does not come back the next time the file is touched or the
+    folder is scanned; adding the file by hand lifts the exclusion. Purely additive."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS excluded_paths ("
+        " path_key TEXT PRIMARY KEY,"  # normcase(abspath): Windows paths compare without case
+        " path TEXT NOT NULL,"
+        " excluded_at REAL NOT NULL)"
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_size ON documents(file_size)")
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -134,6 +148,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "documents.file_status / file_checked_at (missing-file detection)", _add_file_status_columns),
     Migration(2, "reading_progress (last opened, page/chapter reached)", _add_reading_progress),
     Migration(3, "search index: accent-insensitive Vietnamese tokenizer, trigger only on indexed columns", _rebuild_search_index),
+    Migration(4, "excluded_paths (files removed from the library that must not be imported again), documents.file_size index", _add_excluded_paths),
 )
 
 

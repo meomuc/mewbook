@@ -68,16 +68,22 @@ def test_file_detected_event_auto_enqueues(tmp_path, app_context, manager):
     assert any(r["title"] == "Auto Indexed" for r in results)
 
 
-def test_imported_pdf_gets_a_content_hash(tmp_path, app_context, manager):
+def test_a_file_nobody_shares_a_size_with_is_not_read_through_to_hash_it(tmp_path, app_context, manager):
+    """Only files of equal size can be identical, so import does not hash a file whose size is unique (that read the whole
+    file of every import); the hash comes when a same-size file shows up, or when duplicates are looked for."""
     pdf_path = tmp_path / "book.pdf"
     _make_pdf(pdf_path, "Hashed", "Author", "content")
 
     manager.add_file(str(pdf_path))
     assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 1)
+    assert app_context.db.list_all_documents()[0]["content_hash"] is None
 
-    doc = app_context.db.list_all_documents()[0]
-    assert doc["content_hash"] is not None
-    assert len(doc["content_hash"]) == 64  # sha256 hex digest
+    same_size = tmp_path / "other.pdf"
+    same_size.write_bytes(pdf_path.read_bytes())
+    manager.add_file(str(same_size))
+    assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 2)
+    hashes = [d["content_hash"] for d in app_context.db.list_all_documents()]
+    assert all(h and len(h) == 64 for h in hashes) and len(set(hashes)) == 1  # both got theirs (sha256 hex), and they match
 
 
 def test_two_files_with_identical_bytes_get_the_same_content_hash(tmp_path, app_context, manager):
@@ -90,8 +96,13 @@ def test_two_files_with_identical_bytes_get_the_same_content_hash(tmp_path, app_
     manager.add_file(str(copy_path))
     assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 2)
 
+    from smartdoc.application.duplicate_finder import DuplicateEngine
+
+    engine = DuplicateEngine(app_context)
+    engine.hash_pending()  # what the duplicate finder does first (two workers may both have seen "no other book of that size")
     hashes = {d["content_hash"] for d in app_context.db.list_all_documents()}
-    assert len(hashes) == 1  # both files hash the same
+    assert len(hashes) == 1 and None not in hashes  # both files hash the same
+    assert len(engine.find_exact_duplicates()) == 1
 
     duplicate_groups = app_context.db.find_duplicate_groups_by_content_hash()
     assert len(duplicate_groups) == 1

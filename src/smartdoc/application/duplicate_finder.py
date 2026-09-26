@@ -36,6 +36,7 @@ import difflib
 import re
 import unicodedata
 from collections import defaultdict
+import os
 from collections.abc import Callable
 
 _WORD_RE = re.compile(r"[0-9a-z]+")
@@ -76,7 +77,38 @@ class DuplicateEngine:
         self.context = context
 
     def find_exact_duplicates(self) -> list[list[dict]]:
+        """Groups of identical files among the books that have a content hash. Import only hashes a file when another
+        book has its size (only files of equal size can be identical), so call `hash_pending` first to complete them."""
         return self.context.db.find_duplicate_groups_by_content_hash()
+
+    def pending_hash_count(self) -> int:
+        """How many books could be exact duplicates of another (same size) but have no content hash yet."""
+        return len(self.context.db.size_collisions_without_hash())
+
+    def hash_pending(self, progress: ProgressCallback | None = None, should_cancel: Callable[[], bool] | None = None) -> int:
+        """Reads and hashes those books' files (never writes them); returns how many were hashed. Runs on a worker
+        thread: a big file takes a while. A file that is gone, or only in the cloud (reading it would download it), is
+        skipped."""
+        from smartdoc.infrastructure.cloud_files import is_cloud_only
+        from smartdoc.infrastructure.file_hash import sha256_file
+
+        rows = self.context.db.size_collisions_without_hash()
+        done = 0
+        for index, row in enumerate(rows):
+            if should_cancel is not None and should_cancel():
+                break
+            if progress is not None:
+                progress(index, len(rows))
+            path = row["file_path"] or ""
+            if not os.path.isfile(path) or is_cloud_only(path):
+                continue
+            digest = sha256_file(path)
+            if digest:
+                self.context.db.set_file_stats(row["id"], digest, os.path.getsize(path))
+                done += 1
+        if progress is not None:
+            progress(len(rows), len(rows))
+        return done
 
     def find_fuzzy_duplicates(
         self,

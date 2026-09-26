@@ -7,13 +7,14 @@ is still writing to (e.g. a browser download or a slow copy).
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
-from smartdoc.core.event_bus import FileDetectedEvent
+from smartdoc.core.event_bus import FileDetectedEvent, LibraryUpdatedEvent
 from smartdoc.domain.models import MetadataNormalizer
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,9 @@ DEBOUNCE_SECONDS = 1.5
 
 
 class _DebouncedHandler(FileSystemEventHandler):
-    def __init__(self, on_stable, is_extension_allowed, debounce_seconds: float = DEBOUNCE_SECONDS) -> None:
+    def __init__(self, on_stable, is_extension_allowed, debounce_seconds: float = DEBOUNCE_SECONDS, on_moved=None) -> None:
         self._on_stable = on_stable
+        self._on_moved = on_moved  # (src, dest) -> True when it dealt with the move itself (a book that was renamed)
         self._is_extension_allowed = is_extension_allowed
         self._debounce_seconds = debounce_seconds
         self._timers: dict[str, threading.Timer] = {}
@@ -60,8 +62,15 @@ class _DebouncedHandler(FileSystemEventHandler):
             self._schedule(event.src_path)
 
     def on_moved(self, event: FileSystemEvent) -> None:
-        if not event.is_directory:
-            self._schedule(event.dest_path)
+        if event.is_directory:
+            return  # watchdog reports every file inside a renamed folder as its own move
+        if self._on_moved is not None and self._is_supported(event.dest_path):
+            try:
+                if self._on_moved(event.src_path, event.dest_path):
+                    return
+            except Exception:  # noqa: BLE001 -- a bad move must never stop the watcher thread
+                logger.exception("Handling a moved file failed: %s -> %s", event.src_path, event.dest_path)
+        self._schedule(event.dest_path)
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         pass  # deletions are handled at the application layer (see LibraryWatcher.on_deleted)
@@ -75,6 +84,7 @@ class LibraryWatcher:
             on_stable=self._handle_stable_file,
             is_extension_allowed=self._is_extension_allowed,
             debounce_seconds=context.config.config.watch_debounce_seconds,
+            on_moved=self._handle_moved,
         )
         self._watches: dict[str, object] = {}  # folder_path -> watchdog ObservedWatch
 
@@ -88,6 +98,26 @@ class LibraryWatcher:
         # Read live from config (not cached at construction time) so a
         # Settings change takes effect without restarting the app.
         return extension in self.context.config.config.allowed_extensions
+
+    def _handle_moved(self, src: str, dest: str) -> bool:
+        """A file of the library was renamed or moved: the book follows it (same id, so hashtags, collections, reviews and
+        reading progress stay) instead of the new name being imported as a second book with the old one "missing".
+        Returns True when that is what happened."""
+        db = self.context.db
+        if self.context.self_writes.is_recent(dest) or self.context.self_writes.is_recent(src):
+            return True  # MewBook's own move (Gom sách, Thùng rác): it has already updated the library
+        doc_id = db.find_id_by_path(src)
+        if doc_id is None or db.find_id_by_path(dest) is not None:
+            return False
+        try:
+            size = os.stat(dest).st_size
+        except OSError:
+            size = None
+        if not db.relocate_document(doc_id, dest, size):
+            return False
+        logger.info("Book followed its file: %s -> %s", src, dest)
+        self.context.event_bus.publish(LibraryUpdatedEvent())
+        return True
 
     def _handle_stable_file(self, path: str) -> None:
         if self.context.self_writes.is_recent(path):

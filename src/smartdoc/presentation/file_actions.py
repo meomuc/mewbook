@@ -78,6 +78,9 @@ class FileActionEngine:
         whole batch instead of one per document."""
         for doc_id, file_path in items:
             self.context.db.delete_document(doc_id)
+            if not delete_physical_file and file_path and os.path.isfile(file_path):
+                # The file stays where it is, so the folder watcher would find it again: remember it was dropped on purpose.
+                self.context.db.exclude_paths([file_path])
             if delete_physical_file and file_path:
                 try:
                     Path(file_path).unlink(missing_ok=True)

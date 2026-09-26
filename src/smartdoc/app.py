@@ -244,7 +244,13 @@ def main() -> None:
 
     # Which books have lost their file (moved, deleted, drive unplugged)? Checked in the background so a big or
     # networked library never delays the window; the status bar shows the answer (S1-04).
-    threading.Thread(target=context.relink.check_files, name="missing-files-check", daemon=True).start()
+    def check_then_scan() -> None:
+        context.relink.check_files()
+        # Files that arrived while MewBook was closed (the watcher only sees changes from now on). After the check, so a
+        # book whose file moved meanwhile is already marked missing and is found again instead of imported twice.
+        import_manager.catch_up_scan()
+
+    threading.Thread(target=check_then_scan, name="missing-files-check", daemon=True).start()
     threading.Thread(target=context.trash.purge_expired, name="trash-purge", daemon=True).start()  # past-due items only
     threading.Thread(target=context.updates.maybe_check_on_startup, name="update-check", daemon=True).start()  # off unless enabled
 

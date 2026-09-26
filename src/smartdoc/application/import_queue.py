@@ -161,9 +161,13 @@ class ImportQueueManager:
         drag-and-drop). Once every file in the batch has been processed, an
         ImportBatchCompletedEvent reports how many succeeded, were already
         in the library (duplicate), or failed. Returns the number enqueued.
+
+        Adding files by hand is an explicit wish: a file the person once removed from the library (and which the watcher
+        therefore skips) is imported again.
         """
         if not paths:
             return 0
+        self.context.db.unexclude_paths(paths)
         self._start_batch(paths)
         return len(paths)
 
@@ -177,6 +181,7 @@ class ImportQueueManager:
         enqueue."""
         if not paths:
             return None
+        self.context.db.unexclude_paths(paths)
         return self._start_batch(paths)
 
     def _start_batch(self, paths: list[str]) -> str:
@@ -201,6 +206,49 @@ class ImportQueueManager:
                 if name.rsplit(".", 1)[-1].lower() in allowed:
                     paths.append(str(Path(root) / name))
         return self.add_files(paths)
+
+    def catch_up_scan(self, folders: list[str] | None = None) -> int:
+        """Files that arrived in the watched folders while MewBook was closed (the live watcher only sees changes made
+        while it runs). Every file of an allowed type that the library does not know is queued like a watched file, except
+
+        - files the person removed from the library on purpose (excluded_paths), and
+        - a file that is a book whose file went missing under the same name and size (moved while closed): that book is
+          pointed at it instead (same id, so hashtags, collections and reading progress stay).
+
+        Meant for a background thread; returns how many files it queued. Reads only directory listings."""
+        db = self.context.db
+        allowed = {f".{e}" for e in self.context.config.config.allowed_extensions}
+        known = {os.path.normcase(os.path.abspath(path)) for _id, path in db.files_to_check()}
+        excluded = db.excluded_path_keys()
+        missing = db.missing_documents_by_name()
+        queued = relinked = 0
+        for folder in folders if folders is not None else list(self.context.config.config.watch_folders):
+            if not os.path.isdir(folder):
+                continue
+            for root, _dirs, names in os.walk(folder):
+                for name in names:
+                    if os.path.splitext(name)[1].lower() not in allowed:
+                        continue
+                    path = os.path.join(root, name)
+                    key = os.path.normcase(os.path.abspath(path))
+                    if key in known or key in excluded or self.context.self_writes.is_recent(path):
+                        continue
+                    try:
+                        size = os.stat(path).st_size
+                    except OSError:
+                        continue
+                    owner = missing.pop((name.lower(), size), None)
+                    if owner is not None and db.relocate_document(owner, path, size):
+                        relinked += 1
+                        known.add(key)
+                        continue
+                    self._add_to_watch_batch(path)
+                    known.add(key)
+                    queued += 1
+        if relinked:
+            self.context.event_bus.publish(LibraryUpdatedEvent())
+        logger.info("Start-up scan: %d new file(s) queued, %d moved book(s) found again", queued, relinked)
+        return queued
 
     def pending_count(self) -> int:
         """Files queued or being processed right now (0 when idle)."""
@@ -298,10 +346,29 @@ class ImportQueueManager:
             )
         )
 
+    def _content_hash_if_needed(self, path: str, size: int) -> str | None:
+        """Only files of equal size can be the same file, so a file whose size nobody else has is not read through to hash
+        it (that was the whole file, for every import). If another book has the size, both get their hash now; the others
+        are hashed later, when duplicates are looked for (DuplicateEngine) or by "Cập nhật ngay"."""
+        others = [d for d in self.context.db.documents_with_size(size) if os.path.normcase(d["file_path"]) != os.path.normcase(path)]
+        if not others:
+            return None
+        for other in others:
+            if not other["content_hash"] and os.path.isfile(other["file_path"]):
+                digest = sha256_file(other["file_path"])
+                if digest:
+                    self.context.db.set_file_stats(other["id"], digest, size)
+        return sha256_file(path)
+
     def _process_file(self, path: str, batch_id: str | None = None) -> str:
         """Returns "success", "duplicate", or "failed" for batch reporting."""
         extension = Path(path).suffix.lower().lstrip(".")
         doc_id = MetadataNormalizer.generate_document_id(path)
+
+        if self.context.db.is_path_excluded(path):
+            # Removed from the library on purpose (the file stayed): not brought back by a change to the file or a scan.
+            logger.info("Removed from the library on purpose, skipping: %s", path)
+            return "duplicate"
 
         if self.context.db.get_document(doc_id) is not None:
             # Same file path already indexed (doc_id is derived from the
@@ -338,7 +405,7 @@ class ImportQueueManager:
         except OSError:
             raw_metadata["file_size"] = 0
         raw_metadata["created_at"] = time.time()
-        raw_metadata["content_hash"] = sha256_file(path)
+        raw_metadata["content_hash"] = self._content_hash_if_needed(path, raw_metadata["file_size"])
         raw_metadata["fingerprint"] = fingerprint_file(path, extension)
         if raw_metadata.get("page_count") is None:  # a PDF already reported its own while it was open
             raw_metadata["page_count"] = count_pages(path, extension)

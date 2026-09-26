@@ -152,3 +152,10 @@ def test_the_library_is_opened_with_the_faster_safe_settings(tmp_path):
     assert db.connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert db.connection.execute("PRAGMA temp_store").fetchone()[0] == 2  # MEMORY
     db.connection.close()
+
+
+def test_lists_do_not_carry_the_text_of_each_book_but_get_document_still_does(db):
+    db.add_or_update_document("x1", {"title": "Có nội dung", "file_path": "x1.pdf", "created_at": 1.0}, extracted_text="đoạn văn dài " * 100)
+    for row in (db.query_documents(limit=5)[0], db.query_documents(fts_query="noi dung", limit=5)[0], db.list_all_documents(limit=5)[0]):
+        assert "content" not in row and "title" in row and "file_path" in row and "cover_path" in row
+    assert db.get_document("x1")["content"].startswith("đoạn văn dài")
