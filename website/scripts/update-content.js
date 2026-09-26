@@ -256,7 +256,7 @@ function installerInfo(version) {
   return { size: `${Math.round(statSync(file).size / (1024 * 1024))} MB` };
 }
 
-function buildVersions(sections, latest, existing, downloadUrl) {
+function buildVersions(sections, latest, existing, downloadUrl, assetUrlTemplate = "") {
   const byVer = new Map(existing.map((v) => [v.ver, v]));
   const released = sections.filter((s) => s.ver !== "Unreleased" && /^\d+\.\d+\.\d+/.test(s.ver));
   if (!released.some((s) => s.ver === latest)) {
@@ -269,7 +269,9 @@ function buildVersions(sections, latest, existing, downloadUrl) {
     const ver = `v${s.ver}`;
     const old = byVer.get(ver) ?? {};
     const auto = [...(s.groups.Added ?? []), ...(s.groups.Changed ?? [])].slice(0, MAX_BULLETS).map(headline);
-    const download = { win: downloadUrl };
+    // The newest version links straight to its installer when meta.assetUrlTemplate is set ("{version}" is filled in);
+    // older ones keep the generic "latest release" page, because their release may not exist on GitHub.
+    const download = { win: i === 0 && assetUrlTemplate ? assetUrlTemplate.replaceAll("{version}", s.ver) : downloadUrl };
     const installer = installerInfo(s.ver);
     if (installer) download.size = installer.size;
     else if (old.download?.size) download.size = old.download.size;
@@ -361,7 +363,7 @@ async function main() {
   const content = {
     ...existing,
     meta: { ...meta, latest, downloadUrl },
-    versions: buildVersions(sections, latest, existing.versions ?? [], downloadUrl),
+    versions: buildVersions(sections, latest, existing.versions ?? [], downloadUrl, meta.assetUrlTemplate ?? ""),
     roadmap: roadmapText ? parseRoadmap(roadmapText) : existing.roadmap ?? [],
     gallery: synced.gallery,
     pendingShots: synced.pendingShots,

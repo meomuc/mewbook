@@ -2,7 +2,8 @@
   "meta": {
     "latest": "1.1.0",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
-    "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/"
+    "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
+    "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
@@ -10,6 +11,7 @@
       "date": "2026-09-26",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
       "bullets": [
         "Giao diện \"Kệ sách\" mới: trạng thái trống, cửa sổ đọc sách và Cài đặt 10 trang",
         "Thêm sách không còn popup: một thẻ tiến độ, một bản tóm tắt, thả file vào cửa sổ để thêm",
@@ -180,104 +182,83 @@
   },
   "gallery": [
     {
-      "src": "/assets/gallery/woodshelf.webp?v=80f200715b",
+      "src": "/assets/gallery/woodshelf.webp?v=3ca6a091d9",
       "title": "Kệ sách gỗ",
-      "caption": "Sáng, ấm như một thư viện gỗ óc chó",
+      "caption": "Ấm, tối như một thư viện gỗ óc chó về đêm",
       "w": 1600,
       "h": 996,
       "theme": "woodshelf",
-      "themeHash": "2f02f35671",
-      "imgHash": "80f200715b"
+      "themeHash": "179ac49ffa",
+      "imgHash": "3ca6a091d9"
     },
     {
-      "src": "/assets/gallery/healing.webp?v=4f7086f1ca",
+      "src": "/assets/gallery/healing.webp?v=94ca5e3e01",
       "title": "Không gian chữa lành",
       "caption": "Xanh lá dịu, dành cho những buổi đọc chậm",
       "w": 1600,
       "h": 970,
       "theme": "healing",
-      "themeHash": "553bb97ff1",
-      "imgHash": "4f7086f1ca"
+      "themeHash": "3cbd8e9d13",
+      "imgHash": "94ca5e3e01"
     },
     {
-      "src": "/assets/gallery/japandi.webp?v=bc6a053268",
+      "src": "/assets/gallery/japandi.webp?v=b5e96c8f25",
       "title": "Japandi",
       "caption": "Tối giản, yên tĩnh, nhiều khoảng thở",
       "w": 1600,
       "h": 977,
       "theme": "japandi",
-      "themeHash": "b34477678d",
-      "imgHash": "bc6a053268"
+      "themeHash": "51520d7eae",
+      "imgHash": "b5e96c8f25"
     },
     {
-      "src": "/assets/gallery/broadsheet.webp?v=597744e0fe",
+      "src": "/assets/gallery/broadsheet.webp?v=e771026813",
       "title": "Tờ báo sớm",
       "caption": "Giấy báo cũ và chữ serif quen thuộc",
       "w": 1600,
       "h": 1049,
       "theme": "broadsheet",
       "themeHash": "f2f608f536",
-      "imgHash": "597744e0fe"
+      "imgHash": "e771026813"
     },
     {
-      "src": "/assets/gallery/inkynight.webp?v=5b94dfd308",
+      "src": "/assets/gallery/inkynight.webp?v=350eed4bae",
       "title": "Mực đêm",
       "caption": "Nền tối cho những đêm đọc khuya",
       "w": 1600,
       "h": 977,
       "theme": "inkynight",
       "themeHash": "aa819615ca",
-      "imgHash": "5b94dfd308"
+      "imgHash": "350eed4bae"
     },
     {
-      "src": "/assets/gallery/zen_dark.webp?v=6b2e573697",
+      "src": "/assets/gallery/zen_dark.webp?v=356c5a4bee",
       "title": "Zen dark mode",
       "caption": "Tối xanh rêu, dịu mắt",
       "w": 1600,
       "h": 978,
       "theme": "zen_dark",
-      "themeHash": "999345e5d0",
-      "imgHash": "6b2e573697"
+      "themeHash": "d3bf1f82bb",
+      "imgHash": "356c5a4bee"
     },
     {
-      "src": "/assets/gallery/retro_tech.webp?v=2e91098228",
+      "src": "/assets/gallery/retro_tech.webp?v=425d73e9d3",
       "title": "Hoài niệm kỹ thuật số",
       "caption": "Cảm giác terminal cho người thích gõ phím",
       "w": 1600,
       "h": 985,
       "theme": "retro_tech",
-      "themeHash": "e62f98f013",
-      "imgHash": "2e91098228"
+      "themeHash": "308cac3303",
+      "imgHash": "425d73e9d3"
     }
   ],
-  "pendingShots": [
-    {
-      "theme": "woodshelf",
-      "name": "Walnut Library",
-      "reason": "changed"
-    },
-    {
-      "theme": "healing",
-      "name": "Không Gian Chữa Lành",
-      "reason": "changed"
-    },
-    {
-      "theme": "retro_tech",
-      "name": "Hoài Niệm Kỹ Thuật Số",
-      "reason": "changed"
-    },
-    {
-      "theme": "japandi",
-      "name": "Japandi Tối Giản",
-      "reason": "changed"
-    },
-    {
-      "theme": "zen_dark",
-      "name": "Zen Dark Mode",
-      "reason": "changed"
-    }
-  ],
+  "pendingShots": [],
   "announcements": [
+    {
+      "date": "2026-09-26",
+      "title": "MewBook 1.1.0: kệ sách mới, thêm sách không còn popup",
+      "text": "Giao diện \"Kệ sách\" hoàn chỉnh cho cả bảy giao diện. Thêm sách chỉ hiện một thẻ tiến độ rồi một bản tóm tắt. Cài đặt gọn thành mười trang, cửa sổ đọc sách có mục lục, phân loại thông minh có ba bước và hoàn tác được. Thư viện cũ được giữ nguyên khi nâng cấp."
+    },
     {
       "date": "2026-09-25",
       "title": "Mèo vừa dọn nhà, mọi thứ dễ nhìn hơn",
