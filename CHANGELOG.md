@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   buttons stay off until you choose the copy to keep (the most complete one is only pointed out as a suggestion).
   Matching by content comes first ("Giống hệt"); similar names are a separate "Gợi ý" list, and a matching file size is
   only mentioned as a further hint.
+- **Duplicate finder: a searchable list.** Next to "Theo nhóm" there is now "Danh sách": every file of every group in one
+  table (title, author, location, size, date, group), sortable by any column, with a search box (title, author, folder or
+  format; accents and case ignored; a matching group is shown whole). Tick the files to get rid of and remove them from the
+  library or move them to the trash together. Every group must keep at least one copy: a selection that would leave a group
+  with none is refused and the group is named. One optional helper button ticks all but the most complete copy in the
+  groups that are showing; nothing is ticked unless you ask.
 - **MewBook's own trash ("Thùng rác…" in Công cụ).** Files removed as duplicates go to the trash first, not to oblivion;
   you set after how many days they are deleted for good (0 = never), can restore any item (with its hashtags,
   collections and search text; a name clash gets " (khôi phục)"), delete one, or empty the trash. Expiry is logged.

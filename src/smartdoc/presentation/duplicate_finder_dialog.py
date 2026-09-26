@@ -14,6 +14,10 @@ suggestion, nothing more.) The two actions are kept apart on purpose:
   * "Chuyển N file vào Thùng rác" moves them into MewBook's trash (application/trash_service.py), from where they can
     be restored until the period the person set is over; a file that cannot be moved stays where it is.
 The book that is kept is never touched by either.
+
+Two views of the same result: "Theo nhóm" (above: one group at a time) and "Danh sách" (presentation/duplicate_list_pane.py: every
+file of every group in one searchable, sortable table, ticked and handled in bulk -- with the one rule that every group
+keeps a copy). Both go through the same two actions below.
 """
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QRadioButton,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -43,6 +48,7 @@ from PySide6.QtWidgets import (
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.duplicate_list_pane import DuplicateListPane
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.theme_manager import theme_manager
@@ -141,6 +147,22 @@ class DuplicateFinderDialog(DesignDialog):
         modes.setSpacing(0)
         modes.addWidget(self.exact_button)
         modes.addWidget(self.fuzzy_button)
+        # The two ways of looking at the chosen list: one group at a time, or all files in a searchable table.
+        self.groups_view_button = QPushButton("Theo nhóm", self)
+        self.list_view_button = QPushButton("Danh sách", self)
+        for button in (self.groups_view_button, self.list_view_button):
+            button.setCheckable(True)
+        self.groups_view_button.setChecked(True)
+        self.groups_view_button.clicked.connect(lambda: self._show_view(False))
+        self.list_view_button.clicked.connect(lambda: self._show_view(True))
+        views = QHBoxLayout()
+        views.setSpacing(0)
+        views.addWidget(self.groups_view_button)
+        views.addWidget(self.list_view_button)
+        top_row = QHBoxLayout()
+        top_row.addLayout(modes)
+        top_row.addStretch(1)
+        top_row.addLayout(views)
         self.summary_label = QLabel(self)
         self.summary_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
         self.group_list = QListWidget(self)
@@ -153,7 +175,6 @@ class DuplicateFinderDialog(DesignDialog):
         self.scan_progress.setTextVisible(False)
         left = QVBoxLayout()
         left.setSpacing(8)
-        left.addLayout(modes)
         left.addWidget(self.summary_label)
         left.addWidget(self.group_list, 1)
         left.addWidget(self.scan_status_label)
@@ -221,7 +242,16 @@ class DuplicateFinderDialog(DesignDialog):
         columns.setSpacing(16)
         columns.addWidget(left_box)
         columns.addWidget(right_box, 1)
-        self.body.addLayout(columns, 1)
+        groups_page = QWidget(self)
+        groups_page.setLayout(columns)
+        self.list_pane = DuplicateListPane(suggested_keeper, self)
+        self.list_pane.remove_requested.connect(self._on_remove_docs)
+        self.list_pane.trash_requested.connect(self._on_trash_docs)
+        self.view_stack = QStackedWidget(self)
+        self.view_stack.addWidget(groups_page)
+        self.view_stack.addWidget(self.list_pane)
+        self.body.addLayout(top_row)
+        self.body.addWidget(self.view_stack, 1)
 
         self.position_label = self.add_footer_note("")
         self.previous_button = self.add_footer_button("Nhóm trước", on_click=lambda: self._step(-1))
@@ -294,6 +324,15 @@ class DuplicateFinderDialog(DesignDialog):
         self.fuzzy_button.setChecked(mode == MODE_FUZZY)
         self._fill_groups()
 
+    def _show_view(self, as_list: bool) -> None:
+        self.groups_view_button.setChecked(not as_list)
+        self.list_view_button.setChecked(as_list)
+        self.view_stack.setCurrentIndex(1 if as_list else 0)
+        # The group-by-group buttons of the footer make no sense next to a table of everything.
+        for widget in (self.previous_button, self.next_button, self.position_label):
+            widget.setVisible(not as_list)
+        self.list_pane.set_groups(self._groups[self._mode])
+
     def _fill_groups(self) -> None:
         groups = self._groups[self._mode]
         self.group_list.blockSignals(True)
@@ -308,6 +347,8 @@ class DuplicateFinderDialog(DesignDialog):
             item.setSizeHint(QSize(0, 48))
             self.group_list.addItem(item)
         self.group_list.blockSignals(False)
+        if self.view_stack.currentIndex() == 1:
+            self.list_pane.set_groups(groups)
         files = sum(len(g) for g in groups)
         total_size = sum(d.get("file_size") or 0 for g in groups for d in g)
         self.summary_label.setText(f"{len(groups)} nhóm · {files} file · {_size(total_size)}" if groups else "Không có nhóm nào")
@@ -425,15 +466,20 @@ class DuplicateFinderDialog(DesignDialog):
     # -- the two actions --------------------------------------------------------------------------------------------------
     def _on_remove_from_library(self) -> None:
         """Only the library entries of the other copies go; every file stays where it is."""
-        others = self._others()
+        self._on_remove_docs(self._others())
+
+    def _on_remove_docs(self, others: list[dict]) -> None:
         if not others:
             return
         self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=False)
         self._forget({d["id"] for d in others})
 
     def _on_trash_files(self) -> None:
-        """Move the other copies' files into MewBook's trash (they can come back), after one plain confirmation."""
-        others = self._others()
+        self._on_trash_docs(self._others())
+
+    def _on_trash_docs(self, others: list[dict]) -> None:
+        """Move these files into MewBook's trash (they can come back), after one plain confirmation. Used by the group
+        view (the other copies of the group) and by the list view (whatever was ticked)."""
         if not others:
             return
         count = len(others)
@@ -468,7 +514,7 @@ class DuplicateFinderDialog(DesignDialog):
             self._groups[mode] = self._without(self._groups[mode], deleted_ids)
         self._keepers = {}
         keep_row = max(0, self._current)
-        self._fill_groups()
+        self._fill_groups()  # (also rebuilds the list view when it is the one showing)
         if self.group_list.count():
             self.group_list.setCurrentRow(min(keep_row, self.group_list.count() - 1))
 
