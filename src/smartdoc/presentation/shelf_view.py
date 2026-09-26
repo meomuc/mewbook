@@ -30,6 +30,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QAbstractItemView, QFrame
 
 from smartdoc.presentation.line_icons import icon_pixmap
+from smartdoc.presentation.ornaments import paint_shelf, shelf_thickness
 from smartdoc.presentation.shelf_groups import shelf_for
 from smartdoc.presentation.theme_manager import theme_manager
 
@@ -37,7 +38,6 @@ DOC_ROLE = Qt.UserRole + 1  # library_view.DocumentRole: the whole document dict
 
 LABEL_W = 88  # the shelf label column
 LEFT_PAD = 16
-BOARD_H = 6  # the shelf board's thickness
 UNDER_H = 34  # the soft shadow below the board
 GAP = 18  # between covers
 BOARD_INSET = 24  # board edge -> first cover
@@ -105,7 +105,7 @@ class ShelfView(QAbstractItemView):
         return int(self._icon_size.height())
 
     def _row_height(self) -> int:
-        return TOP_PAD + self._box_h() + BOARD_H + UNDER_H // 2
+        return TOP_PAD + self._box_h() + shelf_thickness(theme_manager()) + UNDER_H // 2
 
     def _board_rect_x(self) -> tuple[int, int]:
         width = self.viewport().width()
@@ -225,7 +225,7 @@ class ShelfView(QAbstractItemView):
         if rect is None:
             return
         bar = self.verticalScrollBar()
-        top, bottom = rect.top() - TOP_PAD, rect.bottom() + BOARD_H + 8
+        top, bottom = rect.top() - TOP_PAD, rect.bottom() + shelf_thickness(theme_manager()) + 8
         if top < bar.value():
             bar.setValue(top)
         elif bottom > bar.value() + self.viewport().height():
@@ -393,18 +393,16 @@ class ShelfView(QAbstractItemView):
             painter.setPen(QColor(tm.token("ink3")))
             sub_rect = QRect(LEFT_PAD, line_y - 92 + metrics.height() + 2, label_w, 40)
             painter.drawText(sub_rect, Qt.AlignLeft | Qt.AlignTop | Qt.TextWordWrap, subtitle)
-        # The shadow below the board, then the board (a light top edge fading into the board colour).
-        shadow = QLinearGradient(0, line_y + BOARD_H, 0, line_y + BOARD_H + UNDER_H)
+        # The shadow below the board, then the board (its look comes from the theme's `shelf` ornament).
+        board_h = shelf_thickness(tm)
+        shadow = QLinearGradient(0, line_y + board_h, 0, line_y + board_h + UNDER_H)
         under = tm.color("under")
         shadow.setColorAt(0, under)
         end = QColor(under)
         end.setAlpha(0)
         shadow.setColorAt(1, end)
-        painter.fillRect(QRect(left, line_y + BOARD_H, right - left, UNDER_H), shadow)
-        board = QLinearGradient(0, line_y, 0, line_y + BOARD_H)
-        board.setColorAt(0, QColor(tm.token("shelftop")))
-        board.setColorAt(1, QColor(tm.token("shelf")))
-        painter.fillRect(QRect(left, line_y, right - left, BOARD_H), board)
+        painter.fillRect(QRect(left, line_y + board_h, right - left, UNDER_H), shadow)
+        paint_shelf(painter, QRect(left, line_y, right - left, board_h), tm)
 
     def _paint_cover(self, painter: QPainter, model, row: int, tm, *, show_hint: bool) -> None:
         doc = model.document_at(row) or {}

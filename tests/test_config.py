@@ -68,10 +68,15 @@ def test_legacy_light_dark_theme_migrates_to_new_names(tmp_path):
     reloaded_dark = ConfigManager(app_data_dir=tmp_path)
     assert reloaded_dark.config.theme == "inkynight"
 
+    # A value that cannot be a theme id is reset; a well-formed id is kept (it may be a theme package added later --
+    # the core layer cannot see the packages), and ThemeManager falls back to the default look if it is gone.
+    raw["theme"] = "Not A Theme!"
+    (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
+    assert ConfigManager(app_data_dir=tmp_path).config.theme == "broadsheet"
+
     raw["theme"] = "some-removed-theme"
     (tmp_path / "settings.json").write_text(json.dumps(raw), encoding="utf-8")
-    reloaded_unknown = ConfigManager(app_data_dir=tmp_path)
-    assert reloaded_unknown.config.theme == "broadsheet"
+    assert ConfigManager(app_data_dir=tmp_path).config.theme == "some-removed-theme"
 
 
 def test_ereader_folder_path_defaults_to_none_and_round_trips(tmp_path):

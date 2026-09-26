@@ -31,6 +31,7 @@ from smartdoc.core.event_bus import ImportBatchCompletedEvent, ImportProgressEve
 from smartdoc.presentation.brand import accessible_name, mascot_pixmap
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.ornaments import notice_qss
 from smartdoc.presentation.theme_manager import theme_manager
 
 
@@ -171,6 +172,7 @@ class ImportStatusCard(QFrame):
             f" #CardTitle {{ font-weight: 600; }}"
             f" #CardHint {{ color: {tm.token('ink3')}; font-size: 12px; }}"
         )
+        self.setStyleSheet(self.styleSheet() + " " + notice_qss(tm, "#ImportCard"))  # a chalkboard theme overrides the card
         self.close_button.setIcon(line_icon("close", tm.token("ink3"), 12))
         self._set_mascot("waiting" if self.mode == "progress" else "done")
 

@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "hoai-niem",
+  "name": "Hoài Niệm Kỹ Thuật Số",
+  "dark": true,
+  "description": "Màn hình cũ nền tối, chữ hổ phách.",
+  "version": "1.0.1",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#17191E",
+    "rail": "#121418",
+    "panel": "#1B1E24",
+    "surface": "#23272E",
+    "surface2": "#2A2E36",
+    "ink": "#F0E6D0",
+    "ink2": "#C4B89E",
+    "ink3": "#9f9684",
+    "line": "#30343C",
+    "line2": "#4A4F59",
+    "accent": "#F2A541",
+    "accentink": "#1A1408",
+    "accentsoft": "#3A2F1E",
+    "shelf": "#3C4250",
+    "shelftop": "#F2A541",
+    "under": "rgba(0,0,0,.5)",
+    "shadow": "rgba(0,0,0,.7)",
+    "ok": "#8FD694",
+    "warn": "#E6E36A",
+    "err": "#FF7B6B",
+    "scrim": "rgba(5,6,8,.65)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Oswald",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Oswald",
+      "vietnamese": true
+    }
+  }
+}

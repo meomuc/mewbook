@@ -2,8 +2,12 @@
 """ThemeManager: the "Kệ sách" design system's 21 colour tokens + three typefaces, turned into a QPalette and one
 application stylesheet, and re-applied live.
 
+Themes are DATA (`themes/<id>/theme.json`, standard v1, `themes/_schema/`): the manager scans that folder, keeps only
+the packages that pass `themes/_schema/validate_theme.py` (a failing one is logged and skipped, never half-loaded) and
+registers the fonts a package ships. Nothing here branches on a theme id.
+
 Why a manager: Qt style sheets have no variables, so `styles/base.qss.tpl` is written with `$token` placeholders and
-filled from `styles/theme_tokens.json` (`string.Template`). Widgets that paint themselves (the shelf, covers, badges)
+filled from the theme's tokens (`string.Template`). Widgets that paint themselves (the shelf, covers, badges)
 cannot use a stylesheet at all -- they ask `ThemeManager.color("accent")` and repaint on `themeChanged`.
 
 Relation to `theme.py`: that module still owns the older `ThemeColors` (structural options, WCAG validation) that the
@@ -14,24 +18,28 @@ Montserrat (small caps labels, pills), plus Playfair Display / Oswald for two of
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 import logging
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from string import Template
+from types import ModuleType
 
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QColor, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication
 
-from smartdoc.presentation.resources import assets_dir
+from smartdoc.presentation.resources import assets_dir, themes_dir
 
 logger = logging.getLogger(__name__)
 
 _STYLES_DIR = Path(__file__).with_name("styles")
 
-# Saved theme key (core.config.THEME_CHOICES) -> key in theme_tokens.json.
+# Saved theme key of the seven original themes (core.config.THEME_CHOICES) -> theme id. Kept so that a settings.json
+# written by 1.0/1.1 still opens the same look; every newer theme is saved under its own id.
 TOKEN_KEY_FOR_THEME: dict[str, str] = {
     "broadsheet": "editorial-light",
     "woodshelf": "walnut-library",
@@ -61,9 +69,87 @@ _RGBA = re.compile(r"^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\
 
 
 @lru_cache(maxsize=1)
+def _validator() -> ModuleType | None:
+    """`themes/_schema/validate_theme.py`, the same checker the import routine and the tests run."""
+    path = themes_dir() / "_schema" / "validate_theme.py"
+    try:
+        spec = importlib.util.spec_from_file_location("mewbook_validate_theme", path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except (OSError, ImportError, SyntaxError) as exc:
+        logger.error("Theme validator %s could not be loaded: %s", path, exc)
+        return None
+
+
+def _flatten(theme: dict, folder: Path) -> dict:
+    """theme.json (v1) -> the flat dict the rest of the app reads: colour tokens, `ui/content/disp` families, plus
+    name, dark, description, version, ornaments and the absolute paths of shipped font files."""
+    flat: dict = dict(theme["tokens"])
+    fonts = theme["fonts"]
+    flat.update(name=theme["name"], dark=bool(theme["dark"]), description=theme.get("description", ""),
+                version=theme.get("version", "1.0.0"), ornaments=dict(theme.get("ornaments") or {}),
+                ui=fonts["ui"]["family"], content=fonts["content"]["family"], disp=fonts["display"]["family"],
+                font_files=[str(folder / rel) for role in fonts.values() for rel in role.get("files", [])])
+    return flat
+
+
+@lru_cache(maxsize=1)
 def load_tokens() -> dict[str, dict]:
-    """All themes from theme_tokens.json, keyed by token key."""
-    return json.loads((_STYLES_DIR / "theme_tokens.json").read_text(encoding="utf-8"))
+    """Every valid theme package, keyed by theme id, in a stable order (the seven original themes first, then the
+    others by id). A package that fails the validator is logged and left out."""
+    validator = _validator()
+    found: dict[str, dict] = {}
+    for file in sorted(themes_dir().glob("*/theme.json")):
+        if file.parent.name.startswith("_"):
+            continue
+        try:
+            theme = json.loads(file.read_text(encoding="utf-8"))
+            errors = validator.check(theme, str(file.parent))[0] if validator else ["validator missing"]
+            if not errors and theme.get("id") != file.parent.name:
+                errors = [f"folder name {file.parent.name!r} differs from id {theme.get('id')!r}"]
+            if errors:
+                logger.warning("Theme %s skipped: %s", file.parent.name, "; ".join(errors))
+                continue
+            found[theme["id"]] = _flatten(theme, file.parent)
+        except (OSError, ValueError, KeyError) as exc:
+            logger.warning("Theme %s skipped: %s", file.parent.name, exc)
+    originals = list(TOKEN_KEY_FOR_THEME.values())
+    return {k: found[k] for k in originals if k in found} | {k: found[k] for k in sorted(found) if k not in originals}
+
+
+@dataclass(frozen=True)
+class ThemeInfo:
+    key: str  # what AppConfig.theme stores: the legacy key of the original seven, the theme id otherwise
+    theme_id: str
+    name: str
+    description: str
+    dark: bool
+
+
+def available_themes() -> list[ThemeInfo]:
+    """The themes Settings offers, generated from the packages on disk (no fixed list)."""
+    saved_for_id = {v: k for k, v in TOKEN_KEY_FOR_THEME.items()}
+    return [ThemeInfo(saved_for_id.get(tid, tid), tid, str(t["name"]), str(t["description"]), bool(t["dark"]))
+            for tid, t in load_tokens().items()]
+
+
+def default_token_key() -> str:
+    """The default look; if that package is missing or invalid, the first valid one (the app must still open)."""
+    themes = load_tokens()
+    if DEFAULT_TOKEN_KEY in themes:
+        return DEFAULT_TOKEN_KEY
+    if not themes:
+        raise RuntimeError("No valid theme package found in " + str(themes_dir()))
+    return next(iter(themes))
+
+
+def token_key_for(saved_key: str) -> str:
+    """The theme id a saved value means; an unknown one (a removed package) gets the default look."""
+    token_key = TOKEN_KEY_FOR_THEME.get(saved_key, saved_key)
+    return token_key if token_key in load_tokens() else default_token_key()
 
 
 def parse_color(value: str) -> QColor:
@@ -92,8 +178,9 @@ def load_app_fonts() -> list[str]:
     skipped, the theme then falls back to the system font)."""
     fonts_dir = assets_dir() / "fonts"
     families: list[str] = []
-    for name in _FONT_FILES:
-        font_id = QFontDatabase.addApplicationFont(str(fonts_dir / name))
+    shipped = [f for theme in load_tokens().values() for f in theme["font_files"]]  # fonts that come in a package
+    for name in [str(fonts_dir / n) for n in _FONT_FILES] + shipped:
+        font_id = QFontDatabase.addApplicationFont(name)
         if font_id < 0:
             logger.warning("Font %s could not be loaded", name)
             continue
@@ -110,8 +197,8 @@ class ThemeManager(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._key = DEFAULT_TOKEN_KEY
-        self._tokens: dict[str, str | bool] = dict(load_tokens()[DEFAULT_TOKEN_KEY])
+        self._key = default_token_key()
+        self._tokens: dict[str, str | bool] = dict(load_tokens()[self._key])
         self._fonts_loaded = False
 
     # -- reading ---------------------------------------------------------
@@ -129,6 +216,10 @@ class ThemeManager(QObject):
 
     def token(self, name: str) -> str:
         return str(self._tokens[name])
+
+    def ornament(self, block: str) -> dict:
+        """The theme's decoration parameters for `shelf`, `frame`, `notice` or `cover_frame`; {} = the flat default."""
+        return dict(self._tokens.get("ornaments", {}).get(block) or {})
 
     def color(self, name: str) -> QColor:
         """A colour token as a QColor, for delegates and custom paint code."""
@@ -167,7 +258,7 @@ class ThemeManager(QObject):
 
     def apply(self, app: QApplication, theme_key: str) -> None:
         """Switch to the saved theme `theme_key` (a `THEME_CHOICES` value); unknown keys get the default look."""
-        token_key = TOKEN_KEY_FOR_THEME.get(theme_key, DEFAULT_TOKEN_KEY)
+        token_key = token_key_for(theme_key)
         self._key = token_key
         self._tokens = dict(load_tokens()[token_key])
         if not self._fonts_loaded:

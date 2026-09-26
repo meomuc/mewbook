@@ -68,7 +68,7 @@ from smartdoc.application.cover_search import (
 )
 from smartdoc.application.cover_search import test_connection as test_cover_connection
 from smartdoc.core.event_bus import AiConnectionChangedEvent, LibraryUpdatedEvent
-from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS, THEME_CHOICES
+from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
 from smartdoc.presentation.backup_panel import BackupPanel
 from smartdoc.presentation.flow_widget import FlowWidget
@@ -78,8 +78,8 @@ from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.privacy_panel import PrivacyPanel
 from smartdoc.presentation.resources import donate_qr_path
 from smartdoc.presentation.settings_widgets import PillList, SettingsPage, ThemeCard, add_note_box, hint_pair
-from smartdoc.presentation.theme import THEMES, current_colors, resolve_font_family
-from smartdoc.presentation.theme_manager import theme_manager
+from smartdoc.presentation.theme import colors_for, current_colors, resolve_font_family
+from smartdoc.presentation.theme_manager import available_themes, theme_manager
 from smartdoc.presentation.update_panel import UpdatePanel
 from smartdoc.presentation.worker_relay import WorkerRelay, post
 
@@ -329,36 +329,35 @@ class SettingsDialog(QDialog):
         page.add_row("Tìm thông tin sách", "Mặc định là chỉ sửa trong thư viện, không sửa file.", metadata)
         return page
 
-    _THEME_CAPTIONS = {"broadsheet": "Nền sáng", "woodshelf": "Nền tối", "inkynight": "Nền tối", "healing": "Nền sáng",
-                       "retro_tech": "Nền tối", "japandi": "Nền sáng", "zen_dark": "Nền tối"}
-
     def _build_theme_tab(self, config) -> QWidget:
         """Everything about how the app looks, in one place: the theme itself plus both font axes -- the app's own
         chrome font, and the separate "content" font used for document text (see AppConfig's docstring on
         content_font_family for why those two stay distinct settings even though they now live on one page)."""
-        page = SettingsPage("Giao diện", "Chọn một trong 7 giao diện màu và kiểu chữ. Đổi xong là áp dụng khi đóng cửa sổ này.", self)
+        themes = available_themes()  # scanned from themes/*/theme.json, no fixed list
+        page = SettingsPage("Giao diện", f"Chọn một trong {len(themes)} giao diện màu và kiểu chữ. Đổi xong là áp dụng khi đóng cửa sổ này.", self)
 
         # The combo stays the single source of truth (and what the tests and _apply_settings read); the cards drive it.
         self.theme_combo = QComboBox(page)
-        for name in THEME_CHOICES:
-            self.theme_combo.addItem(THEMES[name].display_name, name)
-        self.theme_combo.setCurrentIndex(list(THEME_CHOICES).index(config.theme) if config.theme in THEME_CHOICES else 0)
+        for info in themes:
+            self.theme_combo.addItem(info.name, info.key)
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(config.theme)))
         self.theme_combo.hide()
         cards = FlowWidget(page, h_spacing=12, v_spacing=12)
         self.theme_cards: dict[str, ThemeCard] = {}
-        for name in THEME_CHOICES:
-            card = ThemeCard(name, THEMES[name].display_name, self._THEME_CAPTIONS[name], cards)
+        for info in themes:
+            card = ThemeCard(info.key, info.name, "Nền tối" if info.dark else "Nền sáng", cards)
+            card.setToolTip(info.description)
             card.chosen.connect(self._on_theme_card_chosen)
-            self.theme_cards[name] = card
+            self.theme_cards[info.key] = card
         cards.set_widgets(list(self.theme_cards.values()))
         self._sync_theme_cards()
         self.theme_combo.currentIndexChanged.connect(self._sync_theme_cards)
-        page.add_row("Giao diện", "7 lựa chọn, sáng và tối.", self.theme_combo)
+        page.add_row("Giao diện", f"{len(themes)} lựa chọn, sáng và tối.", self.theme_combo)
         page.add_block(cards)  # full width, so the cards wrap to as many rows as the window needs
 
         # With no font chosen by the user, a font picker shows the theme's own typeface -- and follows the theme
         # cards as they change.
-        theme_family = resolve_font_family(THEMES.get(config.theme, current_colors()))
+        theme_family = resolve_font_family(colors_for(config.theme))
         self.font_combo = QFontComboBox(page)
         self.font_combo.setCurrentFont(QFont(config.font_family or theme_family))
         # The combo always shows *some* concrete family -- compare against this on save rather than against
@@ -426,7 +425,7 @@ class SettingsDialog(QDialog):
         return box
 
     def _on_theme_card_chosen(self, name: str) -> None:
-        self.theme_combo.setCurrentIndex(list(THEME_CHOICES).index(name))
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(name)))
 
     def _sync_theme_cards(self, _index: int = 0) -> None:
         current = self.theme_combo.currentData()
@@ -887,7 +886,7 @@ class SettingsDialog(QDialog):
         """Shows the picked theme's own font in every font picker the user
         hasn't set by hand -- programmatically, so it doesn't count as a
         choice of theirs."""
-        family = resolve_font_family(THEMES[list(THEME_CHOICES)[index]])
+        family = resolve_font_family(colors_for(str(self.theme_combo.itemData(index))))
         for key, combo in (("app", self.font_combo), ("content", self.content_font_combo)):
             if self._font_touched[key]:
                 continue

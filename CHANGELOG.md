@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Changed
+- **Themes are now data.** Every look lives in `themes/<id>/theme.json` (a documented standard with a schema and a
+  validator, `themes/_schema/`) instead of being written into the code; Settings > Giao diện builds its cards from
+  the packages found, so a new theme appears without a code change. A package that fails the validator is skipped
+  (and logged), never half-loaded. Decorations (shelf boards in flat / wood / glass with brackets, wood frames for
+  group labels and the detail header, chalkboard notice cards, framed covers) are now shared, parameter-driven styles.
+  The seven themes look as before, apart from small colour corrections that keep status colours and links apart
+  (Không Gian Chữa Lành accent, and the warning/error/success colours of Hoài Niệm, Walnut Library and Zen Dark).
+  A saved choice from 1.0/1.1 still opens the same theme.
+
 ## [1.1.0] - 2026-09-26
 
 New features, backwards compatible: a MINOR release.

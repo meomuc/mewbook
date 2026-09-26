@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "chua-lanh",
+  "name": "Không Gian Chữa Lành",
+  "dark": false,
+  "description": "Xanh lá nhạt êm dịu cho những buổi đọc chậm.",
+  "version": "1.0.1",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#F1F4EF",
+    "rail": "#E6ECE3",
+    "panel": "#FAFCF8",
+    "surface": "#FFFFFF",
+    "surface2": "#EBF0E8",
+    "ink": "#243029",
+    "ink2": "#55645A",
+    "ink3": "#5f6b63",
+    "line": "#D6DFD3",
+    "line2": "#B9C7B7",
+    "accent": "#3D6E7E",
+    "accentink": "#FFFFFF",
+    "accentsoft": "#DCE8EC",
+    "shelf": "#C5D2C1",
+    "shelftop": "#FFFFFF",
+    "under": "rgba(40,60,45,.10)",
+    "shadow": "rgba(30,50,35,.28)",
+    "ok": "#2F7A4F",
+    "warn": "#8F6400",
+    "err": "#B0372B",
+    "scrim": "rgba(30,45,35,.35)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "midnight-ink",
+  "name": "Midnight Ink",
+  "dark": true,
+  "description": "Nền mực đêm dịu mắt, kệ sáng như gian trưng bày.",
+  "version": "1.0.0",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#1E222A",
+    "rail": "#1A1D24",
+    "panel": "#20252E",
+    "surface": "#272C36",
+    "surface2": "#2D333E",
+    "ink": "#E9EBEF",
+    "ink2": "#A7AEBB",
+    "ink3": "#969ca8",
+    "line": "#323846",
+    "line2": "#4A5261",
+    "accent": "#8EA6C9",
+    "accentink": "#12161C",
+    "accentsoft": "#2E3A4D",
+    "shelf": "#AEB3BC",
+    "shelftop": "#F4F5F7",
+    "under": "rgba(0,0,0,.45)",
+    "shadow": "rgba(0,0,0,.7)",
+    "ok": "#7CC49A",
+    "warn": "#E3B559",
+    "err": "#F08A80",
+    "scrim": "rgba(8,10,14,.62)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}

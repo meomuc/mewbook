@@ -457,18 +457,21 @@ ZEN_DARK = ThemeColors(  # "Zen Dark Mode"
     font_families=CALM_SANS_FONT_FAMILIES,
 )
 
-def _in_design_tokens(colors: ThemeColors) -> ThemeColors:
-    """The theme with its colours taken from the "Kệ sách" token file (styles/theme_tokens.json), so widgets that
-    still read ThemeColors and widgets styled by ThemeManager show one palette. Structure and type options stay."""
-    from smartdoc.presentation.theme_manager import TOKEN_KEY_FOR_THEME, load_tokens
-
-    t = load_tokens()[TOKEN_KEY_FOR_THEME[colors.key]]
+def _with_tokens(colors: ThemeColors, t: dict) -> ThemeColors:
+    """`colors` with its colours taken from a theme package's tokens (themes/<id>/theme.json), so widgets that still
+    read ThemeColors and widgets styled by ThemeManager show one palette. Structure and type options stay."""
     return dataclasses.replace(
         colors, background=t["bg"], content_bg=t["bg"], surface=t["surface"], sidebar_bg=t["rail"],
         sidebar_text=t["ink"], panel_bg=t["panel"], panel_text=t["ink"], header_bg=t["bg"], text=t["ink"],
         muted_text=t["ink2"], border=t["line"], accent=t["accent"], accent_text=t["accentink"],
         selected_bg=t["accentsoft"], selected_border=t["accent"], selected_text=t["ink"],
     )
+
+
+def _in_design_tokens(colors: ThemeColors) -> ThemeColors:
+    from smartdoc.presentation.theme_manager import TOKEN_KEY_FOR_THEME, load_tokens
+
+    return _with_tokens(colors, load_tokens()[TOKEN_KEY_FOR_THEME[colors.key]])
 
 
 BROADSHEET, WOODSHELF, INKYNIGHT, HEALING, RETRO_TECH, JAPANDI, ZEN_DARK = (
@@ -595,6 +598,26 @@ def validate_theme(colors: ThemeColors) -> list[str]:
 _current = BROADSHEET
 
 
+_PACKAGE_COLORS: dict[str, ThemeColors] = {}
+
+
+def colors_for(name: str) -> ThemeColors:
+    """ThemeColors for a saved theme value: one of the original seven, or a theme package added later (it gets the
+    default structure and type options with its own colours, so a new package needs no code). Unknown -> the default."""
+    if name in THEMES:
+        return THEMES[name]
+    from smartdoc.presentation.theme_manager import TOKEN_KEY_FOR_THEME, load_tokens, token_key_for
+
+    token_key = token_key_for(name)
+    original = next((saved for saved, tid in TOKEN_KEY_FOR_THEME.items() if tid == token_key), None)
+    if original in THEMES:  # an unknown value resolves to the default theme, which is one of the seven
+        return THEMES[original]
+    if token_key not in _PACKAGE_COLORS:
+        base = dataclasses.replace(THEMES[DEFAULT_THEME_KEY], key=token_key.replace("-", "_"), display_name=str(load_tokens()[token_key]["name"]))
+        _PACKAGE_COLORS[token_key] = _with_tokens(base, load_tokens()[token_key])
+    return _PACKAGE_COLORS[token_key]
+
+
 def current_colors() -> ThemeColors:
     """Colors for the theme applied by the most recent apply_theme() call."""
     return _current
@@ -602,7 +625,7 @@ def current_colors() -> ThemeColors:
 
 def apply_theme(app: QApplication, name: str) -> ThemeColors:
     global _current
-    colors = THEMES.get(name, THEMES[DEFAULT_THEME_KEY])
+    colors = colors_for(name)
     _current = colors
 
     app.setStyle("Fusion")

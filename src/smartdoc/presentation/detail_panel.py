@@ -51,6 +51,7 @@ from smartdoc.presentation.reader_manager import open_reader
 from smartdoc.presentation.review_dialog import open_review_dialog
 from smartdoc.presentation.sidebar_style import section_font
 from smartdoc.presentation.tag_editor import TagEditor
+from smartdoc.presentation.ornaments import cover_frame_width, frame_qss, paint_cover_frame
 from smartdoc.presentation.theme_manager import DETAIL_W, theme_manager
 
 COVER_W, COVER_H = 140, 186  # the design's cover in the panel
@@ -171,6 +172,10 @@ class _CoverLabel(_ClickableLabel):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         rect = self.rect()
+        frame_w = cover_frame_width(tm)  # the theme's `cover_frame` ornament: a border, the cover sits inside it
+        if frame_w:
+            paint_cover_frame(painter, rect, tm)
+            rect = rect.adjusted(frame_w, frame_w, -frame_w, -frame_w)
         clip = QPainterPath()
         clip.addRoundedRect(QRectF(rect), 3, 3)
         painter.setClipPath(clip)
@@ -242,6 +247,7 @@ class DocumentDetailPanel(QFrame):
         self._header = QFrame(self)
         self._header.setObjectName("DetailHeader")
         self.title_label = QLabel("CHI TIẾT", self._header)
+        self.title_label.setObjectName("DetailTitle")
         self.title_label.setFont(section_font(self.title_label.font()))
         self.refresh_label = _ClickableLabel(self._header)
         self.refresh_label.setToolTip("Làm mới thông tin")
@@ -441,6 +447,7 @@ class DocumentDetailPanel(QFrame):
         self.setStyleSheet(
             f"#DetailPanel {{ background: {tm.token('panel')}; border-left: 1px solid {line}; }}"
             f" #DetailHeader, #DetailContent {{ background: transparent; }}"
+            f" #DetailTitle {{ {frame_qss(tm)} }}"  # empty unless the theme has a wood frame
             f" QScrollArea {{ background: transparent; }}"
             f" QLabel {{ color: {ink}; font-size: 13px; background: transparent; }}"
             f" #FieldCaption {{ color: {ink3}; font-size: 11px; font-style: italic; }}"

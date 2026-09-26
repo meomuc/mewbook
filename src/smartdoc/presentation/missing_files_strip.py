@@ -13,6 +13,7 @@ from smartdoc.core.event_bus import LibraryFilesMissingEvent
 from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.ornaments import notice_qss
 from smartdoc.presentation.theme_manager import theme_manager
 
 
@@ -45,6 +46,7 @@ class MissingFilesStrip(QFrame):
         tm = theme_manager()
         self.setStyleSheet(f"#MissingFilesStrip {{ background: {tm.token('surface2')}; border-bottom: 1px solid {tm.token('warn')}; }}"
                            f" #MissingFilesStrip QLabel {{ color: {tm.token('ink')}; background: transparent; }}")
+        self.setStyleSheet(self.styleSheet() + " " + notice_qss(tm, "#MissingFilesStrip"))
         self.icon_label.setPixmap(icon_pixmap("warn", tm.token("warn"), 16))
 
     def _on_event(self, event) -> None:

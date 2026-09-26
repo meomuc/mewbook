@@ -339,7 +339,7 @@ def test_cover_test_result_is_shown_in_the_status_label(qapp, app_context):
 
 
 def _theme_index(dialog, key):
-    from smartdoc.presentation.settings_dialog import THEME_CHOICES
+    from smartdoc.core.config import THEME_CHOICES
 
     return list(THEME_CHOICES).index(key)
 

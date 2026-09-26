@@ -16,6 +16,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath, Q
 from PySide6.QtWidgets import QLabel, QStyle, QStyledItemDelegate, QStyleOptionViewItem, QWidget
 
 from smartdoc.presentation.line_icons import icon_pixmap
+from smartdoc.presentation.ornaments import frame_qss
 from smartdoc.presentation.theme import current_colors, item_text, section_text
 from smartdoc.presentation.theme_manager import theme_manager
 
@@ -59,7 +60,8 @@ def section_label(text: str, parent: QWidget | None = None) -> QLabel:
     "// bộ_sưu_tập" for code-style themes)."""
     label = QLabel(section_text(text), parent)
     label.setFont(section_font(label.font()))
-    label.setStyleSheet(f"color: {current_colors().muted_text}; background: transparent;")
+    frame = frame_qss(theme_manager())  # a theme with a wood frame puts its group labels on it
+    label.setStyleSheet(frame or f"color: {current_colors().muted_text}; background: transparent;")
     return label
 
 

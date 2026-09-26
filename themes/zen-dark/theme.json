@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "zen-dark",
+  "name": "Zen Dark Mode",
+  "dark": true,
+  "description": "Tối xanh rêu trầm, ít tương phản gắt.",
+  "version": "1.0.1",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#1C1E1B",
+    "rail": "#181A17",
+    "panel": "#21241F",
+    "surface": "#282B25",
+    "surface2": "#2E322B",
+    "ink": "#E3E5DC",
+    "ink2": "#AAAFA0",
+    "ink3": "#989c8e",
+    "line": "#343830",
+    "line2": "#4C5146",
+    "accent": "#A5BC8E",
+    "accentink": "#171A14",
+    "accentsoft": "#343D2C",
+    "shelf": "#5A6052",
+    "shelftop": "#8E967F",
+    "under": "rgba(0,0,0,.45)",
+    "shadow": "rgba(0,0,0,.65)",
+    "ok": "#7FD3C0",
+    "warn": "#DDBB6A",
+    "err": "#E88C7D",
+    "scrim": "rgba(6,8,5,.62)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}

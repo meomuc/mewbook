@@ -192,10 +192,10 @@ class ThemeCard(QFrame):
 
     def __init__(self, key: str, name: str, caption: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        from smartdoc.presentation.theme_manager import TOKEN_KEY_FOR_THEME, load_tokens
+        from smartdoc.presentation.theme_manager import load_tokens, token_key_for
 
         self.key = key
-        self._tokens = load_tokens().get(TOKEN_KEY_FOR_THEME.get(key, ""), {})
+        self._tokens = load_tokens().get(token_key_for(key), {})
         self._selected = False
         self.setFixedSize(150, 138)
         self.setCursor(Qt.PointingHandCursor)

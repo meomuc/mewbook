@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "walnut-library",
+  "name": "Walnut Library",
+  "dark": true,
+  "description": "Thư phòng gỗ óc chó ấm, điểm nhấn đồng thau.",
+  "version": "1.0.1",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#2B2019",
+    "rail": "#241A14",
+    "panel": "#31251D",
+    "surface": "#3A2C22",
+    "surface2": "#433328",
+    "ink": "#F2E7D8",
+    "ink2": "#C9B7A1",
+    "ink3": "#af9e8c",
+    "line": "#4A3A2E",
+    "line2": "#6A5441",
+    "accent": "#D1AE68",
+    "accentink": "#231A12",
+    "accentsoft": "#4A3B26",
+    "shelf": "#7A5236",
+    "shelftop": "#B28357",
+    "under": "rgba(0,0,0,.45)",
+    "shadow": "rgba(0,0,0,.65)",
+    "ok": "#9CCB8B",
+    "warn": "#FF9F43",
+    "err": "#F08A9A",
+    "scrim": "rgba(10,6,3,.6)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Playfair Display",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}

@@ -17,6 +17,15 @@ def assets_dir() -> Path:
     return Path(__file__).parent / "assets"
 
 
+def themes_dir() -> Path:
+    """The theme packages (`themes/<id>/theme.json`, the schema and the validator). Next to `src/` when running from
+    source, under sys._MEIPASS in the frozen exe (packaging/MewBook.spec bundles it)."""
+    frozen_base = getattr(sys, "_MEIPASS", None)
+    if frozen_base:
+        return Path(frozen_base) / "themes"
+    return Path(__file__).resolve().parents[3] / "themes"
+
+
 def app_icon_path() -> Path:
     return assets_dir() / "app_icon.ico"
 

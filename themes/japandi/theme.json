@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "japandi",
+  "name": "Japandi Tối Giản",
+  "dark": false,
+  "description": "Be gỗ sồi tối giản, nhiều khoảng thở.",
+  "version": "1.0.0",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#F4F1EC",
+    "rail": "#ECE7DF",
+    "panel": "#FAF8F4",
+    "surface": "#FFFFFF",
+    "surface2": "#EEEAE3",
+    "ink": "#2A2825",
+    "ink2": "#67615A",
+    "ink3": "#6b665f",
+    "line": "#E0D9CE",
+    "line2": "#C9C0B2",
+    "accent": "#6E5A45",
+    "accentink": "#FFFFFF",
+    "accentsoft": "#E8DFD3",
+    "shelf": "#D5CBBC",
+    "shelftop": "#FFFFFF",
+    "under": "rgba(60,50,40,.10)",
+    "shadow": "rgba(50,40,30,.28)",
+    "ok": "#4d774c",
+    "warn": "#946418",
+    "err": "#A93B2E",
+    "scrim": "rgba(40,35,30,.35)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}

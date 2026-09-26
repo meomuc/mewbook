@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -30,6 +31,8 @@ THEME_CHOICES = ("broadsheet", "woodshelf", "inkynight", "healing", "retro_tech"
 # so upgrading never crashes on an unknown value or silently resets to a
 # theme the user didn't pick. Applied once in ConfigManager._load().
 _LEGACY_THEME_MAP = {"light": "broadsheet", "dark": "inkynight"}
+# The id of a theme package (themes/<id>/theme.json), the value AppConfig.theme holds for themes added after 1.1.
+_THEME_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 # Formats an extractor exists for (routed through PdfExtractor or
 # EpubExtractor -- see application/import_queue.py). DOCX from the original
@@ -222,8 +225,12 @@ class ConfigManager:
             # Without this the library silently lands in the current working directory (AppContext falls
             # back to a relative "library.db").
             config.db_path = str(self.app_data_dir / "library.db")
-        if config.theme not in THEME_CHOICES:
-            config.theme = _LEGACY_THEME_MAP.get(config.theme, "broadsheet")
+        if config.theme in _LEGACY_THEME_MAP:
+            config.theme = _LEGACY_THEME_MAP[config.theme]
+        elif config.theme not in THEME_CHOICES and not _THEME_ID.match(str(config.theme)):
+            # Not one of the original seven and not a theme-package id either (a theme package is saved by its id and
+            # the app falls back to the default look if that package is gone).
+            config.theme = "broadsheet"
         if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
             config.smart_classify_on_import = "ask"  # a hand-edited settings.json must not disable the prompt by typo
         if config.error_report_mode not in ERROR_REPORT_MODE_CHOICES:

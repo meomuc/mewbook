@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "id": "editorial-light",
+  "name": "Editorial Light",
+  "dark": false,
+  "description": "Giấy trắng, chữ đậm, điểm nhấn xanh mực.",
+  "version": "1.0.0",
+  "author": "MewBook",
+  "tokens": {
+    "bg": "#FBFBF9",
+    "rail": "#F1F1EE",
+    "panel": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "surface2": "#F2F2EF",
+    "ink": "#1D2025",
+    "ink2": "#555C66",
+    "ink3": "#666c75",
+    "line": "#E3E3DE",
+    "line2": "#C4C6C0",
+    "accent": "#2F4F7F",
+    "accentink": "#FFFFFF",
+    "accentsoft": "#E6ECF5",
+    "shelf": "#D9DAD4",
+    "shelftop": "#FFFFFF",
+    "under": "rgba(40,44,52,.10)",
+    "shadow": "rgba(20,24,30,.30)",
+    "ok": "#2E7D5B",
+    "warn": "#9A6200",
+    "err": "#B3261E",
+    "scrim": "rgba(30,34,40,.38)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "vietnamese": true
+    }
+  }
+}
