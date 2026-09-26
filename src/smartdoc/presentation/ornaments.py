@@ -10,14 +10,18 @@ theme had before ornaments existed) plus a one-time warning -- never a broken wi
   frame        none | wood                          group labels of the sidebar, the detail panel header
   notice       card | chalkboard                    import summary, missing-files strip
   cover_frame  none | wood | line                   the border around the big cover in the detail panel
+  backdrop     none | karst | terraces | hills-flowers | pines | dunes | aurora | leaves | leaf-pile
+                                                    (standard 1.2/1.3) a faint landscape behind the book grid
 """
 from __future__ import annotations
 
 import logging
+import re
 
-from PySide6.QtCore import QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 
+from smartdoc.presentation.resources import themes_dir
 from smartdoc.presentation.theme_manager import ThemeManager, parse_color
 
 logger = logging.getLogger(__name__)
@@ -28,8 +32,9 @@ _STYLES = {
     "frame": ("none", "wood"),
     "notice": ("card", "chalkboard"),
     "cover_frame": ("none", "wood", "line"),
+    "backdrop": ("none", "karst", "terraces", "hills-flowers", "pines", "dunes", "aurora", "leaves", "leaf-pile"),
 }
-_DEFAULT_STYLE = {"shelf": "flat", "frame": "none", "notice": "card", "cover_frame": "none"}
+_DEFAULT_STYLE = {"shelf": "flat", "frame": "none", "notice": "card", "cover_frame": "none", "backdrop": "none"}
 _warned: set[tuple[str, str]] = set()
 
 
@@ -172,3 +177,104 @@ def paint_cover_frame(painter: QPainter, rect: QRect, tm: ThemeManager) -> None:
     painter.setPen(QPen(dark, 1))
     painter.setBrush(Qt.NoBrush)
     painter.drawRect(rect.adjusted(0, 0, -1, -1))
+
+
+# -- backdrop (standard 1.2 / 1.3) --------------------------------------------------------------------------------------
+# A faint landscape behind the content area of the "Kệ sách" look: fixed to the view (it does not scroll with the books),
+# never animated, drawn BEFORE the shelves and covers. The shapes are the standard's own pictures,
+# themes/_schema/backdrops/<style>.svg (viewBox 1200x300, two layers: the far one with fill-opacity .55, the near one full),
+# read once and drawn as paths; the far layer takes `color2` (else `color`), the near one `color`, both times the theme's
+# `opacity`. The layout "Tối giản" ignores ornaments altogether, so nothing is drawn there. A pixmap per (size, look) is cached.
+
+_VIEWBOX_W, _VIEWBOX_H = 1200.0, 300.0
+_PATH_RE = re.compile(r"<path\s+d='([^']*)'(?:\s+fill='[^']*')?(?:\s+fill-opacity='([^']*)')?")
+_TOKEN_RE = re.compile(r"[MLCQZ]|-?\d+(?:\.\d+)?")
+_shapes: dict[str, list[tuple[list[tuple[str, list[float]]], float]]] = {}
+_pixmaps: dict[tuple, QPixmap] = {}
+_MAX_CACHED_PIXMAPS = 4
+
+
+def _parse_path(data: str) -> list[tuple[str, list[float]]]:
+    """The absolute M/L/C/Q/Z commands of an SVG path `d` as (command, numbers) -- all the standard's pictures use."""
+    commands: list[tuple[str, list[float]]] = []
+    for token in _TOKEN_RE.findall(data):
+        if token in "MLCQZ":
+            commands.append((token, []))
+        elif commands:
+            commands[-1][1].append(float(token))
+    return commands
+
+
+def _backdrop_shapes(style: str) -> list[tuple[list[tuple[str, list[float]]], float]]:
+    """[(commands, fill_opacity)] far layer first, from the standard's picture; [] when it cannot be read."""
+    if style not in _shapes:
+        found: list[tuple[list[tuple[str, list[float]]], float]] = []
+        try:
+            markup = (themes_dir() / "_schema" / "backdrops" / f"{style}.svg").read_text(encoding="utf-8")
+            for data, opacity in _PATH_RE.findall(markup):
+                found.append((_parse_path(data), float(opacity) if opacity else 1.0))
+        except OSError:
+            logger.warning("Backdrop picture %r not found; drawing none", style)
+        _shapes[style] = found
+    return _shapes[style]
+
+
+def _to_path(commands: list[tuple[str, list[float]]], sx: float, sy: float) -> QPainterPath:
+    path = QPainterPath()
+    for command, n in commands:
+        if command == "M" and len(n) >= 2:
+            path.moveTo(n[0] * sx, n[1] * sy)
+        elif command == "L" and len(n) >= 2:
+            path.lineTo(n[0] * sx, n[1] * sy)
+        elif command == "C" and len(n) >= 6:
+            path.cubicTo(QPointF(n[0] * sx, n[1] * sy), QPointF(n[2] * sx, n[3] * sy), QPointF(n[4] * sx, n[5] * sy))
+        elif command == "Q" and len(n) >= 4:
+            path.quadTo(QPointF(n[0] * sx, n[1] * sy), QPointF(n[2] * sx, n[3] * sy))
+        elif command == "Z":
+            path.closeSubpath()
+    return path
+
+
+def backdrop_spec(tm: ThemeManager) -> dict:
+    """The backdrop parameters to draw now, or {} when there is nothing to draw (no backdrop, flat style, the person switched
+    it off in Settings, or the layout ignores ornaments)."""
+    if not getattr(tm, "show_backdrop", True):
+        return {}
+    params = spec(tm, "backdrop")
+    return params if params["style"] != "none" else {}
+
+
+def _backdrop_pixmap(width: int, height: int, params: dict) -> QPixmap:
+    key = (width, height, params["style"], params.get("color"), params.get("color2"), params.get("opacity"))
+    cached = _pixmaps.get(key)
+    if cached is not None:
+        return cached
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    shapes = _backdrop_shapes(params["style"])
+    near = parse_color(str(params["color"]))
+    far = parse_color(str(params.get("color2") or params["color"]))
+    opacity = float(params.get("opacity", 0.2))
+    for index, (commands, fill_opacity) in enumerate(shapes):
+        colour = QColor(far if index < len(shapes) - 1 else near)
+        colour.setAlphaF(max(0.0, min(1.0, opacity * fill_opacity)))
+        painter.setBrush(colour)
+        painter.drawPath(_to_path(commands, width / _VIEWBOX_W, height / _VIEWBOX_H))
+    painter.end()
+    if len(_pixmaps) >= _MAX_CACHED_PIXMAPS:
+        _pixmaps.pop(next(iter(_pixmaps)))
+    _pixmaps[key] = pixmap
+    return pixmap
+
+
+def paint_backdrop(painter: QPainter, rect: QRect, tm: ThemeManager) -> None:
+    """The theme's landscape over the bottom (or top) `height_pct` % of `rect` (the view, not the scrolled content)."""
+    params = backdrop_spec(tm)
+    if not params or rect.width() <= 0 or rect.height() <= 0:
+        return
+    height = max(1, round(rect.height() * int(params.get("height_pct", 40)) / 100))
+    top = rect.top() if params.get("position") == "top" else rect.bottom() + 1 - height
+    painter.drawPixmap(rect.left(), top, _backdrop_pixmap(rect.width(), height, params))

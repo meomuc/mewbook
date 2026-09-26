@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.3",
+  "id": "dem-thu",
+  "name": "Đêm Thu Đọc Sách",
+  "dark": true,
+  "description": "Đêm se lạnh, đèn bàn ấm, thảm lá phong đỏ dưới chân kệ. Dành cho đọc khuya.",
+  "version": "1.0.1",
+  "author": "Claude cho MewBook",
+  "created": "2026-09-26",
+  "inspired_by": "Đêm thu đọc sách bên cửa sổ, ngoài sân lá phong rụng.",
+  "tokens": {
+    "bg": "#211A19",
+    "rail": "#1B1514",
+    "panel": "#261E1D",
+    "surface": "#2E2524",
+    "surface2": "#352B29",
+    "ink": "#F1E4D8",
+    "ink2": "#C9B6A6",
+    "ink3": "#A39085",
+    "line": "#3A2F2D",
+    "line2": "#564743",
+    "accent": "#E7744C",
+    "accentink": "#26110A",
+    "accentsoft": "#45302A",
+    "shelf": "#6B4630",
+    "shelftop": "#A26E4B",
+    "under": "rgba(0,0,0,.42)",
+    "shadow": "rgba(0,0,0,.64)",
+    "ok": "#95CFA0",
+    "warn": "#F0CE62",
+    "err": "#F28FC8",
+    "scrim": "rgba(10,6,5,.62)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Be Vietnam Pro",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "fallback": [
+        "Georgia"
+      ],
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Montserrat",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "vietnamese": true
+    }
+  },
+  "ornaments": {
+    "shelf": {
+      "style": "wood",
+      "thickness": 8,
+      "grain": "#553622",
+      "edge": "#4A2F1E",
+      "brackets": false
+    },
+    "notice": {
+      "style": "card"
+    },
+    "backdrop": {
+      "style": "leaf-pile",
+      "position": "bottom",
+      "height_pct": 40,
+      "color": "#D0502E",
+      "color2": "#C48A3A",
+      "opacity": 0.2
+    }
+  },
+  "layouts": {
+    "toi-gian": {
+      "supported": true,
+      "tokens": {
+        "bg": "#181211",
+        "rail": "#181211",
+        "panel": "#251D1C",
+        "shelf": "#3A2F2D",
+        "shelftop": "#7A5A48"
+      }
+    }
+  },
+  "preview": [
+    "preview/01_ke-sach_cua-so-chinh.png",
+    "preview/02_ke-sach_nhap-xong.png",
+    "preview/03_toi-gian_trang-dau.png",
+    "preview/04_toi-gian_thu-vien.png"
+  ]
+}

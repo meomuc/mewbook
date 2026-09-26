@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   optional `link` colour. The "Tối giản" layout is now selectable (four themes): a rounded sheet with a top bar, a Home page (reading
   history with resume, author of the month, recent additions, shortcut chips) and a captioned cover grid without shelves.
   Reading history is stored in a new table (database migration 2, backed up first).
+- **Three autumn themes: "Đêm Thu Đọc Sách" (dark), "Gió Heo May" and "Thu Hà Nội" (light)**, usable in both looks. Theme standard
+  1.3 adds a faint landscape behind the book grid (`ornaments.backdrop`: falling leaves, a pile of leaves, and six landscapes
+  for future themes), fixed to the view, never animated, and drawn only in the shelf look; Settings > Giao diện has
+  "Hiện hình phong cảnh của theme" to switch it off. Tertiary text of the three themes was darkened/lightened a little (Thu Hà Nội
+  also got a slightly deeper gold accent and fainter leaves) so they meet the project's 4.5:1 contrast rule.
 - **New theme "Gỗ Thông Trời Xanh"** (light): pine shelves with metal brackets on a sky-blue ground, wood-framed group
   labels and cover, green chalkboard notice cards, Nunito typeface (OFL, shipped with the theme).
 

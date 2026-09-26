@@ -36,7 +36,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QAbstractItemView, QFrame
 
 from smartdoc.presentation.line_icons import icon_pixmap
-from smartdoc.presentation.ornaments import paint_shelf, shelf_thickness
+from smartdoc.presentation.ornaments import paint_backdrop, paint_shelf, shelf_thickness
 from smartdoc.presentation.shelf_groups import shelf_for
 from smartdoc.presentation.theme_manager import theme_manager
 
@@ -400,6 +400,7 @@ class ShelfView(QAbstractItemView):
         offset = self._offset()
         visible = QRect(0, 0, self.viewport().width(), self.viewport().height())
         painter.fillRect(visible, QColor(tm.token(tm.layout.content_surface)))  # the ground the layout puts covers on
+        paint_backdrop(painter, visible, tm)  # the theme's faint landscape: fixed to the view, behind shelves and covers
         model = self.model()
         captioned = self._captioned()
         selection = self.selectionModel()

@@ -96,6 +96,7 @@ Làm đúng các bước, không hỏi lại trừ khi có LỖI:
 | frame       | wood         | nhãn nhóm thanh bên, header panel chi tiết, tiêu đề cột Cài đặt: nền gradient `light`→`dark`, viền `dark`, chữ `ink` |
 | notice      | chalkboard   | thẻ thông báo (tóm tắt nhập, có bản mới, dải mất file): nền `bg`, chữ `ink`, viền dày 7 px màu `frame` |
 | cover_frame | wood / line  | khung quanh bìa lớn ở panel chi tiết, dày `width` px |
+| backdrop    | karst / terraces / hills-flowers / pines / dunes / aurora / leaves / leaf-pile | hình phong cảnh mờ sau lưới sách (chuẩn 1.2/1.3, xem bên dưới); cài trong `ornaments.paint_backdrop` |
 Thiếu khối nào = dùng kiểu mặc định phẳng. Kiểu không nhận ra = bỏ qua + cảnh báo, không làm vỡ giao diện.
 
 ### Quy tắc không được phá (validator kiểm tra tự động)
@@ -120,6 +121,37 @@ Thiếu khối nào = dùng kiểu mặc định phẳng. Kiểu không nhận r
 - `presentation/theme.py::colors_for()` cho widget còn đọc `ThemeColors`: theme mới nhận cấu trúc mặc định + màu của gói.
 - Gói theme nằm ở thư mục gốc `themes/` và được `packaging/MewBook.spec` đưa vào bản dựng (trừ `incoming/`).
 - Màu chữ mờ `ink3` phải đạt 4.5:1 (test hợp đồng theme của dự án), chặt hơn cảnh báo 3:1 của validator.
+
+## Hình phong cảnh (ornaments.backdrop) — chuẩn 1.2
+
+Theme 1.2 có thể khai báo `ornaments.backdrop`: một hình phong cảnh MỜ vẽ sau lưng vùng
+nội dung (lưới kệ sách / bảng), giúp theme có "cảnh" mà không làm rối chữ.
+
+- Kiểu có sẵn (hình mẫu chuẩn trong themes/_schema/backdrops/<style>.svg, viewBox 1200×300,
+  2 lớp: lớp xa fill-opacity .55, lớp gần 1): karst (núi đá vôi trên nước), terraces
+  (ruộng bậc thang), hills-flowers (đồi hoa), pines (rừng thông), dunes (đồi cát),
+  aurora (cực quang — position top).
+- Vẽ: trong paintEvent của viewport vùng nội dung, TRƯỚC khi vẽ kệ/bìa. Dựng QPainterPath
+  một lần từ path trong SVG (hoặc QSvgRenderer), co giãn theo chiều ngang (không giữ tỉ lệ),
+  cao = height_pct % chiều cao viewport, bám đáy (bottom) hoặc đỉnh (top).
+  Lớp gần tô `color`, lớp xa tô `color2` (thiếu thì dùng color), nhân `opacity` của theme.
+- CỐ ĐỊNH theo khung nhìn, không cuộn theo sách; không động (không hiệu ứng chạy).
+- Cache pixmap theo (kích thước viewport, theme id); vẽ lại khi đổi cỡ cửa sổ / đổi theme.
+- Kiểu "Kệ sách": vẽ. Kiểu "Tối giản": layout.json đặt ornaments = ignore → không vẽ.
+- Validator 1.2 đảm bảo: hình thật mờ (tương phản với nền ≤ 1.35:1) và chữ ink/ink2 đặt
+  trên phần hình vẫn ≥ 4.5:1.
+- Có tùy chọn trong Cài đặt › Giao diện: "Hiện hình phong cảnh của theme" (mặc định bật).
+
+## Chuẩn 1.3 — thêm hai hình nền lá thu
+
+- `leaves`: lá thu rơi rải rác (lá sấu thuôn + lá phong 5 thùy), dày ở phía trên, thưa dần
+  xuống dưới. Thường dùng với position = top, height_pct 45–60.
+- `leaf-pile`: thảm lá rụng, dày ở đáy. Dùng với position = bottom.
+Hình mẫu: themes/_schema/backdrops/leaves.svg, leaf-pile.svg (cùng quy ước 2 lớp như 1.2).
+Hình đứng yên, KHÔNG làm hiệu ứng lá rơi chuyển động (giữ tinh thần yên tĩnh, không tốn CPU).
+Nếu CLAUDE.md chưa có mục 1.2 (hình phong cảnh), chèn CLAUDE_md_bo-sung_1.2.md trước.
+
+Mã: `presentation/ornaments.py::paint_backdrop` (hình mẫu đọc từ `themes/_schema/backdrops/*.svg`, cache pixmap theo cỡ), vẽ ở `shelf_view.paintEvent` trước kệ/bìa; `AppConfig.show_backdrop` + `ThemeManager.show_backdrop` là tùy chọn Cài đặt › Giao diện.
 
 ## 6. Kiểu giao diện (layout) — chuẩn gói v1.1
 

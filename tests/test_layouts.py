@@ -80,7 +80,8 @@ def test_composed_pairs_keep_the_projects_reading_contrast(layout_id, theme_id):
 def test_ke_sach_accepts_every_theme_and_toi_gian_only_its_own():
     themes = load_tokens()
     assert usable_theme_ids(layout_for("ke-sach"), themes) == list(themes)
-    assert sorted(usable_theme_ids(load_layouts()["toi-gian"], themes)) == ["editorial-light", "japandi", "midnight-ink", "zen-dark"]
+    assert sorted(usable_theme_ids(load_layouts()["toi-gian"], themes)) == [
+        "dem-thu", "editorial-light", "gio-heo-may", "japandi", "midnight-ink", "thu-ha-noi", "zen-dark"]  # + the autumn themes, which declare it
 
 
 def test_a_layout_retunes_the_theme_without_touching_the_theme_file():

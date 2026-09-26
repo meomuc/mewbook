@@ -105,6 +105,8 @@ class AppConfig:
     content_font_size: int = 13
     content_text_color: str | None = None  # hex, e.g. "#1a1a1a"; None = theme default
     show_detail_panel: bool = True
+    # Draw the theme's faint landscape (ornaments.backdrop, theme standard 1.2/1.3) behind the book grid.
+    show_backdrop: bool = True
     # Widths the user dragged the main window's columns to (0 = the design's default: 226 / 324 px).
     # Books per page in the library (Settings > Hiệu năng); 0 = the design's default of 24.
     page_size: int = 0

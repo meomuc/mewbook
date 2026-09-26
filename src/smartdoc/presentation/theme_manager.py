@@ -234,6 +234,8 @@ class ThemeManager(QObject):
         """A number of the applied layout (radii, sizes, densities), see layouts/<id>/LAYOUT_SPEC.md."""
         return self._layout.metric(name, default)
 
+    show_backdrop: bool = True  # Settings > Giao diện: "Hiện hình phong cảnh của theme" (set from the config when applying)
+
     def ornament(self, block: str) -> dict:
         """The theme's decoration parameters for `shelf`, `frame`, `notice` or `cover_frame`; {} = the flat default
         (also when the layout ignores ornaments)."""

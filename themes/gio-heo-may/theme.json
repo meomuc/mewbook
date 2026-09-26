@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.3",
+  "id": "gio-heo-may",
+  "name": "Gió Heo May",
+  "dark": false,
+  "description": "Trời cao xanh trong, gió đầu mùa cuốn lá cam bay chéo qua kệ.",
+  "version": "1.0.1",
+  "author": "Claude cho MewBook",
+  "created": "2026-09-26",
+  "inspired_by": "Cơn gió heo may đầu thu, bầu trời trong và mát.",
+  "tokens": {
+    "bg": "#EDF2F5",
+    "rail": "#E2EAEF",
+    "panel": "#FAFCFD",
+    "surface": "#FFFFFF",
+    "surface2": "#EBF1F4",
+    "ink": "#1F2A33",
+    "ink2": "#4B5966",
+    "ink3": "#5B6975",
+    "line": "#DAE3E9",
+    "line2": "#B8C6D0",
+    "accent": "#B04C16",
+    "accentink": "#FFFFFF",
+    "accentsoft": "#F7E1D4",
+    "shelf": "#C8D3DB",
+    "shelftop": "#FFFFFF",
+    "under": "rgba(30,50,70,.10)",
+    "shadow": "rgba(25,40,60,.26)",
+    "ok": "#2E7A5A",
+    "warn": "#7F6A00",
+    "err": "#A8324E",
+    "scrim": "rgba(25,35,48,.32)"
+  },
+  "fonts": {
+    "ui": {
+      "family": "Nunito",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "files": [
+        "fonts/Nunito[wght].ttf"
+      ],
+      "license": "fonts/OFL-Nunito.txt",
+      "vietnamese": true
+    },
+    "content": {
+      "family": "Lora",
+      "fallback": [
+        "Georgia"
+      ],
+      "vietnamese": true
+    },
+    "display": {
+      "family": "Nunito",
+      "fallback": [
+        "Segoe UI"
+      ],
+      "files": [
+        "fonts/Nunito[wght].ttf"
+      ],
+      "license": "fonts/OFL-Nunito.txt",
+      "vietnamese": true
+    }
+  },
+  "ornaments": {
+    "shelf": {
+      "style": "glass",
+      "thickness": 6
+    },
+    "notice": {
+      "style": "card"
+    },
+    "backdrop": {
+      "style": "leaves",
+      "position": "top",
+      "height_pct": 48,
+      "color": "#C2571E",
+      "color2": "#D9973A",
+      "opacity": 0.2
+    }
+  },
+  "layouts": {
+    "toi-gian": {
+      "supported": true,
+      "tokens": {
+        "bg": "#DFE8EE",
+        "rail": "#DFE8EE",
+        "panel": "#FAFCFD",
+        "shelf": "#D3DDE4"
+      }
+    }
+  },
+  "preview": [
+    "preview/01_ke-sach_cua-so-chinh.png",
+    "preview/02_ke-sach_nhap-xong.png",
+    "preview/03_toi-gian_trang-dau.png",
+    "preview/04_toi-gian_thu-vien.png"
+  ]
+}

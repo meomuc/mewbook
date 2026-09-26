@@ -6,7 +6,7 @@ Kiểm tra gói theme MewBook trước khi nhập.
 Cách dùng:
     python validate_theme.py <thư mục gói | file .zip | theme.json> [--schema đường/dẫn/theme.schema.json]
 
-Hỗ trợ chuẩn 1.0 và 1.1 (token link, khối layouts).
+Hỗ trợ chuẩn 1.0, 1.1 (token link, khối layouts) 1.2 (ornaments.backdrop) và 1.3 (backdrop leaves, leaf-pile).
 Mã thoát: 0 = đạt, 1 = có LỖI (không được nhập), 2 = không đọc được gói.
 CẢNH BÁO không chặn việc nhập nhưng phải báo lại cho người dùng.
 Không cần thư viện ngoài; nếu có `jsonschema` thì dùng thêm để kiểm tra chặt hơn.
@@ -44,6 +44,11 @@ def delta_e(a, b):
 CONTRAST_TEXT = 4.5      # chữ thường
 CONTRAST_UI = 3.0        # viền điều khiển, accent trên nền, chữ lớn/đậm
 DELTA_E_MIN = 20         # ok / warn / err / accent phải khác nhau rõ
+BACKDROP_MAX = 1.35      # hình phong cảnh phải thật mờ so với nền
+BACKDROPS = {"none", "karst", "terraces", "hills-flowers", "pines", "dunes", "aurora", "leaves", "leaf-pile"}
+def blend(base, top, a):
+    b, t_ = rgb(base), rgb(top)
+    return "#" + "".join(f"{round(b[i]*(1-a) + t_[i]*a):02X}" for i in range(3))
 
 def check(theme, root, content_bg="bg"):
     E, W = [], []
@@ -145,6 +150,23 @@ def check(theme, root, content_bg="bg"):
             if k not in nt: E.append(f"ornaments.notice kiểu chalkboard thiếu '{k}'")
         if "bg" in nt and "ink" in nt and contrast(nt["ink"], nt["bg"]) < CONTRAST_TEXT:
             E.append(f"Chữ trên bảng thông báo = {contrast(nt['ink'], nt['bg']):.2f}:1 (cần ≥ {CONTRAST_TEXT})")
+    bd = o.get("backdrop", {})
+    if bd and bd.get("style", "none") != "none":
+        if bd["style"] not in BACKDROPS: E.append(f"backdrop.style '{bd['style']}' không có trong chuẩn")
+        op = bd.get("opacity")
+        if not isinstance(op, (int, float)) or not (0.02 <= op <= 0.6): E.append("backdrop.opacity phải từ 0.02 đến 0.6")
+        else:
+            base = t[content_bg]
+            for key in ("color", "color2"):
+                if key not in bd: continue
+                if not HEX.match(bd[key]): E.append(f"backdrop.{key} sai định dạng"); continue
+                mix = blend(base, bd[key], op * (1 if key == "color" else .55))
+                c = contrast(mix, base)
+                if c > BACKDROP_MAX: E.append(f"Hình phong cảnh ({key}) quá đậm: tương phản với nền {c:.2f}:1 (tối đa {BACKDROP_MAX})")
+                if c < 1.02 and key == "color": W.append(f"Hình phong cảnh gần như không nhìn thấy ({c:.2f}:1)")
+                for fg in ("ink", "ink2"):
+                    cc = contrast(t[fg], mix)
+                    if cc < CONTRAST_TEXT: E.append(f"Chữ {fg} đặt trên hình phong cảnh = {cc:.2f}:1 (cần ≥ {CONTRAST_TEXT})")
     for p in theme.get("preview", []):
         if not os.path.isfile(os.path.join(root, p)): W.append(f"Thiếu ảnh xem trước {p}")
     return E, W

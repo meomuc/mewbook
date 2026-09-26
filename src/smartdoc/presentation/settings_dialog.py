@@ -376,6 +376,11 @@ class SettingsDialog(QDialog):
         page.add_block(self._theme_cards_holder)  # full width, so the cards wrap to as many rows as the window needs
         page.add_block(self._other_layout_note)
 
+        self.backdrop_check = QCheckBox("Hiện hình phong cảnh của theme", page)
+        self.backdrop_check.setChecked(bool(config.show_backdrop))
+        page.add_row("Hình phong cảnh", "Một hình mờ phía sau lưới sách ở các theme có (lá thu, núi, đồi…). Tắt đi thì nền phẳng.",
+                     self.backdrop_check)
+
         # With no font chosen by the user, a font picker shows the theme's own typeface -- and follows the theme
         # cards as they change.
         theme_family = resolve_font_family(colors_for(config.theme))
@@ -1005,6 +1010,10 @@ class SettingsDialog(QDialog):
         config.ereader_folder_path = self._ereader_folder_path or None
         config.metadata_write_to_file_default = self.metadata_write_check.isChecked()
         config.metadata_backup_keep = self.metadata_backup_spin.value()
+
+        if self.backdrop_check.isChecked() != config.show_backdrop:
+            self.appearance_changed = True
+            config.show_backdrop = self.backdrop_check.isChecked()
 
         new_theme = self.theme_combo.currentData()
         new_layout = str(self.layout_combo.currentData())

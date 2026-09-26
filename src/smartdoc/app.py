@@ -34,6 +34,7 @@ def _apply_appearance(app: QApplication, context: AppContext) -> None:
     manager = theme_manager()
     # Palette + base stylesheet + fonts for the saved (layout, theme) pair; also re-run on a switch. A theme the layout
     # cannot use is replaced by the layout's default inside apply(), so the legacy colours follow manager.key.
+    manager.show_backdrop = context.config.config.show_backdrop
     manager.apply(app, context.config.config.theme, context.config.config.layout)
     colors = apply_theme(app, manager.key, manager.tokens())
     font_family = context.config.config.font_family

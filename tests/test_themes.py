@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtWidgets import QApplication
 
 from smartdoc.core.config import ConfigManager
 from smartdoc.presentation import ornaments, theme_manager as tm_module
@@ -228,3 +229,89 @@ def test_frame_band_paints_only_for_a_theme_with_a_frame(themes_tmp, qapp):
     assert ink is None and QColor(image.pixel(40, 15)) == QColor("#ffffff")
     ink, image = band("framed-two")
     assert ink == QColor("#1b120a") and QColor(image.pixel(40, 15)) != QColor("#ffffff")
+
+
+# -- backdrop (theme standard 1.2 / 1.3): the faint landscape behind the book grid ------------------------------------------
+
+def _painted_alpha(theme_id, layout_id="ke-sach", *, show=True, size=(600, 400)):
+    from PySide6.QtCore import QRect
+    from PySide6.QtGui import QImage, QPainter
+
+    from smartdoc.presentation import ornaments
+    from smartdoc.presentation.theme_manager import theme_manager
+
+    tm = theme_manager()
+    tm.apply(QApplication.instance(), theme_id, layout_id)
+    tm.show_backdrop = show
+    image = QImage(size[0], size[1], QImage.Format_ARGB32)
+    image.fill(0)
+    painter = QPainter(image)
+    ornaments.paint_backdrop(painter, QRect(0, 0, *size), tm)
+    painter.end()
+    alphas = [image.pixelColor(x, y).alpha() for x in range(0, size[0], 7) for y in range(0, size[1], 7)]
+    return image, alphas
+
+
+@pytest.fixture
+def restore_look(qapp, monkeypatch):
+    from smartdoc.presentation import theme_manager as tm_module
+
+    monkeypatch.setattr(tm_module, "load_app_fonts", lambda: [])
+    yield
+    from smartdoc.presentation.theme_manager import theme_manager
+
+    theme_manager().show_backdrop = True
+    theme_manager().apply(qapp, "broadsheet", "ke-sach")
+
+
+def test_every_standard_backdrop_picture_parses_into_two_layers():
+    from smartdoc.presentation import ornaments
+
+    for style in ornaments._STYLES["backdrop"]:
+        if style == "none":
+            continue
+        layers = ornaments._backdrop_shapes(style)
+        assert len(layers) == 2 and layers[0][1] == 0.55 and layers[1][1] == 1.0, style  # far layer fainter, near one full
+        assert all(commands and commands[0][0] == "M" for commands, _ in layers), style
+
+
+def test_a_theme_with_a_backdrop_paints_it_faintly_at_the_top_or_bottom(restore_look):
+    image, alphas = _painted_alpha("thu-ha-noi")  # leaves, position top, 55%, opacity .23
+    both_layers = 1 - (1 - 0.23) * (1 - 0.23 * 0.55)  # where the far and the near layer overlap
+    assert max(alphas) > 0 and max(alphas) <= round(255 * both_layers) + 1  # never stronger than the theme's opacity says
+    top_half = sum(1 for y in range(0, 200, 7) for x in range(0, 600, 7) if image.pixelColor(x, y).alpha())
+    bottom_third = sum(1 for y in range(300, 400, 7) for x in range(0, 600, 7) if image.pixelColor(x, y).alpha())
+    assert top_half > 0 and bottom_third == 0  # leaves hang from the top and stop at 55% of the height
+    _image, alphas = _painted_alpha("dem-thu")  # leaf-pile, position bottom
+    assert max(alphas) > 0
+    bottom = _painted_alpha("dem-thu")[0]
+    assert sum(1 for y in range(0, 100, 7) for x in range(0, 600, 7) if bottom.pixelColor(x, y).alpha()) == 0
+
+
+def test_no_backdrop_when_the_theme_has_none_the_person_switched_it_off_or_the_layout_ignores_ornaments(restore_look):
+    assert max(_painted_alpha("japandi")[1]) == 0  # this theme declares no backdrop
+    assert max(_painted_alpha("thu-ha-noi", show=False)[1]) == 0  # Settings > "Hiện hình phong cảnh của theme" off
+    assert max(_painted_alpha("thu-ha-noi", layout_id="toi-gian")[1]) == 0  # the layout says `ornaments: ignore`
+    assert max(_painted_alpha("thu-ha-noi")[1]) > 0
+
+
+def test_the_backdrop_is_fixed_to_the_view_and_cached_per_size(restore_look):
+    from smartdoc.presentation import ornaments
+
+    ornaments._pixmaps.clear()
+    _painted_alpha("thu-ha-noi", size=(600, 400))
+    _painted_alpha("thu-ha-noi", size=(600, 400))
+    assert len(ornaments._pixmaps) == 1  # the second paint reused it
+    _painted_alpha("thu-ha-noi", size=(800, 500))
+    assert len(ornaments._pixmaps) == 2 and len(ornaments._pixmaps) <= ornaments._MAX_CACHED_PIXMAPS
+
+
+def test_an_unknown_backdrop_style_means_no_backdrop_and_never_a_broken_window(restore_look, monkeypatch):
+    from smartdoc.presentation.theme_manager import theme_manager
+
+    tm = theme_manager()
+    tm.apply(QApplication.instance(), "thu-ha-noi", "ke-sach")
+    monkeypatch.setitem(tm._tokens["ornaments"], "backdrop", {"style": "volcano", "color": "#B8621E", "opacity": 0.2})
+    from smartdoc.presentation import ornaments
+
+    assert ornaments.backdrop_spec(tm) == {}
