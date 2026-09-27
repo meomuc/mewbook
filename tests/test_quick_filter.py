@@ -3,7 +3,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialog
 
-from smartdoc.domain.library_filter import AUTHORS, LibraryFilter
+from smartdoc.domain.library_filter import (
+    AUTHORS,
+    RELEVANCE_LABEL,
+    SORT_BY_COUNT,
+    SORT_BY_NAME,
+    SORT_LABELS,
+    LibraryFilter,
+)
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.facet_panel import AUTHOR_ROW_LIMIT, FacetPanel
 from smartdoc.presentation.facet_picker_dialog import FacetPickerDialog
@@ -46,6 +53,47 @@ def test_typing_lists_matches_from_every_group_ignoring_accents(qapp, app_contex
 
     assert _rows(box) == ["Nhã Ca · Tác giả (1)", "Nhã tuyển · Bộ sưu tập (0)"]
     assert box.suggestions.isVisible()
+
+
+def _pick(label):
+    return lambda self, menu, pos: next(a for a in menu.actions() if a.text() == label)
+
+
+def _labels(box):
+    return [row.split(" ·")[0] for row in _rows(box)]
+
+
+def test_the_sort_button_reorders_the_suggestions_without_changing_which_ones_show(qapp, app_context, monkeypatch):
+    # Tagged (not left blank): a blank tag falls into the "Chưa phân loại" bucket, which also happens to contain "ha" (in
+    # "phân"), and would be an unrelated fourth suggestion here.
+    _add(app_context, "d1", "Hà Anh", tags="X")
+    _add(app_context, "d2", "Đông Hà", tags="X")
+    _add(app_context, "d3", "Đông Hà", tags="X")
+    for n in range(5):
+        _add(app_context, f"d4-{n}", "Nguyễn Hạnh", tags="X")
+    box = QuickFilterBox(app_context)
+    box.show()
+    _type(box, "ha")
+    assert _labels(box) == ["Hà Anh", "Đông Hà", "Nguyễn Hạnh"]  # relevance: the best-positioned match first
+
+    monkeypatch.setattr(QuickFilterBox, "_exec_menu", _pick(SORT_LABELS[SORT_BY_COUNT]))
+    box.sort_button.click()
+    assert _labels(box) == ["Nguyễn Hạnh", "Đông Hà", "Hà Anh"]  # most documents first
+
+    monkeypatch.setattr(QuickFilterBox, "_exec_menu", _pick(SORT_LABELS[SORT_BY_NAME]))
+    box.sort_button.click()
+    assert _labels(box) == ["Đông Hà", "Hà Anh", "Nguyễn Hạnh"]  # accent-insensitive alphabetical
+
+    monkeypatch.setattr(QuickFilterBox, "_exec_menu", _pick(RELEVANCE_LABEL))
+    box.sort_button.click()
+    assert _labels(box) == ["Hà Anh", "Đông Hà", "Nguyễn Hạnh"]  # switching back is not a re-search
+
+    # Typing again keeps the chosen sort (count), until the person changes it -- it is not reset per keystroke.
+    monkeypatch.setattr(QuickFilterBox, "_exec_menu", _pick(SORT_LABELS[SORT_BY_COUNT]))
+    box.sort_button.click()
+    _type(box, "h")  # too short to search -- the list is cleared, not resorted
+    _type(box, "ha")
+    assert _labels(box) == ["Nguyễn Hạnh", "Đông Hà", "Hà Anh"]
 
 
 def test_no_match_or_a_single_letter_shows_nothing(qapp, app_context):

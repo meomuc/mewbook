@@ -37,6 +37,14 @@ CATEGORY_LABELS = {
     FORMATS: "Định dạng",
 }
 
+# How a list of facet values is ordered -- shared by the sidebar's sections (facet_panel.py, count/name only) and the
+# "Lọc nhanh" suggestions (quick_filter.py, which also offers "relevance": the box's own best-match-first ranking).
+SORT_BY_RELEVANCE = "relevance"
+SORT_BY_COUNT = "count"
+SORT_BY_NAME = "name"
+RELEVANCE_LABEL = "Liên quan nhất"
+SORT_LABELS = {SORT_BY_COUNT: "Số tài liệu (nhiều → ít)", SORT_BY_NAME: "Tên (A → Z)"}
+
 # How with_value() combines a value with what its group already holds.
 MODE_GO = "go"  # "show me this": replace the group; clicking the only selected value clears it
 MODE_ADD = "add"  # add to the group (Ctrl/Shift/checkbox), no-op if already there

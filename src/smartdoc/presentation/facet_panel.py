@@ -47,6 +47,9 @@ from smartdoc.domain.library_filter import (
     FORMATS,
     MODE_GO,
     MODE_TOGGLE,
+    SORT_BY_COUNT,
+    SORT_BY_NAME,
+    SORT_LABELS,
     TAGS,
     LibraryFilter,
     value_key,
@@ -66,9 +69,7 @@ from smartdoc.presentation.theme_manager import theme_manager
 TAG_CHIP_LIMIT = 14
 AUTHOR_ROW_LIMIT = 8
 
-SORT_BY_COUNT = "count"
-SORT_BY_NAME = "name"
-_SORT_LABELS = {SORT_BY_COUNT: "Số tài liệu (nhiều → ít)", SORT_BY_NAME: "Tên (A → Z)"}
+_SORT_LABELS = SORT_LABELS  # local alias: this file's own code refers to it by this name
 
 # Which key facet folders are stored under (see database.FACET_CATEGORIES).
 _GROUP_CATEGORY = {TAGS: "tag", AUTHORS: "author", FORMATS: "extension"}

@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
 
 ### Added
+- **"Lọc nhanh" (the sidebar's quick filter box) can be sorted.** A button beside it offers the same choices as a sidebar
+  section's own "Sắp xếp" menu -- "Liên quan nhất" (the default best-match-first order), "Số tài liệu (nhiều → ít)" or "Tên
+  (A → Z)" -- and only reorders the suggestions already found for what was typed; it never widens the search.
 - **A "Chưa chắc" hashtag for books the classifier could not decide on.** Before, an unsure book got no tag at all and
   only showed up in the classification wizard's result list. It now gets the plain hashtag "Chưa chắc", so it is found and
   filtered in the ordinary library view too. Giving the book a real hashtag -- by hand, or from the result list's
