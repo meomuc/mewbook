@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QListWidget,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -32,12 +31,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.application.smart_classifier import CRASH_ERROR, ClassifyScope, SmartClassifyService
+from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
 from smartdoc.core.event_bus import SmartClassifyFinishedEvent, SmartClassifyProgressEvent
 from smartdoc.presentation.brand import mascot_pixmap
 from smartdoc.presentation.design_dialog import DesignDialog, confirm_danger
 from smartdoc.presentation.line_icons import icon_pixmap, line_icon
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
+from smartdoc.presentation.smart_classify_results import ClassifyBooksDialog, build_tree
 from smartdoc.presentation.theme_manager import theme_manager
 
 STEP_SCOPE, STEP_RUNNING, STEP_RESULT = 0, 1, 2
@@ -54,12 +54,6 @@ class ScopeOption:
     description: str
     scope: ClassifyScope
     reclassify: bool = False
-
-
-def _reason(error: str) -> str:
-    if error == CRASH_ERROR:
-        return "Bộ đọc file bị dừng đột ngột khi mở cuốn này"
-    return error or "Không đọc được file"
 
 
 def _minutes(seconds: float) -> str:
@@ -116,18 +110,6 @@ class StepBar(QWidget):
                 painter.setPen(QPen(tm.color("line2"), 1))
                 painter.drawLine(QPointF(x, y), QPointF(x + 36, y))
                 x += 48
-
-
-class _BooksDialog(DesignDialog):
-    """The books behind one of the three result cards (exactly those, not "everything with that hashtag")."""
-
-    def __init__(self, parent, *, title: str, subtitle: str, lines: list[str]) -> None:
-        super().__init__(parent, title=title, subtitle=subtitle, icon="book", width=520)
-        self.list = QListWidget(self)
-        self.list.addItems(lines)
-        self.list.setMinimumHeight(260)
-        self.body.addWidget(self.list, 1)
-        self.add_footer_button("Đóng", "primary", on_click=self.accept)
 
 
 class _ScopeCard(QFrame):
@@ -539,27 +521,19 @@ class SmartClassifyWizard(DesignDialog):
                 f"{event.failed:,} lỗi đọc file.").replace(",", ".")
 
     def _show_books(self, kind: str) -> None:
+        """Opens the list behind a result card: the books of this run, grouped and browsable (smart_classify_results.py)."""
         event = self._last_result
         if event is None:
             return
         if kind == "failed":
             ids = [doc_id for doc_id, _why in event.failed_items]
-            reasons = dict(event.failed_items)
         else:
             ids = list(event.tagged_ids if kind == "tagged" else event.unknown_ids)
-            reasons = {}
         docs = {d["id"]: d for d in self.context.db.get_documents_light(ids)} if ids else {}
-        lines = []
-        for doc_id in ids:
-            doc = docs.get(doc_id)
-            if doc is None:
-                continue
-            title = doc["title"] or "(không có tên)"
-            lines.append(f"{title} — {_reason(reasons[doc_id])}" if kind == "failed" else title)
-        titles = {"tagged": ("Sách đã gắn hashtag", "Những cuốn được gắn ở lần chạy này"),
-                  "unknown": ("Sách chưa chắc", "Mở từng cuốn rồi gắn hashtag bằng tay nếu bạn muốn"),
-                  "failed": ("Sách không đọc được", "Lý do đi kèm từng cuốn; lần chạy sau MewBook sẽ thử lại")}
-        dialog = _BooksDialog(self, title=titles[kind][0], subtitle=titles[kind][1], lines=lines)
+        titles = {"tagged": ("Sách đã gắn hashtag", "Những cuốn được gắn ở lần chạy này, theo thư mục và hashtag"),
+                  "unknown": ("Sách chưa chắc", "Theo lý do MewBook chưa dám gắn; bạn tự gắn hashtag nếu muốn"),
+                  "failed": ("Sách không đọc được", "Lý do đi kèm từng nhóm; lần chạy sau MewBook sẽ thử lại")}
+        dialog = ClassifyBooksDialog(self, title=titles[kind][0], subtitle=titles[kind][1], tree=build_tree(kind, event, docs), docs=docs)
         dialog.exec()
         dialog.deleteLater()
 

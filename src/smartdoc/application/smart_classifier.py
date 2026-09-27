@@ -97,6 +97,24 @@ class _Plan:
     preview: ScopePreview = field(default_factory=ScopePreview)
 
 
+# Why a book was left for the person to tag, in words for the result page (keys are what `unsure_reason` returns).
+UNSURE_REASONS = {
+    "no_text": "Không có chữ đọc được (bản quét, có DRM hoặc định dạng không đọc được)",
+    "periodical": "Tạp chí, báo: không thuộc thể loại sách nào",
+    "mixed_topics": "Nội dung trộn nhiều chủ đề",
+    "low_confidence": "Mô hình phân vân giữa nhiều thể loại",
+    "not_enough_evidence": "Ít chữ hoặc chưa đủ manh mối",
+}
+
+
+def unsure_reason(result: dict) -> str:
+    """One of UNSURE_REASONS' keys for a worker result that got no category."""
+    reason = result.get("reason") or ""
+    if not result.get("words") and reason in ("", "no_text", "not_enough_evidence", "error"):
+        return "no_text"
+    return reason if reason in UNSURE_REASONS else "not_enough_evidence"
+
+
 def default_executor_factory(workers: int, settings: dict) -> Executor:
     # "spawn" everywhere: a forked copy of a running Qt application is not safe,
     # and it's what Windows does anyway.
@@ -347,6 +365,8 @@ class SmartClassifyService:
         tagged_ids: list[str] = []
         unknown_ids: list[str] = []
         failed_items: list[tuple[str, str]] = []
+        tagged_items: list[tuple[str, str, str]] = []
+        unknown_items: list[tuple[str, str]] = []
         recent: deque = deque(maxlen=3)
         titles: dict[str, str] = {}
         error = ""
@@ -401,6 +421,7 @@ class SmartClassifyService:
                         tally["tagged"] += 1
                         by_group[result.get("group", "")] += 1
                         tagged_ids.append(result["id"])
+                        tagged_items.append((result["id"], result.get("name") or "", result.get("group") or ""))
                         recent.append((title, result.get("name") or ""))
                     else:
                         error_text = result.get("error") or ""
@@ -409,6 +430,7 @@ class SmartClassifyService:
                             failed_items.append((result["id"], error_text))
                         else:
                             unknown_ids.append(result["id"])
+                            unknown_items.append((result["id"], unsure_reason(result)))
                         recent.append((title, ""))
                         # A file that could not be read (unplugged drive, OneDrive placeholder,
                         # locked) is not a verdict about the book: leave no record, so the
@@ -502,6 +524,8 @@ class SmartClassifyService:
                 tagged_ids=tuple(tagged_ids),
                 unknown_ids=tuple(unknown_ids),
                 failed_items=tuple(failed_items),
+                tagged_items=tuple(tagged_items),
+                unknown_items=tuple(unknown_items),
             )
             self.last_result = finished_event
             bus.publish(finished_event)

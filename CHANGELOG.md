@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
 
 ### Added
+- **Smart classification results can be opened up.** "Xem" on a result card now shows a browsable list of that run's books,
+  grouped: tagged books by sidebar folder then hashtag, "chưa chắc" books by why (a scan with no text, a magazine, mixed
+  subjects, torn between categories, too little text), unreadable ones by the error. It has an accent-insensitive search, open
+  all / collapse, and for the selected book its file, size and hashtags with "Mở file" and "Mở thư mục chứa file".
 - **Tools > Sách đã gỡ khỏi thư viện:** the list of files removed on purpose (searchable, accent-insensitive) with
   "Thêm lại vào thư viện"; before, the only way back was to add the same file by hand.
 - **Tools > Xuất danh sách sách (CSV):** the book list as a spreadsheet-ready UTF-8 file (formula-safe, written to a

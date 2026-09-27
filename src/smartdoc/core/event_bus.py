@@ -215,6 +215,8 @@ class SmartClassifyFinishedEvent(BaseEvent):
     tagged_ids: tuple[str, ...] = ()  # the books of this run by outcome, for the "Xem N sách" links of the result page
     unknown_ids: tuple[str, ...] = ()
     failed_items: tuple[tuple[str, str], ...] = ()  # (book id, why it could not be read)
+    tagged_items: tuple[tuple[str, str, str], ...] = ()  # (book id, hashtag given, sidebar folder): the result page groups by them
+    unknown_items: tuple[tuple[str, str], ...] = ()  # (book id, why the classifier was not sure: see smart_classifier.UNSURE_REASONS)
 
 
 class EventBus:
