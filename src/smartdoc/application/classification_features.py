@@ -39,6 +39,8 @@ class FeatureParts:
     """subject labels + description + table of contents."""
     subjects: list[str] = field(default_factory=list)
     body_words: int = 0
+    body_text: str = ""
+    """The sampled running text itself (the guards in classification_guards.py judge it again, in slices)."""
     source: str = "none"
     error: str = ""
 
@@ -84,6 +86,7 @@ class FeatureExtractor:
         if sample is not None:
             parts.source, parts.error, parts.subjects = sample.source, sample.error, list(sample.subjects)
             parts.body_words = sample.body_words
+            parts.body_text = sample.body
             parts.body = counts([(sample.body, w["body"])])
             parts.hints = counts(
                 [(subject, w["subject"]) for subject in sample.subjects] + [(sample.hint_text, w["hint"])]

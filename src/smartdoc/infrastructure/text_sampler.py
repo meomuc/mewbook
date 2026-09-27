@@ -50,7 +50,9 @@ MAX_MAX_WORDS = 5000
 _MAX_SPINE_ITEMS = 60
 _MAX_ITEM_BYTES = 300_000  # of one chapter's raw HTML -- a whole-book-in-one-file EPUB isn't read in full
 _MAX_PDF_PAGES = 80
-_PDF_GIVE_UP_AFTER_EMPTY_PAGES = 8
+# A scan has no text layer at all, but a magazine or a book with plates opens with pictures (cover, adverts, full-page photos):
+# give up only after this many pages without one word, not after the first few. Looking is cheap (nothing is rendered).
+_PDF_GIVE_UP_AFTER_EMPTY_PAGES = 30
 _MAX_TOC_TITLES = 80
 _MAX_HINT_CHARS = 1500
 
@@ -138,11 +140,29 @@ def looks_like_text(text: str) -> bool:
     if odd / len(letters) > 0.05:
         return False
     tokens = [t.strip(".,;:!?\"'()[]{}—–-“”‘’…") for t in sample.split()]
-    tokens = [t for t in tokens if t]
+    # Numbers, prices, phone numbers, dates and page numbers have no vowels and are not a sign of a broken encoding: a
+    # magazine's contents page or a price list was refused as "unreadable" because of them. Only words are judged.
+    tokens = [t for t in tokens if t and any(ch.isalpha() for ch in t) and not any(ch.isdigit() for ch in t)]
     if not tokens:
         return False
     vowelless = sum(1 for t in tokens if len(t) > 3 and not re.search(r"[aeiouyàáảãạăâêôơưéèẻẽẹíìỉĩịóòỏõọúùủũụýỳỷỹỵ]", t.lower()))
-    return vowelless / len(tokens) < 0.25
+    if vowelless / len(tokens) >= 0.25:
+        return False
+    return not _looks_like_ocr_noise(sample, tokens)
+
+
+_STROKES = frozenset("il1|!Ij")
+
+
+def _looks_like_ocr_noise(sample: str, tokens: list[str]) -> bool:
+    """A bad scan's OCR layer ("iii ll1 tt , rn") has vowels, so the checks above pass it, yet it says nothing about the book:
+    it is almost all vertical strokes and one- or two-letter fragments. Real Vietnamese and English are far from both."""
+    if len(tokens) < 60:
+        return False
+    marks = [ch for ch in sample if not ch.isspace()]
+    strokes = sum(1 for ch in marks if ch in _STROKES) / max(1, len(marks))
+    short = sum(1 for t in tokens if len(t.strip(".,;:!?|'\"")) <= 2) / len(tokens)
+    return strokes > 0.28 or short > 0.72
 
 
 def _is_vi_or_latin(ch: str) -> bool:

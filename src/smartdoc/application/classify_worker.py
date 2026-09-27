@@ -28,6 +28,8 @@ import os
 import sys
 import time
 
+from smartdoc.application.classification_guards import REASON_MIXED_TOPICS, REASON_PERIODICAL, mixed_topics, periodical_cue
+
 logger = logging.getLogger(__name__)
 
 # Per-process state, filled by init_worker().
@@ -131,7 +133,13 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
                 path=job.get("path"),
                 extension=job.get("extension"),
             )
+            cue = periodical_cue(job.get("title", ""), job.get("path"))
             prediction = model.predict(parts.merged(hints=True))
+            if cue:  # a magazine / newspaper issue is not one of the book categories: withhold rather than force one
+                prediction.category_id, prediction.reason = None, REASON_PERIODICAL
+            elif prediction.category_id and mixed_topics(
+                    model, lambda text: extractor.processor.weighted_counts([(text, extractor.weights["body"])]), parts.body_text):
+                prediction.category_id, prediction.reason = None, REASON_MIXED_TOPICS
             info = model.class_by_id(prediction.category_id) if prediction.category_id else None
             result.update(
                 name=info.name if info else "",

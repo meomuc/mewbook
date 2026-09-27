@@ -46,7 +46,7 @@ def test_epub_gives_subjects_and_body(tmp_path):
 
 
 def test_epub_body_respects_the_word_budget(tmp_path):
-    epub = write_epub(tmp_path / "big.epub", ["từ"] * 10, repeat=1000)  # 10,000 words
+    epub = write_epub(tmp_path / "big.epub", "thám tử điều tra vụ án mạng bí ẩn".split(), repeat=1000)  # 10,000 words
     sample = TextSampler(2000).sample(str(epub))
     assert 1900 <= sample.body_words <= 2000
 

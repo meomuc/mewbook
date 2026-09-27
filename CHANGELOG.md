@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   temporary file first). **Tools > Sao lưu thư viện** opens the backup tab of Settings.
 
 ### Fixed
+- **Classifying scanned PDFs and magazines.** (1) A PDF that opened with pictures (cover, adverts, full-page photos) was
+  given up as "no text layer" after 8 pages although text followed; it now looks through 30. (2) Text with many numbers
+  (prices, phone numbers, dates, a magazine's contents page) was refused as "legacy font gibberish" because numbers have no
+  vowels; only words are judged now. (3) The text layer of a poor scan ("iii ll1 tt") was accepted as text; it is now
+  recognised as noise. (4) A magazine or newspaper issue was forced into a book category with full confidence (a lifestyle
+  magazine became "Ẩm thực"): a title, file name or folder that says magazine / newspaper / issue number + year, or text
+  whose slices point at different subject groups, now gets no category and is listed under "Sách chưa chắc".
 - Long jobs now show progress instead of looking frozen: the start-up library upgrade (with its automatic backup),
   Calibre import, and moving to / restoring from / emptying the trash and the duplicate finder's "move to trash".
   Quiet start-up housekeeping (file check, folder scan, reading e-book text, fingerprints) is named in the status bar

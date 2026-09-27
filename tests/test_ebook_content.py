@@ -35,7 +35,7 @@ def _wait(predicate, timeout=10.0):
 
 
 def test_the_text_of_an_epub_is_read_up_to_the_page_setting(tmp_path):
-    epub = write_epub(tmp_path / "b.epub", ["tu"] * 10, repeat=1000)  # 10,000 words
+    epub = write_epub(tmp_path / "b.epub", "thám tử điều tra vụ án mạng bí ẩn hiện trường".split(), repeat=1000)  # 10,000 words
     two_pages = extract_search_text(str(epub), "epub", 2)
     assert len(two_pages.split()) == 2 * WORDS_PER_PAGE
     assert len(extract_search_text(str(epub), "epub", 10).split()) == 10 * WORDS_PER_PAGE
