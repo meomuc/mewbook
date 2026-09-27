@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import threading
 
+from smartdoc.application.background_task import TASK_FINGERPRINT, TaskReporter
 from smartdoc.infrastructure.cloud_files import is_cloud_only as _is_cloud_only
 from smartdoc.infrastructure.fingerprint import fingerprint_file
 
@@ -50,6 +51,14 @@ class FingerprintBackfill:
 
     def run(self) -> int:
         """Processes every book that lacks a fingerprint; returns how many it handled."""
+        reporter = TaskReporter(getattr(self.context, "event_bus", None), TASK_FINGERPRINT,
+                                self.context.db.count_documents_missing_fingerprint())
+        try:
+            return self._pass(reporter)
+        finally:
+            reporter.finish()
+
+    def _pass(self, reporter: TaskReporter) -> int:
         handled = 0
         cursor = 0
         while not self._stop.is_set():
@@ -60,6 +69,7 @@ class FingerprintBackfill:
                 if self._stop.is_set():
                     return handled
                 cursor = row["doc_rowid"]
+                reporter.step()
                 if _is_cloud_only(row["file_path"]):
                     continue  # not downloaded: leave it for a later launch
                 try:

@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.duplicate_list_pane import DuplicateListPane
 from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.format_utils import human_size
@@ -491,7 +492,18 @@ class DuplicateFinderDialog(DesignDialog):
             "Bản bạn giữ lại không bị đụng tới.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if answer != QMessageBox.Yes:
             return
-        result = self.context.trash.send([(d["id"], d.get("file_path")) for d in others])
+        items = [(d["id"], d.get("file_path")) for d in others]
+
+        def move(progress):
+            return self.context.trash.send(items, lambda done, total: progress(done, total, f"Đã chuyển {done}/{total} file"))
+
+        result, error = run_with_progress(  # off the GUI thread: moving across drives copies the bytes
+            self, title="Thùng rác", message=f"Mèo đang chuyển {count} file vào Thùng rác…", work=move, delay_ms=400,
+            hint="Chép sang ổ khác có thể lâu với file lớn; bạn có thể chờ, cửa sổ vẫn đang làm việc.")
+        if result is None:
+            QMessageBox.warning(self, "Chưa chuyển được", f"Có lỗi khi chuyển file: {error}\nCác file đã chuyển xong vẫn nằm trong Thùng rác.")
+            self.refresh()
+            return
         if result.failed:
             QMessageBox.warning(
                 self, "Có file chưa chuyển được",

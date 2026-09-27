@@ -24,6 +24,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from smartdoc.application.background_task import TASK_FOLDER_SCAN, TaskReporter
 from smartdoc.core.event_bus import (
     DocumentIndexedEvent,
     FileDetectedEvent,
@@ -228,10 +229,12 @@ class ImportQueueManager:
         excluded = db.excluded_path_sizes()
         missing = db.missing_documents_by_name()
         queued = relinked = 0
+        reporter = TaskReporter(self.context.event_bus, TASK_FOLDER_SCAN)  # no total: a directory walk cannot know it
         for folder in folders if folders is not None else list(self.context.config.config.watch_folders):
             if not os.path.isdir(folder):
                 continue
             for root, _dirs, names in os.walk(folder):
+                reporter.step(len(names))
                 for name in names:
                     if os.path.splitext(name)[1].lower() not in allowed:
                         continue
@@ -253,6 +256,7 @@ class ImportQueueManager:
                     self._add_to_watch_batch(path)
                     known.add(key)
                     queued += 1
+        reporter.finish()
         if relinked:
             self.context.event_bus.publish(LibraryUpdatedEvent())
         logger.info("Start-up scan: %d new file(s) queued, %d moved book(s) found again", queued, relinked)

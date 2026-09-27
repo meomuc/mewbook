@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from smartdoc.core.config import KNOWN_EXTENSIONS
+from smartdoc.application.background_task import TASK_FILE_CHECK, TaskReporter
 from smartdoc.core.event_bus import EventBus, LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.infrastructure.database import DatabaseManager
 from smartdoc.infrastructure.file_hash import sha256_file
@@ -79,10 +80,13 @@ class RelinkService:
         rows = self._db.files_to_check()
         present: list[str] = []
         missing: list[str] = []
+        reporter = TaskReporter(self._bus, TASK_FILE_CHECK, len(rows))
         for done, (doc_id, path) in enumerate(rows, start=1):
             (present if path and os.path.isfile(path) else missing).append(doc_id)
+            reporter.step()
             if progress and done % 200 == 0:
                 progress("check", done, len(rows))
+        reporter.finish()
         self._db.record_file_status(present, missing)
         if self._bus is not None:
             self._bus.publish(LibraryFilesMissingEvent(count=len(missing)))

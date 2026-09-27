@@ -17,14 +17,17 @@ from smartdoc.application.fingerprint_backfill import FingerprintBackfill
 from smartdoc.application.import_queue import ImportQueueManager
 from smartdoc.application.smart_classifier import AutoClassifyOnImport, SmartClassifyService
 from smartdoc.core.app_context import AppContext
-from smartdoc.core.config import default_app_data_dir
+from smartdoc.core.config import ConfigManager, default_app_data_dir
+from smartdoc.application.backup_service import BackupService
 from smartdoc.core.diagnostics import current_log_path, install_exception_hooks, setup_logging
-from smartdoc.infrastructure.schema_migrations import SchemaError
+from smartdoc.infrastructure.schema_migrations import SchemaError, needs_upgrade
+from smartdoc.infrastructure.database import DatabaseManager
 from smartdoc.presentation.dialog_size import DialogSizeGuard
 from smartdoc.presentation.error_report_dialog import ErrorReportPrompt
 from smartdoc.presentation.eula_dialog import EulaDialog
 from smartdoc.presentation.main_window import MainWindow
 from smartdoc.presentation.resources import app_icon_path
+from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme import apply_theme, theme_font
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.window_shapes import window_class_for
@@ -117,6 +120,30 @@ def _run_crash_dialog(summary: str) -> None:
         _crash_dialog_open = False
 
 
+def _open_library() -> AppContext:
+    """The app's context. A library that has to be upgraded (an automatic backup, then a rebuilt search index -- minutes for a
+    big one) is upgraded behind a "please wait" window, not in silence before any window exists, which looked like the app
+    failing to start."""
+    config = ConfigManager()
+    db_path = config.config.db_path or "library.db"
+    if not needs_upgrade(db_path):
+        return AppContext(config=config)
+
+    def upgrade(progress) -> DatabaseManager:
+        db = DatabaseManager(db_path)
+        backups = BackupService(db, retention=lambda: config.config.backup_retention, folder=lambda: config.config.backup_dir)
+        db.initialize_tables(before_migrate=backups.before_migration)
+        return db
+
+    db, error = run_with_progress(
+        None, title=APP_DISPLAY_NAME, message="Mèo đang nâng cấp thư viện của bạn cho bản mới…",
+        hint="Thư viện được sao lưu trước, rồi dựng lại chỉ mục tìm kiếm. Thư viện lớn có thể mất vài phút; "
+             "chỉ làm một lần. Xin đừng tắt máy.", work=upgrade)
+    if error or db is None:
+        raise SchemaError(error or "Không nâng cấp được thư viện.")
+    return AppContext(config=config, db=db)  # the schema is current now: nothing more to do to it
+
+
 def main() -> None:
     # Smart classification runs in child processes ("spawn"). In a frozen build
     # each child is this very executable, and this call is what turns it into a
@@ -142,7 +169,7 @@ def main() -> None:
     app._instance_lock = instance_lock  # held (and released on exit) by the app object
 
     try:
-        context = AppContext()
+        context = _open_library()
     except SchemaError as exc:
         # A library written by a newer MewBook, or an upgrade that failed and was rolled back: say so plainly
         # instead of the generic crash dialog. Nothing has been changed in either case.

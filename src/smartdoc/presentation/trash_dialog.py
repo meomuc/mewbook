@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from smartdoc.application.trash_service import MAX_RETENTION_DAYS, TrashError, TrashItem
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.format_utils import human_size
+from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme_manager import theme_manager
 
 _ITEM_ROLE = Qt.UserRole + 1
@@ -112,12 +113,22 @@ class TrashDialog(DesignDialog):
 
     # -- actions ----------------------------------------------------------------------------------------------------
     def _on_restore(self) -> None:
-        problems: list[str] = []
-        for item in self._selected():
-            try:
-                self.service.restore(item.item_id)
-            except TrashError as exc:
-                problems.append(f"• {item.title}: {exc}")
+        picked = self._selected()
+
+        def restore(progress) -> list[str]:
+            problems: list[str] = []
+            for done, item in enumerate(picked):
+                progress(done, len(picked), f"Đang khôi phục: {item.title}")
+                try:
+                    self.service.restore(item.item_id)
+                except TrashError as exc:
+                    problems.append(f"• {item.title}: {exc}")
+            return problems
+
+        problems, error = run_with_progress(self, title="Thùng rác", message=f"Mèo đang khôi phục {len(picked)} mục…",
+                                            work=restore, delay_ms=400)
+        if problems is None:
+            problems = [f"• Lỗi không mong đợi: {error}"]
         if problems:
             QMessageBox.warning(self, "Chưa khôi phục được", "\n".join(problems))
         self.refresh()
@@ -130,12 +141,22 @@ class TrashDialog(DesignDialog):
         if not items or not self._confirm(
                 f"Xóa hẳn {len(items)} mục?", "File sẽ bị xóa khỏi ổ cứng và không khôi phục được nữa."):
             return
-        for item in items:
-            self.service.delete_forever(item.item_id)
+        def delete(progress) -> None:
+            for done, item in enumerate(items):
+                progress(done, len(items), "Đang xóa hẳn…")
+                self.service.delete_forever(item.item_id)
+
+        _result, error = run_with_progress(self, title="Thùng rác", message=f"Mèo đang xóa hẳn {len(items)} mục…", work=delete, delay_ms=400)
+        if error:
+            QMessageBox.warning(self, "Chưa xóa hết được", f"Có lỗi khi xóa: {error}")
         self.refresh()
 
     def _on_empty(self) -> None:
         if not self._confirm("Dọn sạch thùng rác?", "Mọi file trong thùng rác sẽ bị xóa khỏi ổ cứng và không khôi phục được nữa."):
             return
-        self.service.empty()
+        _result, error = run_with_progress(
+            self, title="Thùng rác", message="Mèo đang dọn sạch thùng rác…", delay_ms=400,
+            work=lambda progress: self.service.empty(lambda done, total: progress(done, total, "Đang xóa hẳn…")))
+        if error:
+            QMessageBox.warning(self, "Chưa dọn hết được", f"Có lỗi khi dọn thùng rác: {error}")
         self.refresh()

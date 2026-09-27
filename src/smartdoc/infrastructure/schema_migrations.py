@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from pathlib import Path
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
@@ -169,6 +170,25 @@ def get_version(connection: sqlite3.Connection) -> int:
         return int(cursor.fetchone()[0])
     finally:
         cursor.close()
+
+
+def needs_upgrade(db_path: str | Path, migrations: Sequence[Migration] | None = None) -> bool:
+    """Is `db_path` an existing library holding data that is behind this build? Reads the version only, changes nothing.
+
+    Used at start-up to tell the person "upgrading your library" *before* the upgrade (a backup copy, then rebuilding the search
+    index) makes the window wait; a new or empty library needs nothing and is quick."""
+    path = Path(db_path)
+    try:
+        if str(db_path) == ":memory:" or not path.is_file() or path.stat().st_size == 0:
+            return False
+        connection = sqlite3.connect(str(path))
+        try:
+            has_data = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone() is not None
+            return has_data and get_version(connection) < latest_version(migrations)
+        finally:
+            connection.close()
+    except (sqlite3.Error, OSError):
+        return False  # unreadable here means the normal open reports it properly
 
 
 def check_not_newer(connection: sqlite3.Connection, migrations: Sequence[Migration] | None = None) -> None:

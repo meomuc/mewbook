@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+- **Tools > Sách đã gỡ khỏi thư viện:** the list of files removed on purpose (searchable, accent-insensitive) with
+  "Thêm lại vào thư viện"; before, the only way back was to add the same file by hand.
+- **Tools > Xuất danh sách sách (CSV):** the book list as a spreadsheet-ready UTF-8 file (formula-safe, written to a
+  temporary file first). **Tools > Sao lưu thư viện** opens the backup tab of Settings.
+
+### Fixed
+- Long jobs now show progress instead of looking frozen: the start-up library upgrade (with its automatic backup),
+  Calibre import, and moving to / restoring from / emptying the trash and the duplicate finder's "move to trash".
+  Quiet start-up housekeeping (file check, folder scan, reading e-book text, fingerprints) is named in the status bar
+  after a second, and stays silent for jobs that end at once.
+
 ### Changed
 - **Themes are now data.** Every look lives in `themes/<id>/theme.json` (a documented standard with a schema and a
   validator, `themes/_schema/`) instead of being written into the code; Settings > Giao diện builds its cards from

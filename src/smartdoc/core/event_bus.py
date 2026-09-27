@@ -91,6 +91,17 @@ class LibraryFilesMissingEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class BackgroundTaskEvent(BaseEvent):
+    """Quiet housekeeping the person did not start is running (or has just ended): `task` names it, `done` of `total` is how far
+    it got (`total` 0 = unknown). Shown in the status bar so a busy disk is explained (application/background_task.py)."""
+
+    task: str
+    done: int = 0
+    total: int = 0
+    finished: bool = False
+
+
+@dataclass(frozen=True)
 class FilterChangedEvent(BaseEvent):
     """The one event for "what the library is filtered by" -- search text,
     collections, hashtags, authors and formats together (see FilterService)."""

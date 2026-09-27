@@ -8,6 +8,7 @@ and the toolbar's "Công cụ" menu reuses them.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import shiboken6
@@ -26,6 +27,7 @@ from PySide6.QtWidgets import (
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME
 from smartdoc.application.calibre_migrator import CalibreImporter
+from smartdoc.application.library_export import export_library_csv
 from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
 from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.about_dialog import AboutDialog
@@ -38,6 +40,7 @@ from smartdoc.presentation.detail_panel import DocumentDetailPanel
 from smartdoc.presentation.dialog_size import fit_window_to_screen
 from smartdoc.presentation.drop_overlay import DropOverlay
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
+from smartdoc.presentation.excluded_books_dialog import ExcludedBooksDialog
 from smartdoc.presentation.import_card import ImportStatusCard
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.manual_report_dialog import ManualReportDialog
@@ -50,6 +53,7 @@ from smartdoc.presentation.sidebar_shell import SidebarShell
 from smartdoc.presentation.missing_files_strip import MissingFilesStrip
 from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
+from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
 
@@ -243,10 +247,14 @@ class MainWindow(QMainWindow):
         menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
         menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
         menu.addAction(vi.TOOL_TRASH, self._on_open_trash)
+        menu.addAction(vi.TOOL_EXCLUDED, self._on_open_excluded)
         menu.addAction(vi.TOOL_GATHER, self._on_open_gather)
         menu.addAction(vi.TOOL_REFRESH, self._on_refresh_info)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
+        menu.addSeparator()
+        menu.addAction(vi.TOOL_EXPORT, self._on_export_library)
+        menu.addAction(vi.TOOL_BACKUP, lambda: self._on_open_settings(initial_tab="backup"))
         menu.addSeparator()
         help_menu = menu.addMenu(vi.TOOL_HELP_HEADING)
         help_menu.addAction("Giới thiệu…", self._on_open_about)
@@ -389,6 +397,26 @@ class MainWindow(QMainWindow):
         dialog.exec()
         dialog.deleteLater()
 
+    def _on_open_excluded(self) -> None:
+        dialog = ExcludedBooksDialog(self.context, self.import_manager, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _on_export_library(self) -> None:
+        """Saves the list of books as a CSV file (spreadsheet-ready), written off the GUI thread."""
+        name = f"MewBook-danh-sach-{datetime.now():%Y-%m-%d}.csv"
+        path, _filter = QFileDialog.getSaveFileName(self, "Xuất danh sách sách", str(Path(self._start_directory()) / name), "CSV (*.csv)")
+        if not path:
+            return
+        self._remember_directory(str(Path(path).parent))
+        count, error = run_with_progress(
+            self, title="Xuất danh sách", message="Mèo đang ghi danh sách sách ra file CSV…", delay_ms=400,
+            work=lambda progress: export_library_csv(self.context.db, path, lambda done, total: progress(done, total, "Đang ghi…")))
+        if count is None:
+            QMessageBox.warning(self, "Chưa xuất được", f"Không ghi được file: {error}")
+        else:
+            self.import_card.show_notice(f"Đã xuất {count:,} sách ra {Path(path).name}.".replace(",", "."))
+
     def _on_open_relink(self) -> None:
         dialog = RelinkDialog(self.context, self)
         dialog.exec()
@@ -443,10 +471,16 @@ class MainWindow(QMainWindow):
             return
         self._remember_directory(folder)
         importer = CalibreImporter(self.context, self.import_manager)
-        try:
-            count = importer.import_library(folder)
-        except FileNotFoundError:
-            self.import_card.show_notice("Thư mục này không phải thư viện Calibre (không thấy metadata.db).")
+        # Reading a big Calibre catalogue and queueing every book took long enough on the GUI thread to look like a hang.
+        count, error = run_with_progress(
+            self, title="Nhập từ Calibre", message="Mèo đang đọc thư viện Calibre và xếp sách vào hàng chờ nhập…",
+            work=lambda _progress: importer.import_library(folder), delay_ms=400,
+            hint="Đọc xong, thanh tiến trình nhập sách sẽ hiện ở đầu danh sách. Thư viện Calibre chỉ được đọc, không bị thay đổi.")
+        if count is None:
+            if "metadata.db" in error:  # CalibreImporter's FileNotFoundError: the folder holds no catalogue
+                self.import_card.show_notice("Thư mục này không phải thư viện Calibre (không thấy metadata.db).")
+            else:
+                self.import_card.show_notice(f"Không đọc được thư viện Calibre: {error}")
             return
         if count == 0:
             self.import_card.show_notice("Không tìm thấy sách nào để thêm trong thư viện Calibre này.")

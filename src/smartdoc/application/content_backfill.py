@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import threading
 
+from smartdoc.application.background_task import TASK_READ_TEXT, TaskReporter
 from smartdoc.infrastructure.cloud_files import is_cloud_only
 from smartdoc.infrastructure.pdf_extractor import DEFAULT_MAX_PAGES
 
@@ -57,6 +58,14 @@ class ContentBackfill:
         config = self.context.config
         pages = config.config.content_search_pages or DEFAULT_MAX_PAGES
         formats = tuple(sorted(SEARCH_TEXT_EXTENSIONS))
+        reporter = TaskReporter(getattr(self.context, "event_bus", None), TASK_READ_TEXT,
+                                self.context.db.count_documents_without_text(formats))
+        try:
+            return self._pass(config, pages, formats, extract_search_text, reporter)
+        finally:
+            reporter.finish()
+
+    def _pass(self, config, pages, formats, extract_search_text, reporter) -> int:
         filled = 0
         cursor = 0
         while not self._stop.is_set():
@@ -69,6 +78,7 @@ class ContentBackfill:
                 if self._stop.is_set():
                     return filled
                 cursor = row["doc_rowid"]
+                reporter.step()
                 if is_cloud_only(row["file_path"]):
                     continue
                 text = extract_search_text(row["file_path"], row["extension"], pages)

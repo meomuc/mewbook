@@ -576,6 +576,13 @@ class DatabaseManager:
         with self.write_lock:
             return {row[0]: row[1] for row in self.connection.execute("SELECT path_key, file_size FROM excluded_paths")}
 
+    def list_excluded_details(self) -> list[dict[str, Any]]:
+        """What "Sách đã gỡ khỏi thư viện" lists: path, the size it had, and when it was dropped (newest first)."""
+        with self.write_lock:
+            rows = self.connection.execute(
+                "SELECT path, file_size, excluded_at FROM excluded_paths ORDER BY excluded_at DESC").fetchall()
+        return [{"path": row[0], "file_size": row[1] or 0, "excluded_at": row[2] or 0.0} for row in rows]
+
     def list_excluded_paths(self) -> list[str]:
         with self.write_lock:
             return [row[0] for row in self.connection.execute("SELECT path FROM excluded_paths ORDER BY excluded_at DESC")]
@@ -610,6 +617,11 @@ class DatabaseManager:
             f"SELECT doc_rowid, id, file_path, extension FROM documents WHERE content = '' AND lower(extension) IN ({marks})"
             " AND doc_rowid > ? ORDER BY doc_rowid LIMIT ?", (*extensions, after_rowid, limit)).fetchall()
         return [dict(r) for r in rows]
+
+    def count_documents_without_text(self, extensions: tuple[str, ...]) -> int:
+        marks = ",".join("?" for _ in extensions)
+        return int(self.connection.execute(
+            f"SELECT COUNT(*) FROM documents WHERE content = '' AND lower(extension) IN ({marks})", extensions).fetchone()[0])
 
     def set_document_content(self, doc_id: str, text: str) -> None:
         """Stores the searchable text of a book (the full-text index follows through its trigger)."""
@@ -680,6 +692,9 @@ class DatabaseManager:
         with self.write_lock:
             self.connection.execute("UPDATE documents SET fingerprint = ? WHERE id = ?", (fingerprint, doc_id))
             self.connection.commit()
+
+    def count_documents_missing_fingerprint(self) -> int:
+        return int(self.connection.execute("SELECT COUNT(*) FROM documents WHERE fingerprint IS NULL").fetchone()[0])
 
     def documents_missing_fingerprint(self, limit: int = 50, after_rowid: int = 0) -> list[dict[str, Any]]:
         """Books without a fingerprint, in stable order; `after_rowid` continues after the last row

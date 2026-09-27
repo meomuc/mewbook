@@ -21,6 +21,7 @@ import logging
 import shutil
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -76,10 +77,15 @@ class TrashService:
         return max(0, min(MAX_RETENTION_DAYS, int(getattr(self.context.config.config, "trash_retention_days", DEFAULT_RETENTION_DAYS))))
 
     # -- into the trash -------------------------------------------------------------------------------------------
-    def send(self, items: list[tuple[str, str | None]]) -> SendResult:
-        """Move each book's file into the trash and drop it from the library."""
+    def send(self, items: list[tuple[str, str | None]], progress: Callable[[int, int], None] | None = None) -> SendResult:
+        """Move each book's file into the trash and drop it from the library. `progress(done, total)` is told after each file:
+        moving between drives copies the bytes, so a long list takes a while and the caller shows how far it is."""
         result = SendResult([], [], [])
-        for doc_id, file_path in items:
+        # Which collections each book is in, read once: asking per book made a long list slower with every collection.
+        membership = {c["id"]: set(self.context.db.list_collection_document_ids(c["id"])) for c in self.context.db.list_collections()}
+        for done, (doc_id, file_path) in enumerate(items):
+            if progress is not None:
+                progress(done, len(items))
             doc = self.context.db.get_document(doc_id)
             if doc is None:
                 continue
@@ -89,7 +95,7 @@ class TrashService:
                 result.missing.append(doc_id)
                 continue
             try:
-                self._store(doc, path)
+                self._store(doc, path, membership)
             except OSError as exc:
                 logger.warning("Could not move %s to the trash: %s", path, exc)
                 result.failed.append((doc_id, "File đang được chương trình khác dùng hoặc không có quyền di chuyển"
@@ -101,13 +107,12 @@ class TrashService:
             self.context.event_bus.publish(LibraryUpdatedEvent())
         return result
 
-    def _store(self, doc: dict, path: Path) -> None:
+    def _store(self, doc: dict, path: Path, membership: dict[str, set[str]]) -> None:
         folder = self.directory / uuid.uuid4().hex
         folder.mkdir(parents=True)
         try:
             row = {k: v for k, v in doc.items() if k != "content"}
-            collections = [c["id"] for c in self.context.db.list_collections()
-                           if doc["id"] in set(self.context.db.list_collection_document_ids(c["id"]))]
+            collections = [collection_id for collection_id, members in membership.items() if doc["id"] in members]
             (folder / _CONTENT).write_text(doc.get("content") or "", encoding="utf-8")
             self.context.self_writes.mark(str(path))  # the watcher will see it vanish; that is not news
             shutil.move(str(path), str(folder / path.name))
@@ -199,10 +204,13 @@ class TrashService:
             shutil.rmtree(folder, ignore_errors=False)
             logger.info("Trash: deleted for good %s (from %s)", meta.get("file_name", item_id), meta.get("original_path", "?"))
 
-    def empty(self) -> int:
+    def empty(self, progress: Callable[[int, int], None] | None = None) -> int:
         """Delete everything in the trash for good; returns how many items went."""
         count = 0
-        for item in self.list_items():
+        items = self.list_items()
+        for done, item in enumerate(items):
+            if progress is not None:
+                progress(done, len(items))
             try:
                 self.delete_forever(item.item_id)
                 count += 1

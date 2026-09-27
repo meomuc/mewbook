@@ -34,6 +34,7 @@ from smartdoc.application.review_endpoint import resolve_review_endpoint, review
 from smartdoc.application.cloud_reviews import CloudReviewError, SupabaseReviewSync
 from smartdoc.core.event_bus import (
     AiConnectionChangedEvent,
+    BackgroundTaskEvent,
     FilterChangedEvent,
     ImportBatchCompletedEvent,
     ImportProgressEvent,
@@ -67,6 +68,15 @@ _BADGES = {STATE_OK: "✓", STATE_OFF: "○", STATE_ERROR: "✕"}
 def _n(value: int) -> str:
     """7545 -> "7.545" (Vietnamese thousands separator)."""
     return f"{value:,}".replace(",", ".")
+
+
+# What the quiet start-up work is called, short (the status bar) and long (its tooltip); see application/background_task.py.
+BACKGROUND_TEXT = {
+    "file-check": ("Đang kiểm tra file", "Mèo đang kiểm tra file của từng sách còn đó không. Việc này chạy nền, bạn cứ dùng bình thường."),
+    "folder-scan": ("Đang quét thư mục", "Mèo đang xem các thư mục theo dõi có file mới nào thêm vào lúc MewBook đóng không."),
+    "read-text": ("Đang đọc nội dung sách", "Mèo đang đọc chữ trong các e-book để bạn tìm được theo nội dung. Chỉ làm một lần, chạy nền."),
+    "fingerprint": ("Đang ghi dấu nhận diện", "Mèo đang ghi dấu nhận diện cho từng sách để không nhầm lẫn khi cập nhật thông tin. Chạy nền."),
+}
 
 
 class _ClickableStatusLabel(QLabel):
@@ -245,6 +255,7 @@ class StatusBarPanel(QStatusBar):
         self.last_status_text = ""  # the sentence the latest click on a status icon showed
         self._import_progress: tuple[int, int] | None = None
         self._classify_progress: tuple[int, int] | None = None
+        self._background: dict[str, tuple[int, int]] = {}  # quiet housekeeping now running: task -> (done, total)
 
         self.setFixedHeight(STATUS_BAR_H)
         self._apply_style()
@@ -352,6 +363,7 @@ class StatusBarPanel(QStatusBar):
             AiConnectionChangedEvent,
             ImportProgressEvent,
             ImportBatchCompletedEvent,
+            BackgroundTaskEvent,
             SmartClassifyProgressEvent,
             SmartClassifyFinishedEvent,
         ):
@@ -450,6 +462,12 @@ class StatusBarPanel(QStatusBar):
         elif isinstance(event, ImportBatchCompletedEvent):
             self._import_progress = None
             self._show_activity()
+        elif isinstance(event, BackgroundTaskEvent):
+            if event.finished:
+                self._background.pop(event.task, None)
+            else:
+                self._background[event.task] = (event.done, event.total)
+            self._show_activity()
         elif isinstance(event, SmartClassifyProgressEvent):
             self._classify_progress = (event.done, event.total) if event.done < event.total else None
             self._show_activity()
@@ -471,6 +489,10 @@ class StatusBarPanel(QStatusBar):
             done, total = self._classify_progress
             parts.append(f"Đang phân loại {done}/{total}")
             tips.append(f"Đang tự phân loại sách: {done}/{total}")
+        for task, (done, total) in self._background.items():  # what the app does by itself, so a busy disk is explained
+            short, long = BACKGROUND_TEXT.get(task, ("Đang làm việc nền", "MewBook đang làm một việc nền."))
+            parts.append(f"{short} {done}/{total}" if total else short)
+            tips.append(f"{long} ({done}/{total})" if total else long)
         self.activity_label.setText("  ".join(parts))
         self.activity_label.setToolTip("\n".join(tips))
         self.activity_label.setVisible(bool(parts))
