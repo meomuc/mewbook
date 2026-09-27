@@ -217,42 +217,26 @@ def test_the_dialog_says_plainly_that_the_book_file_is_overwritten(qapp, app_con
     assert "file sách giữ nguyên" in dialog.write_hint.text()  # and what happens when it is left off
 
 
-def test_the_backup_count_box_starts_at_one_and_follows_the_tick_box(qapp, app_context, tmp_path):
+def test_the_dialog_has_no_backup_options_of_its_own(qapp, app_context, tmp_path):
     dialog, _ = _open(qapp, app_context, _doc(app_context, make_epub(tmp_path / "a.epub"), "epub"))
-
-    assert dialog.backup_spin.value() == 1  # (b) default one copy
-    assert not dialog.backup_row.isEnabled()  # nothing is overwritten yet, so the number does not matter yet
-    dialog.write_check.setChecked(True)
-    assert dialog.backup_row.isEnabled()
-
-
-def test_the_backup_count_box_shows_the_saved_setting(qapp, app_context, tmp_path):
-    app_context.config.config.metadata_backup_keep = 4
-    dialog, _ = _open(qapp, app_context, _doc(app_context, make_epub(tmp_path / "a.epub"), "epub"))
-    assert dialog.backup_spin.value() == 4
+    assert not hasattr(dialog, "backup_spin") and not hasattr(dialog, "backup_row")
+    assert "Chưa bật" in dialog.write_hint.text()  # backing up is off by default, and the hint says the old file is not kept
+    app_context.config.config.backup_before_change = True
+    dialog2, _ = _open(qapp, app_context, _doc(app_context, make_epub(tmp_path / "b.epub"), "epub"))
+    assert "Hoàn tác" in dialog2.write_hint.text()
 
 
-def test_applying_with_the_file_box_ticked_uses_and_saves_the_number_in_the_box(qapp, app_context, tmp_path, monkeypatch):
+def test_writing_into_the_file_with_backup_on_but_no_folder_is_refused_with_a_notice(qapp, app_context, tmp_path, monkeypatch):
     epub = make_epub(tmp_path / "a.epub")
-    _quiet(monkeypatch)
-    dialog, applier_dialog = _open(qapp, app_context, _doc(app_context, epub, "epub"), LookupResult([_candidate(title="Gia Định thành thông chí", publisher="NXB X")], True))
-
+    before = epub.read_bytes()
+    warned = []
+    monkeypatch.setattr("smartdoc.presentation.metadata_suggest_dialog.QMessageBox.warning", lambda *a, **k: warned.append(a[2]))
+    app_context.config.config.backup_before_change = True  # ... and backup_dir is None
+    dialog, _ = _open(qapp, app_context, _doc(app_context, epub, "epub"), LookupResult([_candidate(title="Gia Định thành thông chí", publisher="NXB X")], True))
     dialog.write_check.setChecked(True)
-    dialog.backup_spin.setValue(5)
     dialog._on_apply()
-
-    assert app_context.config.config.metadata_backup_keep == 5
-    assert dialog._applier.writer.keep_backups == 5
-
-
-def test_a_library_only_update_does_not_touch_the_saved_backup_count(qapp, app_context, tmp_path, monkeypatch):
-    _quiet(monkeypatch)
-    dialog, _ = _open(qapp, app_context, _doc(app_context, make_epub(tmp_path / "a.epub"), "epub"), LookupResult([_candidate(title="Gia Định thành thông chí", publisher="NXB X")], True))
-
-    dialog.backup_spin.setValue(9)  # changed the box but did not ask to write into the file
-    dialog._on_apply()
-
-    assert app_context.config.config.metadata_backup_keep == 1
+    assert warned and "chưa chọn thư mục sao lưu" in warned[0]
+    assert epub.read_bytes() == before and not dialog.applied
 
 
 def test_a_format_that_cannot_be_written_says_the_file_stays_as_it_is(qapp, app_context, tmp_path):
@@ -261,7 +245,6 @@ def test_a_format_that_cannot_be_written_says_the_file_stays_as_it_is(qapp, app_
     dialog, _ = _open(qapp, app_context, _doc(app_context, mobi, "mobi"))
 
     assert "file sách giữ nguyên" in dialog.write_hint.text()
-    assert not dialog.backup_row.isEnabled()
 
 
 def test_the_footer_counts_the_ticked_rows_and_the_steps_follow(qapp, app_context, tmp_path):

@@ -48,6 +48,7 @@ class ApplyResult:
     written_fields: tuple[str, ...] = ()  # also written into the book file
     index_only_fields: tuple[str, ...] = ()  # the file's format can't hold these
     locked_fields: tuple[str, ...] = ()  # left alone: the user typed them by hand
+    backup_made: bool = False  # the file's old copy was kept ("Sao lưu trước khi thay đổi")
     file_error: str = ""  # why the file was not written ("" if it was, or wasn't asked for)
 
 
@@ -63,9 +64,10 @@ class MetadataApplier:
         self.context = context
         config = context.config
         self.writer = writer or MetadataWriter(
-            config.app_data_dir / "backups",
-            keep_backups=config.config.metadata_backup_keep,
+            lambda: config.config.backup_dir,
+            keep_backups=lambda: config.config.backup_keep,
             self_writes=getattr(context, "self_writes", None),
+            enabled=lambda: config.config.backup_before_change,
         )
 
     # -- apply -----------------------------------------------------------------------
@@ -102,6 +104,7 @@ class MetadataApplier:
                 result.file_error = str(exc)
             else:
                 backup_path = written.backup_path
+                result.backup_made = bool(backup_path)
                 result.written_fields = written.written_fields
                 result.index_only_fields = written.skipped_fields
 

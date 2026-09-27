@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Changed
+- **One backup setting.** Settings > Sao lưu now holds the only backup options: "Sao lưu trước khi thay đổi" (off by
+  default), the backup folder (none until chosen) and how many copies to keep (1 by default; used for each book file
+  and for library backups). The separate copy-count boxes in Settings > File and in the metadata dialog are gone. With
+  the option on and no folder chosen, writing into a book file is refused with a notice instead of guessing a place;
+  with it off, no copy of the old file is made (the dialog says so). library.db is still copied before a schema
+  upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
+
 ### Added
 - **Tools > Sách đã gỡ khỏi thư viện:** the list of files removed on purpose (searchable, accent-insensitive) with
   "Thêm lại vào thư viện"; before, the only way back was to add the same file by hand.

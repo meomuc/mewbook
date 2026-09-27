@@ -183,9 +183,17 @@ def test_a_mistyped_error_report_mode_falls_back_to_asking_never_to_always(tmp_p
     assert ConfigManager(app_data_dir=tmp_path).config.error_report_mode == "ask"
 
 
-def test_a_fresh_install_keeps_one_backup_per_book_but_a_saved_number_is_respected(tmp_path):
-    assert ConfigManager(app_data_dir=tmp_path / "new").config.metadata_backup_keep == 1
+def test_backup_options_default_to_off_no_folder_and_one_copy(tmp_path):
+    config = ConfigManager(app_data_dir=tmp_path / "new").config
+    assert (config.backup_before_change, config.backup_dir, config.backup_keep) == (False, None, 1)
 
-    (tmp_path / "old").mkdir()
-    (tmp_path / "old" / "settings.json").write_text(json.dumps({"metadata_backup_keep": 3}), encoding="utf-8")
-    assert ConfigManager(app_data_dir=tmp_path / "old").config.metadata_backup_keep == 3  # an existing choice stays
+
+def test_an_older_settings_file_keeps_its_folder_and_an_empty_folder_means_none(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "settings.json").write_text(json.dumps({"backup_dir": "", "backup_keep": 0, "backup_retention": 5}), encoding="utf-8")
+    config = ConfigManager(app_data_dir=tmp_path / "a").config
+    assert config.backup_dir is None and config.backup_keep == 1  # the old, removed keys are ignored
+    (tmp_path / "b").mkdir()
+    (tmp_path / "b" / "settings.json").write_text(json.dumps({"backup_dir": "D:/sao-luu"}), encoding="utf-8")
+    assert ConfigManager(app_data_dir=tmp_path / "b").config.backup_dir == "D:/sao-luu"
+

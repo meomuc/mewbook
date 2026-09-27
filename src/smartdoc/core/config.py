@@ -156,14 +156,17 @@ class AppConfig:
     # Off by default (docs/legal/DATA_SOURCES.md): Tiki, an undocumented shop API with no published terms, and
     # Apple Books, whose terms only allow its artwork to promote the store. Users can switch either on.
     disabled_cover_sources: list[str] = field(default_factory=lambda: ["Tiki", "Apple Books"])
-    # How many backups of library.db to keep in the "backups" folder next to it (application/backup_service.py).
-    backup_retention: int = 5
     # How closely a cover/metadata result must match the title and author to be offered, in percent (application/
     # cover_search.MIN_MATCH_SCORE is the default). Lower = more results, some less related; higher = fewer, stricter.
     cover_match_percent: int = 70
-    # Where backups go instead of that "backups" folder ("" = the default). Must be a folder MewBook can write to;
-    # when it is not (a drive that is unplugged) the backup says so instead of quietly going elsewhere.
-    backup_dir: str = ""
+    # THE backup setting (Settings > Sao lưu), one place for everything that keeps a copy: "back up before changing" (off by
+    # default) makes MewBook copy a book file before it is rewritten (metadata write-back); `backup_dir` is where copies go
+    # (None until the user chooses; a write that needs it says so instead of guessing a place, and a folder that cannot be
+    # written to is reported, never replaced by another); `backup_keep` is how many copies are kept (per book file, and for
+    # library.db backups). library.db is still copied before a schema upgrade, whatever these say: that one is not optional.
+    backup_before_change: bool = False
+    backup_dir: str | None = None
+    backup_keep: int = 1
     # Days a file stays in MewBook's trash (application/trash_service.py) before it is deleted for good; 0 = keep until
     # the user empties it.
     trash_retention_days: int = 30
@@ -189,9 +192,8 @@ class AppConfig:
     # Metadata lookup (application/metadata_lookup.py). Whether the "write into
     # the book file" box of the suggestion dialog starts ticked (off: the
     # library index is updated, the file is left alone unless the user opts in
-    # each time), and how many pre-write backups of a book file to keep.
+    # each time). Whether and where the file is copied first: see `backup_before_change`.
     metadata_write_to_file_default: bool = False
-    metadata_backup_keep: int = 1  # was 3 before 1.1.0; a value already saved in settings.json is kept
     # Smart classification (application/smart_classifier.py). What to do when
     # new documents are added: "ask" pops up a small question after each
     # import, "always" classifies quietly, "never" doesn't offer at all.
@@ -252,6 +254,11 @@ class ConfigManager:
             config.layout = "ke-sach"  # a well-formed but unknown id is kept: the app falls back if the package is gone
         if not isinstance(config.theme_by_layout, dict):
             config.theme_by_layout = {}
+        config.backup_dir = str(config.backup_dir).strip() or None if config.backup_dir else None  # "" (older versions) = not chosen
+        try:
+            config.backup_keep = max(1, min(50, int(config.backup_keep)))
+        except (TypeError, ValueError):
+            config.backup_keep = 1
         if config.smart_classify_on_import not in SMART_CLASSIFY_ON_IMPORT_CHOICES:
             config.smart_classify_on_import = "ask"  # a hand-edited settings.json must not disable the prompt by typo
         if config.error_report_mode not in ERROR_REPORT_MODE_CHOICES:

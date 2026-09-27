@@ -13,6 +13,7 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -75,10 +76,19 @@ class BackupPanel(SettingsPage):
             self, "Bản sao lưu chứa thông tin sách, thẻ, bộ sưu tập, đánh giá đã lưu và chỉ mục tìm kiếm. "
                   "MewBook tự sao lưu trước mỗi lần nâng cấp thư viện.", "ok"))
 
-        self.retention_spin = QSpinBox(self)
-        self.retention_spin.setRange(MIN_RETENTION, MAX_RETENTION)
-        self.retention_spin.setValue(context.config.config.backup_retention)
-        self.add_row("Số bản sao lưu giữ lại", "Bản cũ nhất được xóa khi vượt số này.", self.retention_spin)
+        # The three backup options of the whole app live here and nowhere else (AppConfig.backup_*).
+        self.before_change_check = QCheckBox("Sao lưu trước khi thay đổi", self)
+        self.before_change_check.setChecked(context.config.config.backup_before_change)
+        self.before_change_check.setToolTip("Khi MewBook sửa file sách của bạn (ví dụ ghi thông tin vào EPUB/PDF), file cũ được chép "
+                                            "vào thư mục sao lưu trước, để hoàn tác được.")
+        self.before_change_check.toggled.connect(lambda _checked: self._show_folder())
+        self.add_row("Sao lưu file trước khi thay đổi", "Mặc định tắt. Bật thì phải chọn thư mục sao lưu bên dưới.",
+                     self.before_change_check)
+        self.keep_spin = QSpinBox(self)
+        self.keep_spin.setRange(MIN_RETENTION, MAX_RETENTION)
+        self.keep_spin.setValue(context.config.config.backup_keep)
+        self.add_row("Số bản sao lưu giữ lại", "Cho mỗi file sách, và cho bản sao lưu thư viện. Bản cũ nhất được xóa khi vượt số này.",
+                     self.keep_spin)
         folder_box = QWidget(self)
         folder_layout = QVBoxLayout(folder_box)
         folder_layout.setContentsMargins(0, 0, 0, 0)
@@ -88,7 +98,7 @@ class BackupPanel(SettingsPage):
         self.folder_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.choose_folder_button = QPushButton("Chọn thư mục…", folder_box)
         self.choose_folder_button.clicked.connect(self._on_choose_folder)
-        self.default_folder_button = QPushButton("Dùng thư mục mặc định", folder_box)
+        self.default_folder_button = QPushButton("Bỏ chọn", folder_box)
         self.default_folder_button.clicked.connect(lambda: self._set_folder(""))
         folder_buttons = QHBoxLayout()
         folder_buttons.addWidget(self.choose_folder_button)
@@ -100,8 +110,8 @@ class BackupPanel(SettingsPage):
         folder_layout.addWidget(self.folder_label)
         folder_layout.addLayout(folder_buttons)
         folder_layout.addWidget(self.folder_warning)
-        self.add_row("Thư mục lưu bản sao", "Chọn nơi khác để lưu, ví dụ ổ đĩa ngoài. Thư mục không dùng được thì MewBook báo rõ, "
-                     "không tự đổi chỗ khác.", folder_box)
+        self.add_row("Thư mục lưu bản sao", "Chưa chọn thì chưa sao lưu file sách được. Có thể chọn ổ đĩa ngoài; thư mục không dùng được "
+                     "thì MewBook báo rõ, không tự đổi chỗ khác.", folder_box)
 
         holder = QWidget(self)
         holder_layout = QVBoxLayout(holder)
@@ -151,14 +161,14 @@ class BackupPanel(SettingsPage):
         if problem:
             self.folder_warning.setText(problem)
             return problem
-        self.context.config.config.backup_dir = folder
+        self.context.config.config.backup_dir = folder or None
         self.context.config.save()
         self.status_label.setText("")
         self.refresh()
         return ""
 
     def folder(self) -> str:
-        return self.context.config.config.backup_dir
+        return self.context.config.config.backup_dir or ""
 
     def _show_folder(self) -> None:
         service = self._service()
@@ -169,9 +179,16 @@ class BackupPanel(SettingsPage):
             self.folder_warning.setText("")
             return
         custom = service.custom_folder
-        self.folder_label.setText(where if custom else f"{where}  (mặc định, cạnh thư viện)")
+        self.folder_label.setText(where if custom else "Chưa chọn thư mục sao lưu. Bản sao lưu thư viện tạm thời nằm ở "
+                                  f"{where} (cạnh thư viện).")
         self.default_folder_button.setEnabled(bool(custom))
-        self.folder_warning.setText(service.check_folder() if custom else "")
+        if custom:
+            self.folder_warning.setText(service.check_folder())
+        elif self.before_change_check.isChecked():
+            self.folder_warning.setText("Bạn đã bật \"Sao lưu trước khi thay đổi\" nhưng chưa chọn thư mục sao lưu. "
+                                        "Hãy bấm \"Chọn thư mục…\"; chưa chọn thì MewBook sẽ không ghi vào file sách.")
+        else:
+            self.folder_warning.setText("")
 
     def refresh(self) -> None:
         self.backup_list.clear()
@@ -193,7 +210,7 @@ class BackupPanel(SettingsPage):
 
     def _update_buttons(self) -> None:
         idle = not self._busy and self._available
-        self.backup_button.setEnabled(idle and not self.folder_warning.text())
+        self.backup_button.setEnabled(idle and not (self._service().custom_folder and self.folder_warning.text()))
         self.choose_folder_button.setEnabled(self._available and not self._busy)
         self.restore_button.setEnabled(idle and self.backup_list.currentItem() is not None)
         self.folder_button.setEnabled(self._available)
@@ -275,5 +292,8 @@ class BackupPanel(SettingsPage):
         folder.mkdir(parents=True, exist_ok=True)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
-    def retention(self) -> int:
-        return self.retention_spin.value()
+    def keep(self) -> int:
+        return self.keep_spin.value()
+
+    def before_change(self) -> bool:
+        return self.before_change_check.isChecked()

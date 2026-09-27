@@ -320,18 +320,10 @@ class SettingsDialog(QDialog):
         self.metadata_write_check = QCheckBox("Mặc định ghi đè lên file sách gốc khi cập nhật thông tin sách (EPUB/PDF)", metadata)
         self.metadata_write_check.setToolTip(
             "Tắt (nên để vậy): chỉ thư viện thay đổi, file sách giữ nguyên trừ khi bạn chọn ghi đè từng lần. "
-            "Khi ghi đè, ứng dụng luôn cất file cũ lại trước và bạn có thể hoàn tác."
+            "Muốn giữ file cũ để hoàn tác: bật \"Sao lưu trước khi thay đổi\" ở Cài đặt › Sao lưu."
         )
         self.metadata_write_check.setChecked(config.metadata_write_to_file_default)
         metadata_layout.addWidget(self.metadata_write_check)
-        backup_row = QHBoxLayout()
-        backup_row.addWidget(QLabel("Số bản sao lưu file cũ giữ lại cho mỗi sách:", metadata))
-        self.metadata_backup_spin = QSpinBox(metadata)
-        self.metadata_backup_spin.setRange(1, 20)
-        self.metadata_backup_spin.setValue(config.metadata_backup_keep)
-        backup_row.addWidget(self.metadata_backup_spin)
-        backup_row.addStretch(1)
-        metadata_layout.addLayout(backup_row)
         page.add_row("Tìm thông tin sách", "Mặc định là chỉ sửa trong thư viện, không sửa file.", metadata)
         return page
 
@@ -1027,12 +1019,12 @@ class SettingsDialog(QDialog):
         added_folders = set(new_folders) - set(config.watch_folders)
         config.watch_folders = new_folders
 
-        config.backup_retention = self.backup_panel.retention()
+        config.backup_keep = self.backup_panel.keep()
+        config.backup_before_change = self.backup_panel.before_change()
         config.update_check_enabled = self.update_panel.is_enabled()
         self.privacy_panel.apply()  # the error-report mode is kept by the reporter (it also records the consent wording)
         config.ereader_folder_path = self._ereader_folder_path or None
         config.metadata_write_to_file_default = self.metadata_write_check.isChecked()
-        config.metadata_backup_keep = self.metadata_backup_spin.value()
 
         if self.backdrop_check.isChecked() != config.show_backdrop:
             self.appearance_changed = True

@@ -14,7 +14,9 @@ NEW = {"title": "Gia-định thành thông-chí", "author": "Trịnh Hoài Đứ
 
 
 @pytest.fixture
-def applier(app_context):
+def applier(app_context, tmp_path):
+    config = app_context.config.config
+    config.backup_before_change, config.backup_dir = True, str(tmp_path / "sao-luu")  # the one backup setting
     return MetadataApplier(app_context)
 
 
@@ -200,3 +202,32 @@ def test_decomposed_vietnamese_is_stored_composed(app_context, applier, tmp_path
     _library_doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
     applier.apply("d1", {"author": unicodedata.normalize("NFD", "Trần Trọng Kim")}, source="Open Library")
     assert app_context.db.get_document("d1")["author"] == "Trần Trọng Kim"
+
+
+def test_without_the_backup_option_the_file_is_written_and_no_copy_is_made(app_context, tmp_path):
+    epub = make_epub(tmp_path / "a.epub")
+    _library_doc(app_context, epub, "epub")
+    result = MetadataApplier(app_context).apply("d1", {"title": "Changed"}, source="x", write_to_file=True)  # default: off
+    assert result.written_fields and not result.backup_made
+    assert app_context.db.metadata_run(result.run_id)[0]["backup_path"] is None
+
+
+def test_with_the_option_on_but_no_folder_nothing_is_written(app_context, tmp_path):
+    epub = make_epub(tmp_path / "a.epub")
+    before = epub.read_bytes()
+    _library_doc(app_context, epub, "epub")
+    app_context.config.config.backup_before_change = True
+    result = MetadataApplier(app_context).apply("d1", {"title": "Changed"}, source="x", write_to_file=True)
+    assert "chưa chọn thư mục sao lưu" in result.file_error and not result.written_fields
+    assert epub.read_bytes() == before
+
+
+def test_the_copies_kept_follow_the_single_count(app_context, tmp_path):
+    epub = make_epub(tmp_path / "a.epub")
+    _library_doc(app_context, epub, "epub")
+    config = app_context.config.config
+    config.backup_before_change, config.backup_dir, config.backup_keep = True, str(tmp_path / "b"), 1
+    applier = MetadataApplier(app_context)
+    for n in range(3):
+        applier.apply("d1", {"title": f"T{n}"}, source="x", write_to_file=True)
+    assert len(list((tmp_path / "b" / "d1").iterdir())) == 1

@@ -103,14 +103,27 @@ def test_reason_labels_read_naturally():
     assert reason_label("pre-restore") == "Trước khi khôi phục"
 
 
-def test_settings_saves_the_retention_and_can_open_on_the_backup_tab(qapp, app_context):
+def test_settings_saves_the_three_backup_options_and_can_open_on_the_backup_tab(qapp, app_context):
     dialog = SettingsDialog(app_context, initial_tab="backup")
     assert dialog.findChild(type(dialog.backup_panel)) is dialog.backup_panel
-    dialog.backup_panel.retention_spin.setValue(9)
+    config = app_context.config.config
+    assert config.backup_before_change is False and config.backup_dir is None and config.backup_keep == 1  # the defaults
+    assert not dialog.backup_panel.before_change_check.isChecked() and dialog.backup_panel.keep_spin.value() == 1
+    dialog.backup_panel.before_change_check.setChecked(True)
+    dialog.backup_panel.keep_spin.setValue(9)
 
     dialog._on_save()
 
-    assert app_context.config.config.backup_retention == 9
+    assert config.backup_keep == 9 and config.backup_before_change is True
+
+
+def test_ticking_backup_before_change_without_a_folder_says_so(qapp, file_context):
+    panel = BackupPanel(file_context)
+    assert not panel.folder_warning.text()
+    panel.before_change_check.setChecked(True)
+    assert "chưa chọn thư mục" in panel.folder_warning.text()
+    panel.before_change_check.setChecked(False)
+    assert not panel.folder_warning.text()
 
 
 def test_choosing_a_folder_sends_backups_there_and_a_bad_one_is_refused(qapp, file_context, tmp_path):
@@ -128,4 +141,4 @@ def test_choosing_a_folder_sends_backups_there_and_a_bad_one_is_refused(qapp, fi
     assert panel.folder_warning.text()
 
     panel._set_folder("")
-    assert file_context.config.config.backup_dir == "" and "mặc định" in panel.folder_label.text()
+    assert file_context.config.config.backup_dir is None and "Chưa chọn" in panel.folder_label.text()

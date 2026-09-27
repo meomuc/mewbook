@@ -111,7 +111,7 @@ def _verify(path: Path, expected_documents: int | None = None) -> None:
 
 class BackupService:
     def __init__(self, db: DatabaseManager, retention: Callable[[], int] | int = DEFAULT_RETENTION,
-                 folder: Callable[[], str] | str = "") -> None:
+                 folder: Callable[[], str | None] | str | None = "") -> None:
         self._db = db
         self._retention = retention
         self._folder = folder
@@ -126,7 +126,7 @@ class BackupService:
 
     @property
     def custom_folder(self) -> str:
-        return (self._folder() if callable(self._folder) else self._folder or "").strip()
+        return ((self._folder() if callable(self._folder) else self._folder) or "").strip()
 
     @property
     def directory(self) -> Path:
@@ -177,13 +177,14 @@ class BackupService:
             counter += 1
         return path
 
-    def create_backup(self, reason: str = REASON_MANUAL) -> BackupInfo:
+    def create_backup(self, reason: str = REASON_MANUAL, prune: bool = True) -> BackupInfo:
         self._writable_directory()  # a chosen folder that cannot be used is reported, not replaced by another one
         with self._db.write_lock:
             path = self._new_path(reason)
             snapshot(self._db.connection, path)
         logger.info("Library backed up to %s (%s)", path.name, reason)
-        self.prune()
+        if prune:
+            self.prune()
         return self._info(path)
 
     def before_migration(self, from_version: int, to_version: int) -> None:
@@ -266,7 +267,8 @@ class BackupService:
         if version > schema_migrations.latest_version():
             raise schema_migrations.SchemaTooNewError(version, schema_migrations.latest_version())
 
-        safety = self.create_backup(REASON_PRE_RESTORE)
+        # Not pruned here: with a small "keep" the backup being restored from would be deleted before it is read.
+        safety = self.create_backup(REASON_PRE_RESTORE, prune=False)
         try:
             with self._db.write_lock:
                 self._db.connection.commit()

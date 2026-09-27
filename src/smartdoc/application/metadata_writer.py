@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -265,10 +266,40 @@ def read_pdf_metadata(path: str) -> dict[str, str]:
 
 
 class MetadataWriter:
-    def __init__(self, backup_dir: Path | str, keep_backups: int = 3, self_writes=None) -> None:
-        self.backup_dir = Path(backup_dir)
-        self.keep_backups = max(1, keep_backups)
+    def __init__(self, backup_dir: Path | str | None | Callable[[], Path | str | None], keep_backups: int | Callable[[], int] = 1,
+                 self_writes=None, enabled: bool | Callable[[], bool] = True) -> None:
+        # The three backup settings are read at each write (they may be changed while the app runs); a plain value also works.
+        self._backup_dir = backup_dir
+        self._keep = keep_backups
+        self._enabled = enabled
         self._self_writes = self_writes
+
+    @property
+    def backup_dir(self) -> Path | None:
+        value = self._backup_dir() if callable(self._backup_dir) else self._backup_dir
+        return Path(value) if value else None
+
+    @property
+    def keep_backups(self) -> int:
+        return max(1, int(self._keep() if callable(self._keep) else self._keep))
+
+    @property
+    def backup_enabled(self) -> bool:
+        return bool(self._enabled() if callable(self._enabled) else self._enabled)
+
+    def backup_problem(self) -> str:
+        """Why a write cannot go ahead ("" if it can): backing up is on but there is nowhere to put the copy."""
+        if not self.backup_enabled:
+            return ""
+        folder = self.backup_dir
+        if folder is None:
+            return "Bạn đang bật \"Sao lưu trước khi thay đổi\" nhưng chưa chọn thư mục sao lưu. Hãy chọn trong Cài đặt › Sao lưu."
+        if not folder.is_dir():
+            try:
+                folder.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                return f"Không tạo được thư mục sao lưu \"{folder}\" (ổ đĩa chưa cắm hoặc không có quyền ghi). Hãy chọn thư mục khác."
+        return ""
 
     @staticmethod
     def writable_fields(extension: str) -> tuple[str, ...]:
@@ -304,7 +335,10 @@ class MetadataWriter:
         if not to_write:
             return WriteResult(backup_path=None, written_fields=(), skipped_fields=skipped)
 
-        backup = self._backup(path, extension, doc_id, run_id)
+        problem = self.backup_problem()
+        if problem:
+            raise MetadataWriteError(problem)
+        backup = self._backup(path, extension, doc_id, run_id) if self.backup_enabled else None
         temp = path + TEMP_SUFFIX
         succeeded = False
         try:
@@ -330,13 +364,14 @@ class MetadataWriter:
             logger.exception("Writing metadata into %s failed", path)
             raise MetadataWriteError(f"Ghi metadata vào file thất bại: {exc}") from exc
         finally:
-            for leftover in (temp,) if succeeded else (temp, str(backup)):
+            for leftover in (temp,) if succeeded or backup is None else (temp, str(backup)):
                 try:
                     os.remove(leftover)
                 except OSError:
                     pass
-        self._prune(Path(backup).parent, keep=Path(backup))
-        return WriteResult(backup_path=str(backup), written_fields=tuple(to_write), skipped_fields=skipped)
+        if backup is not None:
+            self._prune(Path(backup).parent, keep=Path(backup))
+        return WriteResult(backup_path=str(backup) if backup is not None else None, written_fields=tuple(to_write), skipped_fields=skipped)
 
     def restore(self, backup_path: str, path: str) -> None:
         """Puts the pre-write copy back over the book file (undo)."""

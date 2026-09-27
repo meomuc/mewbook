@@ -33,7 +33,7 @@ class AppContext:
         self.event_bus = event_bus or EventBus()
         self.db = db or DatabaseManager(self.config.config.db_path or "library.db")
         # An existing library is backed up before its schema is upgraded (S1-03); a failing backup stops the upgrade.
-        self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_retention,
+        self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_keep,
                                      folder=lambda: self.config.config.backup_dir)
         self.db.initialize_tables(before_migrate=None if self.db.db_path == ":memory:" else self.backups.before_migration)
         # Missing-file detection and relinking (S1-04).

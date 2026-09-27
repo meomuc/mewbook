@@ -131,7 +131,7 @@ def _open_library() -> AppContext:
 
     def upgrade(progress) -> DatabaseManager:
         db = DatabaseManager(db_path)
-        backups = BackupService(db, retention=lambda: config.config.backup_retention, folder=lambda: config.config.backup_dir)
+        backups = BackupService(db, retention=lambda: config.config.backup_keep, folder=lambda: config.config.backup_dir)
         db.initialize_tables(before_migrate=backups.before_migration)
         return db
 
