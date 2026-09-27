@@ -333,6 +333,7 @@ class SmartClassifyService:
         settings = {
             "model_path": str(model_path),
             "max_words": self.context.config.config.smart_classify_max_words,
+            "app_data_dir": str(self.context.config.app_data_dir),
             "low_priority": True,
         }
         settings.update(self._extra_worker_settings)

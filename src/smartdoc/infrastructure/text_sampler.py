@@ -47,7 +47,9 @@ DEFAULT_MAX_WORDS = 3000
 MIN_MAX_WORDS = 2000
 MAX_MAX_WORDS = 5000
 
-_MAX_SPINE_ITEMS = 60
+# Chapters looked at before giving up: an e-book cut into many small files (a page or a paragraph each, plus cover, copyright and
+# contents files) used to run out of items with a few hundred words read. Reading stops at the word budget anyway.
+_MAX_SPINE_ITEMS = 400
 _MAX_ITEM_BYTES = 300_000  # of one chapter's raw HTML -- a whole-book-in-one-file EPUB isn't read in full
 _MAX_PDF_PAGES = 80
 # A scan has no text layer at all, but a magazine or a book with plates opens with pictures (cover, adverts, full-page photos):
@@ -225,12 +227,24 @@ def _ncx_titles(zf: zipfile.ZipFile, ncx_path: str) -> list[str]:
     return titles
 
 
+_NAV_LINK_RE = re.compile(r"<a\b[^>]*>(.*?)</a\s*>", re.IGNORECASE | re.DOTALL)
+
+
+def _nav_titles(zf: zipfile.ZipFile, nav_path: str) -> list[str]:
+    raw = _read_capped(zf, nav_path, 400_000)
+    if not raw:
+        return []
+    titles = [" ".join(html_to_text(match).split()) for match in _NAV_LINK_RE.findall(_decode(raw))]
+    return [t for t in titles if t][:_MAX_TOC_TITLES]
+
+
 def _sample_epub(path: str, max_words: int) -> TextSample:
     sample = TextSample(source="epub")
     with zipfile.ZipFile(path) as zf:
         opf_path = _find_opf_path(zf)
         chapter_names: list[str] = []
         toc_titles: list[str] = []
+        nav_path = ""  # an EPUB 3 book keeps its table of contents in a nav document instead of (or beside) an NCX file
 
         if opf_path:
             opf_raw = _read_capped(zf, opf_path, 2_000_000)
@@ -255,6 +269,8 @@ def _sample_epub(path: str, max_words: int) -> TextSample:
                     for item in manifest_el.findall("opf:item", _NS):
                         if item.attrib.get("id") and item.attrib.get("href"):
                             manifest[item.attrib["id"]] = (item.attrib["href"], item.attrib.get("media-type", ""))
+                        if "nav" in item.attrib.get("properties", "").split() and item.attrib.get("href"):
+                            nav_path = posixpath.normpath(posixpath.join(opf_dir, item.attrib["href"])).lstrip("/")
                 spine_el = root.find("opf:spine", _NS)
                 if spine_el is not None:
                     for itemref in spine_el.findall("opf:itemref", _NS):
@@ -277,6 +293,8 @@ def _sample_epub(path: str, max_words: int) -> TextSample:
                 n for n in zf.namelist() if n.lower().endswith((".xhtml", ".html", ".htm")) and not n.startswith("__MACOSX")
             )
 
+        if not toc_titles and nav_path:
+            toc_titles = _nav_titles(zf, nav_path)
         if toc_titles:
             titles_text = ". ".join(toc_titles)
             sample.hint_text = (sample.hint_text + "\n" + titles_text).strip()[:_MAX_HINT_CHARS * 2]
@@ -536,6 +554,16 @@ def extract_search_text(path: str, extension: str | None = None, pages: int = 10
     except Exception:  # noqa: BLE001 -- a corrupt e-book must never stop an import; it just has no searchable text
         logger.debug("No searchable text for %s", path, exc_info=True)
     return ""
+
+
+# What `TextSample.error` says when the book itself, not the reading of it, is the reason there is no text: asking again cannot
+# change these, so the classifier records a verdict instead of retrying on every run. Anything else (a file that could not be
+# opened, a drive that is gone) may go away, and stays "failed" so the next run tries again.
+_FINAL_ERRORS = ("encrypted", "no text layer", "DRM-protected", "unsupported", "unreadable text", "not a MOBI file")
+
+
+def is_final_error(error: str) -> bool:
+    return error.startswith(_FINAL_ERRORS)
 
 
 class TextSampler:

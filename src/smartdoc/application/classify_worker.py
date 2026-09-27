@@ -28,7 +28,16 @@ import os
 import sys
 import time
 
-from smartdoc.application.classification_guards import REASON_MIXED_TOPICS, REASON_PERIODICAL, mixed_topics, periodical_cue
+from smartdoc.application.classification_guards import (
+    LABEL_CONFIDENCE,
+    REASON_MIXED_TOPICS,
+    REASON_PERIODICAL,
+    TITLE_CUE_CONFIDENCE,
+    label_verdict,
+    mixed_topics,
+    periodical_cue,
+    title_cue_verdict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +100,10 @@ def init_worker(settings: dict) -> None:
 
         model = TextClassifierModel.load(_as_path(settings["model_path"]))
         _STATE["model"] = model
+        from smartdoc.domain.taxonomy import Taxonomy
+
+        directory = settings.get("app_data_dir")  # the person's own categories (taxonomy.json) count too
+        _STATE["taxonomy"] = Taxonomy.load(_as_path(directory) if directory else None)
         from smartdoc.application.classification_features import FeatureExtractor
         from smartdoc.infrastructure.vi_tokenizer import TextProcessor
 
@@ -114,6 +127,8 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
     """Classifies a few documents. Each job: id, title, author, tags (list of
     the user's non-category tags), path, extension. Never raises -- a document
     that goes wrong is reported with `error` set and no category."""
+    from smartdoc.infrastructure.text_sampler import is_final_error  # here, not at the top: the GUI imports this module and must not load the sampler
+
     results = []
     model = _STATE.get("model")
     extractor = _STATE.get("extractor")
@@ -135,11 +150,24 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
             )
             cue = periodical_cue(job.get("title", ""), job.get("path"))
             prediction = model.predict(parts.merged(hints=True))
+            confidence_override = None
             if cue:  # a magazine / newspaper issue is not one of the book categories: withhold rather than force one
                 prediction.category_id, prediction.reason = None, REASON_PERIODICAL
             elif prediction.category_id and mixed_topics(
                     model, lambda text: extractor.processor.weighted_counts([(text, extractor.weights["body"])]), parts.body_text):
                 prediction.category_id, prediction.reason = None, REASON_MIXED_TOPICS
+            elif not prediction.category_id:
+                # The model would not decide (typically a short text: too few words to be sure). The file's own subject labels,
+                # then the title, may still name the category outright.
+                taxonomy = _STATE.get("taxonomy")
+                found = label_verdict(taxonomy, parts.subjects) if taxonomy is not None else None
+                confidence_override = LABEL_CONFIDENCE
+                if found is None and taxonomy is not None:
+                    found, confidence_override = title_cue_verdict(taxonomy, job.get("title", "")), TITLE_CUE_CONFIDENCE
+                if found is not None and model.class_by_id(found) is not None:
+                    prediction.category_id = found
+                    prediction.reason = "label" if confidence_override == LABEL_CONFIDENCE else "title_cue"
+                    prediction.confidence = prediction.group_confidence = confidence_override
             info = model.class_by_id(prediction.category_id) if prediction.category_id else None
             result.update(
                 name=info.name if info else "",
@@ -151,7 +179,9 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
                 reason=prediction.reason,
                 top=prediction.top,
                 words=parts.body_words,
-                error=parts.error if not prediction.category_id and not parts.body_words else "",
+                # A book that simply has no text (a scan, DRM, a format we cannot read) is a verdict, not a failure: it is
+                # recorded and not retried on every run. A file that could not be opened stays an error, and is retried.
+                error=parts.error if not prediction.category_id and not parts.body_words and not is_final_error(parts.error) else "",
             )
         except Exception as exc:  # one bad book must not lose the rest of the chunk
             logger.debug("classify failed for %s", job.get("path"), exc_info=True)

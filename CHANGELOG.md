@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   temporary file first). **Tools > Sao lưu thư viện** opens the backup tab of Settings.
 
 ### Fixed
+- **Smart classification of short books and of EPUB / MOBI / AZW3.** The model's answer is withheld when it is not sure, which
+  is common for a short text (few words, few clues). Such a book is now also judged by the subject labels stored in its file
+  (`dc:subject`, MOBI subject, PDF keywords) and, failing that, by an unambiguous cue in its title ("marketing", "lập trình"...);
+  the model's own confident answer still wins. An EPUB cut into many small files was read only through its first 60 files (now
+  400, still stopping at the word budget) and an EPUB 3 table of contents (nav document) was ignored. A book with no readable
+  text at all (a scan, DRM, an unsupported MOBI) is now recorded as "not sure" instead of counted as a failure and retried on
+  every run; a file that could not be opened is still retried. Settings says the word count is a maximum (shorter books are
+  read in full).
 - **Classifying scanned PDFs and magazines.** (1) A PDF that opened with pictures (cover, adverts, full-page photos) was
   given up as "no text layer" after 8 pages although text followed; it now looks through 30. (2) Text with many numbers
   (prices, phone numbers, dates, a magazine's contents page) was refused as "legacy font gibberish" because numbers have no

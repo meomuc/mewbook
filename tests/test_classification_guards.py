@@ -98,3 +98,75 @@ def test_the_text_layer_of_a_bad_scan_is_not_taken_for_text():
     assert not looks_like_text(junk)
     real = "Thám tử điều tra vụ án mạng bí ẩn tại hiện trường và tìm ra hung thủ sau nhiều ngày. " * 20
     assert looks_like_text(real)
+
+
+# -- short documents, other formats, books with no text ------------------------------------------------------------------------
+
+import zipfile  # noqa: E402
+
+from smartdoc.domain.taxonomy import Taxonomy  # noqa: E402
+from smartdoc.infrastructure.text_sampler import is_final_error  # noqa: E402
+
+
+def _epub_with(path, *, subject="", words=("lorem", "ipsum", "dolor"), chapters=1, nav=False):
+    subject_xml = f"<dc:subject>{subject}</dc:subject>" if subject else ""
+    items = "".join(f'<item id="c{i}" href="c{i}.xhtml" media-type="application/xhtml+xml"/>' for i in range(chapters))
+    if nav:
+        items += '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
+    spine = "".join(f'<itemref idref="c{i}"/>' for i in range(chapters))
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", '<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+                    '<rootfiles><rootfile full-path="c.opf"/></rootfiles></container>')
+        zf.writestr("c.opf", '<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/">'
+                    f"<metadata>{subject_xml}</metadata><manifest>{items}</manifest><spine>{spine}</spine></package>")
+        for i in range(chapters):
+            zf.writestr(f"c{i}.xhtml", f"<html><body><p>{' '.join(words)}</p></body></html>")
+        if nav:
+            zf.writestr("nav.xhtml", '<html><body><nav epub:type="toc"><ol><li><a href="c0.xhtml">Nấu phở bò</a></li>'
+                        '<li><a href="c0.xhtml">Nước dùng</a></li></ol></nav></body></html>')
+    return path
+
+
+def test_a_very_short_book_is_classified_by_the_labels_stored_in_its_file(worker, tmp_path):
+    alias = Taxonomy.load_builtin().get("cooking").aliases[0]
+    book = _epub_with(tmp_path / "s.epub", subject=alias)  # three words of text: the model has nothing to go on
+    result = worker.classify_chunk([_job(book)])[0]
+    assert result["category_id"] == "cooking" and result["reason"] == "label" and 0.5 < result["confidence"] < 1
+
+
+def test_labels_that_name_two_categories_decide_nothing(worker, tmp_path):
+    taxonomy = Taxonomy.load_builtin()
+    subject = f"{taxonomy.get('cooking').aliases[0]}</dc:subject><dc:subject>{taxonomy.get('programming').aliases[0]}"
+    result = worker.classify_chunk([_job(_epub_with(tmp_path / "s.epub", subject=subject))])[0]
+    assert result["category_id"] is None
+
+
+def test_a_short_book_falls_back_on_a_clear_title(worker, tmp_path):
+    cue = Taxonomy.load_builtin().get("programming").title_cues[0]
+    result = worker.classify_chunk([_job(_epub_with(tmp_path / "s.epub"), title=f"Giới thiệu {cue}")])[0]
+    assert result["category_id"] == "programming" and result["reason"] == "title_cue"
+
+
+def test_the_model_still_wins_over_the_fallbacks(worker, tmp_path):
+    cook = _epub_of(tmp_path / "c.epub", [COOKING_WORDS])
+    cue = Taxonomy.load_builtin().get("programming").title_cues[0]
+    assert worker.classify_chunk([_job(cook, title=cue)])[0]["category_id"] == "cooking"  # the text is clear: a title cue is not used
+
+
+def test_a_book_with_no_text_is_a_verdict_not_a_failure_but_an_unreadable_file_is(worker, tmp_path):
+    scan = _pdf(tmp_path / "scan.pdf", ["image"] * 40)
+    result = worker.classify_chunk([_job(scan, extension="pdf")])[0]
+    assert result["category_id"] is None and result["error"] == ""  # recorded, not retried on every run
+    missing = worker.classify_chunk([_job(tmp_path / "gone.epub")])[0]
+    assert missing["error"]  # the file could not be opened: try again next time
+    assert is_final_error("no text layer") and is_final_error("DRM-protected") and not is_final_error("OSError: locked")
+
+
+def test_an_epub_cut_into_many_small_files_is_read_past_the_old_limit(tmp_path):
+    book = _epub_with(tmp_path / "many.epub", words=("chương", "một", "thám", "tử"), chapters=150)
+    assert TextSampler(3000).sample(str(book)).body_words == 150 * 4  # the old limit stopped at 60 files
+
+
+def test_the_contents_of_an_epub3_nav_document_are_read(tmp_path):
+    sample = TextSampler(3000).sample(str(_epub_with(tmp_path / "n.epub", nav=True)))
+    assert "Nấu phở bò" in sample.hint_text and "Nước dùng" in sample.hint_text

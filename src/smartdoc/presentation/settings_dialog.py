@@ -622,7 +622,7 @@ class SettingsDialog(QDialog):
         self.smart_max_words_spin.setSingleStep(500)
         self.smart_max_words_spin.setSuffix(" từ")
         self.smart_max_words_spin.setValue(min(max(config.smart_classify_max_words, 2000), 5000))
-        page.add_row("Số từ đọc ở đầu mỗi sách", "Nhiều từ hơn thì chính xác hơn một chút nhưng chậm hơn.", self.smart_max_words_spin)
+        page.add_row("Số từ đọc ở đầu mỗi sách", "Tối đa. Sách ngắn hơn thì đọc hết. Nhiều từ hơn chính xác hơn một chút nhưng chậm hơn.", self.smart_max_words_spin)
 
         self.smart_workers_spin = QSpinBox(page)
         self.smart_workers_spin.setRange(1, 4)

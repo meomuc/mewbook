@@ -21,6 +21,8 @@ from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
+from smartdoc.domain.taxonomy import fold
+
 
 REASON_PERIODICAL = "periodical"
 REASON_MIXED_TOPICS = "mixed_topics"
@@ -60,6 +62,28 @@ def periodical_cue(title: str, path: str | None) -> str:
             if found:
                 return found.group(0)
     return ""
+
+
+# -- Evidence from the file's own labels and from its title, for a book the model would not decide ----------------------
+
+TITLE_CUE_CONFIDENCE = 0.6
+LABEL_CONFIDENCE = 0.8
+
+
+def label_verdict(taxonomy, subjects) -> str | None:
+    """The one category the file's own subject labels (dc:subject, PDF keywords, MOBI subjects) name outright, else None.
+    "Trinh thám" or "Hồi ký, Tuỳ bút" is how the training labels were made: a firm match is worth more than a short text's
+    statistics, and it is the only evidence a very short document has. Two different categories = no verdict."""
+    found = taxonomy.resolve_labels(list(subjects or ()), include_weak=False)
+    return found[0].id if len(found) == 1 else None
+
+
+def title_cue_verdict(taxonomy, title: str) -> str | None:
+    """The one category whose title cues ("marketing", "khởi nghiệp") appear in `title`, else None (none, or several)."""
+    padded = " " + fold(title) + " "
+    hits = {category.id for category in taxonomy
+            if any(" " + fold(cue) + " " in padded for cue in category.title_cues if fold(cue))}
+    return hits.pop() if len(hits) == 1 else None
 
 
 def mixed_topics(model, count_words: Callable[[str], dict[str, float]], body: str) -> bool:
