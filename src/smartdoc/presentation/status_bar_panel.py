@@ -174,14 +174,14 @@ class _DonateTicker(QLabel):
     clicked = Signal()
 
     MESSAGES = (
-        "Mèo Mực miễn phí. Mời tác giả một ly cà phê nhé!",
-        "Thấy app hữu ích? Một ly cà phê là động lực lớn.",
-        "Góp ý hay lời cảm ơn? Ghé fanpage của Mèo Mực nhé.",
+        "☕ Mèo Mực miễn phí, mời tác giả ly cà phê nhé!",
+        "💛 Thấy app hữu ích? Một ly cà phê là động lực lớn!",
+        "🐾 Góp ý hay lời cảm ơn? Mèo Mực ở fanpage chờ bạn!",
     )
     GAP = "    •    "
     WINDOW_CHARS = 42
     TICK_MS = 280
-    TEXT_SCALE = 0.7  # the line is a quiet aside, so it is set smaller than the rest of the bar
+    TEXT_SCALE = 0.75  # still smaller than the rest of the bar (an aside), but big enough to read at a glance
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -189,8 +189,11 @@ class _DonateTicker(QLabel):
         self._offset = 0
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip("Ủng hộ tác giả một ly cà phê (bấm để xem mã QR)")
-        self.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-style: italic;")
+        # The accent colour (a link colour: the themes guarantee 4.5:1 on the bar) and bold, so the line is the one warm spot in
+        # a grey bar; each message opens with a small symbol as a hook.
+        self.setStyleSheet(f"color: {theme_manager().token('accent')}")
         font = self.font()
+        font.setBold(True)  # set on the font, not the stylesheet, so the slot width below is measured with the bold letters
         if font.pointSizeF() > 0:
             font.setPointSizeF(font.pointSizeF() * self.TEXT_SCALE)
         else:

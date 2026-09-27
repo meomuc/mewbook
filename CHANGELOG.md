@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- The donate line in the status bar is warmer and easier to notice: accent colour, bold, a small symbol opening each
+  message (☕ 💛 🐾) and friendlier wording. Click still opens the QR window.
 - The build now carries the project's Supabase URL and public anon key (community reviews and error reports), so the
   default connection works out of the box. Tests run with no built-in server.
 - **One backup setting.** Settings > Sao lưu now holds the only backup options: "Sao lưu trước khi thay đổi" (off by
