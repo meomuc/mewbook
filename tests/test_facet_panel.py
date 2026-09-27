@@ -282,6 +282,55 @@ def test_sorting_by_name(qapp, app_context):
     assert names == ["Cổ Long", "Nhã Ca", "Không rõ / Nhiều tác giả"]  # A-Z, the bucket still last
 
 
+def _chip_order(panel, category):
+    return [button.text().rsplit(" · ", 1)[0] for button in panel._cloud_for(category)._items]
+
+
+def test_the_hashtag_and_author_sections_can_be_sorted_from_their_own_menu_but_formats_has_no_such_menu(qapp, app_context):
+    _seed(app_context)
+    panel = FacetPanel(app_context)
+    assert not panel.sections[TAGS].menu_button.isHidden()
+    assert not panel.sections[AUTHORS].menu_button.isHidden()
+    assert panel.sections[FORMATS].menu_button.isHidden()
+
+
+def test_sorting_the_hashtag_section_through_its_own_menu(qapp, app_context, monkeypatch):
+    _seed(app_context)
+    panel = FacetPanel(app_context)
+    assert panel._sort_keys[TAGS] == "count"  # the default: most-used first
+    assert _chip_order(panel, TAGS)[0] == "Tiểu thuyết"  # 2 documents, the most of any hashtag here
+
+    monkeypatch.setattr(FacetPanel, "_exec_menu", _pick_action("Tên (A"))
+    panel.sections[TAGS].menu_button.click()
+
+    assert panel._sort_keys[TAGS] == "name"
+    assert _chip_order(panel, TAGS) == ["Kiếm hiệp", "Thơ", "Tiểu thuyết", "Chưa phân loại"]  # A-Z, the bucket still last
+
+
+def test_sorting_the_author_section_through_its_own_menu(qapp, app_context, monkeypatch):
+    _seed(app_context)
+    panel = FacetPanel(app_context)
+
+    monkeypatch.setattr(FacetPanel, "_exec_menu", _pick_action("Tên (A"))
+    panel.sections[AUTHORS].menu_button.click()
+    assert panel._sort_keys[AUTHORS] == "name"
+    names = [text.rsplit(" (", 1)[0] for text in _author_rows(panel)]
+    assert names == ["Cổ Long", "Nhã Ca", "Không rõ / Nhiều tác giả"]
+
+    # Reopening the menu shows the current choice ticked, and picking the other one flips it back.
+    seen_checked = {}
+    monkeypatch.setattr(FacetPanel, "_exec_menu", lambda self, menu, pos: (
+        seen_checked.update({a.text(): a.isChecked() for a in menu.actions()[0].menu().actions()}), None)[1])
+    panel.sections[AUTHORS].menu_button.click()
+    assert seen_checked == {"Số tài liệu (nhiều → ít)": False, "Tên (A → Z)": True}
+
+    monkeypatch.setattr(FacetPanel, "_exec_menu", _pick_action("Số tài liệu"))
+    panel.sections[AUTHORS].menu_button.click()
+    assert panel._sort_keys[AUTHORS] == "count"
+    names = [text.rsplit(" (", 1)[0] for text in _author_rows(panel)]
+    assert names == ["Nhã Ca", "Cổ Long", "Không rõ / Nhiều tác giả"]  # 2 documents first
+
+
 # -- sections ---------------------------------------------------------------------------------------
 
 
