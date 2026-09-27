@@ -533,7 +533,10 @@ class SmartClassifyWizard(DesignDialog):
         titles = {"tagged": ("Sách đã gắn hashtag", "Những cuốn được gắn ở lần chạy này, theo thư mục và hashtag"),
                   "unknown": ("Sách chưa chắc", "Theo lý do MewBook chưa dám gắn; bạn tự gắn hashtag nếu muốn"),
                   "failed": ("Sách không đọc được", "Lý do đi kèm từng nhóm; lần chạy sau MewBook sẽ thử lại")}
-        dialog = ClassifyBooksDialog(self, title=titles[kind][0], subtitle=titles[kind][1], tree=build_tree(kind, event, docs), docs=docs)
+        dialog = ClassifyBooksDialog(
+            self, title=titles[kind][0], subtitle=titles[kind][1], tree=build_tree(kind, event, docs), docs=docs,
+            choices=self.service.category_choices(), tagger=self.service.tag_books,
+            reload=lambda changed: {d["id"]: d for d in self.context.db.get_documents_light(list(changed))})
         dialog.exec()
         dialog.deleteLater()
 

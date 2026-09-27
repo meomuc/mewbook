@@ -335,6 +335,28 @@ class SmartClassifyService:
         if thread is not None and thread.is_alive():
             thread.join(timeout)
 
+    def category_choices(self) -> list[tuple[str, str, str]]:
+        """(sidebar folder, hashtag, category id) of every category, in the taxonomy's order: what "Gắn hashtag" offers."""
+        return [(c.group, c.name, c.id) for c in self.taxonomy]
+
+    def tag_books(self, doc_ids: list[str], label: str) -> tuple[str, int]:
+        """The person's own hashtag for these books (from the result list): `label` is a category of the taxonomy (by name or
+        alias) or any text they typed. A category files the hashtag under its sidebar folder like an automatic run does; anything
+        else is a plain hashtag. It only ever adds (see DatabaseManager.apply_smart_classifications), is recorded as certain
+        (confidence 1) under a run of its own, so the book is not looked at again, and it cannot be taken back with the
+        classification run's "Hoàn tác". Returns (the hashtag written, how many books got it)."""
+        label = " ".join((label or "").split())
+        if not label or not doc_ids:
+            return "", 0
+        category = self.taxonomy.match_label(label)
+        tag = category.name if category else label
+        item = {"category_id": category.id if category else None, "confidence": 1.0, "tag": tag,
+                "group": category.group if category else None}
+        stats = self.context.db.apply_smart_classifications(
+            f"manual-{uuid.uuid4().hex[:12]}", self.model_version(), [{"doc_id": doc_id, **item} for doc_id in doc_ids])
+        self.context.event_bus.publish(LibraryUpdatedEvent())
+        return tag, stats["tagged"] + stats["already_tagged"]
+
     def undo(self, run_id: str) -> int:
         """Takes back a run's hashtags (see DatabaseManager.undo_smart_classification)."""
         changed = self.context.db.undo_smart_classification(run_id)

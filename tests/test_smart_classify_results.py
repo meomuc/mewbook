@@ -97,3 +97,58 @@ def test_a_real_run_records_each_book_with_its_hashtag_and_reason(qapp, context,
     assert {(doc_id, tag) for doc_id, tag, _group in event.tagged_items} == {("code", "Công nghệ thông tin"), ("cook", "Ẩm thực - Nấu ăn")}
     assert [doc_id for doc_id, _reason in event.unknown_items] == ["blank"] and event.unknown_items[0][1] in UNSURE_REASONS
     assert set(event.tagged_ids) == {"code", "cook"}  # the old fields still say the same
+
+
+# -- giving a hashtag from the list ---------------------------------------------------------------------------------------------
+
+def _run_unsure(context, tmp_path):
+    add_book(context, "blank", write_epub(tmp_path / "b.epub", ["lorem", "ipsum"]), title="Chữ vô nghĩa")
+    add_book(context, "blank2", write_epub(tmp_path / "b2.epub", ["dolor", "sit"]), title="Cũng vô nghĩa")
+    service = SmartClassifyService(context, executor_factory=thread_executor, worker_settings=WORKER_SETTINGS)
+    return service
+
+
+def test_tag_books_uses_a_category_and_files_it_in_its_folder(context, tmp_path):
+    service = _run_unsure(context, tmp_path)
+    try:
+        tag, count = service.tag_books(["blank", "blank2"], "nấu ăn")  # written any way the taxonomy knows it
+        assert (tag, count) == ("Ẩm thực - Nấu ăn", 2)
+        assert "Ẩm thực - Nấu ăn" in context.db.get_document("blank")["tags"]
+        again = service.tag_books(["blank"], "Ẩm thực - Nấu ăn")
+        assert again == ("Ẩm thực - Nấu ăn", 1) and context.db.get_document("blank")["tags"].count("Ẩm thực") == 1  # added once
+        custom, n = service.tag_books(["blank"], "  của   tôi ")
+        assert custom == "của tôi" and n == 1 and "của tôi" in context.db.get_document("blank")["tags"]
+        assert service.tag_books([], "x") == ("", 0) and service.tag_books(["blank"], "  ") == ("", 0)
+        assert ("Sức khỏe - Đời sống", "Ẩm thực - Nấu ăn", "cooking") in service.category_choices()
+    finally:
+        service.stop()
+
+
+def test_the_dialog_gives_a_hashtag_to_the_selected_books_and_the_column_follows(qapp, context, tmp_path, monkeypatch):
+    service = _run_unsure(context, tmp_path)
+    docs = {d["id"]: d for d in context.db.get_documents_light(["blank", "blank2"])}
+    event = _event(unknown_ids=("blank", "blank2"), unknown_items=(("blank", "no_text"), ("blank2", "no_text")))
+    dialog = ClassifyBooksDialog(
+        None, title="t", subtitle="s", tree=build_tree("unknown", event, docs), docs=docs, choices=service.category_choices(),
+        tagger=service.tag_books, reload=lambda ids: {d["id"]: d for d in context.db.get_documents_light(list(ids))})
+    try:
+        assert not dialog.tag_button.isEnabled()
+        dialog.tree.selectAll()
+        assert len(dialog._selected_ids()) == 2 and dialog.tag_button.isEnabled() and "2 cuốn" in dialog.tag_button.text()
+        monkeypatch.setattr("smartdoc.presentation.smart_classify_results.QInputDialog.getItem",
+                            lambda *a, **k: ("Ẩm thực - Nấu ăn    (Sức khỏe - Đời sống)", True))
+        dialog._on_tag()
+        leaves = dialog._all_leaves()
+        assert len(leaves) == 2 and all("Ẩm thực - Nấu ăn" in leaf.text(2) for leaf in leaves)
+        assert "Đã gắn" in dialog.detail_label.text()
+        assert all("Ẩm thực - Nấu ăn" in (context.db.get_document(i)["tags"] or "") for i in ("blank", "blank2"))
+    finally:
+        dialog.deleteLater()
+        service.stop()
+
+
+def test_without_a_tagger_there_is_no_button(qapp):
+    docs = _docs(("a", "Một", ""))
+    dialog = ClassifyBooksDialog(None, title="t", subtitle="s", tree=build_tree("tagged", _event(tagged_ids=("a",)), docs), docs=docs)
+    assert dialog.tag_button is None
+    dialog.deleteLater()

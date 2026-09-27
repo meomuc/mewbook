@@ -9,8 +9,10 @@ that run (never "everything with that hashtag"), grouped so each group can be op
   to do with each group;
 - **Lỗi đọc file**: by the reason the file could not be read.
 
-A search box (accent-insensitive) narrows the list, and the selected book shows its file, format, size and current hashtags with
-buttons to open the file or its folder. It is one window, not a page of the library, so it does not need the main window.
+A search box (accent-insensitive) narrows the list, the "Hashtag" column shows what each book carries now, and the selected book
+shows its file, format, size and hashtags with buttons to open the file or its folder. One or many books can be selected and
+given a hashtag right here ("Gắn hashtag…": one of the categories, or any text) -- the way to deal with the "chưa chắc" ones --
+and the column follows at once. It is one window, not a page of the library, so it does not need the main window.
 """
 from __future__ import annotations
 
@@ -20,7 +22,17 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QAbstractItemView, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTreeWidget, QTreeWidgetItem
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+)
 
 from smartdoc.application.smart_classifier import CRASH_ERROR, UNSURE_REASONS
 from smartdoc.domain.author_names import search_key
@@ -93,9 +105,15 @@ def build_tree(kind: str, event, docs: dict[str, dict]) -> list[Node]:
 
 
 class ClassifyBooksDialog(DesignDialog):
-    def __init__(self, parent, *, title: str, subtitle: str, tree: list[Node], docs: dict[str, dict]) -> None:
+    def __init__(self, parent, *, title: str, subtitle: str, tree: list[Node], docs: dict[str, dict],
+                 choices: list[tuple[str, str, str]] | None = None, tagger=None, reload=None) -> None:
+        """`choices`: (folder, hashtag, id) of the categories offered by "Gắn hashtag…"; `tagger(ids, text) -> (tag, count)` writes
+        it; `reload(ids) -> {id: doc}` reads the books again afterwards. Without a tagger the button is not there."""
         super().__init__(parent, title=title, subtitle=subtitle, icon="book", width=680)
         self._docs = docs
+        self._choices = choices or []
+        self._tagger = tagger
+        self._reload = reload
         self.resize(720, 520)
         tm = theme_manager()
 
@@ -106,8 +124,8 @@ class ClassifyBooksDialog(DesignDialog):
         self.body.addWidget(self.search_edit)
 
         self.tree = QTreeWidget(self)
-        self.tree.setHeaderLabels(["Sách", "Tác giả"])
-        self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tree.setHeaderLabels(["Sách", "Tác giả", "Hashtag"])
+        self.tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tree.setUniformRowHeights(True)
         self.tree.setMinimumHeight(240)
@@ -134,6 +152,9 @@ class ClassifyBooksDialog(DesignDialog):
         buttons.addStretch(1)
         self.body.addLayout(buttons)
 
+        self.tag_button = None
+        if self._tagger is not None:
+            self.tag_button = self.add_footer_button("Gắn hashtag…", "primary", on_click=self._on_tag, left=True)
         self.open_file_button = self.add_footer_button("Mở file", on_click=self._open_file, left=True)
         self.open_folder_button = self.add_footer_button("Mở thư mục chứa file", on_click=self._open_folder, left=True)
         self.add_footer_button("Đóng", "primary", on_click=self.accept)
@@ -161,12 +182,15 @@ class ClassifyBooksDialog(DesignDialog):
             if isinstance(child, Node):
                 item.addChild(self._item_for(child))
             else:
-                leaf = QTreeWidgetItem([child.title, child.author])
+                leaf = QTreeWidgetItem([child.title, child.author, self._tags_of(child.doc_id)])
                 leaf.setData(0, _ROW_ROLE, child.doc_id)
                 if child.note:
                     leaf.setToolTip(0, child.note)
                 item.addChild(leaf)
         return item
+
+    def _tags_of(self, doc_id: str) -> str:
+        return ((self._docs.get(doc_id) or {}).get("tags") or "").strip()
 
     def _collapse(self) -> None:
         self.tree.collapseAll()
@@ -202,17 +226,26 @@ class ClassifyBooksDialog(DesignDialog):
         return any_visible
 
     # -- the selected book ---------------------------------------------------------------------------------------------
+    def _selected_ids(self) -> list[str]:
+        return [item.data(0, _ROW_ROLE) for item in self.tree.selectedItems() if item.data(0, _ROW_ROLE) and not item.isHidden()]
+
     def _selected_doc(self) -> dict | None:
-        item = self.tree.currentItem()
-        doc_id = item.data(0, _ROW_ROLE) if item is not None else None
-        return self._docs.get(doc_id) if doc_id else None
+        ids = self._selected_ids()
+        return self._docs.get(ids[0]) if len(ids) == 1 else None
 
     def _on_selection(self) -> None:
+        ids = self._selected_ids()
         doc = self._selected_doc()
         self.open_file_button.setEnabled(doc is not None)
         self.open_folder_button.setEnabled(doc is not None)
+        if self.tag_button is not None:
+            self.tag_button.setEnabled(bool(ids))
+            self.tag_button.setText(f"Gắn hashtag cho {len(ids)} cuốn…" if len(ids) > 1 else "Gắn hashtag…")
+        if len(ids) > 1:
+            self.detail_label.setText(f"Đã chọn {len(ids)} cuốn. Bấm \"Gắn hashtag\" để gắn cùng một hashtag cho tất cả.")
+            return
         if doc is None:
-            self.detail_label.setText("Chọn một cuốn để xem file của nó.")
+            self.detail_label.setText("Chọn một hoặc nhiều cuốn (giữ Ctrl hoặc Shift).")
             return
         path = doc.get("file_path") or ""
         try:
@@ -221,6 +254,40 @@ class ClassifyBooksDialog(DesignDialog):
             size = "file không còn ở đường dẫn này"
         tags = (doc.get("tags") or "").strip() or "chưa có hashtag"
         self.detail_label.setText(f"{path}\n{(doc.get('extension') or '').upper()} · {size} · Hashtag: {tags}")
+
+    # -- giving a hashtag ---------------------------------------------------------------------------------------------
+    def _on_tag(self) -> None:
+        ids = self._selected_ids()
+        if not ids or self._tagger is None:
+            return
+        names = [f"{name}    ({folder})" for folder, name, _id in self._choices]
+        chosen, accepted = QInputDialog.getItem(
+            self, "Gắn hashtag", f"Hashtag cho {len(ids)} cuốn đã chọn (chọn một thể loại, hoặc gõ hashtag của bạn):", names, 0, True)
+        if not accepted or not chosen.strip():
+            return
+        label = chosen.split("    (")[0] if chosen in names else chosen
+        tag, count = self._tagger(ids, label)
+        if not tag:
+            QMessageBox.warning(self, "Chưa gắn được", "Hashtag đang để trống.")
+            return
+        if self._reload is not None:
+            self._docs.update(self._reload(ids))
+        for item in self._all_leaves():
+            doc_id = item.data(0, _ROW_ROLE)
+            if doc_id in ids:
+                item.setText(2, self._tags_of(doc_id))
+        self._on_selection()
+        self.detail_label.setText(f"Đã gắn \"{tag}\" cho {count} cuốn.")
+
+    def _all_leaves(self) -> list[QTreeWidgetItem]:
+        found: list[QTreeWidgetItem] = []
+        stack = list(self._top_level())
+        while stack:
+            item = stack.pop()
+            if item.data(0, _ROW_ROLE) is not None:
+                found.append(item)
+            stack.extend(item.child(i) for i in range(item.childCount()))
+        return found
 
     def _open_file(self) -> None:
         doc = self._selected_doc()

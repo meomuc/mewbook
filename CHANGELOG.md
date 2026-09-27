@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
 
 ### Added
+- **Give a hashtag straight from the result list.** In the list behind "Chưa chắc" (and the others) select one or many books
+  and press "Gắn hashtag…": pick one of the categories (filed under its sidebar folder like an automatic run) or type your own.
+  A "Hashtag" column shows what each book carries and follows at once. Only ever adds; the book is recorded as certain, so it is
+  not looked at again.
 - **Smart classification results can be opened up.** "Xem" on a result card now shows a browsable list of that run's books,
   grouped: tagged books by sidebar folder then hashtag, "chưa chắc" books by why (a scan with no text, a magazine, mixed
   subjects, torn between categories, too little text), unreadable ones by the error. It has an accent-insensitive search, open
