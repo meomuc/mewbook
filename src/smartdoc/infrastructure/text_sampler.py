@@ -125,6 +125,54 @@ def html_to_text(raw: str) -> str:
     return _BLANK_LINES_RE.sub("\n", text).strip()
 
 
+# -- Scan / OCR clean-up ---------------------------------------------------------
+
+_PAGE_NUMBER_LINE_RE = re.compile(r"^\s*[-–—\[(]?\s*(?:trang|tr\.?|page|p\.?)?\s*\d{1,4}\s*(?:/\s*\d{1,4})?\s*[-–—\])]?\s*$", re.IGNORECASE)
+_HYPHEN_BREAK_RE = re.compile(r"(\w)[-­]\s*\n\s*(\w)")
+_SYMBOL_RUN_RE = re.compile(r"(?<!\S)[^\w\s]{2,}(?!\S)|[._·•\-–—=~*|]{4,}")
+_VOWEL_LETTERS = frozenset("aàáảãạăằắẳẵặâầấẩẫậeèéẻẽẹêềếểễệiìíỉĩịoòóỏõọôồốổỗộơờớởỡợuùúủũụưừứửữựyỳýỷỹỵ")
+_MIN_PAGES_FOR_RUNNING_HEAD = 3
+
+
+def _running_head_key(line: str) -> str:
+    return re.sub(r"\d+", "#", re.sub(r"\s+", " ", line.strip().lower()))
+
+
+def clean_ocr_text(pages: list[str]) -> list[str]:
+    """Page texts of a scan / OCR'd or typeset PDF -> the same pages without what is not about the book.
+
+    A scanned book's text layer is full of things that carry no topic and, worse, repeat: the page number, the running head
+    ("TẠP CHÍ KIẾN THỨC · số 12") or book title printed on every page, ruled lines that OCR reads as "_____", stray one-letter
+    fragments, words split by a hyphen at the end of a line. A linear model weighs a word that shows up on every page as much
+    as the subject, so the subject is drowned. Only removal and re-joining happen here; no text is invented.
+
+    A line is a running head when its shape (digits blanked) recurs on at least 3 pages and on a third of those read."""
+    if not pages:
+        return pages
+    seen: dict[str, set[int]] = {}
+    for index, page in enumerate(pages):
+        for line in page.splitlines():
+            if 2 <= len(line.strip()) <= 80:
+                seen.setdefault(_running_head_key(line), set()).add(index)
+    threshold = max(_MIN_PAGES_FOR_RUNNING_HEAD, round(len(pages) / 3))
+    repeated = {key for key, where in seen.items() if len(where) >= threshold}
+    cleaned = []
+    for page in pages:
+        lines = [line for line in page.splitlines()
+                 if not _PAGE_NUMBER_LINE_RE.match(line) and _running_head_key(line) not in repeated]
+        text = _HYPHEN_BREAK_RE.sub(r"\1\2", "\n".join(lines))
+        text = _SYMBOL_RUN_RE.sub(" ", text)
+        cleaned.append("\n".join(" ".join(_drop_fragment(token) for token in line.split(" ")) for line in text.split("\n")))
+    return cleaned
+
+
+def _drop_fragment(token: str) -> str:
+    """A one-character token that is not a vowel or a digit is an OCR fragment ("b", "|", "c"), not a Vietnamese word."""
+    if len(token) == 1 and token.lower() not in _VOWEL_LETTERS and not token.isdigit():
+        return ""
+    return token
+
+
 # -- Is this text, or an encoding accident? ------------------------------------
 
 _LEGIT_ACCENTED = frozenset("àáâãäåçèéêëìíîïñòóôõöùúûüýÿœæăđĩũơư" "ạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ")
@@ -366,7 +414,7 @@ def _sample_pdf(path: str, max_words: int) -> TextSample:
             words += len(_WORD_RE.findall(text))
             if words >= max_words:
                 break
-        body = take_words(_SPACES_RE.sub(" ", "\n".join(chunks)), max_words)
+        body = take_words(_SPACES_RE.sub(" ", "\n".join(clean_ocr_text(chunks))), max_words)
         if body and not looks_like_text(body):
             sample.error = "unreadable text (legacy font encoding?)"
             body = ""

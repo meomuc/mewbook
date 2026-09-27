@@ -23,7 +23,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from smartdoc.domain.taxonomy import fold
-from smartdoc.domain.text_classifier import DEFAULT_FEATURE_WEIGHTS
+from smartdoc.domain.text_classifier import DEFAULT_FEATURE_WEIGHTS, DEFAULT_FRONT_CHARS
 from smartdoc.infrastructure.text_sampler import DEFAULT_MAX_WORDS, TextSampler
 from smartdoc.infrastructure.vi_tokenizer import TextProcessor
 
@@ -33,6 +33,11 @@ _UNKNOWN_AUTHORS = frozenset({"", "unknown", "khong ro", "chua xac dinh", "nhieu
 @dataclass
 class FeatureParts:
     body: dict[str, float] = field(default_factory=dict)
+    front: dict[str, float] = field(default_factory=dict)
+    """The first zone of the body counted a second time, with the "front" weight (empty when that weight is 0)."""
+    front_shells: list[dict[str, float]] = field(default_factory=list)
+    """Training only: raw (weight 1) counts of the successive slices of the start of the body, so the trainer can try other zone
+    sizes and weights without reading the books again (see FeatureExtractor.shell_bounds)."""
     plain: dict[str, float] = field(default_factory=dict)
     """title + author + the user's own tags."""
     hints: dict[str, float] = field(default_factory=dict)
@@ -48,11 +53,23 @@ class FeatureParts:
         """One counts dict. `hints=False` is the "this book has no embedded
         labels" view."""
         counts = dict(self.body)
-        parts = (self.plain, self.hints) if hints else (self.plain,)
+        parts = (self.front, self.plain, self.hints) if hints else (self.front, self.plain)
         for part in parts:
             for token, value in part.items():
                 counts[token] = counts.get(token, 0.0) + value
         return counts
+
+
+def front_zone(text: str, start: int, end: int) -> str:
+    """text[start:end] moved to word boundaries, so that neighbouring slices share no half word and lose none."""
+    def edge(position: int) -> int:
+        if position <= 0:
+            return 0
+        if position >= len(text):
+            return len(text)
+        following = text.find(" ", position)
+        return len(text) if following < 0 else following
+    return text[edge(start):edge(end)]
 
 
 class FeatureExtractor:
@@ -62,7 +79,12 @@ class FeatureExtractor:
         max_words: int = DEFAULT_MAX_WORDS,
         processor: TextProcessor | None = None,
         sampler: TextSampler | None = None,
+        front_chars: int = DEFAULT_FRONT_CHARS,
+        shell_bounds: tuple[int, ...] = (),
     ) -> None:
+        self.front_chars = front_chars
+        self.shell_bounds = tuple(shell_bounds)
+        """Training: character offsets closing each slice of the front zone, e.g. (1000, 2000, 4000)."""
         self.weights = {**DEFAULT_FEATURE_WEIGHTS, **(weights or {})}
         self.sampler = sampler or TextSampler(max_words)
         self.processor = processor or TextProcessor()
@@ -91,6 +113,11 @@ class FeatureExtractor:
             parts.hints = counts(
                 [(subject, w["subject"]) for subject in sample.subjects] + [(sample.hint_text, w["hint"])]
             )
+            if w["front"] > 0:
+                parts.front = counts([(front_zone(sample.body, 0, self.front_chars), w["front"])])
+            if self.shell_bounds:
+                edges = (0, *self.shell_bounds)
+                parts.front_shells = [counts([(front_zone(sample.body, a, b), 1.0)]) for a, b in zip(edges, edges[1:])]
 
         author_text = "" if fold(author) in _UNKNOWN_AUTHORS else author
         parts.plain = counts(

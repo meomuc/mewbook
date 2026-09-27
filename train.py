@@ -61,6 +61,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--top-features", type=int, default=2500, help="số đặc trưng giữ lại cho mỗi thể loại")
     p.add_argument("--seed-strength", type=float, default=2.0, help="sức nặng của từ khóa khởi tạo trong taxonomy.json")
     p.add_argument("--max-per-class", type=int, default=2000, help="tối đa số sách dùng cho mỗi thể loại")
+    p.add_argument("--front-weight", type=float, default=0.0, metavar="W", help="trọng số cộng thêm cho vùng đầu văn bản (trang tên sách, mục lục, lời nói đầu); 0 = không dùng")
+    p.add_argument("--tune-front", action="store_true", help="thử nhiều cỡ vùng đầu (1000/2000/4000 ký tự) và trọng số (2/4) trên tập giữ lại, chọn theo F1; chỉ dùng nếu tốt hơn không dùng")
     p.add_argument("--self-train", type=int, default=0, metavar="N", help="số vòng tự học từ sách chưa có nhãn")
     p.add_argument("--report", type=Path, default=None, help="file ghi báo cáo (mặc định cạnh file mô hình)")
     p.add_argument("--release", action="store_true", help="mô hình đi kèm ứng dụng: token phải có trong >= %d sách (>= %d nếu chỉ đến từ tiêu đề/tác giả/thẻ), để từ vựng không chứa tên riêng của thư viện huấn luyện" % (trainer.RELEASE_MIN_BOOKS, trainer.RELEASE_MIN_BOOKS_PRIVATE))
@@ -163,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
     options = trainer.TrainOptions(
         seed_strength=args.seed_strength, top_features=args.top_features, holdout_fraction=args.holdout,
         target_precision=args.target_precision, max_per_class=args.max_per_class, self_train_rounds=args.self_train,
-        max_words=max_words,
+        max_words=max_words, front_weight=args.front_weight, tune_front=args.tune_front,
     )
     if args.release:
         options.min_books = trainer.RELEASE_MIN_BOOKS

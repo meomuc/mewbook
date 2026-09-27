@@ -110,7 +110,8 @@ def init_worker(settings: dict) -> None:
         # "none" is for tests: no segmenter, so no scikit-learn import.
         processor = TextProcessor(segmenter=None if settings.get("segmenter") == "none" else "auto")
         _STATE["extractor"] = FeatureExtractor(
-            weights=model.feature_weights, max_words=int(settings.get("max_words") or model.max_words), processor=processor
+            weights=model.feature_weights, max_words=int(settings.get("max_words") or model.max_words), processor=processor,
+            front_chars=model.front_chars,
         )
     except Exception as exc:  # reported per document, so the service can show why nothing was classified
         logger.exception("classification worker could not load its model")

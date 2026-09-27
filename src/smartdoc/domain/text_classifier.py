@@ -46,7 +46,12 @@ USER_MODEL_RELATIVE_PATH = Path("models") / "classifier_model.json.gz"
 
 # What each part of a book counts for. Stored in the model (params["weights"])
 # so the trainer and the classifier can never disagree.
-DEFAULT_FEATURE_WEIGHTS = {"title": 3.0, "subject": 3.0, "tag": 2.0, "author": 1.5, "hint": 1.5, "body": 1.0}
+# "front" is the EXTRA weight of the first FRONT zone of the text (title page, contents, preface: where a book says what it is
+# about) on top of the ordinary "body" weight. 0 = no extra emphasis, which is what every model trained before this existed
+# means; a model trained with `train.py --front-weight` / `--tune-front` stores its own value, so it is applied only when it was
+# also learned (training and prediction can never disagree).
+DEFAULT_FEATURE_WEIGHTS = {"title": 3.0, "subject": 3.0, "tag": 2.0, "author": 1.5, "hint": 1.5, "body": 1.0, "front": 0.0}
+DEFAULT_FRONT_CHARS = 1000
 
 DEFAULT_PARAMS = {
     "scale": 14.0,  # softmax sharpness over scores
@@ -134,6 +139,11 @@ class TextClassifierModel:
     @property
     def max_words(self) -> int:
         return int(self.params.get("max_words", 3000))
+
+    @property
+    def front_chars(self) -> int:
+        """How many characters at the start of the text count as the front zone."""
+        return int(self.params.get("front_chars", DEFAULT_FRONT_CHARS))
 
     @property
     def taxonomy_fingerprint(self) -> str:

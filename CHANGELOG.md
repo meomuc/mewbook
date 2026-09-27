@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   temporary file first). **Tools > Sao lưu thư viện** opens the backup tab of Settings.
 
 ### Fixed
+- **Scans: OCR clean-up.** The text of a PDF is cleaned before it is classified: page numbers, running heads / footers
+  that repeat on every page, ruled lines ("_____"), one-letter OCR fragments and words split by a hyphen at a line end.
+- **Front zone (training option).** `train.py --front-weight W` counts the start of the text (title page, contents, preface: the
+  first 1,000 / 2,000 / 4,000 characters) with extra weight, and `--tune-front` searches the zone size and weight on the
+  held-out books by macro F1, adopting a zone only if it beats "no zone" by half a point. The choice is stored in the model, so
+  a model trained before this behaves exactly as it did (no extra weight) until it is re-trained.
 - **Smart classification of short books and of EPUB / MOBI / AZW3.** The model's answer is withheld when it is not sure, which
   is common for a short text (few words, few clues). Such a book is now also judged by the subject labels stored in its file
   (`dc:subject`, MOBI subject, PDF keywords) and, failing that, by an unambiguous cue in its title ("marketing", "lập trình"...);

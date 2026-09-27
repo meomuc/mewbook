@@ -45,7 +45,7 @@ import unicodedata
 from array import array
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from smartdoc.application.classification_features import FeatureExtractor, FeatureParts
@@ -117,6 +117,10 @@ class TrainingDoc:
     body: Counts = EMPTY
     plain: Counts = EMPTY
     """title + author + the user's own tags."""
+    front: Counts = EMPTY
+    """The start of the body counted again, scaled by the front weight being tried (see apply_front)."""
+    front_shells: tuple[Counts, ...] = ()
+    """Raw counts of the successive slices of the start of the body (weight 1), kept so other zone sizes / weights can be tried."""
     hints: Counts = EMPTY
     """embedded subject labels + description + table of contents."""
     label: str | None = None
@@ -133,6 +137,8 @@ class TrainingDoc:
 
     def variant(self, *, hints: bool) -> Iterable[tuple[Counts, float]]:
         yield self.body, 1.0
+        if len(self.front):
+            yield self.front, 1.0
         if self.label_source != "title":
             # A label guessed from the title must not be learned back from the
             # title (the model would just memorise the cue words and read
@@ -142,7 +148,7 @@ class TrainingDoc:
             yield self.hints, 1.0
 
     def token_ids(self) -> set[int]:
-        return set(self.body.ids) | set(self.plain.ids) | set(self.hints.ids)
+        return set(self.body.ids) | set(self.front.ids) | set(self.plain.ids) | set(self.hints.ids)
 
     def merged(self, interner: Interner, *, hints: bool) -> dict[str, float]:
         counts: dict[str, float] = {}
@@ -159,9 +165,28 @@ def doc_from_parts(interner: Interner, doc_id: str, parts: FeatureParts) -> Trai
         body=Counts.from_dict(interner, parts.body),
         plain=Counts.from_dict(interner, parts.plain),
         hints=Counts.from_dict(interner, parts.hints),
+        front=Counts.from_dict(interner, parts.front),
+        front_shells=tuple(Counts.from_dict(interner, shell) for shell in parts.front_shells),
         subjects=tuple(parts.subjects),
         body_words=parts.body_words,
     )
+
+
+def apply_front(docs: Iterable[TrainingDoc], shells: int, weight: float) -> None:
+    """Sets, on every doc, the front zone made of its first `shells` slices, counted `weight` times more (0 = no front zone).
+
+    The zone is the start of the text (title page, contents, preface), where a book says what it is about; the rest of the body
+    is a long, noisy tail that can drown it. The slices were counted once at extraction, so trying another size or weight is
+    only a change of these arrays."""
+    for doc in docs:
+        if weight <= 0 or shells <= 0 or not doc.front_shells:
+            doc.front = EMPTY
+            continue
+        ids, vals = array("I"), array("f")
+        for shell in doc.front_shells[:shells]:
+            ids.extend(shell.ids)
+            vals.extend(v * weight for v in shell.vals)
+        doc.front = Counts(ids, vals)
 
 
 # -- Labelling --------------------------------------------------------------------
@@ -248,6 +273,14 @@ RELEASE_MIN_BOOKS = 5
 RELEASE_MIN_BOOKS_PRIVATE = 10
 
 
+# The front zone is read as slices so that other sizes can be tried without reading the books again: the first 1,000 characters
+# (about one printed page: title page, imprint), then up to 2,000 (contents), then up to 4,000 (preface, first lines).
+FRONT_SHELL_BOUNDS = (1000, 2000, 4000)
+FRONT_ZONE_CANDIDATES = (1, 2, 3)  # how many slices make the zone: 1,000 / 2,000 / 4,000 characters
+FRONT_WEIGHT_CANDIDATES = (2.0, 4.0)
+FRONT_MIN_GAIN = 0.005  # a zone must beat "no zone" by half a point of macro F1: a smaller difference is luck on a small holdout
+
+
 @dataclass
 class TrainOptions:
     algorithm: str = "auto"
@@ -308,6 +341,13 @@ class TrainOptions:
     kept if held-out accuracy drops by no more than this."""
     rng_seed: int = 13
     max_words: int = 3000
+    front_weight: float = 0.0
+    """Extra weight of the front zone (the start of the text) -- 0 = none. See apply_front."""
+    front_shells: int = 1
+    """How many of the FRONT_SHELL_BOUNDS slices make the front zone (1 = the first FRONT_SHELL_BOUNDS[0] characters)."""
+    tune_front: bool = False
+    """Try every FRONT_ZONE_CANDIDATES x FRONT_WEIGHT_CANDIDATES on the held-out books and keep the best macro F1 (costs one fit
+    each; the plain no-front fit is the baseline it must beat)."""
     hinted_variant_weight: float = 0.4
     """Share of a book's weight given to its with-labels view (the rest goes to
     the view without them)."""
@@ -570,7 +610,8 @@ def build_model_svm(
         idf=idf.tolist(),
         postings=postings,
         bias=bias,
-        params={"weights": {**DEFAULT_FEATURE_WEIGHTS, **(feature_weights or {})}, "max_words": options.max_words},
+        params={"weights": {**DEFAULT_FEATURE_WEIGHTS, **(feature_weights or {})}, "max_words": options.max_words,
+                "front_chars": FRONT_SHELL_BOUNDS[max(1, min(options.front_shells, len(FRONT_SHELL_BOUNDS))) - 1]},
         meta={
             **new_meta(
                 taxonomy_fingerprint=taxonomy.fingerprint(),
@@ -662,7 +703,8 @@ def build_model_centroid(
         features=[interner.tokens[i] for i in kept_ids],
         idf=[idf[i] if idf[i] > 0 else unseen_idf for i in kept_ids],
         postings=[postings_by_id[i] for i in kept_ids],
-        params={"weights": weights, "max_words": options.max_words},
+        params={"weights": weights, "max_words": options.max_words,
+                "front_chars": FRONT_SHELL_BOUNDS[max(1, min(options.front_shells, len(FRONT_SHELL_BOUNDS))) - 1]},
         meta=new_meta(
             taxonomy_fingerprint=taxonomy.fingerprint(),
             tokenizer=tokenizer_name,
@@ -915,6 +957,38 @@ def split_holdout(docs: Sequence[TrainingDoc], options: TrainOptions) -> tuple[l
     return train_docs, holdout
 
 
+def _tune_front(options, train_docs, holdout, everyone, taxonomy, interner, seeds, tokenizer_name, unlabelled, log, notes) -> None:
+    """Grid search over the front zone (its size and its extra weight), scored by macro F1 on the held-out books without their
+    embedded labels -- the same yardstick as the final report. The no-front fit is the baseline: a zone is adopted only if it
+    beats it, so on a library where it does not help, the model is the one that would have been trained without this option.
+    Sets `options.front_weight` / `options.front_shells` (and applies them to `everyone`)."""
+    def score(shells: int, weight: float) -> tuple[float, float]:
+        apply_front(everyone, shells, weight)
+        trial = replace(options, front_shells=shells, front_weight=weight)
+        model = build_model(train_docs, taxonomy, interner, seeds, trial, tokenizer_name=tokenizer_name,
+                            background=unlabelled, feature_weights={"front": weight})
+        calibrate(model, holdout, interner, options.target_precision)
+        report = evaluate(model, holdout, interner, hints=False)
+        return report.macro_f1, report.accuracy
+
+    base = score(1, 0.0)
+    best, best_score = (1, 0.0), base
+    lines = [f"Front zone search (held-out macro F1 / accuracy): none {base[0]:.1%} / {base[1]:.1%}"]
+    for shells in FRONT_ZONE_CANDIDATES:
+        for weight in FRONT_WEIGHT_CANDIDATES:
+            result = score(shells, weight)
+            lines.append(f"  first {FRONT_SHELL_BOUNDS[shells - 1]} characters x{weight:g}: {result[0]:.1%} / {result[1]:.1%}")
+            if result[0] >= best_score[0] + FRONT_MIN_GAIN if best[1] == 0 else result > best_score:
+                best, best_score = (shells, weight), result
+    options.front_shells, options.front_weight = best
+    apply_front(everyone, *best)
+    lines.append("  -> " + (f"kept first {FRONT_SHELL_BOUNDS[best[0] - 1]} characters x{best[1]:g}" if best[1] > 0
+                            else "no front zone helps on this library; none used"))
+    for line in lines:
+        log(line)
+    notes.extend(lines)
+
+
 def train(
     labelled: Sequence[TrainingDoc],
     taxonomy: Taxonomy,
@@ -932,10 +1006,18 @@ def train(
 
     train_docs, holdout = split_holdout(labelled, options)
     log(f"split: {len(train_docs)} train / {len(holdout)} held out")
-    model = build_model(train_docs, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled)
+    notes: list[str] = []
+    if options.tune_front:
+        options = replace(options)  # the caller's options are not changed by what the search picks
+        _tune_front(options, train_docs, holdout, list(labelled) + list(unlabelled), taxonomy, interner, seeds, tokenizer_name,
+                    unlabelled, log, notes)
+    else:
+        apply_front(list(labelled) + list(unlabelled), options.front_shells, options.front_weight)
+    front = {"front": options.front_weight}
+    model = build_model(train_docs, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled,
+                        feature_weights=front)
     calibrate(model, holdout, interner, options.target_precision)
     report_plain = evaluate(model, holdout, interner, hints=False)
-    notes: list[str] = []
     pseudo_added = 0
 
     for round_number in range(1, options.self_train_rounds + 1):
@@ -944,7 +1026,8 @@ def train(
             prediction = model.predict(doc.merged(interner, hints=True))
             if prediction.category_id and prediction.group_confidence >= options.self_train_min_group_confidence:
                 clone = TrainingDoc(
-                    doc_id=doc.doc_id, body=doc.body, plain=doc.plain, hints=doc.hints, label=prediction.category_id,
+                    doc_id=doc.doc_id, body=doc.body, plain=doc.plain, hints=doc.hints, front=doc.front,
+                    front_shells=doc.front_shells, label=prediction.category_id,
                     label_source="pseudo", weight=options.self_train_weight, subjects=doc.subjects, body_words=doc.body_words,
                     trusted=False, group_key=doc.group_key,
                 )
@@ -953,7 +1036,8 @@ def train(
         if not pseudo:
             break
         candidate = build_model(
-            train_docs + pseudo, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled
+            train_docs + pseudo, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled,
+            feature_weights=front,
         )
         calibrate(candidate, holdout, interner, options.target_precision)
         candidate_report = evaluate(candidate, holdout, interner, hints=False)
@@ -979,9 +1063,10 @@ def train(
     }
     if options.refit_on_all and holdout:
         # Same settings and calibration, but every labelled book gets to teach it.
-        calibrated = {k: v for k, v in model.params.items() if k not in ("weights", "max_words")}
+        calibrated = {k: v for k, v in model.params.items() if k not in ("weights", "max_words", "front_chars")}
         final = build_model(
-            train_docs + holdout, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled
+            train_docs + holdout, taxonomy, interner, seeds, options, tokenizer_name=tokenizer_name, background=unlabelled,
+            feature_weights=front,
         )
         final.params.update(calibrated)
         model = final
@@ -1028,7 +1113,8 @@ def _init_extract_worker(settings: dict) -> None:
 
     if settings.get("low_priority", True):
         lower_process_priority()
-    _WORKER["extractor"] = FeatureExtractor(weights=settings.get("weights"), max_words=settings.get("max_words", 3000))
+    _WORKER["extractor"] = FeatureExtractor(weights=settings.get("weights"), max_words=settings.get("max_words", 3000),
+                                            shell_bounds=FRONT_SHELL_BOUNDS)
 
 
 def _extract_job(job: dict) -> tuple[dict, dict | None]:
@@ -1041,7 +1127,7 @@ def _extract_job(job: dict) -> tuple[dict, dict | None]:
     except Exception as exc:  # keep the run alive; the job is reported as failed
         return job, {"error": f"{type(exc).__name__}: {exc}"}
     return job, {"body": parts.body, "plain": parts.plain, "hints": parts.hints, "subjects": parts.subjects,
-                 "words": parts.body_words, "error": parts.error}
+                 "words": parts.body_words, "error": parts.error, "front_shells": parts.front_shells}
 
 
 def extract_jobs(
@@ -1088,7 +1174,7 @@ def docs_from_extraction(
             continue
         parts = FeatureParts(
             body=result["body"], plain=result["plain"], hints=result["hints"], subjects=result["subjects"],
-            body_words=result["words"], error=result["error"],
+            body_words=result["words"], error=result["error"], front_shells=result.get("front_shells") or [],
         )
         doc = doc_from_parts(interner, job["id"], parts)
         doc.group_key = fold(job.get("title", ""))[:60] or job["id"]
