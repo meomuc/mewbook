@@ -98,6 +98,11 @@ class _Plan:
 
 
 # Why a book was left for the person to tag, in words for the result page (keys are what `unsure_reason` returns).
+# The hashtag "chưa chắc" (unsure) books get automatically, so they show up and can be found in the ordinary library view,
+# not only in the result list. A plain tag (no sidebar folder): it is a status, not a genre. Swapped out for the real category
+# the moment one is found (see tag_books and the "replace_tag" below), so it never sits on a book next to its real hashtag.
+UNSURE_TAG = "Chưa chắc"
+
 UNSURE_REASONS = {
     "no_text": "Không có chữ đọc được (bản quét, có DRM hoặc định dạng không đọc được)",
     "periodical": "Tạp chí, báo: không thuộc thể loại sách nào",
@@ -352,8 +357,13 @@ class SmartClassifyService:
         tag = category.name if category else label
         item = {"category_id": category.id if category else None, "confidence": 1.0, "tag": tag,
                 "group": category.group if category else None}
-        stats = self.context.db.apply_smart_classifications(
-            f"manual-{uuid.uuid4().hex[:12]}", self.model_version(), [{"doc_id": doc_id, **item} for doc_id in doc_ids])
+        # A book the person decides by hand is settled: its UNSURE_TAG placeholder, if it has one, is swapped out for the
+        # real hashtag rather than left sitting next to it.
+        current = {row["id"]: row.get("tags") or "" for row in self.context.db.get_documents_light(doc_ids)}
+        jobs = [{"doc_id": doc_id, **item,
+                "replace_tag": UNSURE_TAG if UNSURE_TAG.casefold() in {t.strip().casefold() for t in current.get(doc_id, "").split(",")} else None}
+               for doc_id in doc_ids]
+        stats = self.context.db.apply_smart_classifications(f"manual-{uuid.uuid4().hex[:12]}", self.model_version(), jobs)
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return tag, stats["tagged"] + stats["already_tagged"]
 
@@ -445,8 +455,10 @@ class SmartClassifyService:
                         tagged_ids.append(result["id"])
                         tagged_items.append((result["id"], result.get("name") or "", result.get("group") or ""))
                         recent.append((title, result.get("name") or ""))
+                        unsure = False
                     else:
                         error_text = result.get("error") or ""
+                        unsure = not error_text
                         tally["failed" if error_text else "unknown"] += 1
                         if error_text:
                             failed_items.append((result["id"], error_text))
@@ -465,7 +477,9 @@ class SmartClassifyService:
                             "doc_id": result["id"],
                             "category_id": category_id,
                             "confidence": result.get("confidence", 0.0),
-                            "tag": result.get("name") or None,
+                            # A genuine "not sure" gets the UNSURE_TAG hashtag, so it is found in the ordinary library view too,
+                            # not only in this run's result list; a read error gets no tag at all (see the comment above).
+                            "tag": (result.get("name") or None) if category_id else (UNSURE_TAG if unsure else None),
                             "group": result.get("group") or None,
                             "replace_tag": old_tag if category_id else None,
                         }

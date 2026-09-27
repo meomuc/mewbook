@@ -14,7 +14,7 @@ from _smart_helpers import (
     thread_executor,
     write_epub,
 )
-from smartdoc.application.smart_classifier import AutoClassifyOnImport, ClassifyScope, SmartClassifyService
+from smartdoc.application.smart_classifier import AutoClassifyOnImport, ClassifyScope, SmartClassifyService, UNSURE_TAG
 from smartdoc.core.event_bus import DocumentIndexedEvent, SmartClassifyFinishedEvent, SmartClassifyProgressEvent
 
 
@@ -100,12 +100,14 @@ def test_a_folder_the_user_chose_for_a_hashtag_is_not_overridden(context, servic
     assert row["group_id"] == group_id
 
 
-def test_documents_the_model_is_unsure_about_get_no_tag_and_are_not_reread(context, service, events, tmp_path):
+def test_documents_the_model_is_unsure_about_get_the_unsure_tag_and_are_not_reread(context, service, events, tmp_path):
     add_book(context, "vague", write_epub(tmp_path / "v.epub", ["zzz", "qqq"]), title="Không rõ")
     finished, _ = events
     run(service, ClassifyScope(doc_ids=("vague",)))
     assert finished[-1].tagged == 0 and finished[-1].unknown == 1
-    assert tags_of(context, "vague") == []
+    # A book the model would not decide gets the placeholder hashtag, so it is found in the ordinary library view too --
+    # not tagged as "unsure but the model would not decide" is different from having no category tag (see UNSURE_TAG).
+    assert tags_of(context, "vague") == [UNSURE_TAG]
     assert service.preview(ClassifyScope(doc_ids=("vague",))).already_looked_at == 1
     assert service.preview(ClassifyScope(doc_ids=("vague",)), reclassify=True).pending == 1
 

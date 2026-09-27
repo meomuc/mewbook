@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
 
 ### Added
+- **A "Chưa chắc" hashtag for books the classifier could not decide on.** Before, an unsure book got no tag at all and
+  only showed up in the classification wizard's result list. It now gets the plain hashtag "Chưa chắc", so it is found and
+  filtered in the ordinary library view too. Giving the book a real hashtag -- by hand, or from the result list's
+  "Gắn hashtag…" -- swaps this placeholder out; it never sits next to the real one.
 - **Give a hashtag straight from the result list.** In the list behind "Chưa chắc" (and the others) select one or many books
   and press "Gắn hashtag…": pick one of the categories (filed under its sidebar folder like an automatic run) or type your own.
   A "Hashtag" column shows what each book carries and follows at once. Only ever adds; the book is recorded as certain, so it is

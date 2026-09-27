@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from _smart_helpers import COOKING_WORDS, PROGRAMMING_WORDS, WORKER_SETTINGS, add_book, make_toy_model, thread_executor, write_epub
-from smartdoc.application.smart_classifier import UNSURE_REASONS, ClassifyScope, SmartClassifyService, unsure_reason
+from smartdoc.application.smart_classifier import UNSURE_REASONS, UNSURE_TAG, ClassifyScope, SmartClassifyService, unsure_reason
 from smartdoc.core.event_bus import SmartClassifyFinishedEvent
 from smartdoc.presentation.smart_classify_results import ClassifyBooksDialog, build_tree
 
@@ -152,3 +152,17 @@ def test_without_a_tagger_there_is_no_button(qapp):
     dialog = ClassifyBooksDialog(None, title="t", subtitle="s", tree=build_tree("tagged", _event(tagged_ids=("a",)), docs), docs=docs)
     assert dialog.tag_button is None
     dialog.deleteLater()
+
+
+def test_the_placeholder_tag_is_swapped_for_a_real_one_once_the_person_decides(context, tmp_path):
+    add_book(context, "vague", write_epub(tmp_path / "v.epub", ["zzz", "qqq"]), title="Không rõ")
+    service = SmartClassifyService(context, executor_factory=thread_executor, worker_settings=WORKER_SETTINGS)
+    try:
+        service.start(ClassifyScope(doc_ids=["vague"]))
+        assert service.wait(timeout=30)
+        assert context.db.get_document("vague")["tags"] == UNSURE_TAG
+        tag, count = service.tag_books(["vague"], "nấu ăn")
+        assert (tag, count) == ("Ẩm thực - Nấu ăn", 1)
+        assert context.db.get_document("vague")["tags"] == "Ẩm thực - Nấu ăn"  # the placeholder is gone, not left beside it
+    finally:
+        service.stop()
