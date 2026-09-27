@@ -30,6 +30,19 @@ def _no_cover_search_from_the_find_info_dialog(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_built_in_server(monkeypatch):
+    """The build carries the project's real Supabase URL and public key. Tests run as a build with none (a test that needs a
+    server puts its own in place), so none of them can reach the real project by accident."""
+    for module in ("smartdoc.application.review_endpoint", "smartdoc.application.error_uploader", "smartdoc.application.error_reporter"):
+        for name in ("APP_REVIEWS_URL", "APP_REVIEWS_ANON_KEY", "APP_ERROR_REPORT_URL", "APP_ERROR_REPORT_ANON_KEY"):
+            try:
+                monkeypatch.setattr(f"{module}.{name}", "")
+            except AttributeError:
+                pass  # that module does not import this constant
+    monkeypatch.setattr("smartdoc.application.error_uploader.APP_ERROR_REPORT_URL", "", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _destroy_widgets_on_main_thread():
     """Widgets left over from a test must be destroyed here, on the GUI
     thread. Otherwise Python's cyclic GC may collect them later from
