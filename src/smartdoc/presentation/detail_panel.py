@@ -10,6 +10,14 @@ neither (see editable_field.py) -- the difference is a shape, not only a colour.
 
 The panel reacts to `DocumentSelectedEvent` (published by the library view) and `LibraryUpdatedEvent`, through
 QtEventBridge. It writes only title, author and hashtags, through DatabaseManager, and never touches the book file.
+
+Publisher / year / language / ISBN come straight off the document row -- never a live read of the file, that would
+make opening a book's details slow. What ends up in that row follows one order: the file's own metadata (captured
+once, at import -- infrastructure/epub_extractor.py for EPUB; a PDF's Info dict has no such fields, so a PDF simply
+has none to capture, see infrastructure/pdf_extractor.py) beats what a previous "Tìm thêm thông tin" run already
+applied to the library only (a value the current file doesn't carry itself), which beats nothing at all -- an empty
+row here means neither has an answer yet, and "Tìm thêm thông tin" can still look further, including online sources
+once that source lands. See DatabaseManager.add_or_update_document for where the file's own metadata is written in.
 """
 from __future__ import annotations
 

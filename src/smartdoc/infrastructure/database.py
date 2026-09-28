@@ -229,6 +229,17 @@ def parse_locked_fields(value: str | None) -> set[str]:
     return {field for field in parsed if isinstance(field, str)} if isinstance(parsed, list) else set()
 
 
+def _as_year(value) -> int | None:
+    """A plausible publication year out of whatever the extractor found (an int already, or a string that starts
+    with one), else None -- never a value that would fail the pub_year INTEGER column or read back as "2019.0"."""
+    if value in (None, ""):
+        return None
+    try:
+        return int(str(value).strip()[:4])
+    except ValueError:
+        return None
+
+
 class _BufferedResult:
     """What `_LockedConnection.execute` returns: the rows already fetched (so no cursor is left open on the shared
     connection), with the parts of a sqlite3 cursor the code uses."""
@@ -449,14 +460,19 @@ class DatabaseManager:
             now,
             metadata.get("fingerprint"),
             metadata.get("page_count"),
+            (metadata.get("publisher") or "").strip() or None,
+            _as_year(metadata.get("pub_year")),
+            (metadata.get("language") or "").strip() or None,
+            (metadata.get("isbn") or "").strip() or None,
         )
         with self.write_lock:
             try:
                 self.connection.execute(
                     """
                     INSERT INTO documents
-                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at, updated_at, fingerprint, page_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        (id, title, author, file_path, file_size, extension, tags, content, cover_path, content_hash, created_at, updated_at, fingerprint, page_count,
+                         publisher, pub_year, language, isbn)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         title=excluded.title,
                         author=excluded.author,
@@ -469,7 +485,14 @@ class DatabaseManager:
                         content_hash=excluded.content_hash,
                         updated_at=excluded.updated_at,
                         fingerprint=COALESCE(excluded.fingerprint, documents.fingerprint),
-                        page_count=COALESCE(excluded.page_count, documents.page_count)
+                        page_count=COALESCE(excluded.page_count, documents.page_count),
+                        -- What the file itself says wins when it says anything; a re-scan that comes back
+                        -- without a publisher/year/language/ISBN (a PDF has none of these; a re-read that failed)
+                        -- must not blank out a value already on record, e.g. one the user applied by hand.
+                        publisher=COALESCE(excluded.publisher, documents.publisher),
+                        pub_year=COALESCE(excluded.pub_year, documents.pub_year),
+                        language=COALESCE(excluded.language, documents.language),
+                        isbn=COALESCE(excluded.isbn, documents.isbn)
                     """,
                     params,
                 )

@@ -20,8 +20,10 @@ CONTENT_OPF = """<?xml version="1.0"?>
     <dc:title>Test Book</dc:title>
     <dc:creator>Doe, Jane</dc:creator>
     <dc:publisher>Acme Press</dc:publisher>
-    <dc:identifier id="BookId">1234567890</dc:identifier>
+    <dc:identifier id="uuid">urn:uuid:9d3a6f10-08c6-4a1e-9b1a-000000000000</dc:identifier>
+    <dc:identifier id="BookId">urn:isbn:1234567890</dc:identifier>
     <dc:language>en</dc:language>
+    <dc:date>2019-03-01</dc:date>
     <meta name="cover" content="cover-img"/>
   </metadata>
   <manifest>
@@ -53,9 +55,27 @@ def test_extract_metadata_reads_dublin_core_fields(tmp_path, app_context):
     assert metadata["title"] == "Test Book"
     assert metadata["author"] == "Doe, Jane"
     assert metadata["publisher"] == "Acme Press"
-    assert metadata["isbn"] == "1234567890"
+    assert metadata["isbn"] == "1234567890"  # the urn:isbn: identifier, not the uuid one that comes before it
     assert metadata["language"] == "en"
+    assert metadata["pub_year"] == "2019"
     assert metadata["extension"] == "epub"
+
+
+def test_extract_metadata_does_not_mistake_a_non_isbn_identifier_for_one(tmp_path, app_context):
+    """A book with only a Calibre-style UUID identifier (no ISBN at all) must not have that UUID filed as its ISBN
+    -- it used to grab whichever dc:identifier came first, regardless of what it actually was."""
+    opf = CONTENT_OPF.replace(
+        '<dc:identifier id="BookId">urn:isbn:1234567890</dc:identifier>\n    ', ""
+    )
+    epub_path = tmp_path / "no_isbn.epub"
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr("META-INF/container.xml", CONTAINER_XML)
+        zf.writestr("OEBPS/content.opf", opf)
+
+    metadata = EpubExtractor(app_context).extract_metadata(str(epub_path))
+
+    assert metadata["isbn"] == ""
 
 
 def test_extract_cover_saves_resized_image(tmp_path, app_context):

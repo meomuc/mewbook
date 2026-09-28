@@ -109,6 +109,49 @@ def test_add_or_update_document_upserts_by_id(db):
     assert "Python Co Ban" not in titles
 
 
+def test_add_or_update_document_stores_the_metadata_the_extractor_found(db):
+    """The detail sidebar reads these straight off the document row; before this, an import never wrote
+    publisher/pub_year/language/isbn at all, so the sidebar stayed blank even for a book whose file carries them
+    (an EPUB's OPF metadata) -- "Tìm thêm thông tin" found the very same values because it re-reads the file."""
+    db.add_or_update_document(
+        "doc1",
+        {"title": "T", "author": "A", "file_path": "a.epub", "extension": "epub", "created_at": 0.0,
+         "publisher": "NXB Trẻ", "pub_year": "2019", "language": "vi", "isbn": "9786041234567"},
+    )
+
+    doc = db.get_document("doc1")
+    assert doc["publisher"] == "NXB Trẻ" and doc["pub_year"] == 2019 and doc["language"] == "vi"
+    assert doc["isbn"] == "9786041234567"
+
+
+def test_add_or_update_document_does_not_blank_metadata_on_a_bare_reindex(db):
+    """A re-scan (the file changed, or the watched folder was rescanned) that comes back with no publisher/year/
+    language/ISBN -- a PDF has none of these natively -- must not erase what was already on record, e.g. a value
+    applied earlier from "Tìm thêm thông tin" and never written back into the file."""
+    db.add_or_update_document(
+        "doc1", {"title": "T", "author": "A", "file_path": "a.pdf", "extension": "pdf", "created_at": 0.0,
+                 "publisher": "NXB Trẻ", "pub_year": "2019"},
+    )
+
+    db.add_or_update_document("doc1", {"title": "T", "author": "A", "file_path": "a.pdf", "extension": "pdf", "created_at": 0.0})
+
+    doc = db.get_document("doc1")
+    assert doc["publisher"] == "NXB Trẻ" and doc["pub_year"] == 2019
+
+
+def test_add_or_update_document_lets_a_later_scan_overwrite_with_a_new_value(db):
+    """The file itself still wins when it does say something -- e.g. it was replaced by a corrected copy."""
+    db.add_or_update_document(
+        "doc1", {"title": "T", "author": "A", "file_path": "a.epub", "extension": "epub", "created_at": 0.0, "publisher": "NXB Cũ"},
+    )
+
+    db.add_or_update_document(
+        "doc1", {"title": "T", "author": "A", "file_path": "a.epub", "extension": "epub", "created_at": 0.0, "publisher": "NXB Mới"},
+    )
+
+    assert db.get_document("doc1")["publisher"] == "NXB Mới"
+
+
 def test_search_sanitizes_fts_special_characters(db):
     _seed(db)
     # A naive query containing FTS syntax characters must not raise.

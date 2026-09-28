@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   restoring a backup.** It only ever recomputed on the count coming out of a relink check; a bulk change that
   empties or refills the library announces itself with the general library-updated event instead, which the strip
   ignored. It now re-counts on that event too, the same way the status bar's own count already did.
+- **The detail sidebar (panel "Chi tiết") never showed a book's publisher, year, language or ISBN, even for a book
+  whose file plainly carries them** -- "Tìm thêm thông tin" found them at once because it re-reads the file live;
+  the sidebar could not, because importing a book never wrote these into the library database in the first place
+  (`add_or_update_document` only ever wrote 14 of the columns the schema already had). Fixed the write path so an
+  import now captures what the file's own metadata carries -- publisher/ISBN/language for EPUB, and now its
+  publication year too (EPUB extraction had never read it at all); a PDF has none of these in its own format, so
+  it still shows "—" there unless "Tìm thêm thông tin" is used to fill them in from elsewhere. A later re-scan that
+  finds nothing (a PDF, or a damaged read) never blanks a value already on record. Also stopped an EPUB's first
+  `dc:identifier` -- often a Calibre UUID, not an ISBN -- from being filed as the book's ISBN; only one actually
+  marked as an ISBN (`urn:isbn:...`) is used.
 
 ### Added
 - **"Đặt lại thư viện" (Cài đặt › Sao lưu).** Empties the local library database -- books, hashtags, collections,

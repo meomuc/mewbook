@@ -12,6 +12,7 @@ from smartdoc.core.event_bus import (
     ImportProgressEvent,
     LibraryUpdatedEvent,
 )
+from tests._metadata_helpers import make_epub
 
 
 def _make_pdf(path: Path, title: str, author: str, body_text: str) -> None:
@@ -52,6 +53,30 @@ def test_add_file_indexes_pdf_into_database(tmp_path, app_context, manager):
 
     results = app_context.db.search("Hello")
     assert any(r["title"] == "Hello PDF" for r in results)
+
+
+def test_add_file_indexes_an_epubs_publisher_year_language_and_isbn(tmp_path, app_context, manager):
+    """The detail sidebar reads publisher/pub_year/language/isbn straight off the document row it gets from the
+    database -- these must already be there after a plain import, not only after running "Tìm thêm thông tin"."""
+    epub_path = tmp_path / "book.epub"
+    make_epub(
+        epub_path,
+        metadata=(
+            '    <dc:title>Sách Có Đủ Thông Tin</dc:title>\n'
+            '    <dc:creator opf:role="aut">Tác Giả</dc:creator>\n'
+            '    <dc:publisher>NXB Trẻ</dc:publisher>\n'
+            '    <dc:language>vi</dc:language>\n'
+            '    <dc:date>2019-01-01</dc:date>\n'
+            '    <dc:identifier id="uid">urn:isbn:9786041234567</dc:identifier>\n'
+        ),
+    )
+
+    manager.add_file(str(epub_path))
+    assert _wait_until(lambda: app_context.db.search("Sách") != [])
+
+    doc = app_context.db.get_document(app_context.db.search("Sách")[0]["id"])
+    assert doc["publisher"] == "NXB Trẻ" and doc["language"] == "vi"
+    assert doc["pub_year"] == 2019 and doc["isbn"] == "9786041234567"
 
 
 def test_file_detected_event_auto_enqueues(tmp_path, app_context, manager):

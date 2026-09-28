@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import posixpath
+import re
 import zipfile
 from xml.etree import ElementTree as ET
 
@@ -55,15 +56,17 @@ class EpubExtractor:
                     el = metadata_el.find(f"dc:{tag}", NS)
                     return (el.text or "").strip() if el is not None else ""
 
-                return {
+                found = {
                     "title": text_of("title"),
                     "author": text_of("creator"),
                     "publisher": text_of("publisher"),
-                    "isbn": text_of("identifier"),
+                    "isbn": self._isbn_of(metadata_el),
                     "language": text_of("language"),
+                    "pub_year": self._pub_year_of(text_of("date")),
                     "file_path": file_path,
                     "extension": self._extension(file_path),
                 }
+                return found
         except zipfile.BadZipFile:
             logger.error("Corrupt EPUB (bad zip): %s", file_path)
             return {"file_path": file_path, "extension": self._extension(file_path)}
@@ -111,6 +114,24 @@ class EpubExtractor:
         except (zipfile.BadZipFile, ET.ParseError, KeyError):
             logger.exception("Failed to extract EPUB cover: %s", file_path)
             return None
+
+    @staticmethod
+    def _isbn_of(metadata_el: ET.Element) -> str:
+        """The dc:identifier that actually says ISBN -- an EPUB commonly carries several (a Calibre UUID, the
+        publisher's own id...); picking the first one blindly can file a random UUID as the book's ISBN."""
+        for identifier in metadata_el.findall("dc:identifier", NS):
+            text = (identifier.text or "").strip()
+            scheme = " ".join(identifier.attrib.values()).lower()
+            digits = re.sub(r"[^0-9Xx]", "", text.lower().replace("urn:isbn:", ""))
+            if ("isbn" in scheme or text.lower().startswith("urn:isbn:")) and len(digits) in (10, 13):
+                return digits.upper()
+        return ""
+
+    @staticmethod
+    def _pub_year_of(raw_date: str) -> str:
+        """dc:date is often a full date ("2019-03-01") or just a year; the leading 4 digits are the year."""
+        match = re.match(r"\d{4}", raw_date)
+        return match.group(0) if match else ""
 
     @staticmethod
     def _extension(file_path: str) -> str:
