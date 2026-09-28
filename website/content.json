@@ -1,16 +1,32 @@
 {
   "meta": {
-    "latest": "1.1.0",
+    "latest": "1.2.0",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
     "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
-      "ver": "v1.1.0",
-      "date": "2026-09-26",
+      "ver": "v1.2.0",
+      "date": "2026-09-28",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "bullets": [
+        "\"Đặt lại thư viện\" (Cài đặt › Sao lưu)",
+        "\"Gom sách về một thư mục\" can sort into subfolders by hashtag",
+        "\"Lọc nhanh\" (the sidebar's quick filter box) can be sorted"
+      ],
+      "link": "",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.2.0/MewBook-Setup-1.2.0.exe",
+        "size": "98 MB"
+      }
+    },
+    {
+      "ver": "v1.1.0",
+      "date": "2026-09-26",
+      "tag": "Ổn định",
+      "tagColor": "bg-[#5A3E36] text-[#F5E6CC]",
       "auto": false,
       "bullets": [
         "Giao diện \"Kệ sách\" mới: trạng thái trống, cửa sổ đọc sách và Cài đặt 10 trang",
@@ -19,7 +35,7 @@
       ],
       "link": "",
       "download": {
-        "win": "https://github.com/meomuc/mewbook/releases/download/v1.1.0/MewBook-Setup-1.1.0.exe",
+        "win": "https://github.com/meomuc/mewbook/releases/latest",
         "size": "98 MB"
       }
     },
@@ -136,57 +152,57 @@
       "color": "bg-zinc-400"
     },
     {
-      "id": "#7944",
-      "desc": "Settings and other dialogs no longer open with their top cut off",
+      "id": "#95AD",
+      "desc": "\"Tìm lại file thiếu\" could never match a book by content hash if its size was never recorded",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#EC47",
-      "desc": "The status bar's icons no longer sway while the donate line scrolls",
+      "id": "#B65E",
+      "desc": "A book chosen for relinking that the service could not actually update after all",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#C3C8",
-      "desc": "The main window and the reader no longer cover the taskbar",
+      "id": "#0BD7",
+      "desc": "The yellow \"N sách không tìm thấy file\" strip could keep showing a stale count after \"Đặt lại thư viện\" or restoring a…",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#39A9",
-      "desc": "The status bar now shows Ollama as connected",
+      "id": "#D131",
+      "desc": "The detail sidebar (panel \"Chi tiết\") never showed a book's publisher, year, language or ISBN, even for a book whose fi…",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#67A2",
-      "desc": "A new cover now shows in the list and the grid straight away",
+      "id": "#7913",
+      "desc": "Fixed the hashtag hint list showing up in the wrong place",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#DFC8",
-      "desc": "\"Sao chép thông tin hỗ trợ\" no longer reveals your Windows account name",
+      "id": "#11F5",
+      "desc": "Scans: OCR clean-up",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#0BFE",
-      "desc": "A book that was already in the library could be imported again during a busy import",
+      "id": "#2902",
+      "desc": "Front zone (training option)",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
     },
     {
-      "id": "#44E0",
-      "desc": "PDF reading is now serialised across import threads",
+      "id": "#4BEF",
+      "desc": "Smart classification of short books and of EPUB / MOBI / AZW3",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
