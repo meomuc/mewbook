@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImage, QPixmap
 
 from smartdoc.core.event_bus import (
     AiConnectionChangedEvent,
@@ -231,6 +231,31 @@ def test_community_link_opens_the_community_page(qapp, app_context, monkeypatch)
 
     assert opened == [True]
     assert "Fanpage" in panel.community_label.toolTip()
+
+
+def test_the_fanpage_link_is_an_icon_not_the_word_fanpage(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    assert panel.community_label.text() == "" and not panel.community_label.pixmap().isNull()
+
+
+def test_zone_headings_are_icons_with_the_zone_name_in_the_tooltip_not_spelled_out(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    zones = {"Thư viện": panel.library_zone, "Hệ thống & kết nối": panel.system_zone, "Tác giả": panel.support_zone}
+    for tooltip, zone in zones.items():
+        assert zone.heading_label.toolTip() == tooltip
+        assert zone.heading_label.text() == "" and not zone.heading_label.pixmap().isNull()
+
+
+def test_the_zone_icons_and_the_fanpage_icon_are_repainted_on_a_theme_change(qapp, app_context, monkeypatch):
+    _panel = StatusBarPanel(app_context)  # kept alive: its construction is what wires the theme-change handler under test
+    seen = []
+    monkeypatch.setattr(
+        "smartdoc.presentation.status_bar_panel.icon_pixmap",
+        lambda name, *a, **k: seen.append(name) or QPixmap(1, 1),
+    )
+    theme_manager().themeChanged.emit("broadsheet")
+    # Other icons (cloud/bot/globe status) repaint on the same signal too; only these four are ours to check here.
+    assert [name for name in seen if name in {"book", "link", "pen", "facebook"}] == ["book", "link", "pen", "facebook"]
 
 
 # --- collection ---

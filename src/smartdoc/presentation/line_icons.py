@@ -263,6 +263,18 @@ def _expand(p: QPainter) -> None:
         p.drawPolyline([_p(x + 3.5 * dx, y), _p(x, y), _p(x, y + 3.5 * dy)])
 
 
+def _facebook(p: QPainter) -> None:
+    """Line-art nod to the Facebook mark (a rounded badge + its lower-case "f"), not the brand's own coloured logo --
+    every icon here is a monoline glyph recoloured by the theme, and a literal blue "f" would fight that."""
+    p.drawRoundedRect(QRectF(2, 2, 12, 12), 3, 3)
+    path = QPainterPath()
+    path.moveTo(10.3, 5.3)
+    path.cubicTo(9, 5.3, 8.4, 6, 8.4, 7.3)
+    path.lineTo(8.4, 12.3)
+    p.drawPath(path)
+    p.drawLine(_p(7, 8.5), _p(9.8, 8.5))
+
+
 _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "plus": _plus, "search": _search, "grid": _grid, "table": _table, "sort": _sort, "tools": _tools,
     "panel": _panel, "gear": _gear, "pen": _pen, "book": _book, "star": _star, "star_fill": _star_fill,
@@ -270,6 +282,7 @@ _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "close": _close, "refresh": _refresh, "image": _image, "send": _send, "check": _check, "folder": _folder,
     "warn": _warn, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
     "eye": _eye, "expand": _expand, "palette": _palette, "archive": _archive, "download": _download, "shield": _shield,
+    "facebook": _facebook,
 }
 ICON_NAMES = tuple(_DRAWERS)
 

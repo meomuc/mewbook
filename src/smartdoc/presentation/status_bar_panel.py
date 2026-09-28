@@ -48,13 +48,13 @@ from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.line_icons import icon_pixmap
-from smartdoc.presentation.sidebar_style import section_font
 from smartdoc.presentation.theme_manager import STATUS_BAR_H, theme_manager
 
 # Layout numbers for the bar: every item is one row high and the status icons share one slot width, so the rows of
 # icons line up whatever glyphs they hold.
 _ROW_HEIGHT = 22
 _STATUS_ICON_WIDTH = 30
+_HEADING_ICON_WIDTH = 20  # a zone's own icon (Thư viện / Hệ thống & kết nối / Tác giả), its name said in the tooltip
 _ZONE_SPACING_WIDE = 16
 _ZONE_SPACING_TIGHT = 4
 
@@ -290,8 +290,10 @@ class StatusBarPanel(QStatusBar):
         # -- right zone: author & support --
         self.donate_ticker = _DonateTicker(self)
         self.donate_ticker.clicked.connect(self._on_donate_clicked)
-        self.community_label = _ClickableStatusLabel("Fanpage", self)
+        self.community_label = _ClickableStatusLabel(self)
         self.community_label.setCursor(Qt.PointingHandCursor)
+        self.community_label.setAlignment(Qt.AlignCenter)
+        self.community_label.setFixedWidth(_HEADING_ICON_WIDTH)
         self.community_label.setToolTip("Fanpage cộng đồng: tin về bản mới và nơi gửi góp ý (mở trong trình duyệt)")
         self.community_label.clicked.connect(open_community_page)
         self.author_label = QLabel("Tác giả: AnhTienSinh", self)
@@ -320,12 +322,13 @@ class StatusBarPanel(QStatusBar):
             ],
             spacing=_ZONE_SPACING_WIDE,
             trailing_stretch=True,
-            heading="THƯ VIỆN",
+            heading_icon="book",
+            heading_tooltip="Thư viện",
         )
         self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT,
-                                 heading="HỆ THỐNG & KẾT NỐI")
+                                 heading_icon="link", heading_tooltip="Hệ thống & kết nối")
         self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE,
-                                  heading="TÁC GIẢ")
+                                  heading_icon="pen", heading_tooltip="Tác giả")
         for label in (self.cloud_label, self.ai_label, self.network_label):
             label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
         for widget in (
@@ -386,7 +389,17 @@ class StatusBarPanel(QStatusBar):
         if self._network_info is not None:
             self._network_info.reachabilityChanged.connect(lambda _reachability: self._refresh_network())
 
+        self._refresh_zone_icons()
+        theme_manager().themeChanged.connect(self._refresh_zone_icons)
         self.refresh()
+
+    def _refresh_zone_icons(self, _key: str = "") -> None:
+        """The three zone headings (book / link / pen) and the Facebook mark beside "Fanpage" are plain-icon labels,
+        so -- unlike the QSS-styled text they replaced -- their colour has to be repainted by hand on a theme change."""
+        color = theme_manager().token("ink3")
+        for zone in (self.library_zone, self.system_zone, self.support_zone):
+            zone.heading_label.setPixmap(icon_pixmap(zone.heading_label.heading_icon, color, 14))
+        self.community_label.setPixmap(icon_pixmap("facebook", color, 16))
 
     def _apply_style(self, _key: str = "") -> None:
         tm = theme_manager()
@@ -399,16 +412,22 @@ class StatusBarPanel(QStatusBar):
     # -- construction helpers --
 
     @staticmethod
-    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False, heading: str = "") -> QWidget:
+    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False,
+              heading_icon: str = "", heading_tooltip: str = "") -> QWidget:
         zone = QWidget()
         layout = QHBoxLayout(zone)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
         layout.setAlignment(Qt.AlignVCenter)
-        if heading:
-            label = QLabel(heading, zone)
-            label.setProperty("role", "groupLabel")  # colour from base.qss.tpl
-            label.setFont(section_font(label.font()))  # 10 px, spaced capitals (QSS cannot space letters)
+        if heading_icon:
+            # An icon, not the zone's name spelled out: the words live in its tooltip (and, for the icons inside the
+            # zone, in each of their own tooltips too) -- see _refresh_zone_icons for the colour, kept in step with
+            # the theme.
+            label = QLabel(zone)
+            label.setToolTip(heading_tooltip)
+            label.setAlignment(Qt.AlignCenter)
+            label.setFixedSize(_HEADING_ICON_WIDTH, _ROW_HEIGHT)
+            label.heading_icon = heading_icon
             layout.addWidget(label)
             zone.heading_label = label
         for widget in widgets:
