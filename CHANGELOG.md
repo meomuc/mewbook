@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   temporary file first). **Tools > Sao lưu thư viện** opens the backup tab of Settings.
 
 ### Fixed
+- **Fixed the hashtag hint list showing up in the wrong place** (reported: it appeared over the middle of the
+  library grid instead of under the Hashtag box in the detail panel). It is a top-level window, so its position must be
+  a screen coordinate; it was instead computed relative to the main window and handed to `move()` as if that were one
+  -- right only when the main window happened to sit at the screen's top-left corner.
 - **Scans: OCR clean-up.** The text of a PDF is cleaned before it is classified: page numbers, running heads / footers
   that repeat on every page, ruled lines ("_____"), one-letter OCR fragments and words split by a hyphen at a line end.
 - **Front zone (training option).** `train.py --front-weight W` counts the start of the text (title page, contents, preface: the

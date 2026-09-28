@@ -101,7 +101,11 @@ class _HintPopup(QListWidget):
             return
         row_height = self.sizeHintForRow(0) or 24
         self.setFixedSize(max(self._anchor.width(), 180), row_height * len(tags) + 4)
-        self.move(self._anchor.mapTo(self.parentWidget(), QPoint(0, self._anchor.height() + 2)))
+        # This popup is a top-level window (Qt.ToolTip): move() takes SCREEN coordinates, never coordinates relative to
+        # a parent widget. mapTo(parentWidget(), ...) gave a position inside the main window's own coordinate space,
+        # which move() then read as a screen position -- the list showed up wherever the main window's top-left corner
+        # happened to be offset to, nowhere near the box that was actually typed into.
+        self.move(self._anchor.mapToGlobal(QPoint(0, self._anchor.height() + 2)))
         self.show()
         self.raise_()
 

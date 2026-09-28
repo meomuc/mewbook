@@ -3,9 +3,9 @@
 book already has; picking one fills the box."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtCore import QEvent
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from smartdoc.presentation.tag_editor import MIN_HINT_CHARS, TagEditor, current_segment, suggest_tags
 
@@ -49,6 +49,29 @@ def _editor(qapp):
 def _type(editor, text):
     editor.line_edit.setText(text)
     editor.line_edit.textEdited.emit(text)  # what typing does
+
+
+def test_the_hint_list_appears_right_under_the_box_wherever_the_window_sits_on_screen(qapp):
+    """Regression: the popup is a top-level window (Qt.ToolTip), so its position is always in SCREEN coordinates. A previous
+    version computed a position relative to the main window instead and handed that straight to move() -- right only by
+    coincidence when the main window happened to sit at the screen's top-left corner; everywhere else the list showed up far
+    from the box that was actually typed into (reported: it appeared over the middle of the library grid instead of under the
+    detail panel's Hashtag box)."""
+    container = QWidget()
+    layout = QVBoxLayout(container)
+    layout.setContentsMargins(37, 51, 0, 0)  # the box does not sit at its window's own origin
+    editor = TagEditor(container)
+    layout.addWidget(editor)
+    container.move(213, 97)  # the window itself is not at the screen's top-left corner either
+    container.show()
+    editor.set_known_tags_source(lambda: dict(KNOWN))
+    editor.add_button.click()
+
+    _type(editor, "py")
+
+    assert editor._popup.isVisible()
+    assert editor._popup.pos() == editor.line_edit.mapToGlobal(QPoint(0, editor.line_edit.height() + 2))
+    container.deleteLater()
 
 
 def test_hints_appear_from_two_characters_and_exclude_the_books_own_tags(qapp):
