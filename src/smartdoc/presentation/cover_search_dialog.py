@@ -78,11 +78,14 @@ from smartdoc.presentation.worker_relay import WorkerRelay, post
 _SOURCES = (SOURCE_OPEN_LIBRARY, SOURCE_GOOGLE_BOOKS, SOURCE_APPLE_BOOKS, SOURCE_TIKI, SOURCE_GOOGLE_IMAGES)
 _PREVIEW_SIZE = QSize(96, 132)
 
-_THUMB_SIZE = QSize(112, 150)
+# ~70% of the original thumbnail (112x150): more results fit without scrolling, still legible. The cell keeps the
+# same allowance below the picture for the (unscaled) title/author/source text, so three lines of it still fit.
+_THUMB_SIZE = QSize(78, 105)
+_TEXT_ALLOWANCE = 116  # cell height below the thumbnail, room for up to three lines of text -- unscaled
 # One fixed-size cell per result: the text under a thumbnail wraps to the
 # cell's width (instead of running on as a single line and overlapping its
 # neighbours), and every cover lines up on the same rows and columns.
-_CELL_SIZE = QSize(172, 266)
+_CELL_SIZE = QSize(120, _THUMB_SIZE.height() + _TEXT_ALLOWANCE)
 _CELL_PAD = 6
 _TITLE_MAX_LINES = 3
 _RESULT_ROLE = Qt.UserRole + 1
@@ -247,7 +250,7 @@ class CoverSearchWidget(QWidget):
         config = context.config.config
         disabled = set(config.disabled_cover_sources or ())
         has_google_key = bool(config.google_image_api_key and config.google_image_search_cx)
-        chips = FlowWidget(self, h_spacing=6, v_spacing=6)
+        chips = FlowWidget(self, h_spacing=14, v_spacing=4)
         self.source_chips: dict[str, QLabel] = {}
         for source in _SOURCES:
             locked = source == SOURCE_GOOGLE_IMAGES and not has_google_key
@@ -256,12 +259,12 @@ class CoverSearchWidget(QWidget):
             # in ITS OWN coordinate space, so a chip whose real Qt parent was this widget instead used to land at
             # that offset within the widget's own top-left corner -- overlapping whatever sits there (here, the tab
             # bar) rather than sitting in its row below it.
+            # Plain coloured text, not a pill: a whole row of bordered boxes read as buttons, which these are not --
+            # they only say which catalogues will be asked.
             chip = QLabel(f"{source} (cần khóa)" if locked else source, chips)
             chip.setToolTip("Cần khóa Google, thêm trong Cài đặt > Ảnh bìa" if locked
                             else ("Đang bật" if on else "Đã tắt trong Cài đặt > Ảnh bìa"))
-            chip.setStyleSheet(f"border: 1px solid {tm.token('line2')}; border-radius: 11px; padding: 2px 10px;"
-                               f" color: {tm.token('ink') if on else tm.token('ink3')};"
-                               f" background: {tm.token('surface') if on else 'transparent'};")
+            chip.setStyleSheet(f"color: {tm.token('ink') if on else tm.token('ink3')};")
             self.source_chips[source] = chip
         chips.set_widgets(list(self.source_chips.values()))
         self._match_percent = max(0, min(100, int(context.config.config.cover_match_percent)))
@@ -347,6 +350,10 @@ class CoverSearchWidget(QWidget):
         side_layout = QVBoxLayout(side)
         side_layout.setContentsMargins(0, 10, 0, 0)
         side_layout.addWidget(QLabel("XEM TRƯỚC: hiện tại → mới", self))
+        # Pushes the pictures themselves down to where the results grid on the left starts (past its own query row
+        # when there is one, its chips, weak-match box and status line) -- so "hiện tại" and "mới" line up with the
+        # row of thumbnails beside them, not with the tab bar.
+        side_layout.addSpacing(128 if show_query_row else 88)
         side_layout.addLayout(previews)
         side_layout.addWidget(note_box(self, "File sách không bị sửa. Chỉ ảnh bìa hiển thị trong thư viện đổi.", "ok"))
         side_layout.addStretch(1)

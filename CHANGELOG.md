@@ -22,8 +22,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **"Tìm thêm thông tin" no longer opens a second window for the cover.** Its "Đổi bìa bằng đường dẫn / file…" button,
   which popped up the whole "Đổi ảnh bìa" dialog on top of it, is gone; the cover section is now the same three tabs
   (tìm trên mạng, dán đường dẫn, từ máy) and before → after preview, embedded right in the one dialog and driven by
-  the same shared title/author box. The standalone "Đổi ảnh bìa" dialog (reached on its own from the library/detail
-  panel) is unchanged.
+  the same shared title/author box.
+- **"Tìm thêm thông tin" reorganized into four clear sections.** Nhập thông tin tìm kiếm: the search box takes about
+  2/3 of the row (three buttons beside it -- Tìm kiếm, Tìm thêm [search again with the internet], Mở trình duyệt), and
+  the result line sits in its own bordered box. Thông tin tìm được: the found results (5 rows visible, more scrolls)
+  and the field-by-field comparison table now sit side by side (40% / 60%), with a "Chọn tất cả" box above the table
+  to tick or clear every row at once. Ảnh bìa: the source list (Open Library, Google Books, ...) is plain text now,
+  not a row of pill-shaped boxes, its thumbnails are about 70% their previous size (more fit without scrolling, still
+  legible), and the before → after preview lines up with the row of thumbnails beside it instead of the tab bar.
+  Tùy chọn cập nhật: "Ghi đè lên file sách gốc", "Áp dụng thông tin sách" and "Áp dụng ảnh bìa đã chọn" are grouped
+  together under their own heading. The plain-text source list and the smaller thumbnails also apply to the
+  standalone "Đổi ảnh bìa" dialog, since both share the same cover-search widget; its own search box is unaffected.
 - The donate line in the status bar is warmer and easier to notice: accent colour, bold, a small symbol opening each
   message (☕ 💛 🐾) and friendlier wording. Click still opens the QR window.
 - The build now carries the project's Supabase URL and public anon key (community reviews and error reports), so the

@@ -7,8 +7,9 @@ is now the one window: the shared box above drives both the information lookup a
 
 One search box takes the title and the author together ("Nhà giả kim - Paulo Coelho", or just the words in any order);
 application/cover_search.split_query works out the readings and the search tries them, so this finds what two boxes did.
-"Tìm trên Internet" only opens the default browser on a web search of that text -- the person carries on there; MewBook
-does not read the page that comes back.
+Three buttons beside it: "Tìm kiếm" (search), "Tìm thêm" (search again with the internet included -- only enabled once
+the first search has not already reached it), and "Mở trình duyệt", which only opens the default browser on a web
+search of that text -- the person carries on there; MewBook does not read the page that comes back.
 
 Nothing is changed until "Áp dụng" is pressed. The table lists, for the chosen
 candidate, every field whose suggested value differs from the current one --
@@ -34,6 +35,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -44,6 +46,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QVBoxLayout,
 )
 
 from smartdoc.application.cover_search import (
@@ -125,11 +128,12 @@ class MetadataSuggestDialog(DesignDialog):
         self._search_number = 0
         self._relay = WorkerRelay(self)  # what the lookup thread talks to (never the dialog itself)
 
-        self.resize(980, 1040)
+        self.resize(980, 920)
         self.step_label = QLabel(self)
         self.step_label.setTextFormat(Qt.RichText)
         self.body.addWidget(self.step_label)
 
+        # -- Frame 1: nhập thông tin tìm kiếm -----------------------------------------------
         # ONE box for title and author; a book whose author is known starts as "title - author".
         author = (doc.get("author", "") or "").strip()
         known_author = author and author.lower() != "unknown"
@@ -140,34 +144,39 @@ class MetadataSuggestDialog(DesignDialog):
         self.title_edit.returnPressed.connect(lambda: self._start_search(include_internet=False))
         self.search_button = QPushButton("Tìm kiếm", self)
         self.search_button.clicked.connect(lambda: self._start_search(include_internet=False))
-        self.web_button = QPushButton("Tìm trên Internet", self)
+        self.internet_button = QPushButton("Tìm thêm", self)
+        self.internet_button.setToolTip("Tìm lại có tính cả internet (bật khi kết quả đầu chỉ mới tìm trong thư viện).")
+        self.internet_button.clicked.connect(lambda: self._start_search(include_internet=True))
+        self.internet_button.setEnabled(False)
+        self.web_button = QPushButton("Mở trình duyệt", self)
         self.web_button.setToolTip("Mở trình duyệt của bạn với trang tìm kiếm cho từ khóa này. MewBook không đọc kết quả.")
         self.web_button.clicked.connect(self._on_search_web)
         search_row = QHBoxLayout()
-        search_row.addWidget(self.title_edit, stretch=1)
+        search_row.addWidget(self.title_edit, 2)  # ~2/3 of the row; the buttons and the stretch after take the rest
         search_row.addWidget(self.search_button)
+        search_row.addWidget(self.internet_button)
         search_row.addWidget(self.web_button)
+        search_row.addStretch(1)
 
         self.status_label = QLabel("", self)
         self.status_label.setWordWrap(True)
-        self.internet_button = QPushButton("Tìm thêm trên internet", self)
-        self.internet_button.clicked.connect(lambda: self._start_search(include_internet=True))
-        self.internet_button.setEnabled(False)
-        status_row = QHBoxLayout()
-        status_row.addWidget(self.status_label, stretch=1)
-        status_row.addWidget(self.internet_button)
+        status_box = QFrame(self)
+        status_box.setObjectName("StatusBox")
+        status_box.setStyleSheet(f"#StatusBox {{ background: {theme_manager().token('surface')};"
+                                 f" border: 1px solid {theme_manager().token('line2')}; border-radius: 6px; }}")
+        status_box_layout = QVBoxLayout(status_box)
+        status_box_layout.setContentsMargins(10, 8, 10, 8)
+        status_box_layout.addWidget(self.status_label)
 
+        # -- Frame 2: thông tin tìm được (trái: kết quả, phải: chi tiết + chọn cập nhật) ----
         self.candidate_list = QListWidget(self)
-        self.candidate_list.setMaximumHeight(110)
+        row_height = self.candidate_list.fontMetrics().height() + 8
+        self.candidate_list.setFixedHeight(row_height * 5 + 6)  # 5 rows visible; more scrolls
         self.candidate_list.currentRowChanged.connect(self._show_candidate)
 
-        # Covers found for the same search: pick one to use as the book's picture (independent of the information).
-        # Same widget as the standalone "Đổi ảnh bìa" dialog, without its own query box -- the shared box above
-        # drives it too, so this is one window with a tab for each way to get a cover, not two windows.
-        self.cover_panel = CoverSearchWidget(context, doc, self, show_query_row=False)
-        self.cover_panel.setMinimumHeight(320)
-        self.cover_list = self.cover_panel.results_list  # kept as an alias: callers/tests reach the results list here
-        self.cover_panel.selectionChanged.connect(self._update_apply_enabled)
+        self.select_all_check = QCheckBox("Chọn tất cả", self)
+        self.select_all_check.setToolTip("Đánh dấu (hoặc bỏ đánh dấu) mọi mục ở bảng bên dưới cùng lúc.")
+        self.select_all_check.toggled.connect(self._on_select_all_toggled)
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(["", "MỤC", "HIỆN TẠI", "ĐỀ XUẤT", "NGUỒN"])
@@ -182,8 +191,29 @@ class MetadataSuggestDialog(DesignDialog):
         header.setSectionResizeMode(_COL_SUGGESTED, QHeaderView.Stretch)
         header.setSectionResizeMode(_COL_SOURCE, QHeaderView.ResizeToContents)
         self.table.setMinimumHeight(150)
+        self.table.setMaximumHeight(280)  # about 8 rows (every field at once) -- more scrolls, instead of stretching empty
         self.table.itemChanged.connect(lambda _item: self._update_apply_enabled())
 
+        info_split = QHBoxLayout()
+        left_col = QVBoxLayout()
+        left_col.addWidget(self.candidate_list)
+        left_col.addStretch(1)
+        right_col = QVBoxLayout()
+        right_col.addWidget(self.select_all_check, 0, Qt.AlignRight)
+        right_col.addWidget(self.table, 1)
+        info_split.addLayout(left_col, 2)  # 40%
+        info_split.addLayout(right_col, 3)  # 60%
+
+        # -- Frame 3: ảnh bìa ----------------------------------------------------------------
+        # Covers found for the same search: pick one to use as the book's picture (independent of the information).
+        # Same widget as the standalone "Đổi ảnh bìa" dialog, without its own query box -- the shared box above
+        # drives it too, so this is one window with a tab for each way to get a cover, not two windows.
+        self.cover_panel = CoverSearchWidget(context, doc, self, show_query_row=False)
+        self.cover_panel.setMinimumHeight(320)
+        self.cover_list = self.cover_panel.results_list  # kept as an alias: callers/tests reach the results list here
+        self.cover_panel.selectionChanged.connect(self._update_apply_enabled)
+
+        # -- Frame 4: tùy chọn cập nhật --------------------------------------------------------
         self.write_check = QCheckBox("Ghi đè lên file sách gốc", self)
         self.write_hint = QLabel("", self)
         self.write_hint.setWordWrap(True)
@@ -201,21 +231,21 @@ class MetadataSuggestDialog(DesignDialog):
         for check in (self.apply_info_check, self.apply_cover_check):
             check.toggled.connect(lambda _checked: self._update_apply_enabled())
         apply_row = QHBoxLayout()
+        apply_row.addWidget(self.write_check)
         apply_row.addWidget(self.apply_info_check)
         apply_row.addWidget(self.apply_cover_check)
         apply_row.addStretch(1)
 
         self.body.addLayout(search_row)
-        self.body.addLayout(status_row)
+        self.body.addWidget(status_box)
         self.body.addWidget(QLabel("THÔNG TIN TÌM ĐƯỢC", self))
-        self.body.addWidget(self.candidate_list)
-        self.body.addWidget(self.table, 1)
+        self.body.addLayout(info_split)
         self.body.addWidget(QLabel("ẢNH BÌA", self))
         self.body.addWidget(self.cover_panel)
         self.body.addWidget(self.locked_note)
-        self.body.addWidget(self.write_check)
-        self.body.addWidget(self.write_hint)
+        self.body.addWidget(QLabel("TÙY CHỌN CẬP NHẬT", self))
         self.body.addLayout(apply_row)
+        self.body.addWidget(self.write_hint)
 
         self.undo_button = self.add_footer_link("Hoàn tác lần gần nhất", "refresh", self._on_undo)
         self.selected_label = self.add_footer_note("0 mục được chọn")
@@ -397,6 +427,9 @@ class MetadataSuggestDialog(DesignDialog):
         self.table.blockSignals(True)
         self.table.setRowCount(0)
         self.locked_note.hide()
+        self.select_all_check.blockSignals(True)
+        self.select_all_check.setChecked(False)
+        self.select_all_check.blockSignals(False)
         if 0 <= row < len(self._candidates):
             self._set_step(3)
             candidate = self._candidates[row]
@@ -436,6 +469,16 @@ class MetadataSuggestDialog(DesignDialog):
             item.setFlags(Qt.ItemIsEnabled)
             item.setToolTip(text)
             self.table.setItem(row, column, item)
+
+    def _on_select_all_toggled(self, checked: bool) -> None:
+        """"Chọn tất cả": ticks or clears every row of the comparison table at once."""
+        self.table.blockSignals(True)
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, _COL_CHECK)
+            if item is not None:
+                item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+        self.table.blockSignals(False)
+        self._update_apply_enabled()
 
     def checked_changes(self) -> dict[str, str]:
         """The field -> suggested value pairs currently ticked."""

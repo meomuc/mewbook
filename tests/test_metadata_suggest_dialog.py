@@ -79,6 +79,31 @@ def test_opening_searches_and_lists_candidates_with_the_first_selected(qapp, app
     assert "Open Library" in dialog.candidate_list.item(0).text() and "95%" in dialog.candidate_list.item(0).text()
 
 
+def test_the_three_search_buttons_are_labelled_as_specified(qapp, app_context, tmp_path):
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    dialog, _ = _open(qapp, app_context, doc)
+    assert dialog.search_button.text() == "Tìm kiếm"
+    assert dialog.internet_button.text() == "Tìm thêm"
+    assert dialog.web_button.text() == "Mở trình duyệt"
+    dialog.deleteLater()
+
+
+def test_select_all_ticks_and_clears_every_row_at_once(qapp, app_context, tmp_path):
+    _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf", title="Tên đã có")
+    app_context.db.apply_metadata("d1", "seed", {"publisher": "NXB Cũ", "language": "vi"})
+    candidate = _candidate(title="Tên khác", author="Trịnh Hoài Đức", publisher="NXB Mới", language="VI", pub_year=2006)
+    dialog, _ = _open(qapp, app_context, app_context.db.get_document("d1"), LookupResult([candidate], True))
+    assert dialog.table.rowCount() >= 2
+
+    dialog.select_all_check.setChecked(True)
+    assert all(dialog.table.item(r, 0).checkState() == Qt.Checked for r in range(dialog.table.rowCount()))
+    assert dialog.apply_button.isEnabled()
+
+    dialog.select_all_check.setChecked(False)
+    assert all(dialog.table.item(r, 0).checkState() == Qt.Unchecked for r in range(dialog.table.rowCount()))
+    dialog.deleteLater()
+
+
 def test_placeholders_are_ticked_real_values_are_not_and_identical_or_locked_fields_are_hidden(qapp, app_context, tmp_path):
     doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf", title="Tên đã có")
     app_context.db.apply_metadata("d1", "seed", {"publisher": "NXB Cũ", "language": "vi"})
