@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **"Tìm thêm thông tin" no longer opens a second window for the cover.** Its "Đổi bìa bằng đường dẫn / file…" button,
+  which popped up the whole "Đổi ảnh bìa" dialog on top of it, is gone; the cover section is now the same three tabs
+  (tìm trên mạng, dán đường dẫn, từ máy) and before → after preview, embedded right in the one dialog and driven by
+  the same shared title/author box. The standalone "Đổi ảnh bìa" dialog (reached on its own from the library/detail
+  panel) is unchanged.
 - **Status bar: the three zone headings ("THƯ VIỆN", "HỆ THỐNG & KẾT NỐI", "TÁC GIẢ") are icons now**
   (a book, a link and a pen), the zone's name in the tooltip instead of spelled out -- less to read, same information on
   hover. "Fanpage" is a small Facebook-mark icon instead of the word.

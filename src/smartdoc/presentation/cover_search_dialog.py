@@ -1,20 +1,26 @@
-"""Cover Image Search dialog.
+"""Cover Image Search: the widget and the standalone dialog around it.
 
-Lets the user search the free cover sources (Open Library, Google Books,
-Apple Books, plus Google Images when configured -- see
-application/cover_search.py) by title/author, preview thumbnails ranked by
-match quality, and pick one to replace the document's cover. Or skip the
-search: paste an image link (downloaded in the background) or choose an image
-file on disk -- either shows up as a selected item at the top of the same
-list, so it is previewed and confirmed exactly like a search result. Network
-calls run on a background thread and report back through Qt signals -- same
-pattern as ReviewDialog, for the same reason (one dialog's own async work
-reporting to itself, not cross-module pub/sub).
+`CoverSearchWidget` is the actual searching/picking UI -- three tabs (catalogue search, pasted link, file from disk),
+a before -> after preview -- and is reused two ways:
+  - `CoverSearchDialog` wraps it with the usual DesignDialog chrome for "Đổi ảnh bìa" reached on its own (library
+    view, panel chi tiết): it owns the query box, searches on its own, and "Dùng ảnh này" saves and closes.
+  - `MetadataSuggestDialog` ("Tìm thêm thông tin") embeds it with `show_query_row=False`: no query box of its own --
+    the host dialog drives the search from its own shared title/author box, feeding results in with
+    `show_search_results()`, and applies the picked picture together with the information it looked up. This is
+    what used to be two separate windows (the host had its own bare list of search results, and a button opened this
+    dialog on top of it for the paste-link/browse-file cases); now there is one, with a tab for each way to get a
+    cover next to the information being compared.
 
-The picked image is saved through the existing CoverCacheManager, which
-already resizes to a fixed max width and re-encodes as WEBP -- so "quality
-phù hợp, tối ưu dung lượng" (appropriate quality, optimized storage) is
-inherited for free rather than needing its own resize/compress logic here.
+Lets the user search the free cover sources (Open Library, Google Books, Apple Books, plus Google Images when
+configured -- see application/cover_search.py) by title/author, preview thumbnails ranked by match quality, and pick
+one. Or skip the search: paste an image link (downloaded in the background) or choose an image file on disk -- either
+shows up as a selected item at the top of the same list, so it is previewed and confirmed exactly like a search
+result. Network calls run on a background thread and report back through Qt signals -- same pattern as ReviewDialog,
+for the same reason (one dialog's own async work reporting to itself, not cross-module pub/sub).
+
+The picked image is saved through the existing CoverCacheManager, which already resizes to a fixed max width and
+re-encodes as WEBP -- so "quality phù hợp, tối ưu dung lượng" (appropriate quality, optimized storage) is inherited
+for free rather than needing its own resize/compress logic here.
 """
 from __future__ import annotations
 
@@ -63,7 +69,7 @@ from smartdoc.application.cover_search import (
     SOURCE_TIKI,
 )
 from smartdoc.presentation.cover_placeholder import _wrapped_lines
-from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.design_dialog import DesignDialog, note_box
 from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
@@ -198,33 +204,43 @@ class _ResultDelegate(QStyledItemDelegate):
         painter.restore()
 
 
-class CoverSearchDialog(DesignDialog):
+class CoverSearchWidget(QWidget):
+    """The searching/picking half of "Đổi ảnh bìa" -- see the module docstring for the two ways it is used.
+
+    `show_query_row=False` hides this widget's own title/author box and search button (the host has its own, shared
+    with its own search); the host then feeds results in with `show_search_results()` instead of this widget running
+    its own search. Either way, `picked_cover_bytes()` is the image currently chosen (search pick, pasted link, or
+    file), and `selectionChanged` fires whenever that changes."""
+
     search_finished = Signal(list, str)  # (list[(CoverSearchResult, bytes)], error_message)
     url_loaded = Signal(bytes, str, str)  # (image bytes, the pasted url, error_message)
+    selectionChanged = Signal()  # the picked cover (search pick / pasted link / file) changed
 
-    def __init__(self, context, doc: dict, parent=None) -> None:
-        super().__init__(parent, title=f"Đổi ảnh bìa: {doc.get('title', '')}",
-                         subtitle="Tìm trên mạng, dán đường dẫn ảnh hoặc chọn ảnh từ máy.", icon="image", width=820)
+    def __init__(self, context, doc: dict, parent=None, *, show_query_row: bool = True) -> None:
+        super().__init__(parent)
         self.context = context
         self.doc = doc
-        self._cover_manager = CoverCacheManager(context)
-        self._relay = WorkerRelay(self)  # what the search threads talk to (never the dialog itself)
-        self.resize(860, 640)
-        self.setMaximumSize(1040, 820)  # a grid of many thumbnails shouldn't be able to balloon the window
+        self._relay = WorkerRelay(self)  # what the search threads talk to (never the widget itself)
         tm = theme_manager()
 
-        # One box for title and author (application/cover_search.split_query works out which is which).
-        author = (doc.get("author", "") or "").strip()
-        start = (doc.get("title", "") or "").strip()
-        self.title_edit = QLineEdit(f"{start} - {author}" if start and author and author.lower() != "unknown" else start, self)
-        self.title_edit.setPlaceholderText("Tên sách và tác giả, ví dụ: Nhà giả kim - Paulo Coelho")
-        self.title_edit.returnPressed.connect(self._on_search)
-        self.search_button = QPushButton("Tìm kiếm", self)
-        self.search_button.setProperty("role", "primary")
-        self.search_button.clicked.connect(self._on_search)
-        form_row = QHBoxLayout()
-        form_row.addWidget(self.title_edit, 1)
-        form_row.addWidget(self.search_button)
+        # One box for title and author (application/cover_search.split_query works out which is which) -- only when
+        # this widget runs its own search; embedded in another dialog, that dialog's own box drives it instead.
+        self.title_edit: QLineEdit | None = None
+        self.search_button: QPushButton | None = None
+        form_row = None
+        if show_query_row:
+            author = (doc.get("author", "") or "").strip()
+            start = (doc.get("title", "") or "").strip()
+            self.title_edit = QLineEdit(
+                f"{start} - {author}" if start and author and author.lower() != "unknown" else start, self)
+            self.title_edit.setPlaceholderText("Tên sách và tác giả, ví dụ: Nhà giả kim - Paulo Coelho")
+            self.title_edit.returnPressed.connect(self._on_search)
+            self.search_button = QPushButton("Tìm kiếm", self)
+            self.search_button.setProperty("role", "primary")
+            self.search_button.clicked.connect(self._on_search)
+            form_row = QHBoxLayout()
+            form_row.addWidget(self.title_edit, 1)
+            form_row.addWidget(self.search_button)
 
         # Which sources will be asked: a chip per source; Google Images needs the person's own key and is dimmed
         # without it (Settings > Ảnh bìa).
@@ -236,7 +252,11 @@ class CoverSearchDialog(DesignDialog):
         for source in _SOURCES:
             locked = source == SOURCE_GOOGLE_IMAGES and not has_google_key
             on = source not in disabled and not locked
-            chip = QLabel(f"{source} (cần khóa)" if locked else source, self)
+            # Parented to `chips` (the FlowWidget), not `self`: FlowWidget positions its children with setGeometry()
+            # in ITS OWN coordinate space, so a chip whose real Qt parent was this widget instead used to land at
+            # that offset within the widget's own top-left corner -- overlapping whatever sits there (here, the tab
+            # bar) rather than sitting in its row below it.
+            chip = QLabel(f"{source} (cần khóa)" if locked else source, chips)
             chip.setToolTip("Cần khóa Google, thêm trong Cài đặt > Ảnh bìa" if locked
                             else ("Đang bật" if on else "Đã tắt trong Cài đặt > Ảnh bìa"))
             chip.setStyleSheet(f"border: 1px solid {tm.token('line2')}; border-radius: 11px; padding: 2px 10px;"
@@ -266,7 +286,8 @@ class CoverSearchDialog(DesignDialog):
         search_layout = QVBoxLayout(search_page)
         search_layout.setContentsMargins(0, 10, 0, 0)
         search_layout.setSpacing(8)
-        search_layout.addLayout(form_row)
+        if form_row is not None:
+            search_layout.addLayout(form_row)
         search_layout.addWidget(chips)
         search_layout.addWidget(self.include_weak_check)
         search_layout.addWidget(self.status_label)
@@ -327,24 +348,20 @@ class CoverSearchDialog(DesignDialog):
         side_layout.setContentsMargins(0, 10, 0, 0)
         side_layout.addWidget(QLabel("XEM TRƯỚC: hiện tại → mới", self))
         side_layout.addLayout(previews)
-        side_layout.addWidget(self.add_note_box("File sách không bị sửa. Chỉ ảnh bìa hiển thị trong thư viện đổi.", "ok"))
+        side_layout.addWidget(note_box(self, "File sách không bị sửa. Chỉ ảnh bìa hiển thị trong thư viện đổi.", "ok"))
         side_layout.addStretch(1)
 
-        content = QHBoxLayout()
+        content = QHBoxLayout(self)
+        content.setContentsMargins(0, 0, 0, 0)
         content.setSpacing(16)
         content.addWidget(self.tabs, 1)
         content.addWidget(side)
-        self.body.addLayout(content, 1)
 
-        self.add_footer_button("Hủy", on_click=self.reject)
-        self.use_button = self.add_footer_button("Dùng ảnh này", "primary", on_click=self._on_use_selected)
-        self.use_button.setEnabled(False)
         self.results_list.itemSelectionChanged.connect(self._on_selection_changed)
-
-        self.search_finished.connect(self._on_search_finished)
+        self.search_finished.connect(self.show_search_results)
         self.url_loaded.connect(self._on_url_loaded)
 
-        if self.title_edit.text().strip():
+        if self.title_edit is not None and self.title_edit.text().strip():
             self._on_search()
 
     @staticmethod
@@ -354,9 +371,21 @@ class CoverSearchDialog(DesignDialog):
         label.setText("")
         label.setPixmap(pixmap.scaled(_PREVIEW_SIZE - QSize(4, 4), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
+    def picked_cover_bytes(self) -> bytes | None:
+        """The image currently chosen -- a search pick, a pasted link, or a file -- or None if nothing is chosen."""
+        items = self.results_list.selectedItems()
+        return items[0].data(_IMAGE_BYTES_ROLE) if items else None
+
+    def clear_search_results(self) -> None:
+        """Removes previous search results, but keeps any image the user pasted or picked from disk -- that one
+        isn't a search result, so a new search shouldn't throw it away."""
+        for row in reversed(range(self.results_list.count())):
+            if not self.results_list.item(row).data(_CUSTOM_ROLE):
+                self.results_list.takeItem(row)
+        self._on_selection_changed()
+
     def _on_selection_changed(self) -> None:
         items = self.results_list.selectedItems()
-        self.use_button.setEnabled(bool(items))
         pixmap = QPixmap()
         if items:
             pixmap.loadFromData(items[0].data(_IMAGE_BYTES_ROLE))
@@ -365,20 +394,25 @@ class CoverSearchDialog(DesignDialog):
             self.new_preview.setText("Chưa chọn")
         else:
             self._set_preview(self.new_preview, pixmap)
+        self.selectionChanged.emit()
 
     def _on_search(self) -> None:
+        if self.title_edit is None:
+            return
         text = self.title_edit.text().strip()
         if not text:
             QMessageBox.warning(self, "Thiếu tiêu đề", "Vui lòng nhập tiêu đề để tìm ảnh bìa.")
             return
+        self.search(text)
 
+    def search(self, text: str) -> None:
+        """Runs this widget's own search (standalone use). A host driving its own worker off a shared search box
+        does not call this -- it calls `show_search_results()` with what it found instead."""
+        text = text.strip()
+        if not text:
+            return
         self.status_label.setText("Đang tìm kiếm...")
-        # A new search replaces the previous search's results, but not the
-        # image the user pasted or picked -- that one isn't a search result.
-        for row in reversed(range(self.results_list.count())):
-            if not self.results_list.item(row).data(_CUSTOM_ROLE):
-                self.results_list.takeItem(row)
-        self._on_selection_changed()
+        self.clear_search_results()
 
         config = self.context.config.config
         min_score = 0.0 if self.include_weak_check.isChecked() else self._match_percent / 100
@@ -410,7 +444,9 @@ class CoverSearchDialog(DesignDialog):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_search_finished(self, downloaded: list, error: str) -> None:
+    def show_search_results(self, downloaded: list, error: str) -> None:
+        """Populates the "Tìm trên mạng" tab from (candidate, image bytes) pairs -- from this widget's own search,
+        or from a host running its own (see the module docstring)."""
         if error:
             self.status_label.setText(f"Tìm kiếm thất bại: {error}")
             return
@@ -499,11 +535,59 @@ class CoverSearchDialog(DesignDialog):
         self.results_list.scrollToTop()
         self.status_label.setText("Đã thêm ảnh -- bấm \"Dùng ảnh này\" để đặt làm ảnh bìa.")
 
+
+class CoverSearchDialog(DesignDialog):
+    """"Đổi ảnh bìa" reached on its own (not through "Tìm thêm thông tin"): the DesignDialog chrome around a
+    `CoverSearchWidget` that owns its own search box and searches as soon as it opens."""
+
+    def __init__(self, context, doc: dict, parent=None) -> None:
+        super().__init__(parent, title=f"Đổi ảnh bìa: {doc.get('title', '')}",
+                         subtitle="Tìm trên mạng, dán đường dẫn ảnh hoặc chọn ảnh từ máy.", icon="image", width=820)
+        self.context = context
+        self.doc = doc
+        self._cover_manager = CoverCacheManager(context)
+        self.resize(860, 640)
+        self.setMaximumSize(1040, 820)  # a grid of many thumbnails shouldn't be able to balloon the window
+
+        self.panel = CoverSearchWidget(context, doc, self)
+        # Re-exposed here for callers (and tests) that reach into the dialog directly, as they did before the
+        # searching UI was pulled out into CoverSearchWidget for reuse in MetadataSuggestDialog.
+        self.title_edit = self.panel.title_edit
+        self.search_button = self.panel.search_button
+        self.source_chips = self.panel.source_chips
+        self.include_weak_check = self.panel.include_weak_check
+        self.status_label = self.panel.status_label
+        self.results_list = self.panel.results_list
+        self.url_edit = self.panel.url_edit
+        self.download_button = self.panel.download_button
+        self.browse_button = self.panel.browse_button
+        self.tabs = self.panel.tabs
+        self.current_preview = self.panel.current_preview
+        self.new_preview = self.panel.new_preview
+        self.body.addWidget(self.panel, 1)
+
+        self.add_footer_button("Hủy", on_click=self.reject)
+        self.use_button = self.add_footer_button("Dùng ảnh này", "primary", on_click=self._on_use_selected)
+        self.use_button.setEnabled(False)
+        self.panel.selectionChanged.connect(self._update_use_enabled)
+
+    def _update_use_enabled(self) -> None:
+        self.use_button.setEnabled(self.panel.picked_cover_bytes() is not None)
+
+    # -- thin forwards kept for callers/tests that call these directly on the dialog ------------------------------
+    def _on_search(self) -> None:
+        self.panel._on_search()
+
+    def _on_download_url(self) -> None:
+        self.panel._on_download_url()
+
+    def _on_browse_file(self) -> None:
+        self.panel._on_browse_file()
+
     def _on_use_selected(self) -> None:
-        items = self.results_list.selectedItems()
-        if not items:
+        image_bytes = self.panel.picked_cover_bytes()
+        if image_bytes is None:
             return
-        image_bytes = items[0].data(_IMAGE_BYTES_ROLE)
         doc_id = self.doc.get("id")
         if not doc_id:
             return

@@ -1,6 +1,9 @@
-"""Tìm thêm thông tin (was "Tìm thông tin sách" + "Tìm ảnh bìa"): look a book up -- its information AND its cover -- review
-the differences, and apply what you accept, the picture and the information independently or both. Three visible steps
-(Tìm, Chọn kết quả, Xem khác biệt).
+"""Tìm thêm thông tin (was "Tìm thông tin sách" + "Tìm ảnh bìa", and used to open a second window -- CoverSearchDialog
+-- for the paste-link/browse-file cases): look a book up -- its information AND its cover -- review the differences,
+and apply what you accept, the picture and the information independently or both. Three visible steps (Tìm, Chọn
+kết quả, Xem khác biệt). The cover section reuses `cover_search_dialog.CoverSearchWidget` (its three tabs -- catalogue
+search, pasted link, file from disk -- and its before -> after preview) embedded with `show_query_row=False`, so this
+is now the one window: the shared box above drives both the information lookup and the cover search.
 
 One search box takes the title and the author together ("Nhà giả kim - Paulo Coelho", or just the words in any order);
 application/cover_search.split_query works out the readings and the search tries them, so this finds what two boxes did.
@@ -26,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -54,15 +57,7 @@ from smartdoc.application.metadata_lookup import LookupResult, MetadataLookupSer
 from smartdoc.application.metadata_writer import MetadataWriter
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.cover_manager import CoverCacheManager
-from smartdoc.presentation.cover_search_dialog import (
-    _CELL_SIZE,
-    _IMAGE_BYTES_ROLE,
-    _SCORE_ROLE,
-    _THUMB_SIZE,
-    _ResultDelegate,
-    _result_label,
-    _result_tooltip,
-)
+from smartdoc.presentation.cover_search_dialog import CoverSearchWidget
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.worker_relay import WorkerRelay, post
@@ -113,11 +108,11 @@ def _shorten(text: str) -> str:
 
 class MetadataSuggestDialog(DesignDialog):
     lookup_finished = Signal(int, object, str)  # (search number, LookupResult | None, error message)
-    covers_finished = Signal(int, list, str)  # (search number, [(CoverSearchResult, image bytes)], error message)
+    covers_finished = Signal(int, list, str)  # (search number, [(CoverSearchResult, image bytes)], error message) -- fed to cover_panel
 
     def __init__(self, context, doc: dict, parent=None, service=None, applier=None) -> None:
         super().__init__(parent, title="Tìm thêm thông tin", subtitle=doc.get("title", "") or "", icon="search",
-                         width=860)
+                         width=960)
         self.context = context
         self.doc = doc
         self.applied = False  # something was applied or undone: callers refresh
@@ -130,7 +125,7 @@ class MetadataSuggestDialog(DesignDialog):
         self._search_number = 0
         self._relay = WorkerRelay(self)  # what the lookup thread talks to (never the dialog itself)
 
-        self.resize(900, 900)
+        self.resize(980, 1040)
         self.step_label = QLabel(self)
         self.step_label.setTextFormat(Qt.RichText)
         self.body.addWidget(self.step_label)
@@ -167,19 +162,12 @@ class MetadataSuggestDialog(DesignDialog):
         self.candidate_list.currentRowChanged.connect(self._show_candidate)
 
         # Covers found for the same search: pick one to use as the book's picture (independent of the information).
-        self.cover_list = QListWidget(self)
-        self.cover_list.setViewMode(QListWidget.IconMode)
-        self.cover_list.setIconSize(_THUMB_SIZE)
-        self.cover_list.setGridSize(_CELL_SIZE)
-        self.cover_list.setUniformItemSizes(True)
-        self.cover_list.setItemDelegate(_ResultDelegate(self.cover_list))
-        self.cover_list.setResizeMode(QListWidget.Adjust)
-        self.cover_list.setMovement(QListWidget.Static)
-        self.cover_list.setWrapping(False)  # one row, scrolled sideways: the information table keeps the height
-        self.cover_list.setFixedHeight(_CELL_SIZE.height() + 24)
-        self.cover_list.itemSelectionChanged.connect(self._update_apply_enabled)
-        self.cover_status = QLabel("", self)
-        self.cover_status.setWordWrap(True)
+        # Same widget as the standalone "Đổi ảnh bìa" dialog, without its own query box -- the shared box above
+        # drives it too, so this is one window with a tab for each way to get a cover, not two windows.
+        self.cover_panel = CoverSearchWidget(context, doc, self, show_query_row=False)
+        self.cover_panel.setMinimumHeight(320)
+        self.cover_list = self.cover_panel.results_list  # kept as an alias: callers/tests reach the results list here
+        self.cover_panel.selectionChanged.connect(self._update_apply_enabled)
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(["", "MỤC", "HIỆN TẠI", "ĐỀ XUẤT", "NGUỒN"])
@@ -216,18 +204,14 @@ class MetadataSuggestDialog(DesignDialog):
         apply_row.addWidget(self.apply_info_check)
         apply_row.addWidget(self.apply_cover_check)
         apply_row.addStretch(1)
-        self.other_cover_button = QPushButton("Đổi bìa bằng đường dẫn / file…", self)
-        self.other_cover_button.clicked.connect(self._on_other_cover)
-        apply_row.addWidget(self.other_cover_button)
 
         self.body.addLayout(search_row)
         self.body.addLayout(status_row)
         self.body.addWidget(QLabel("THÔNG TIN TÌM ĐƯỢC", self))
         self.body.addWidget(self.candidate_list)
         self.body.addWidget(self.table, 1)
-        self.body.addWidget(QLabel("ẢNH BÌA TÌM ĐƯỢC", self))
-        self.body.addWidget(self.cover_status)
-        self.body.addWidget(self.cover_list)
+        self.body.addWidget(QLabel("ẢNH BÌA", self))
+        self.body.addWidget(self.cover_panel)
         self.body.addWidget(self.locked_note)
         self.body.addWidget(self.write_check)
         self.body.addWidget(self.write_hint)
@@ -292,13 +276,6 @@ class MetadataSuggestDialog(DesignDialog):
             return
         QDesktopServices.openUrl(QUrl(web_search_url(text)))
 
-    def _on_other_cover(self) -> None:
-        from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
-
-        dialog = CoverSearchDialog(self.context, self._current_doc(), self)
-        dialog.exec()
-        dialog.deleteLater()
-
     def _start_search(self, *, include_internet: bool) -> None:
         text = self.title_edit.text().strip()
         if not text:
@@ -312,9 +289,8 @@ class MetadataSuggestDialog(DesignDialog):
         self.internet_button.setEnabled(False)
         self.candidate_list.clear()
         self.table.setRowCount(0)
-        self.cover_list.clear()
-        self.cover_list.hide()  # nothing to show until pictures arrive
-        self.cover_status.setText("Đang tìm ảnh bìa...")
+        self.cover_panel.clear_search_results()
+        self.cover_panel.status_label.setText("Đang tìm ảnh bìa...")
         self._info_pending = self._cover_pending = True
         self._update_apply_enabled()
 
@@ -375,25 +351,7 @@ class MetadataSuggestDialog(DesignDialog):
         if number != self._search_number:
             return
         self._cover_pending = False
-        if error:
-            self.cover_status.setText(f"Chưa tìm được ảnh bìa: {error}")
-        elif not downloaded:
-            self.cover_status.setText(f"Không có ảnh bìa nào khớp từ {round(self._min_score() * 100)}% trở lên. "
-                                      "Bạn đổi được mức khớp ở Cài đặt › Ảnh bìa.")
-        else:
-            self.cover_status.setText(f"{len(downloaded)} ảnh bìa -- bấm vào một ảnh để dùng.")
-        for candidate, image_bytes in downloaded:
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(image_bytes):
-                continue
-            thumb = pixmap.scaled(_THUMB_SIZE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            item = QListWidgetItem(QIcon(thumb), _result_label(candidate))
-            item.setToolTip(_result_tooltip(candidate))
-            item.setData(_IMAGE_BYTES_ROLE, image_bytes)
-            score = getattr(candidate, "score", 0.0)
-            item.setData(_SCORE_ROLE, round(score * 100) if score else 0)
-            self.cover_list.addItem(item)
-        self.cover_list.setVisible(self.cover_list.count() > 0)
+        self.cover_panel.show_search_results(downloaded, error)
         self._update_apply_enabled()
 
     def _on_lookup_finished(self, number: int, result: LookupResult | None, error: str) -> None:
@@ -489,8 +447,7 @@ class MetadataSuggestDialog(DesignDialog):
         return changes
 
     def _picked_cover(self) -> bytes | None:
-        items = self.cover_list.selectedItems()
-        return items[0].data(_IMAGE_BYTES_ROLE) if items else None
+        return self.cover_panel.picked_cover_bytes()
 
     def _will_apply_info(self) -> bool:
         return self.apply_info_check.isChecked() and bool(self.checked_changes())
