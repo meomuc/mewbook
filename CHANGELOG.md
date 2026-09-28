@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **"Tìm thêm thông tin" reorganized into four clear sections.** Nhập thông tin tìm kiếm: the search box takes about
   2/3 of the row (three buttons beside it -- Tìm kiếm, Tìm thêm [search again with the internet], Mở trình duyệt), and
   the result line sits in its own bordered box. Thông tin tìm được: the found results (5 rows visible, more scrolls)
-  and the field-by-field comparison table now sit side by side (40% / 60%), with a "Chọn tất cả" box above the table
+  and the field-by-field comparison table now sit side by side (50% / 50%), with a "Chọn tất cả" box above the table
   to tick or clear every row at once. Ảnh bìa: the source list (Open Library, Google Books, ...) is plain text now,
   not a row of pill-shaped boxes, its thumbnails are about 70% their previous size (more fit without scrolling, still
   legible), and the before → after preview lines up with the row of thumbnails beside it instead of the tab bar.

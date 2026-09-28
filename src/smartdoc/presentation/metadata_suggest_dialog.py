@@ -201,8 +201,8 @@ class MetadataSuggestDialog(DesignDialog):
         right_col = QVBoxLayout()
         right_col.addWidget(self.select_all_check, 0, Qt.AlignRight)
         right_col.addWidget(self.table, 1)
-        info_split.addLayout(left_col, 2)  # 40%
-        info_split.addLayout(right_col, 3)  # 60%
+        info_split.addLayout(left_col, 1)  # 50%
+        info_split.addLayout(right_col, 1)  # 50%
 
         # -- Frame 3: ảnh bìa ----------------------------------------------------------------
         # Covers found for the same search: pick one to use as the book's picture (independent of the information).
