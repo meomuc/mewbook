@@ -11,10 +11,11 @@
       "date": "2026-09-28",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
       "bullets": [
-        "\"Đặt lại thư viện\" (Cài đặt › Sao lưu)",
-        "\"Gom sách về một thư mục\" can sort into subfolders by hashtag",
-        "\"Lọc nhanh\" (the sidebar's quick filter box) can be sorted"
+        "“Đặt lại thư viện” mới trong Cài đặt › Sao lưu",
+        "“Tìm thêm thông tin” gộp chung tìm ảnh bìa và tìm thông tin sách, sắp xếp lại gọn hơn",
+        "Sửa lỗi: panel Chi tiết hiển thị đúng nhà xuất bản, năm, ngôn ngữ, ISBN"
       ],
       "link": "",
       "download": {
@@ -59,20 +60,8 @@
   ],
   "roadmap": [
     {
-      "title": "Gửi sách tới máy đọc sách",
-      "desc": "Chọn bộ sưu tập, Mèo chép sang thẻ nhớ hoặc máy Boox qua USB",
-      "eta": "Sắp tới",
-      "status": "planned"
-    },
-    {
-      "title": "Tìm không dấu & sửa mã hóa cũ",
-      "desc": "Gõ \"nguyen nhat anh\" vẫn ra Nguyễn Nhật Ánh; sửa tên sách TCVN3/VNI",
-      "eta": "Kế hoạch",
-      "status": "planned"
-    },
-    {
-      "title": "Chuyển đổi định dạng sách",
-      "desc": "Chuyển giữa các định dạng ebook, chỉ với file không có DRM",
+      "title": "Sửa mã hóa cũ trong tên sách",
+      "desc": "Nhận diện và sửa tên sách gõ theo bảng mã cũ (TCVN3/VNI) thành Unicode chuẩn",
       "eta": "Kế hoạch",
       "status": "planned"
     },
@@ -83,62 +72,32 @@
       "status": "planned"
     },
     {
-      "title": "Xóa file trùng an toàn hơn",
-      "desc": "So khớp theo nội dung trước, tên và dung lượng chỉ để gợi ý; Mèo không tự chọn xóa và luôn cho bạn xem lại từng nhóm trước khi xóa",
+      "title": "Đồng bộ metadata cộng đồng: thứ tự ưu tiên nguồn",
+      "desc": "Máy cục bộ trước, rồi đến Cộng đồng MewBook, rồi mới đến nguồn khác trên Internet; xung đột giữa các nguồn luôn cho bạn xem trước và tự chọn nhận hay bỏ",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Thùng rác trong MewBook",
-      "desc": "File xóa từ mục trùng lặp vào thùng rác trước, bạn đặt sau bao nhiêu ngày thì xóa hẳn và có thể khôi phục trước hạn",
+      "title": "Đồng bộ metadata cộng đồng: minh bạch & trạng thái",
+      "desc": "Trước khi bật, nói rõ chỉ chia sẻ metadata (không phải file sách) và có thể tắt bất cứ lúc nào; thanh trạng thái có icon riêng báo đang/đã đồng bộ",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Gom sách về một thư mục",
-      "desc": "Chọn thư mục đích rồi chọn sao chép hoặc di chuyển; di chuyển thì đường dẫn trong thư viện tự cập nhật, có cảnh báo rõ trước khi làm",
+      "title": "Lưu trang web thành PDF",
+      "desc": "Dán link, Mèo lọc bỏ menu/quảng cáo rồi lưu bài viết thành PDF vào thư viện, có nhắc nhở tôn trọng bản quyền trang gốc",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Chọn nơi lưu bản sao lưu thư viện",
-      "desc": "Đặt thư mục sao lưu trong Cài đặt; thư mục không dùng được thì báo rõ, không im lặng bỏ qua",
+      "title": "Chuyển đổi định dạng tài liệu: hàng loạt",
+      "desc": "Chọn nhiều sách cùng lúc, đổi định dạng có thanh tiến độ; một file lỗi không làm dừng cả lô",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Nút \"Cập nhật ngay\" cho thông tin sách",
-      "desc": "Bấm để quét ngay, có tiến trình và số sách vừa cập nhật, vẫn dùng app bình thường trong lúc chờ",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "\"Tìm ảnh bìa\" thành \"Tìm thêm thông tin\"",
-      "desc": "Tìm cả ảnh bìa lẫn thông tin sách, bạn chọn áp dụng ảnh, thông tin hoặc cả hai; có nút \"Tìm trên Internet\" mở trình duyệt để bạn tự tìm tiếp",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Tìm ảnh bìa ra nhiều kết quả hơn",
-      "desc": "Hạ ngưỡng khớp mặc định cho phong phú hơn mà vẫn liên quan; bạn tự chỉnh chặt hay lỏng trong Cài đặt",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Một ô tìm thay cho hai",
-      "desc": "Gõ tên sách và tác giả vào cùng một ô, Mèo tự tách",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Tóm tắt AI chỉ dùng thông tin nhận diện sách",
-      "desc": "Tên, tác giả, nhà xuất bản, năm, dịch giả... và không còn gửi trích đoạn nội dung dài",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Gợi ý hashtag khi gõ",
-      "desc": "Gõ từ 2 chữ là thấy hashtag đã có, chọn là điền, không gợi ý hashtag sách đã gắn",
+      "title": "Chuyển đổi định dạng tài liệu: minh bạch chất lượng",
+      "desc": "Cặp định dạng dễ lệch bố cục (như PDF sang định dạng chỉnh sửa được) sẽ được cảnh báo rõ trước khi đổi",
       "eta": "Kế hoạch",
       "status": "next"
     }
@@ -289,6 +248,11 @@
   "pendingShots": [],
   "announcements": [
     {
+      "date": "2026-09-28",
+      "title": "MewBook 1.2.0: Đặt lại thư viện, tìm thông tin sách gọn hơn",
+      "text": "“Đặt lại thư viện” mới trong Cài đặt › Sao lưu — xóa sạch dữ liệu quản lý cục bộ mà không đụng tới file hay dữ liệu cộng đồng, luôn sao lưu trước khi làm. “Tìm thêm thông tin” gộp chung việc tìm ảnh bìa và tìm thông tin sách vào một cửa sổ, sắp xếp lại thành khung tìm kiếm, kết quả và tùy chọn cập nhật rõ ràng hơn. Thanh trạng thái dùng icon thay cho chữ cho gọn; sách thiếu file giờ có icon kính lúp + dấu hỏi dễ nhận ra. “Gom sách về một thư mục” có thêm lựa chọn tự chia theo hashtag. Sửa lỗi: panel Chi tiết giờ hiển thị đúng nhà xuất bản, năm, ngôn ngữ và ISBN của sách (trước đây trống dù file có sẵn thông tin). Mỗi cửa sổ chỉ còn một nút đóng thay vì hai."
+    },
+    {
       "date": "2026-09-26",
       "title": "MewBook 1.1.0: kệ sách mới, thêm sách không còn popup",
       "text": "Giao diện \"Kệ sách\" hoàn chỉnh cho cả bảy giao diện. Thêm sách chỉ hiện một thẻ tiến độ rồi một bản tóm tắt. Cài đặt gọn thành mười trang, cửa sổ đọc sách có mục lục, phân loại thông minh có ba bước và hoàn tác được. Thư viện cũ được giữ nguyên khi nâng cấp."
@@ -297,6 +261,24 @@
       "date": "2026-09-25",
       "title": "Mèo vừa dọn nhà, mọi thứ dễ nhìn hơn",
       "text": "Bìa sách mới hiện ngay trong danh sách. Thanh dưới cùng gọn lại: chỉ có biểu tượng, rê chuột là thấy lời giải thích. Cửa sổ không còn che thanh tác vụ. Ô nào sửa được nhìn là biết. Phần Cài đặt và các bước lấy khóa AI được viết lại bằng lời dễ hiểu."
+    }
+  ],
+  "layouts": [
+    {
+      "id": "ke-sach",
+      "title": "Kệ sách",
+      "caption": "Bố cục gốc: kệ sách gỗ, panel chi tiết bên phải",
+      "src": "/assets/gallery/layout-ke-sach.webp",
+      "w": 1600,
+      "h": 960
+    },
+    {
+      "id": "toi-gian",
+      "title": "Tối giản",
+      "caption": "Trang chủ gọn, thanh trên cùng, không kệ gỗ",
+      "src": "/assets/gallery/layout-toi-gian.webp",
+      "w": 1600,
+      "h": 960
     }
   ]
 }

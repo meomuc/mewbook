@@ -85,6 +85,9 @@ type Version = { ver: string; date: string; tag: string; tagColor: string; bulle
 type RoadmapItem = { title: string; desc: string; eta: string; status: string };
 type Announcement = { date: string; title: string; text: string };
 type Shot = { src: string; title: string; caption: string; w: number; h: number };
+// A layout (kiểu giao diện, CLAUDE.md §6) is a different axis from a theme (colour): kệ sách / tối giản. Hand-picked
+// from themes/web/ into content.json -> layouts (not script-generated yet, unlike `gallery`'s per-theme shots).
+type LayoutShot = { id: string; title: string; caption: string; src: string; w: number; h: number };
 type Bug = { id: string; desc: string; status: string; priority: string; color: string };
 
 const meta = content.meta;
@@ -96,6 +99,7 @@ const laterPlans = roadmap.filter(r => r.status !== "next");
 const announcements = ((content as { announcements?: Announcement[] }).announcements ?? []);
 const bugs = content.bugs as Bug[];
 const gallery = (content as { gallery?: Shot[] }).gallery ?? [];
+const layouts = (content as { layouts?: LayoutShot[] }).layouts ?? [];
 const donate = content.donate as { momo?: string; bank?: string; buymeacoffee?: string; qr?: string };
 const latest: Version | undefined = versions[0];
 const latestSize = latest?.download?.size;
@@ -428,6 +432,32 @@ export default function App() {
             <h2 className="display text-[28px] md:text-[34px] font-bold leading-tight">Giao diện của Mèo <span className="opacity-60 font-medium text-[18px]">— chọn theo tâm trạng.</span></h2>
             <p className={`mt-2 text-[14px] ${cfg.textMuted}`}>Mỗi giao diện có màu, phông chữ và cách bày kệ sách riêng. Bấm vào ảnh để xem lớn.</p>
           </div>
+
+          {layouts.length > 0 && (
+            <div className="mb-8">
+              <div className={`text-[11px] font-semibold uppercase tracking-wider mb-3 ${cfg.textMuted}`}>Kiểu giao diện</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                {layouts.map(l => (
+                  <a
+                    key={l.id}
+                    href={asset(l.src)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`group block rounded-[20px] overflow-hidden border transition hover:-translate-y-0.5 ${isDark ? "bg-[#3A2E2A] border-[#4A3A34]" : "bg-white border-[#F0E2C8] shadow-[0_8px_24px_rgba(90,62,54,0.06)] hover:shadow-[0_12px_32px_rgba(90,62,54,0.1)]"}`}
+                  >
+                    <div className="aspect-[16/10] overflow-hidden bg-black/5">
+                      <img src={asset(l.src)} alt={l.title} loading="lazy" width={l.w} height={l.h} className="w-full h-full object-cover object-top group-hover:scale-[1.03] transition duration-500" />
+                    </div>
+                    <div className="p-3">
+                      <div className="font-bold text-[13px]">{l.title}</div>
+                      <div className={`text-[11px] leading-snug mt-0.5 ${cfg.textMuted}`}>{l.caption}</div>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             {gallery.map((g, i) => (
               <button
