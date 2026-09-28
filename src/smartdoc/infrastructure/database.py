@@ -637,8 +637,9 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def documents_for_gather(self, doc_ids: list[str] | None = None) -> list[dict[str, Any]]:
-        """(id, title, file_path) of the given books, or of every book, for gathering files into one folder."""
-        rows = self.connection.execute("SELECT id, title, file_path FROM documents ORDER BY title COLLATE NOCASE").fetchall()
+        """(id, title, file_path, tags) of the given books, or of every book, for gathering files into one folder.
+        `tags` is there for the "sắp xếp vào thư mục con theo hashtag" option -- gather_service picks the folder."""
+        rows = self.connection.execute("SELECT id, title, file_path, tags FROM documents ORDER BY title COLLATE NOCASE").fetchall()
         wanted = None if doc_ids is None else set(doc_ids)
         return [dict(r) for r in rows if wanted is None or r["id"] in wanted]
 

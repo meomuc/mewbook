@@ -14,16 +14,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   do the same thing. Only the footer's is left; the window's own title bar still closes it too.
 - **Status bar: "tài liệu" and "thư mục" are icons now, not words** -- a small document icon before the total, a
   folder icon before the watched-folder count, the word itself still in the tooltip. "đủ" and "thiếu thông tin" keep
-  their ✓/○ marks but drop the trailing word the same way. The author credit drops "Tác giả:" (the zone's own pen
-  icon already says whose section this is) and shows just the name.
+  their ✓/○ marks but drop the trailing word the same way. The author credit drops "Tác giả:" and shows just the name.
+  The three zone headings themselves ("Thư viện" / "Hệ thống & kết nối" / "Tác giả") were tried as icons (book / link
+  / pen) and are removed again on request; the zones now start straight with their own items, no heading of any kind.
+  "Fanpage" stays a small Facebook-mark icon.
 - **"Tìm thêm thông tin" no longer opens a second window for the cover.** Its "Đổi bìa bằng đường dẫn / file…" button,
   which popped up the whole "Đổi ảnh bìa" dialog on top of it, is gone; the cover section is now the same three tabs
   (tìm trên mạng, dán đường dẫn, từ máy) and before → after preview, embedded right in the one dialog and driven by
   the same shared title/author box. The standalone "Đổi ảnh bìa" dialog (reached on its own from the library/detail
   panel) is unchanged.
-- **Status bar: the three zone headings ("THƯ VIỆN", "HỆ THỐNG & KẾT NỐI", "TÁC GIẢ") are icons now**
-  (a book, a link and a pen), the zone's name in the tooltip instead of spelled out -- less to read, same information on
-  hover. "Fanpage" is a small Facebook-mark icon instead of the word.
 - The donate line in the status bar is warmer and easier to notice: accent colour, bold, a small symbol opening each
   message (☕ 💛 🐾) and friendlier wording. Click still opens the QR window.
 - The build now carries the project's Supabase URL and public anon key (community reviews and error reports), so the
@@ -36,6 +35,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
 
 ### Added
+- **"Gom sách về một thư mục" can sort into subfolders by hashtag.** A new option, off by default (flat, as before):
+  each book goes into a subfolder named after its first hashtag, and a book with none goes into "Chưa phân loại" --
+  the same "no tag" bucket the sidebar filter already uses. The preview says how many subfolders that will make.
 - **"Lọc nhanh" (the sidebar's quick filter box) can be sorted.** A button beside it offers the same choices as a sidebar
   section's own "Sắp xếp" menu -- "Liên quan nhất" (the default best-match-first order), "Số tài liệu (nhiều → ít)" or "Tên
   (A → Z)" -- and only reorders the suggestions already found for what was typed; it never widens the search.

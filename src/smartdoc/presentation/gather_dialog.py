@@ -13,6 +13,7 @@ import threading
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -72,6 +73,14 @@ class GatherDialog(DesignDialog):
         self.body.addWidget(self.copy_radio)
         self.body.addWidget(self.move_radio)
 
+        self.by_category_check = QCheckBox(
+            "Tạo thư mục con theo hashtag/thể loại (như trong thư viện)", self)
+        self.by_category_check.setToolTip(
+            "Mỗi sách vào một thư mục con trùng tên hashtag đầu tiên của nó (sách nhiều hashtag lấy hashtag đầu). "
+            "Sách chưa có hashtag vào thư mục \"Chưa phân loại\". Để trống thì mọi sách nằm chung một thư mục.")
+        self.by_category_check.toggled.connect(self._update_plan)
+        self.body.addWidget(self.by_category_check)
+
         self.summary_label = QLabel(self)
         self.summary_label.setWordWrap(True)
         self.warning_label = QLabel(self)
@@ -106,7 +115,8 @@ class GatherDialog(DesignDialog):
             self._update_buttons()
             return
         try:
-            plan = self.context.gather.plan(target, self.mode(), self.doc_ids)
+            plan = self.context.gather.plan(target, self.mode(), self.doc_ids,
+                                             by_category=self.by_category_check.isChecked())
         except GatherError as exc:
             self.summary_label.setText(str(exc))
             self._update_buttons()
@@ -116,7 +126,8 @@ class GatherDialog(DesignDialog):
         missing = sum(1 for i in left_out if i.status == STATUS_MISSING)
         there = len(left_out) - missing
         lines = [f"{len(plan.ready)} sách ({human_size(plan.total_bytes).replace('.', ',')}) sẽ được "
-                 + ("chuyển" if plan.mode == MODE_MOVE else "sao chép") + f" vào {plan.target}."]
+                 + ("chuyển" if plan.mode == MODE_MOVE else "sao chép") + f" vào {plan.target}"
+                 + (f", chia vào {plan.category_count} thư mục con theo hashtag." if plan.by_category else ".")]
         if missing:
             lines.append(f"{missing} sách không thấy file nên bỏ qua.")
         if there:

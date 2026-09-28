@@ -54,7 +54,7 @@ from smartdoc.presentation.theme_manager import STATUS_BAR_H, theme_manager
 # icons line up whatever glyphs they hold.
 _ROW_HEIGHT = 22
 _STATUS_ICON_WIDTH = 30
-_HEADING_ICON_WIDTH = 20  # a zone's own icon (Thư viện / Hệ thống & kết nối / Tác giả), its name said in the tooltip
+_HEADING_ICON_WIDTH = 20  # the Facebook mark beside "Fanpage"
 _ZONE_SPACING_WIDE = 16
 _ZONE_SPACING_TIGHT = 4
 
@@ -360,13 +360,9 @@ class StatusBarPanel(QStatusBar):
             ],
             spacing=_ZONE_SPACING_WIDE,
             trailing_stretch=True,
-            heading_icon="book",
-            heading_tooltip="Thư viện",
         )
-        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT,
-                                 heading_icon="link", heading_tooltip="Hệ thống & kết nối")
-        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE,
-                                  heading_icon="pen", heading_tooltip="Tác giả")
+        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT)
+        self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE)
         for label in (self.cloud_label, self.ai_label, self.network_label):
             label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
         for widget in (
@@ -427,17 +423,14 @@ class StatusBarPanel(QStatusBar):
         if self._network_info is not None:
             self._network_info.reachabilityChanged.connect(lambda _reachability: self._refresh_network())
 
-        self._refresh_zone_icons()
-        theme_manager().themeChanged.connect(self._refresh_zone_icons)
+        self._refresh_facebook_icon()
+        theme_manager().themeChanged.connect(self._refresh_facebook_icon)
         self.refresh()
 
-    def _refresh_zone_icons(self, _key: str = "") -> None:
-        """The three zone headings (book / link / pen) and the Facebook mark beside "Fanpage" are plain-icon labels,
-        so -- unlike the QSS-styled text they replaced -- their colour has to be repainted by hand on a theme change."""
-        color = theme_manager().token("ink3")
-        for zone in (self.library_zone, self.system_zone, self.support_zone):
-            zone.heading_label.setPixmap(icon_pixmap(zone.heading_label.heading_icon, color, 14))
-        self.community_label.setPixmap(icon_pixmap("facebook", color, 16))
+    def _refresh_facebook_icon(self, _key: str = "") -> None:
+        """The Facebook mark beside "Fanpage" is a plain-icon label, so -- unlike the QSS-styled text it replaced --
+        its colour has to be repainted by hand on a theme change."""
+        self.community_label.setPixmap(icon_pixmap("facebook", theme_manager().token("ink3"), 16))
 
     def _apply_style(self, _key: str = "") -> None:
         tm = theme_manager()
@@ -450,24 +443,12 @@ class StatusBarPanel(QStatusBar):
     # -- construction helpers --
 
     @staticmethod
-    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False,
-              heading_icon: str = "", heading_tooltip: str = "") -> QWidget:
+    def _zone(widgets: list[QWidget], *, spacing: int = 10, trailing_stretch: bool = False) -> QWidget:
         zone = QWidget()
         layout = QHBoxLayout(zone)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(spacing)
         layout.setAlignment(Qt.AlignVCenter)
-        if heading_icon:
-            # An icon, not the zone's name spelled out: the words live in its tooltip (and, for the icons inside the
-            # zone, in each of their own tooltips too) -- see _refresh_zone_icons for the colour, kept in step with
-            # the theme.
-            label = QLabel(zone)
-            label.setToolTip(heading_tooltip)
-            label.setAlignment(Qt.AlignCenter)
-            label.setFixedSize(_HEADING_ICON_WIDTH, _ROW_HEIGHT)
-            label.heading_icon = heading_icon
-            layout.addWidget(label)
-            zone.heading_label = label
         for widget in widgets:
             layout.addWidget(widget)
         if trailing_stretch:
@@ -496,10 +477,6 @@ class StatusBarPanel(QStatusBar):
         )
         room = self.width() - others - 60  # dividers, margins and the spacing between items
         self.donate_ticker.setVisible(room >= self.donate_ticker._slot_width)
-        # Narrower still: the zone headings shrink away too (the icons' tooltips carry the words).
-        show_headings = self.width() >= 1100
-        for zone in (self.library_zone, self.system_zone, self.support_zone):
-            zone.heading_label.setVisible(show_headings)
 
     # -- events --
 

@@ -248,15 +248,15 @@ def test_the_files_and_folders_counts_are_icons_not_the_words(qapp, app_context)
     assert not panel.folders_label.icon_label.pixmap().isNull() and "thư mục" not in panel.folders_label.text()
 
 
-def test_zone_headings_are_icons_with_the_zone_name_in_the_tooltip_not_spelled_out(qapp, app_context):
+def test_zones_have_no_heading_icon_of_their_own(qapp, app_context):
+    """The three zones (Thư viện / Hệ thống & kết nối / Tác giả) used to each start with their own icon (book / link
+    / pen); dropped on request -- the zones now hold only their own items, no heading of any kind."""
     panel = StatusBarPanel(app_context)
-    zones = {"Thư viện": panel.library_zone, "Hệ thống & kết nối": panel.system_zone, "Tác giả": panel.support_zone}
-    for tooltip, zone in zones.items():
-        assert zone.heading_label.toolTip() == tooltip
-        assert zone.heading_label.text() == "" and not zone.heading_label.pixmap().isNull()
+    for zone in (panel.library_zone, panel.system_zone, panel.support_zone):
+        assert not hasattr(zone, "heading_label")
 
 
-def test_the_zone_icons_and_the_fanpage_icon_are_repainted_on_a_theme_change(qapp, app_context, monkeypatch):
+def test_the_fanpage_icon_is_repainted_on_a_theme_change(qapp, app_context, monkeypatch):
     _panel = StatusBarPanel(app_context)  # kept alive: its construction is what wires the theme-change handler under test
     seen = []
     monkeypatch.setattr(
@@ -264,8 +264,8 @@ def test_the_zone_icons_and_the_fanpage_icon_are_repainted_on_a_theme_change(qap
         lambda name, *a, **k: seen.append(name) or QPixmap(1, 1),
     )
     theme_manager().themeChanged.emit("broadsheet")
-    # Other icons (cloud/bot/globe status) repaint on the same signal too; only these four are ours to check here.
-    assert [name for name in seen if name in {"book", "link", "pen", "facebook"}] == ["book", "link", "pen", "facebook"]
+    # Other icons (cloud/bot/globe status, the file/folder counts) repaint on the same signal too; only this one is ours to check here.
+    assert "facebook" in seen
 
 
 # --- collection ---

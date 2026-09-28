@@ -80,6 +80,42 @@ def test_a_copy_that_comes_out_short_is_removed_and_the_original_kept(app_contex
     assert not list((tmp_path / "all").iterdir()) and books["d1"].exists()
 
 
+def test_by_category_sorts_into_one_subfolder_per_hashtag(app_context, books, tmp_path):
+    app_context.db.add_or_update_document("d1", {**app_context.db.get_document("d1"), "tags": "Tiểu thuyết, Chưa chắc"})
+    # d2 keeps no tag: goes to the "no tag" bucket.
+    plan = app_context.gather.plan(str(tmp_path / "all"), MODE_COPY, by_category=True)
+
+    from pathlib import Path
+    from smartdoc.domain.author_names import NO_TAG_LABEL
+
+    by_doc = {i.doc_id: Path(i.destination).parent.name for i in plan.ready}
+    assert by_doc == {"d1": "Tiểu thuyết", "d2": NO_TAG_LABEL}  # the first hashtag wins, not "Chưa chắc"
+    assert plan.category_count == 2
+
+    result = app_context.gather.run(plan)
+    assert result.done == 2
+    assert (tmp_path / "all" / "Tiểu thuyết" / "a.pdf").is_file()
+    assert (tmp_path / "all" / NO_TAG_LABEL / "a.pdf").is_file()
+
+
+def test_by_category_off_by_default_keeps_the_flat_layout(app_context, books, tmp_path):
+    from pathlib import Path
+
+    plan = app_context.gather.plan(str(tmp_path / "all"), MODE_COPY)
+    assert plan.by_category is False and plan.category_count == 0
+    assert all(Path(i.destination).parent == tmp_path / "all" for i in plan.ready)
+
+
+def test_a_hashtag_with_path_breaking_characters_is_sanitized(app_context, books, tmp_path):
+    app_context.db.add_or_update_document("d1", {**app_context.db.get_document("d1"), "tags": 'Sci-Fi: A/B?'})
+    plan = app_context.gather.plan(str(tmp_path / "all"), MODE_COPY, by_category=True)
+
+    from pathlib import Path
+
+    name = next(Path(i.destination).parent.name for i in plan.ready if i.doc_id == "d1")
+    assert not any(c in name for c in '<>:"/\\|?*')
+
+
 def test_bad_targets_are_refused_and_a_watched_folder_is_warned_about(app_context, books, tmp_path):
     with pytest.raises(GatherError):
         app_context.gather.plan("", MODE_COPY)
@@ -116,4 +152,31 @@ def test_the_dialog_previews_then_runs_and_moving_asks_first(qapp, app_context, 
         qapp.processEvents()
         time.sleep(0.01)
     assert "Xong: 2 sách" in dialog.result_label.text() and not books["d1"].exists()
+    dialog.deleteLater()
+
+
+def test_the_by_category_option_is_off_by_default_and_sorts_into_subfolders_when_ticked(qapp, app_context, books, tmp_path):
+    from smartdoc.presentation.gather_dialog import GatherDialog
+
+    app_context.db.add_or_update_document("d1", {**app_context.db.get_document("d1"), "tags": "Tiểu thuyết"})
+    dialog = GatherDialog(app_context)
+    assert not dialog.by_category_check.isChecked()  # default: one flat folder, like before this option existed
+
+    dialog.folder_edit.setText(str(tmp_path / "all"))
+    assert "thư mục con" not in dialog.summary_label.text()
+
+    dialog.by_category_check.setChecked(True)
+    assert "2 thư mục con theo hashtag" in dialog.summary_label.text()
+
+    dialog.start_button.click()
+    import time
+
+    deadline = time.time() + 10
+    while dialog._busy and time.time() < deadline:
+        qapp.processEvents()
+        time.sleep(0.01)
+    assert (tmp_path / "all" / "Tiểu thuyết" / "a.pdf").is_file()
+    from smartdoc.domain.author_names import NO_TAG_LABEL
+
+    assert (tmp_path / "all" / NO_TAG_LABEL / "a.pdf").is_file()
     dialog.deleteLater()
