@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-28
+
+New features, backwards compatible: a MINOR release.
+
 ### Changed
 - **Every dialog lost its extra close (×) button.** The custom header used to carry its own close button on top of
   the window's own title-bar close button and the footer's own labelled way out (Hủy / Đóng / Xong) -- three ways to
