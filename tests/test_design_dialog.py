@@ -14,7 +14,7 @@ def _danger(**overrides):
     return DangerConfirmDialog(None, **args)
 
 
-def test_frame_has_title_subtitle_close_and_a_footer_with_named_buttons(qapp):
+def test_frame_has_title_subtitle_and_a_footer_with_named_buttons(qapp):
     dialog = DesignDialog(None, title="Tìm thông tin sách", subtitle="so sánh và chọn", icon="search")
     dialog.add_footer_note("4 mục được chọn")
     cancel = dialog.add_footer_button("Hủy", on_click=dialog.reject)
@@ -23,6 +23,14 @@ def test_frame_has_title_subtitle_close_and_a_footer_with_named_buttons(qapp):
     assert not dialog.subtitle_label.isHidden()
     assert main.property("role") == "primary" and cancel.property("role") is None
     assert dialog._footer.property("role") == "dialogFooter"
+    dialog.deleteLater()
+
+
+def test_the_header_has_no_close_button_of_its_own(qapp):
+    """Regression: the header used to carry its own (×) close button on top of the window's own title bar and the
+    footer's own Hủy/Đóng/Xong button -- three ways to do the same thing. Only the footer's is left."""
+    dialog = DesignDialog(None, title="X")
+    assert not hasattr(dialog, "close_button")
     dialog.deleteLater()
 
 

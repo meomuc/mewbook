@@ -44,8 +44,9 @@ def test_files_label_shows_total_and_completeness_counts(qapp, app_context):
 
     panel = StatusBarPanel(app_context)
 
-    # The bar itself carries only icons and numbers; the sentence is the tooltip.
-    assert (panel.files_label.text(), panel.complete_label.text(), panel.incomplete_label.text()) == ("<b>2</b> tài liệu", "<span style='color:%s'>✓</span> 1 đủ" % theme_manager().token("ok"), "○ 1 thiếu thông tin")
+    # The bar itself carries only icons and numbers; the word for each ("tài liệu", "đủ", "thiếu thông tin") lives
+    # only in the tooltip now.
+    assert (panel.files_label.text(), panel.complete_label.text(), panel.incomplete_label.text()) == ("<b>2</b>", "<span style='color:%s'>✓</span> 1" % theme_manager().token("ok"), "○ 1")
     assert "2 tài liệu" in panel.files_label.toolTip()
     assert "1 tài liệu đã đủ thông tin" in panel.complete_label.toolTip()
     assert "1 tài liệu còn thiếu thông tin" in panel.incomplete_label.toolTip()
@@ -57,7 +58,7 @@ def test_folders_label_shows_watch_folder_count(qapp, app_context):
 
     panel = StatusBarPanel(app_context)
 
-    assert panel.folders_label.text() == "2 thư mục"
+    assert panel.folders_label.text() == "2"
     assert "2 thư mục" in panel.folders_label.toolTip()
 
 
@@ -114,7 +115,10 @@ def test_status_bar_has_a_top_border_separating_it_from_the_panel_above(qapp, ap
 
 def test_author_credit_is_always_shown(qapp, app_context):
     panel = StatusBarPanel(app_context)
-    assert panel.author_label.text() == "Tác giả: AnhTienSinh"
+    # The word "Tác giả" is dropped in favour of the zone's own heading icon (pen, tooltip "Tác giả") -- the name
+    # alone is shown, and the tooltip still spells the word out.
+    assert panel.author_label.text() == "AnhTienSinh"
+    assert "tác giả" in panel.author_label.toolTip()
 
 
 # --- three fixed zones ---
@@ -236,6 +240,12 @@ def test_community_link_opens_the_community_page(qapp, app_context, monkeypatch)
 def test_the_fanpage_link_is_an_icon_not_the_word_fanpage(qapp, app_context):
     panel = StatusBarPanel(app_context)
     assert panel.community_label.text() == "" and not panel.community_label.pixmap().isNull()
+
+
+def test_the_files_and_folders_counts_are_icons_not_the_words(qapp, app_context):
+    panel = StatusBarPanel(app_context)
+    assert not panel.files_label.icon_label.pixmap().isNull() and "tài liệu" not in panel.files_label.text()
+    assert not panel.folders_label.icon_label.pixmap().isNull() and "thư mục" not in panel.folders_label.text()
 
 
 def test_zone_headings_are_icons_with_the_zone_name_in_the_tooltip_not_spelled_out(qapp, app_context):

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Every dialog lost its extra close (×) button.** The custom header used to carry its own close button on top of
+  the window's own title-bar close button and the footer's own labelled way out (Hủy / Đóng / Xong) -- three ways to
+  do the same thing. Only the footer's is left; the window's own title bar still closes it too.
+- **Status bar: "tài liệu" and "thư mục" are icons now, not words** -- a small document icon before the total, a
+  folder icon before the watched-folder count, the word itself still in the tooltip. "đủ" and "thiếu thông tin" keep
+  their ✓/○ marks but drop the trailing word the same way. The author credit drops "Tác giả:" (the zone's own pen
+  icon already says whose section this is) and shows just the name.
 - **"Tìm thêm thông tin" no longer opens a second window for the cover.** Its "Đổi bìa bằng đường dẫn / file…" button,
   which popped up the whole "Đổi ảnh bìa" dialog on top of it, is gone; the cover section is now the same three tabs
   (tìm trên mạng, dán đường dẫn, từ máy) and before → after preview, embedded right in the one dialog and driven by

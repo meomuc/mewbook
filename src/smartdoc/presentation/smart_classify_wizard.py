@@ -359,7 +359,6 @@ class SmartClassifyWizard(DesignDialog):
         self.stop_button.setVisible(step == STEP_RUNNING)
         self.done_button.setVisible(step == STEP_RESULT)
         self.undo_button.setVisible(step == STEP_RESULT)
-        self.close_button.setVisible(step != STEP_RUNNING)
 
     def _set_mascot(self, label: QLabel, role: str, height: int) -> None:
         pixmap = mascot_pixmap(role, height, self.devicePixelRatioF())

@@ -90,6 +90,46 @@ class _ClickableStatusLabel(QLabel):
         super().mousePressEvent(event)
 
 
+class _IconCount(QWidget):
+    """A small icon beside a number -- what a count used to spell its unit out for ("7.733 tài liệu", "2 thư mục")
+    now shows a picture of instead; the word lives on only in the tooltip. Kept a plain composite widget (icon QLabel
+    + text QLabel side by side), not rich-text with an inline <img>, so the pieces stay two ordinary, testable labels."""
+
+    def __init__(self, icon_name: str, parent=None) -> None:
+        super().__init__(parent)
+        self._icon_name = icon_name
+        self.setFixedHeight(_ROW_HEIGHT)
+        self.icon_label = QLabel(self)
+        self.icon_label.setFixedSize(16, _ROW_HEIGHT)
+        self.icon_label.setAlignment(Qt.AlignCenter)
+        self.text_label = QLabel(self)
+        self.text_label.setTextFormat(Qt.RichText)
+        self.text_label.setFixedHeight(_ROW_HEIGHT)
+        self.text_label.setAlignment(Qt.AlignVCenter)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        row.addWidget(self.icon_label)
+        row.addWidget(self.text_label)
+        self._refresh_icon()
+        # A bound method, not a lambda: Qt drops it when this widget is deleted (the window is rebuilt on a theme change).
+        theme_manager().themeChanged.connect(self._refresh_icon)
+
+    def _refresh_icon(self, _key: str = "") -> None:
+        self.icon_label.setPixmap(icon_pixmap(self._icon_name, theme_manager().token("ink3"), 14))
+
+    def setText(self, text: str) -> None:
+        self.text_label.setText(text)
+
+    def text(self) -> str:
+        return self.text_label.text()
+
+    def setToolTip(self, tooltip: str) -> None:  # noqa: N802 -- Qt override
+        super().setToolTip(tooltip)
+        self.icon_label.setToolTip(tooltip)
+        self.text_label.setToolTip(tooltip)
+
+
 class _StatusIcon(QLabel):
     """One connection status: the feature's line icon and, at its bottom right, a badge whose shape says the state
     (filled circle + tick = works, empty ring = not set up, filled square + cross = a problem), with the explanation
@@ -265,11 +305,11 @@ class StatusBarPanel(QStatusBar):
         theme_manager().themeChanged.connect(self._apply_style)
 
         # -- left zone: library --
-        self.files_label = QLabel(self)
+        self.files_label = _IconCount("file", self)
         self.complete_label = QLabel(self)
         self.incomplete_label = QLabel(self)
         self.collection_label = QLabel(self)
-        self.folders_label = QLabel(self)
+        self.folders_label = _IconCount("folder", self)
         self.activity_label = QLabel(self)
         self.activity_label.setVisible(False)
         self.missing_label = _ClickableStatusLabel(self)
@@ -296,15 +336,13 @@ class StatusBarPanel(QStatusBar):
         self.community_label.setFixedWidth(_HEADING_ICON_WIDTH)
         self.community_label.setToolTip("Fanpage cộng đồng: tin về bản mới và nơi gửi góp ý (mở trong trình duyệt)")
         self.community_label.clicked.connect(open_community_page)
-        self.author_label = QLabel("Tác giả: AnhTienSinh", self)
+        self.author_label = QLabel("AnhTienSinh", self)
         self.author_label.setToolTip(f"{APP_DISPLAY_NAME} ({APP_NAME}) -- tác giả: {APP_PUBLISHER}")
 
         for label in (
-            self.files_label,
             self.complete_label,
             self.incomplete_label,
             self.collection_label,
-            self.folders_label,
             self.activity_label,
         ):
             label.setTextFormat(Qt.RichText)
@@ -332,10 +370,8 @@ class StatusBarPanel(QStatusBar):
         for label in (self.cloud_label, self.ai_label, self.network_label):
             label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
         for widget in (
-            self.files_label,
             self.complete_label,
             self.incomplete_label,
-            self.folders_label,
             self.collection_label,
             self.activity_label,
             self.community_label,
@@ -346,6 +382,8 @@ class StatusBarPanel(QStatusBar):
         ):
             widget.setFixedHeight(_ROW_HEIGHT)
             widget.setAlignment(widget.alignment() | Qt.AlignVCenter)
+        # _IconCount (files_label, folders_label) sets its own fixed height and has no setAlignment of its own --
+        # its text_label inside is already vertically centred.
 
         container = QWidget(self)
         row = QHBoxLayout(container)
@@ -541,11 +579,11 @@ class StatusBarPanel(QStatusBar):
         self._show_missing(self.context.db.count_missing())
         total = self.context.db.count_documents()
         complete, incomplete = self.context.db.count_metadata_completeness()
-        self.files_label.setText(f"<b>{_n(total)}</b> tài liệu")
+        self.files_label.setText(f"<b>{_n(total)}</b>")
         self.files_label.setToolTip(f"Thư viện có {total} tài liệu")
-        self.complete_label.setText(f"<span style='color:{theme_manager().token('ok')}'>✓</span> {_n(complete)} đủ")
+        self.complete_label.setText(f"<span style='color:{theme_manager().token('ok')}'>✓</span> {_n(complete)}")
         self.complete_label.setToolTip(f"{complete} tài liệu đã đủ thông tin")
-        self.incomplete_label.setText(f"○ {_n(incomplete)} thiếu thông tin")
+        self.incomplete_label.setText(f"○ {_n(incomplete)}")
         self.incomplete_label.setToolTip(f"{incomplete} tài liệu còn thiếu thông tin (tác giả, bìa...)")
 
         ids = self._active_collection_ids
@@ -568,7 +606,7 @@ class StatusBarPanel(QStatusBar):
             self.collection_label.setToolTip("")
 
         folder_count = len(self.context.config.config.watch_folders)
-        self.folders_label.setText(f"{folder_count} thư mục")
+        self.folders_label.setText(f"{folder_count}")
         self.folders_label.setToolTip(f"Đang theo dõi {folder_count} thư mục: sách mới bỏ vào đó sẽ tự được thêm")
 
         self._refresh_cloud()

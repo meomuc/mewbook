@@ -34,8 +34,8 @@ HEADER_TITLE_PX = 17
 class DesignDialog(QDialog):
     """See the module docstring. Subclasses add widgets to `self.body` and buttons with `add_footer_button`."""
 
-    def __init__(self, parent=None, *, title: str, subtitle: str = "", icon: str | None = None, width: int | None = None,
-                 closable: bool = True) -> None:
+    def __init__(self, parent=None, *, title: str, subtitle: str = "", icon: str | None = None,
+                 width: int | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setObjectName("DesignDialog")
@@ -53,13 +53,8 @@ class DesignDialog(QDialog):
         self.subtitle_label.setObjectName("DialogSubtitle")
         self.subtitle_label.setWordWrap(True)
         self.subtitle_label.setVisible(bool(subtitle))
-        self.close_button = QPushButton(self)
-        self.close_button.setFlat(True)
-        self.close_button.setCursor(Qt.PointingHandCursor)
-        self.close_button.setToolTip("Đóng")
-        self.close_button.setFixedSize(28, 28)
-        self.close_button.clicked.connect(self.reject)
-        self.close_button.setVisible(closable)
+        # No close (×) button here: the window's own title bar already has one, and every dialog's footer already
+        # has an explicit, labelled way out (Hủy / Đóng / Xong) -- a third way to do the same thing was one too many.
         titles = QVBoxLayout()
         titles.setSpacing(2)
         titles.addWidget(self.title_label)
@@ -69,7 +64,6 @@ class DesignDialog(QDialog):
         header.setSpacing(10)
         header.addWidget(self._icon_label, 0, Qt.AlignTop)
         header.addLayout(titles, 1)
-        header.addWidget(self.close_button, 0, Qt.AlignTop)
         self._header = QFrame(self)
         self._header.setObjectName("DialogHeader")
         self._header.setLayout(header)
@@ -111,7 +105,6 @@ class DesignDialog(QDialog):
             f" #DialogFooter {{ background: {tm.token('surface2')}; border-top: 1px solid {tm.token('line')}; }}"
             f" #DialogHeader {{ background: transparent; }}"
         )
-        self.close_button.setIcon(line_icon("close", tm.token("ink2"), 14))
         if self._icon_name:
             self._icon_label.setPixmap(line_icon(self._icon_name, tm.token("ink"), 20).pixmap(20, 20))
 
