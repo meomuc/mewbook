@@ -276,6 +276,15 @@ class ConfigManager:
     def save(self) -> None:
         self._write(self.config)
 
+    def reset_to_defaults(self) -> None:
+        """Every setting back to its first-run value -- used only by "Đặt lại thư viện" (application/
+        library_reset_service.py) when the person chose not to keep their configuration. `db_path` and
+        `cover_cache_dir` are the two exceptions: nothing else moves the library or the cover cache, so a
+        first-run AppConfig()'s empty defaults for them would point the rest of this running session at nowhere
+        until the app was restarted."""
+        self.config = AppConfig(db_path=self.config.db_path, cover_cache_dir=self.config.cover_cache_dir)
+        self.save()
+
     def add_watch_folder(self, folder_path: str) -> None:
         if folder_path not in self.config.watch_folders:
             self.config.watch_folders.append(folder_path)

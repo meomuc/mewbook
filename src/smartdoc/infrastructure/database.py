@@ -373,6 +373,24 @@ class DatabaseManager:
         """The versioned-migration level of this database (0 = the 1.0.0 baseline)."""
         return schema_migrations.get_version(self.connection)
 
+    # Every table that holds library data -- i.e. everything a fresh library.db starts without. `documents_fts`
+    # is not listed: its own AFTER DELETE trigger (`documents_ad`) clears the matching row as each one in
+    # `documents` is deleted, so it never needs touching directly.
+    _LIBRARY_DATA_TABLES = (
+        "documents", "collections", "collection_documents", "facet_groups", "facet_group_members",
+        "smart_classification", "metadata_history", "reading_progress", "excluded_paths",
+    )
+
+    def reset_library_data(self) -> None:
+        """"Đặt lại thư viện": empties every table above, back to what a brand new library.db looks like. The schema
+        itself (so no migration is needed afterwards), every file on disk (the books, their metadata) and the online
+        community database are untouched -- only application/library_reset_service.py calls this, and only after it
+        has backed the library up (no backup, no reset, same rule as a schema upgrade)."""
+        with self.write_lock:
+            for table in self._LIBRARY_DATA_TABLES:
+                self.connection.execute(f"DELETE FROM {table}")
+            self.connection.commit()
+
     def _migrate_add_missing_columns(self) -> None:
         """`CREATE TABLE IF NOT EXISTS` does nothing for a table that
         already exists under an older schema version -- a library.db from

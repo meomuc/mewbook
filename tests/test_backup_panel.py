@@ -39,6 +39,7 @@ def _titles(context):
 def test_an_in_memory_library_cannot_be_backed_up_and_says_so(qapp, app_context):
     panel = BackupPanel(app_context)
     assert not panel.backup_button.isEnabled() and not panel.restore_button.isEnabled()
+    assert not panel.reset_button.isEnabled()
     assert "bộ nhớ" in panel.status_label.text()
 
 
@@ -83,6 +84,64 @@ def test_a_confirmed_restore_puts_the_library_back_and_announces_it(qapp, file_c
     assert _titles(file_context) == {"Sách 0", "Sách 1", "Sách 2"}
     assert announced and "Đã khôi phục" in panel.status_label.text()
     assert any("Trước khi khôi phục" in panel.backup_list.item(i).text() for i in range(panel.backup_list.count()))
+
+
+def test_reset_asks_first_and_changes_nothing_when_declined(qapp, file_context, monkeypatch):
+    panel = BackupPanel(file_context)
+    monkeypatch.setattr(panel, "_confirm_reset", lambda **k: False)
+
+    panel.reset_button.click()
+
+    assert not panel._busy and len(_titles(file_context)) == 3
+    assert file_context.backups.list_backups() == []  # never even asked for a safety backup
+
+
+def test_a_confirmed_reset_empties_the_library_and_announces_it(qapp, file_context, monkeypatch):
+    panel = BackupPanel(file_context)
+    monkeypatch.setattr(panel, "_confirm_reset", lambda **k: True)
+    announced = []
+    file_context.event_bus.subscribe(LibraryUpdatedEvent, lambda e: announced.append(e))
+
+    panel.reset_button.click()
+    _wait(qapp, panel)
+
+    assert _titles(file_context) == set()
+    assert announced and "Đã đặt lại thư viện: 3 sách" in panel.status_label.text()
+    assert any("Trước khi đặt lại" in panel.backup_list.item(i).text() for i in range(panel.backup_list.count()))
+
+
+def test_reset_keep_config_is_ticked_by_default_and_is_passed_through(qapp, file_context, monkeypatch):
+    panel = BackupPanel(file_context)
+    assert panel.reset_keep_config_check.isChecked()
+    seen = []
+    monkeypatch.setattr(panel, "_confirm_reset", lambda **k: True)
+    monkeypatch.setattr(file_context.library_reset, "reset", lambda **k: seen.append(k))
+
+    panel.reset_button.click()
+    _wait(qapp, panel)
+
+    assert seen == [{"keep_config": True}]
+
+    panel.reset_keep_config_check.setChecked(False)
+    panel.reset_button.click()
+    _wait(qapp, panel)
+
+    assert seen[-1] == {"keep_config": False}
+
+
+def test_a_reset_failure_is_shown_and_the_buttons_come_back(qapp, file_context, monkeypatch):
+    from smartdoc.application.library_reset_service import LibraryResetError
+
+    panel = BackupPanel(file_context)
+    monkeypatch.setattr(panel, "_confirm_reset", lambda **k: True)
+    monkeypatch.setattr(file_context.library_reset, "reset",
+                        lambda **k: (_ for _ in ()).throw(LibraryResetError("đĩa đầy")))
+
+    panel.reset_button.click()
+    _wait(qapp, panel)
+
+    assert "đĩa đầy" in panel.status_label.text() and panel.reset_button.isEnabled()
+    assert len(_titles(file_context)) == 3  # nothing was actually reset
 
 
 def test_a_failure_is_shown_and_the_buttons_come_back(qapp, file_context, monkeypatch):

@@ -56,6 +56,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   and the book is still counted as missing.
 
 ### Added
+- **"Đặt lại thư viện" (Cài đặt › Sao lưu).** Empties the local library database -- books, hashtags, collections,
+  reading history, classification and metadata-write history, the duplicate-exclusion list -- back to a blank slate.
+  Never deletes or moves a book file, never writes to a book's metadata, and never touches the online community
+  database; a watched folder's files are found again (as if freshly imported) the next time MewBook scans it, which
+  happens on its own the next time the app starts. A "Giữ lại cấu hình" box (ticked by default) keeps every setting
+  as it is; unticked, settings also go back to their first-run defaults (except where the library and its cover cache
+  actually live, which nothing else can change). MewBook backs the library up first, same rule as before a schema
+  upgrade -- no backup, no reset -- and the final confirmation spells out exactly what is and is not touched before
+  it can be pressed.
 - **"Gom sách về một thư mục" can sort into subfolders by hashtag.** A new option, off by default (flat, as before):
   each book goes into a subfolder named after its first hashtag, and a book with none goes into "Chưa phân loại" --
   the same "no tag" bucket the sidebar filter already uses. The preview says how many subfolders that will make.

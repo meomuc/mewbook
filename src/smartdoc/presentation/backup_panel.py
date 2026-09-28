@@ -31,9 +31,11 @@ from smartdoc.application.backup_service import (
     MAX_RETENTION,
     MIN_RETENTION,
     REASON_MANUAL,
+    REASON_PRE_RESET,
     REASON_PRE_RESTORE,
     REASON_PRE_UPGRADE,
 )
+from smartdoc.application.library_reset_service import LibraryResetError
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.schema_migrations import SchemaError
 from smartdoc.presentation.design_dialog import confirm_danger
@@ -47,6 +49,7 @@ logger = logging.getLogger(__name__)
 _REASON_LABELS = {
     REASON_MANUAL: "Thủ công",
     REASON_PRE_RESTORE: "Trước khi khôi phục",
+    REASON_PRE_RESET: "Trước khi đặt lại",
 }
 
 
@@ -138,6 +141,24 @@ class BackupPanel(SettingsPage):
         holder_layout.addWidget(self.status_label)
         self.add_row("Các bản sao lưu", "Khôi phục sẽ nói rõ điều gì sẽ mất trước khi làm.", holder)
 
+        # -- "Đặt lại thư viện": a separate, clearly-marked danger zone, not one more backup option -----------------
+        self.add_block(add_note_box(
+            self, "<b>Đặt lại thư viện</b> xóa toàn bộ dữ liệu quản lý trong cơ sở dữ liệu thư viện <b>cục bộ</b> -- sách, "
+                  "hashtag, bộ sưu tập, lịch sử đọc, lịch sử phân loại, lịch sử ghi đè -- để bắt đầu lại từ đầu. "
+                  "<b>Không xóa hay sửa file sách trên máy, không đổi metadata trong file, và không đụng tới đánh giá "
+                  "cộng đồng (trên mạng).</b> MewBook tự sao lưu thư viện hiện tại trước khi đặt lại -- khôi phục được "
+                  "ở trên nếu đổi ý.", "warn"))
+        self.reset_keep_config_check = QCheckBox("Giữ lại cấu hình (giao diện, AI, nguồn ảnh bìa, thư mục theo dõi...)", self)
+        self.reset_keep_config_check.setChecked(True)
+        self.add_row("Giữ lại cấu hình", "Bỏ chọn để mọi tùy chỉnh trong Cài đặt cũng về mặc định (trừ nơi lưu thư viện "
+                     "và ảnh bìa, không đổi được).", self.reset_keep_config_check)
+        self.reset_button = QPushButton("Đặt lại thư viện…", self)
+        self.reset_button.setIcon(line_icon("warn", tm.token("err"), 14))
+        self.reset_button.setStyleSheet(f"color: {tm.token('err')};")
+        self.reset_button.clicked.connect(self._on_reset)
+        self.add_row("Đặt lại thư viện", "Không hoàn tác trực tiếp được; dùng \"Khôi phục…\" ở trên với bản sao lưu vừa "
+                     "tạo nếu đổi ý.", self.reset_button)
+
         self.backup_list.itemSelectionChanged.connect(self._update_buttons)
         self._done.connect(self._on_done)
         self.refresh()
@@ -214,22 +235,25 @@ class BackupPanel(SettingsPage):
         self.choose_folder_button.setEnabled(self._available and not self._busy)
         self.restore_button.setEnabled(idle and self.backup_list.currentItem() is not None)
         self.folder_button.setEnabled(self._available)
+        self.reset_button.setEnabled(idle)
 
     def _selected(self) -> BackupInfo | None:
         item = self.backup_list.currentItem()
         return item.data(Qt.UserRole) if item is not None else None
 
+    _STATUS_WHILE_BUSY = {"backup": "Đang sao lưu...", "restore": "Đang khôi phục...", "reset": "Đang đặt lại thư viện..."}
+
     def _run(self, what: str, work) -> None:
         """Run `work` on a worker thread; its result (or error) comes back through `_done`."""
         self._busy = True
         self._update_buttons()
-        self.status_label.setText("Đang sao lưu..." if what == "backup" else "Đang khôi phục...")
+        self.status_label.setText(self._STATUS_WHILE_BUSY[what])
         relay = self._relay
 
         def target() -> None:
             try:
                 info, error = work(), ""
-            except (BackupError, SchemaError) as exc:
+            except (BackupError, SchemaError, LibraryResetError) as exc:
                 info, error = None, str(exc)
             except Exception as exc:  # noqa: BLE001 -- a worker must always report back, or the buttons stay disabled
                 logger.exception("Backup task %s failed", what)
@@ -244,6 +268,11 @@ class BackupPanel(SettingsPage):
             self.status_label.setText(error)
         elif what == "backup":
             self.status_label.setText(f"Đã sao lưu ({describe(info)}).")
+        elif what == "reset":
+            self.status_label.setText(
+                f"Đã đặt lại thư viện: {info} sách trước đó không còn trong danh sách. File sách trên máy vẫn còn "
+                "nguyên -- khởi động lại MewBook (hoặc mở lại thư mục theo dõi) để quét và thêm chúng vào thư viện."
+            )
         else:
             self.context.event_bus.publish(LibraryUpdatedEvent())
             self.status_label.setText(
@@ -283,6 +312,34 @@ class BackupPanel(SettingsPage):
         if info is None or not self._confirm_restore(info):
             return
         self._run("restore", lambda: self._service().restore(info.path))
+
+    def _confirm_reset(self, *, keep_config: bool, count: int) -> bool:
+        items = [
+            f"{count} sách sẽ hết trong danh sách (file sách trên máy vẫn còn nguyên)",
+            "Hashtag, bộ sưu tập, lịch sử đọc, lịch sử phân loại và lịch sử ghi đè sẽ mất theo",
+        ]
+        if not keep_config:
+            items.append("Mọi tùy chỉnh trong Cài đặt (giao diện, AI, nguồn ảnh bìa, thư mục theo dõi...) sẽ về mặc định")
+        return confirm_danger(
+            self, title="Đặt lại thư viện?", subtitle="Bước xác nhận cuối",
+            message="Cơ sở dữ liệu thư viện <b>cục bộ</b> sẽ được đặt lại từ đầu.",
+            items=items,
+            safe_text="<b>Không bị đụng tới:</b> file sách trên máy, metadata trong file, và đánh giá cộng đồng (trên "
+                      "mạng). MewBook sao lưu thư viện hiện tại trước khi đặt lại, khôi phục được ở trên nếu đổi ý.",
+            ack_text="Tôi hiểu dữ liệu thư viện cục bộ sẽ bị xóa", action_text="Đặt lại thư viện",
+            cancel_text="Không đặt lại",
+        )
+
+    def _on_reset(self) -> None:
+        keep_config = self.reset_keep_config_check.isChecked()
+        count = self.context.db.count_documents()
+        if not self._confirm_reset(keep_config=keep_config, count=count):
+            return
+        self._run("reset", lambda: self._do_reset(keep_config, count))
+
+    def _do_reset(self, keep_config: bool, count: int) -> int:
+        self.context.library_reset.reset(keep_config=keep_config)
+        return count
 
     def _on_open_folder(self) -> None:
         try:

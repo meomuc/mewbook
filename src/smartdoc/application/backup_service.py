@@ -3,12 +3,13 @@
 
 Backups are consistent copies made with SQLite's online backup API (safe while the app is running and the
 database is in WAL mode), verified before they are kept, stored next to the library in `backups/` and pruned
-to the newest `AppConfig.backup_retention`. Three things create one:
+to the newest `AppConfig.backup_retention`. Four things create one:
 
 - the user ("Sao lưu ngay" in Settings);
 - an upgrade of the library: `before_migration` is the hook `DatabaseManager.initialize_tables` calls before the
   first versioned migration of an existing library, so **no backup, no migration** (a failing backup aborts it);
-- a restore: the current library is backed up first, so a wrong restore can itself be undone.
+- a restore: the current library is backed up first, so a wrong restore can itself be undone;
+- a reset (application/library_reset_service.py): same idea -- no backup, no reset.
 
 Restoring copies the chosen backup *into the open connection* (under the write lock), then re-runs the schema
 upgrade so an older backup is brought up to date. Only the database is handled here: the user's book files are
@@ -38,6 +39,7 @@ MAX_RETENTION = 50
 REASON_MANUAL = "manual"
 REASON_PRE_UPGRADE = "pre-upgrade"
 REASON_PRE_RESTORE = "pre-restore"
+REASON_PRE_RESET = "pre-reset"
 
 _NAME = re.compile(r"^library-(?P<stamp>\d{8}-\d{6}-\d{3,})-(?P<reason>[a-z][a-z0-9-]*)\.db$")
 

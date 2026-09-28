@@ -15,6 +15,7 @@ from smartdoc.application.error_uploader import ErrorUploader
 from smartdoc.application.facet_counter import FacetCounter
 from smartdoc.application.gather_service import GatherService
 from smartdoc.application.info_refresh import InfoRefresh
+from smartdoc.application.library_reset_service import LibraryResetService
 from smartdoc.application.relink_service import RelinkService
 from smartdoc.application.trash_service import TrashService
 from smartdoc.application.update_checker import UpdateChecker
@@ -36,6 +37,10 @@ class AppContext:
         self.backups = BackupService(self.db, retention=lambda: self.config.config.backup_keep,
                                      folder=lambda: self.config.config.backup_dir)
         self.db.initialize_tables(before_migrate=None if self.db.db_path == ":memory:" else self.backups.before_migration)
+        # "Đặt lại thư viện" (Cài đặt > Sao lưu): backs up, then empties the local library database. Reads
+        # context.filters/config lazily, at reset time -- constructed here only for discoverability alongside
+        # the other application-layer services.
+        self.library_reset = LibraryResetService(self)
         # Missing-file detection and relinking (S1-04).
         self.relink = RelinkService(self.db, self.event_bus)
         # MewBook's own trash: files removed as duplicates wait here before they are deleted for good.
