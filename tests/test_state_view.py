@@ -2,7 +2,7 @@
 """The empty / nothing-found states in the middle of the library, and the yellow "missing files" strip (stage G11)."""
 from PySide6.QtWidgets import QPushButton
 
-from smartdoc.core.event_bus import LibraryFilesMissingEvent
+from smartdoc.core.event_bus import LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.missing_files_strip import MissingFilesStrip
 from smartdoc.presentation.state_view import StateView
@@ -79,4 +79,21 @@ def test_the_missing_files_strip_follows_the_count(qapp, app_context):
     assert asked == [1]
     strip._on_event(LibraryFilesMissingEvent(count=0))
     assert not strip.isVisible()
+    strip.deleteLater()
+
+
+def test_the_strip_re_counts_on_a_bulk_change_it_wasnt_told_about(qapp, app_context):
+    """"Đặt lại thư viện" (and restoring a backup) empty/repopulate documents and publish only
+    LibraryUpdatedEvent, never LibraryFilesMissingEvent -- the strip must not keep showing a stale count."""
+    app_context.db.add_or_update_document("d0", {"title": "A", "file_path": "missing.pdf", "created_at": 0.0})
+    app_context.db.record_file_status([], ["d0"])
+    strip = MissingFilesStrip(app_context)
+    strip._on_event(LibraryFilesMissingEvent(count=1))
+    assert strip.isVisible()
+
+    app_context.library_reset.reset()
+    strip._on_event(LibraryUpdatedEvent())
+    strip._refresh_timer.timeout.emit()  # fire the debounce immediately instead of waiting on a real timer
+
+    assert not strip.isVisible() and strip.context.db.count_missing() == 0
     strip.deleteLater()

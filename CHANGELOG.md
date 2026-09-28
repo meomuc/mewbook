@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   or another book claimed the path, between proposing and confirming) used to disappear from the dialog's list
   right along with the ones that succeeded, as if it too were done -- it stays now, unchecked, with its own reason,
   and the book is still counted as missing.
+- **The yellow "N sách không tìm thấy file" strip could keep showing a stale count after "Đặt lại thư viện" or
+  restoring a backup.** It only ever recomputed on the count coming out of a relink check; a bulk change that
+  empties or refills the library announces itself with the general library-updated event instead, which the strip
+  ignored. It now re-counts on that event too, the same way the status bar's own count already did.
 
 ### Added
 - **"Đặt lại thư viện" (Cài đặt › Sao lưu).** Empties the local library database -- books, hashtags, collections,
