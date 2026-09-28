@@ -118,6 +118,7 @@ class RelinkService:
         if not missing:
             return []
         files = self._scan(Path(root), cancel, progress)
+        all_paths = [path for path, _size in files]
         by_size: dict[int, list[str]] = {}
         for path, size in files:
             by_size.setdefault(size, []).append(path)
@@ -136,7 +137,7 @@ class RelinkService:
         for done, doc in enumerate(missing, start=1):
             if cancel is not None and cancel.is_set():
                 break
-            match = self._match(doc, by_size, by_name, hash_of)
+            match = self._match(doc, by_size, by_name, all_paths, hash_of)
             if progress:
                 progress("match", done, len(missing))
             if match is None:
@@ -154,11 +155,16 @@ class RelinkService:
         return proposals
 
     @staticmethod
-    def _match(doc: dict, by_size: dict[int, list[str]], by_name: dict[str, list[str]], hash_of: Callable[[str], str | None]) -> tuple[str, str] | None:
+    def _match(doc: dict, by_size: dict[int, list[str]], by_name: dict[str, list[str]], all_paths: list[str],
+              hash_of: Callable[[str], str | None]) -> tuple[str, str] | None:
         size, old_path = int(doc.get("file_size") or 0), doc["file_path"]
         same_size = by_size.get(size, []) if size else []
         if doc.get("content_hash"):
-            for candidate in same_size:
+            # Normally narrowed to files of the same size (cheap, and almost always enough). A book whose size was
+            # never recorded (file_size 0 -- a stat that failed at import time, or a pre-file_size row) has nothing
+            # to narrow by, so every scanned file is hashed instead of none -- otherwise it could never be found by
+            # hash at all, even for an exact copy sitting right there under a new name.
+            for candidate in (same_size if size else all_paths):
                 if hash_of(candidate) == doc["content_hash"]:
                     return candidate, METHOD_HASH
         named = [c for c in same_size if _same_name(old_path, c)]

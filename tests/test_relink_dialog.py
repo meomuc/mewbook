@@ -80,6 +80,26 @@ def test_confirming_updates_the_selected_books_only(qapp, app_context, tmp_path,
     assert dialog.table.rowCount() == 1  # the applied one left the list, the dropped one stays
 
 
+def test_a_chosen_proposal_that_fails_to_apply_stays_in_the_table_not_silently_dropped(qapp, app_context, tmp_path, monkeypatch):
+    """Regression: a proposal the user chose but that the service could not actually apply (its target vanished
+    meanwhile) used to be removed from the list right along with the ones that succeeded -- as if it, too, were
+    done, even though the book was still missing."""
+    new = _moved_library(tmp_path, app_context, count=2)
+    dialog = RelinkDialog(app_context)
+    dialog.start_search(str(new))
+    _wait(qapp, dialog)
+    monkeypatch.setattr(dialog, "_confirm", lambda count: True)
+    (new / "renamed-1.pdf").unlink()  # the second book's target disappears right before "Cập nhật"
+
+    dialog.apply_button.click()
+
+    assert app_context.db.count_missing() == 1  # only the first one actually got relinked
+    assert "Đã cập nhật đường dẫn của 1 sách" in dialog.status_label.text() and "Bỏ qua 1" in dialog.status_label.text()
+    assert dialog.table.rowCount() == 1  # the failed one stays visible, not silently dropped
+    assert dialog.table.item(0, 0).checkState() == Qt.Unchecked  # unchecked: it needs a fresh look, not a re-apply
+    assert "biến mất" in dialog.table.item(0, 4).text()  # its own reason is shown
+
+
 def test_declining_the_confirmation_changes_nothing(qapp, app_context, tmp_path, monkeypatch):
     new = _moved_library(tmp_path, app_context, count=1)
     dialog = RelinkDialog(app_context)
@@ -129,7 +149,11 @@ def test_the_status_bar_shows_and_hides_the_missing_files_notice(qapp, app_conte
     app_context.relink.check_files()  # publishes LibraryFilesMissingEvent(count=1) through the bridge
     qapp.processEvents()
 
-    assert not panel.missing_label.isHidden() and "1 sách không tìm thấy file" in panel.missing_label.text()
+    # The sentence is the tooltip now; the bar itself shows a search icon, the count, and a question mark.
+    assert not panel.missing_label.isHidden()
+    assert "1" in panel.missing_label.text() and "sách không tìm thấy file" not in panel.missing_label.text()
+    assert "1 sách không tìm thấy file" in panel.missing_label.toolTip()
+    assert not panel.missing_label.search_icon.pixmap().isNull() and not panel.missing_label.question_icon.pixmap().isNull()
     panel.missing_label.clicked.emit()
     assert asked == [True]
 

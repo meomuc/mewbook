@@ -180,6 +180,15 @@ def _warn(p: QPainter) -> None:
     p.drawPoint(_p(8, 11.3))
 
 
+def _question(p: QPainter) -> None:
+    path = QPainterPath()
+    path.moveTo(5, 5.5)
+    path.cubicTo(5, 2.3, 11, 2.3, 11, 5.8)
+    path.cubicTo(11, 8.3, 8, 8, 8, 10.5)
+    p.drawPath(path)
+    p.drawPoint(_p(8, 13.2))
+
+
 def _filter(p: QPainter) -> None:
     p.drawPolygon([_p(2.5, 3.5), _p(13.5, 3.5), _p(9.5, 8.5), _p(9.5, 13), _p(6.5, 11.5), _p(6.5, 8.5)])
 
@@ -280,7 +289,7 @@ _DRAWERS: dict[str, Callable[[QPainter], None]] = {
     "panel": _panel, "gear": _gear, "pen": _pen, "book": _book, "star": _star, "star_fill": _star_fill,
     "cloud": _cloud, "bot": _bot, "globe": _globe, "chevron_down": _chevron_down, "chevron_right": _chevron_right, "chevron_left": _chevron_left,
     "close": _close, "refresh": _refresh, "image": _image, "send": _send, "check": _check, "folder": _folder,
-    "warn": _warn, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
+    "warn": _warn, "question": _question, "filter": _filter, "user": _user, "tag": _tag, "file": _file, "bolt": _bolt, "link": _link, "lock": _lock, "wifi": _wifi,
     "eye": _eye, "expand": _expand, "palette": _palette, "archive": _archive, "download": _download, "shield": _shield,
     "facebook": _facebook,
 }

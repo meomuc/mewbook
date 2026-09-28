@@ -74,6 +74,23 @@ def test_a_moved_and_renamed_book_is_found_by_its_hash(tmp_path, app_context):
     assert proposals[0].selected
 
 
+def test_a_hash_still_finds_a_renamed_book_whose_size_was_never_recorded(tmp_path, app_context):
+    """Regression: a book whose file_size is 0 (a stat that failed at import, or a pre-file_size row) used to never
+    be matched by content hash at all -- the size-based prefilter came up empty and hash-matching was never tried
+    against anything else, even for an exact copy sitting right there under a different name."""
+    old, doc_id = _book(app_context, tmp_path / "old", "sach.epub", b"kieu" * 50)
+    app_context.db.connection.execute("UPDATE documents SET file_size = 0 WHERE id = ?", (doc_id,))
+    app_context.db.connection.commit()
+    new_root = tmp_path / "new"
+    new_root.mkdir()
+    shutil.move(str(old), new_root / "sach-renamed.epub")  # same bytes, different name -- size is the only other clue
+    _service(app_context).check_files()
+
+    (proposal,) = _service(app_context).propose(new_root)
+
+    assert proposal.method == "hash" and proposal.doc_id == doc_id
+
+
 def test_name_and_size_find_a_book_that_has_no_stored_hash(tmp_path, app_context):
     old, doc_id = _book(app_context, tmp_path / "old", "sach.epub", b"z" * 77, hash_it=False)
     (tmp_path / "new").mkdir()

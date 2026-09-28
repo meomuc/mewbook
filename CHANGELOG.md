@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   their ✓/○ marks but drop the trailing word the same way. The author credit drops "Tác giả:" and shows just the name.
   The three zone headings themselves ("Thư viện" / "Hệ thống & kết nối" / "Tác giả") were tried as icons (book / link
   / pen) and are removed again on request; the zones now start straight with their own items, no heading of any kind.
-  "Fanpage" stays a small Facebook-mark icon.
+  "Fanpage" stays a small Facebook-mark icon. "N sách không tìm thấy file. Tìm lại?" is now a magnifying-glass icon,
+  the count, and a question mark for the retry action -- the sentence moved into the tooltip.
 - **"Tìm thêm thông tin" no longer opens a second window for the cover.** Its "Đổi bìa bằng đường dẫn / file…" button,
   which popped up the whole "Đổi ảnh bìa" dialog on top of it, is gone; the cover section is now the same three tabs
   (tìm trên mạng, dán đường dẫn, từ máy) and before → after preview, embedded right in the one dialog and driven by
@@ -33,6 +34,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   the option on and no folder chosen, writing into a book file is refused with a notice instead of guessing a place;
   with it off, no copy of the old file is made (the dialog says so). library.db is still copied before a schema
   upgrade whatever these say. Older `backup_retention` / `metadata_backup_keep` values are ignored.
+
+### Fixed
+- **"Tìm lại file thiếu" could never match a book by content hash if its size was never recorded** (file_size 0 --
+  a stat that failed at import, or a row from before file_size was tracked): the search narrows candidates to
+  files of the same size before hashing them, so a book with no recorded size had nothing to narrow by and was
+  never hashed against anything, even an exact copy sitting right there under a new name. It now hashes every
+  scanned file in that case instead of none.
+- **A book chosen for relinking that the service could not actually update after all** (its target file vanished,
+  or another book claimed the path, between proposing and confirming) used to disappear from the dialog's list
+  right along with the ones that succeeded, as if it too were done -- it stays now, unchecked, with its own reason,
+  and the book is still counted as missing.
 
 ### Added
 - **"Gom sách về một thư mục" can sort into subfolders by hashtag.** A new option, off by default (flat, as before):

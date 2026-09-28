@@ -130,6 +130,56 @@ class _IconCount(QWidget):
         self.text_label.setToolTip(tooltip)
 
 
+class _MissingFilesNotice(QWidget):
+    """"N sách không tìm thấy file. Tìm lại?" as icons: a magnifying glass for "sách không tìm thấy file", the
+    count, and a question mark for the "Tìm lại?" action -- the sentence itself lives only in the tooltip. The
+    whole row is one click target, like the label it replaces."""
+
+    clicked = Signal()
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFixedHeight(_ROW_HEIGHT)
+        self.search_icon = QLabel(self)
+        self.search_icon.setFixedSize(16, _ROW_HEIGHT)
+        self.count_label = QLabel(self)
+        self.count_label.setTextFormat(Qt.RichText)
+        self.count_label.setFixedHeight(_ROW_HEIGHT)
+        self.count_label.setAlignment(Qt.AlignVCenter)
+        self.question_icon = QLabel(self)
+        self.question_icon.setFixedSize(16, _ROW_HEIGHT)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(4)
+        row.addWidget(self.search_icon)
+        row.addWidget(self.count_label)
+        row.addWidget(self.question_icon)
+        self._refresh_icons()
+        theme_manager().themeChanged.connect(self._refresh_icons)
+
+    def _refresh_icons(self, _key: str = "") -> None:
+        color = theme_manager().token("warn")
+        self.search_icon.setPixmap(icon_pixmap("search", color, 14))
+        self.question_icon.setPixmap(icon_pixmap("question", color, 14))
+
+    def setText(self, text: str) -> None:
+        self.count_label.setText(text)
+
+    def text(self) -> str:
+        return self.count_label.text()
+
+    def setToolTip(self, tooltip: str) -> None:  # noqa: N802 -- Qt override
+        super().setToolTip(tooltip)
+        for widget in (self.search_icon, self.count_label, self.question_icon):
+            widget.setToolTip(tooltip)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
 class _StatusIcon(QLabel):
     """One connection status: the feature's line icon and, at its bottom right, a badge whose shape says the state
     (filled circle + tick = works, empty ring = not set up, filled square + cross = a problem), with the explanation
@@ -312,8 +362,7 @@ class StatusBarPanel(QStatusBar):
         self.folders_label = _IconCount("folder", self)
         self.activity_label = QLabel(self)
         self.activity_label.setVisible(False)
-        self.missing_label = _ClickableStatusLabel(self)
-        self.missing_label.setCursor(Qt.PointingHandCursor)
+        self.missing_label = _MissingFilesNotice(self)
         self.missing_label.setVisible(False)
         self.missing_label.clicked.connect(self.relink_requested)
         self.update_label = _ClickableStatusLabel(self)
@@ -547,8 +596,8 @@ class StatusBarPanel(QStatusBar):
     def _show_missing(self, count: int) -> None:
         self.missing_label.setVisible(count > 0)
         if count > 0:
-            self.missing_label.setText(f"<span style='color:{theme_manager().token('warn')}; font-weight:600;'>▲ <u>{_n(count)} sách không tìm thấy file. Tìm lại?</u></span>")
-            self.missing_label.setTextFormat(Qt.RichText)
+            self.missing_label.setText(f"<span style='color:{theme_manager().token('warn')}; font-weight:600;'>{_n(count)}</span>")
+            self.missing_label.setToolTip(f"{count} sách không tìm thấy file. Bấm để tìm lại.")
 
     # -- refresh --
 

@@ -231,7 +231,19 @@ class RelinkDialog(DesignDialog):
         if result.skipped:
             text += f" Bỏ qua {len(result.skipped)}: {result.skipped[0][1]}."
         self.status_label.setText(text)
-        self._proposals = [p for p in self._proposals if p not in chosen]
+        # A chosen proposal the service could not apply after all (its target vanished, or another book claimed it
+        # in the meantime) used to be dropped from the list right along with the ones that succeeded -- silently, as
+        # if it had been handled. It stays now, unchecked, with its own reason, so it is not mistaken for done.
+        skip_reasons = dict(result.skipped)
+        remaining = []
+        for proposal in self._proposals:
+            if proposal in chosen and proposal.doc_id not in skip_reasons:
+                continue  # applied
+            if proposal.doc_id in skip_reasons:
+                proposal.selected = False
+                proposal.note = skip_reasons[proposal.doc_id]
+            remaining.append(proposal)
+        self._proposals = remaining
         self._fill_table()
         self._refresh_summary()
         self._update_buttons()
