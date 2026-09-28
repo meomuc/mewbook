@@ -189,6 +189,12 @@ class AppConfig:
     # is a plain remembered path, not a device-specific integration. None
     # until the user picks one (first Send prompts for it, then remembers).
     ereader_folder_path: str | None = None
+    # Task C1: which device_profiles/<id>.json the "Send to e-reader" dialog last used, so it remembers the
+    # choice between sessions. Falls back to the generic drive profile when unset or the id no longer exists.
+    ereader_device_profile_id: str = "removable-drive-generic"
+    # Task C2: where "Chuyển đổi định dạng" writes converted files -- a folder distinct from the originals'
+    # (never overwrites/edits a source file). None until the user picks one, then remembered like ereader_folder_path.
+    conversion_output_folder: str | None = None
     # Metadata lookup (application/metadata_lookup.py). Whether the "write into
     # the book file" box of the suggestion dialog starts ticked (off: the
     # library index is updated, the file is left alone unless the user opts in

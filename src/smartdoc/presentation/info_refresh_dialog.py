@@ -15,6 +15,9 @@ from PySide6.QtWidgets import QLabel, QProgressBar
 
 from smartdoc.application.info_refresh import RefreshResult
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.hint_label import HintLabel
+from smartdoc.presentation.theme import ROLE_RESULT, role_css
+from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.worker_relay import WorkerRelay, post
 
 logger = logging.getLogger(__name__)
@@ -31,14 +34,17 @@ class InfoRefreshDialog(DesignDialog):
         self._cancel = threading.Event()
         self._running = False
         self._relay = WorkerRelay(self)
+        # "Đang quét: N / M sách" / the final tally are results the app just produced, so they get the "kết quả"
+        # role (bigger, bolder) instead of reading like plain body text -- see docs/UI_TEXT_ROLES.md.
         self.status_label = QLabel("Đang chuẩn bị…", self)
         self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setRange(0, 0)  # busy until the first report
         self.progress_bar.setTextVisible(True)
-        self.note_label = QLabel("Bạn vẫn dùng MewBook bình thường trong lúc này. Tên sách, tác giả và hashtag bạn đã sửa "
-                                 "không bị thay đổi.", self)
-        self.note_label.setWordWrap(True)
+        self.note_label = HintLabel(
+            "Bạn vẫn dùng MewBook bình thường trong lúc này. Tên sách, tác giả và hashtag bạn đã sửa "
+            "không bị thay đổi.", self)
         for widget in (self.status_label, self.progress_bar, self.note_label):
             self.body.addWidget(widget)
         self.body.addStretch(1)

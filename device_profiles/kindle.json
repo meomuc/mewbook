@@ -1,0 +1,14 @@
+{
+  "id": "kindle",
+  "display_name": "Kindle (chung)",
+  "vendor": "Amazon",
+  "supported_formats": ["azw3", "mobi", "pdf", "txt"],
+  "books_dir": "documents",
+  "filename_template": "{author} - {title}",
+  "ascii_filenames": false,
+  "max_filename_length": 0,
+  "cover_handling": "none",
+  "verified": false,
+  "verification_note": "Chưa kiểm chứng trên máy thật -- xem docs/spikes/2026-09-28_ereader_device_transport.md",
+  "notes": "epub không có trong danh sách vì Kindle không đọc epub trực tiếp trên hầu hết các dòng máy theo tài liệu công khai -- vẫn cần xác nhận trên máy thật. Chỉ dùng để cảnh báo mềm, không chặn gửi."
+}

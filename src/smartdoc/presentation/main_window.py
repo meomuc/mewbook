@@ -250,8 +250,10 @@ class MainWindow(QMainWindow):
         menu.addAction(vi.TOOL_EXCLUDED, self._on_open_excluded)
         menu.addAction(vi.TOOL_GATHER, self._on_open_gather)
         menu.addAction(vi.TOOL_REFRESH, self._on_refresh_info)
+        menu.addAction(vi.TOOL_METADATA_BATCH_UPDATE, self._on_open_metadata_batch_update)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
+        menu.addAction(vi.TOOL_CONVERT_FORMAT, self._on_convert_format)
         menu.addSeparator()
         menu.addAction(vi.TOOL_EXPORT, self._on_export_library)
         menu.addAction(vi.TOOL_BACKUP, lambda: self._on_open_settings(initial_tab="backup"))
@@ -284,6 +286,9 @@ class MainWindow(QMainWindow):
         send_ereader_action = QAction("Gửi tới máy đọc sách...", self)
         send_ereader_action.triggered.connect(self._on_send_to_ereader)
         file_menu.addAction(send_ereader_action)
+        convert_format_action = QAction(vi.TOOL_CONVERT_FORMAT, self)
+        convert_format_action.triggered.connect(self._on_convert_format)
+        file_menu.addAction(convert_format_action)
         file_menu.addSeparator()
         exit_action = QAction("Thoát", self)
         exit_action.triggered.connect(self.close)
@@ -382,6 +387,19 @@ class MainWindow(QMainWindow):
         self._refresh_dialog = dialog
         dialog.show()
         dialog.start()
+
+    def _on_open_metadata_batch_update(self) -> None:
+        """Task B3: not modal, so the library stays usable while it runs on a background thread."""
+        from smartdoc.presentation.metadata_batch_dialog import MetadataBatchUpdateDialog
+
+        old = getattr(self, "_metadata_batch_dialog", None)
+        if old is not None and shiboken6.isValid(old) and old.isVisible():
+            old.raise_()
+            return
+        dialog = MetadataBatchUpdateDialog(self.context, self.library_view.classification_scope, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        self._metadata_batch_dialog = dialog
+        dialog.show()
 
     def _on_open_gather(self) -> None:
         from smartdoc.presentation.gather_dialog import GatherDialog
@@ -489,6 +507,9 @@ class MainWindow(QMainWindow):
     def _on_send_to_ereader(self) -> None:
         self.library_view.send_selected_to_ereader()
 
+    def _on_convert_format(self) -> None:
+        self.library_view.convert_selected_documents()
+
     def _on_classify_selected(self, doc_ids: list) -> None:
         scope = ClassifyScope(doc_ids=tuple(doc_ids), description=f"{len(doc_ids):,} sách đã chọn trong danh sách")
         self.open_smart_classify(selected_scope=scope)
@@ -550,6 +571,10 @@ class MainWindow(QMainWindow):
             work.append(f"nhập {pending} tài liệu")
         if self.smart_classifier.running:
             work.append("phân loại thông minh")
+        if self.statusBar().has_task("ereader-send"):
+            work.append("gửi sách sang máy đọc")
+        if self.statusBar().has_task("format-conversion"):
+            work.append("chuyển đổi định dạng")
         return work
 
     def showEvent(self, event) -> None:  # noqa: N802 -- Qt override

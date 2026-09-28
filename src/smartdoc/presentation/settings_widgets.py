@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme import ROLE_FUNCTION, ROLE_HINT, role_css
 from smartdoc.presentation.theme_manager import theme_manager
 
 LABEL_W = 230
@@ -29,8 +30,9 @@ SOON_TEXT = "Sắp có"
 
 
 def _grey(label: QLabel) -> QLabel:
+    """A row's explanation text -- the "hướng dẫn" role (docs/UI_TEXT_ROLES.md): static, secondary, dimmer."""
     label.setWordWrap(True)
-    label.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px; background: transparent;")
+    label.setStyleSheet(f"{role_css(ROLE_HINT, theme_manager().token('ink2'))} background: transparent;")
     return label
 
 
@@ -83,8 +85,9 @@ class SettingsPage(QScrollArea):
         row.setObjectName("SettingRow")
         border = f"border-top: 1px solid {tm.token('line')};" if self._count else ""
         row.setStyleSheet(f"#SettingRow {{ {border} background: transparent; }}")
+        # A setting's own name -- the "chức năng" role (docs/UI_TEXT_ROLES.md): static, names what this control is.
         name = QLabel(label, row)
-        name.setStyleSheet(f"font-weight: 600; color: {tm.token('ink')}; background: transparent;")
+        name.setStyleSheet(f"{role_css(ROLE_FUNCTION, tm.token('ink'))} background: transparent;")
         name.setWordWrap(True)
         head = QHBoxLayout()
         head.setSpacing(8)
@@ -129,13 +132,14 @@ class SettingsPage(QScrollArea):
 
 
 def hint_pair(more: str, less: str, parent: QWidget | None = None) -> QLabel:
-    """The two plain-words lines under a performance option: what raising it does, and what lowering it does."""
+    """The two plain-words lines under a performance option: what raising it does, and what lowering it does. The
+    "hướng dẫn" role (docs/UI_TEXT_ROLES.md) -- always exactly 2 lines, so it is never collapsed like HintLabel."""
     tm = theme_manager()
     grey = tm.token("ink3")
     label = QLabel(f"<span style='color:{grey}'>▲</span> {more}<br><span style='color:{grey}'>▼</span> {less}", parent)
     label.setTextFormat(Qt.RichText)
     label.setWordWrap(True)
-    label.setStyleSheet(f"color: {tm.token('ink2')}; font-size: 13px; background: transparent;")
+    label.setStyleSheet(f"{role_css(ROLE_HINT, tm.token('ink2'))} background: transparent;")
     return label
 
 

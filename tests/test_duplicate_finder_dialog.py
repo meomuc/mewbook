@@ -2,10 +2,17 @@
 """Tìm file trùng: groups on the left, the files of a group on the right, and MewBook never picks what to remove -- no copy
 is chosen until the person chooses; then two clearly different actions: remove the others from the library (files stay)
 or move them into MewBook's trash (restorable)."""
-from PySide6.QtWidgets import QDialog
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog, QHeaderView, QMessageBox
 
-from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog, default_keeper, note_for
-from PySide6.QtWidgets import QMessageBox
+from smartdoc.presentation.duplicate_finder_dialog import (
+    _COL_NOTE,
+    _COL_PATH,
+    _COL_TYPE,
+    DuplicateFinderDialog,
+    default_keeper,
+    note_for,
+)
 
 
 def _seed_exact_duplicates(app_context, tmp_path=None):
@@ -86,7 +93,43 @@ def test_choosing_a_keeper_updates_the_buttons_and_the_group_line(qapp, app_cont
     assert "đã chọn cái giữ" in dialog.group_list.item(0).text()
     assert dialog.remove_button.isEnabled() and dialog.remove_button.text() == "Bỏ 1 bản kia khỏi thư viện"
     assert dialog.delete_button.text() == "Chuyển 1 file vào Thùng rác…"
-    assert "Bản bạn giữ" in dialog.file_table.item(1, 4).text() or "Bản bạn giữ" in dialog.file_table.item(0, 4).text()
+    assert ("Bản bạn giữ" in dialog.file_table.item(1, _COL_NOTE).text()
+            or "Bản bạn giữ" in dialog.file_table.item(0, _COL_NOTE).text())
+    dialog.deleteLater()
+
+
+def test_file_table_shows_a_file_type_column(qapp, app_context, tmp_path):
+    """Task B2: "Loại file", the document's own extension, upper-cased, "—" when unknown."""
+    app_context.db.add_or_update_document(
+        "d1", {"title": "Sach A", "author": "X", "file_path": str(tmp_path / "a.pdf"), "extension": "pdf",
+               "content_hash": "h1", "created_at": 1.0})
+    app_context.db.add_or_update_document(
+        "d2", {"title": "Sach A (copy)", "author": "X", "file_path": str(tmp_path / "a2.epub"), "extension": "epub",
+               "content_hash": "h1", "created_at": 2.0})
+    dialog = _dialog(app_context)
+
+    types = {dialog.file_table.item(row, _COL_TYPE).text() for row in range(dialog.file_table.rowCount())}
+    assert types == {"PDF", "EPUB"}
+    dialog.deleteLater()
+
+
+def test_file_table_shows_a_dash_when_the_extension_is_unknown(qapp, app_context):
+    _seed_exact_duplicates(app_context)  # this helper never sets "extension"
+    dialog = _dialog(app_context)
+
+    assert all(dialog.file_table.item(row, _COL_TYPE).text() == "—" for row in range(dialog.file_table.rowCount()))
+    dialog.deleteLater()
+
+
+def test_file_table_path_column_is_draggable_and_middle_elided(qapp, app_context):
+    """Task B2 AC: "kéo đổi độ rộng cột" needs Interactive resize mode -- Stretch explicitly forbids it -- and
+    "cắt giữa khi dài" needs ElideMiddle specifically (Qt's own default is end-elide)."""
+    _seed_exact_duplicates(app_context)
+    dialog = _dialog(app_context)
+
+    header = dialog.file_table.horizontalHeader()
+    assert header.sectionResizeMode(_COL_PATH) == QHeaderView.Interactive
+    assert dialog.file_table.textElideMode() == Qt.ElideMiddle
     dialog.deleteLater()
 
 

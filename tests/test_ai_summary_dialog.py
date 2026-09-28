@@ -92,6 +92,26 @@ def test_generate_sends_the_edited_request_content(qapp, app_context, monkeypatc
     assert captured["content"] == "My custom edited request"
 
 
+def test_busy_indicator_runs_only_while_generating(qapp, app_context, monkeypatch):
+    """Task A3: the dialog gives no other visual sign a network call is in flight."""
+    app_context.config.config.ai_provider = "gemini"
+    app_context.config.config.ai_api_key = "fake-key"
+    monkeypatch.setattr(
+        "smartdoc.presentation.ai_summary_dialog.generate_summary_from_content",
+        lambda provider, key, content, **options: "A cozy fantasy adventure.",
+    )
+
+    dialog = AISummaryDialog(app_context, _doc())
+    assert not dialog.busy_indicator.is_busy()
+
+    dialog._on_generate()
+    assert dialog.busy_indicator.is_busy()
+
+    assert _pump_until(qapp, lambda: dialog.summary_edit.toPlainText() != "")
+    assert not dialog.busy_indicator.is_busy()
+    assert not dialog.busy_indicator.is_running()
+
+
 def test_generate_error_shown_in_status_label(qapp, app_context, monkeypatch):
     app_context.config.config.ai_provider = "gemini"
     app_context.config.config.ai_api_key = "fake-key"

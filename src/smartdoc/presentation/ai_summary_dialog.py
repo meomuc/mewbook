@@ -32,6 +32,7 @@ from smartdoc.application.ai_summary import (
     provider_requires_key,
 )
 from smartdoc.core.event_bus import LibraryUpdatedEvent
+from smartdoc.presentation.busy_indicator import BusyIndicator
 
 
 class AISummaryDialog(QDialog):
@@ -55,6 +56,9 @@ class AISummaryDialog(QDialog):
 
         self.status_label = QLabel(self)
         self.status_label.setWordWrap(True)
+        # Task A3: the app is genuinely waiting on a network call with no progress to report -- text alone gave no
+        # sense that anything was moving.
+        self.busy_indicator = BusyIndicator(self, mascot_role="thinking")
 
         self.request_content_edit = QTextEdit(self)
         self.request_content_edit.setPlainText(build_request_content(doc))
@@ -107,6 +111,7 @@ class AISummaryDialog(QDialog):
         layout.addWidget(QLabel("Kết quả:", self))
         layout.addWidget(self.summary_edit, stretch=1)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.busy_indicator)
         layout.addLayout(button_row)
 
         self.generation_finished.connect(self._on_generation_finished)
@@ -144,6 +149,7 @@ class AISummaryDialog(QDialog):
         self.generate_button.setEnabled(False)
         self.generate_button.setText("Đang tạo...")
         self.status_label.setText("Đang gọi AI, vui lòng đợi...")
+        self.busy_indicator.set_busy(True)
 
         provider, api_key = self._provider, self._api_key
         request_content = self.request_content_edit.toPlainText()
@@ -163,6 +169,7 @@ class AISummaryDialog(QDialog):
     def _on_generation_finished(self, summary: str, error: str) -> None:
         self.generate_button.setEnabled(True)
         self.generate_button.setText("Tạo tóm tắt")
+        self.busy_indicator.set_busy(False)
         if error:
             self.status_label.setText(f"Lỗi: {error}")
             return

@@ -73,6 +73,7 @@ from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
 from smartdoc.presentation.design_dialog import confirm_danger
 from smartdoc.presentation.ereader_dialog import EreaderSendDialog
+from smartdoc.presentation.format_conversion_dialog import FormatConversionDialog
 from smartdoc.presentation.cover_loader import CoverLoader
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.shelf_view import ShelfView
@@ -80,7 +81,7 @@ from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.cover_placeholder import gradient_pixmap
 from smartdoc.presentation.cover_search_dialog import CoverSearchDialog
 from smartdoc.presentation.file_actions import FileActionEngine
-from smartdoc.presentation.format_utils import human_size
+from smartdoc.presentation.format_utils import file_type_label, human_size
 from smartdoc.presentation.metadata_editor import BatchEditorDialog, MetadataEditorDialog
 from smartdoc.presentation.metadata_suggest_dialog import MetadataSuggestDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
@@ -509,7 +510,7 @@ def _format_cell(doc: dict, key: str) -> str:
     if key == "pub_year":
         return str(doc.get("pub_year")) if doc.get("pub_year") else "—"
     if key == "format":
-        return (doc.get("extension") or "").upper() or "—"
+        return file_type_label(doc)
     if key == "file_size":
         return human_size(doc.get("file_size", 0))
     if key == "tags":
@@ -1246,6 +1247,7 @@ class LibraryListWidget(QWidget):
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         send_ereader_action = menu.addAction("Gửi tới máy đọc sách...")
+        convert_format_action = menu.addAction("Chuyển đổi định dạng...")
         menu.addSeparator()
         delete_action = menu.addAction("Xóa khỏi thư viện")
 
@@ -1274,6 +1276,8 @@ class LibraryListWidget(QWidget):
             set_clipboard_files([doc["file_path"]] if doc.get("file_path") else [], cut=True)
         elif chosen == send_ereader_action:
             self.send_selected_to_ereader()
+        elif chosen == convert_format_action:
+            self.convert_selected_documents()
         elif chosen in collection_actions:
             self._add_documents_to_collection(collection_actions[chosen], [doc["id"]])
             self.context.event_bus.publish(LibraryUpdatedEvent())
@@ -1290,6 +1294,7 @@ class LibraryListWidget(QWidget):
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
         send_ereader_action = menu.addAction("Gửi tới máy đọc sách...")
+        convert_format_action = menu.addAction("Chuyển đổi định dạng...")
         menu.addSeparator()
         delete_action = menu.addAction(f"Xóa {count} tài liệu khỏi thư viện")
 
@@ -1304,6 +1309,8 @@ class LibraryListWidget(QWidget):
             set_clipboard_files([d["file_path"] for d in docs if d.get("file_path")], cut=True)
         elif chosen == send_ereader_action:
             self.send_selected_to_ereader()
+        elif chosen == convert_format_action:
+            self.convert_selected_documents()
         elif chosen in collection_actions:
             self._add_documents_to_collection(collection_actions[chosen], [d["id"] for d in docs])
             self.context.event_bus.publish(LibraryUpdatedEvent())
@@ -1383,11 +1390,11 @@ class LibraryListWidget(QWidget):
             self.import_manager.scan_folder(folder)
 
     def send_selected_to_ereader(self) -> None:
-        """Copies the selected documents' files into the e-reader's book
-        folder (see file_actions.FileActionEngine.send_to_ereader). If no
-        folder has been set up yet -- or the previously remembered one is
-        no longer there, e.g. a different device is connected now -- asks
-        for one and remembers it for next time."""
+        """Opens the "Gửi sang máy đọc sách" dialog (task C1) for the selected documents -- it builds and shows a
+        plan before copying anything, then runs on a background thread, so this stays non-modal (`.show()`, not
+        `.exec()`, `Qt.WA_DeleteOnClose` instead of a manual deleteLater()). If no folder has been set up yet --
+        or the previously remembered one is no longer there, e.g. a different device is connected now -- asks for
+        one and remembers it for next time."""
         paths = [d["file_path"] for d in self._selected_documents() if d.get("file_path")]
         if not paths:
             QMessageBox.information(self, "Gửi tới máy đọc sách", "Chưa chọn tài liệu nào.")
@@ -1403,8 +1410,19 @@ class LibraryListWidget(QWidget):
 
         docs = [d for d in self._selected_documents() if d.get("file_path")]
         dialog = EreaderSendDialog(self.context, docs, self.file_actions, target, self)
-        dialog.exec()
-        dialog.deleteLater()
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.show()
+
+    def convert_selected_documents(self) -> None:
+        """Opens "Chuyển đổi định dạng" (task C2, bản thử) for the selected documents -- non-modal, same reasons
+        as send_selected_to_ereader above."""
+        docs = [d for d in self._selected_documents() if d.get("file_path")]
+        if not docs:
+            QMessageBox.information(self, "Chuyển đổi định dạng", "Chưa chọn tài liệu nào.")
+            return
+        dialog = FormatConversionDialog(self.context, docs, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose)
+        dialog.show()
 
 
 if __name__ == "__main__":

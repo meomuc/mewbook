@@ -16,10 +16,12 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QDialog,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QStackedWidget,
     QTextEdit,
     QVBoxLayout,
@@ -41,7 +43,7 @@ from smartdoc.core.diagnostics import current_log_path, support_info
 from smartdoc.presentation.community import community_url, website_url
 from smartdoc.presentation.eula_dialog import EULA_TEXT
 from smartdoc.presentation.resources import brand_logo_path, legal_file_path
-from smartdoc.presentation.theme import current_colors
+from smartdoc.presentation.theme import ROLE_HINT, ROLE_RESULT, current_colors, role_css
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +70,11 @@ class AboutDialog(QDialog):
         super().__init__(parent)
         self._identity = identity
         self.setWindowTitle("Giới thiệu")
-        # Fixed size -- an About dialog has fixed content, no reason to
-        # ever grow beyond it.
-        self.setFixedSize(440, 600)
+        # Resizable, not fixed (task A2, docs/UI_DIALOG_AUDIT.md): a fixed size could not shrink to fit a very
+        # small screen or a Windows display-scale setting that leaves little usable height -- the info page below
+        # is wrapped in a scroll area so it folds instead of clipping when that happens.
+        self.setMinimumSize(360, 420)
+        self.resize(440, 600)
 
         self._info_page = self._build_info_page()
         self._legal_page = self._build_legal_page()
@@ -99,9 +103,12 @@ class AboutDialog(QDialog):
         title.setStyleSheet("font-weight: 700; font-size: 18px;")
         layout.addWidget(title)
 
+        # The running version is a result the app reports about itself -- the "kết quả" role (see
+        # docs/UI_TEXT_ROLES.md), distinct from the static app name above it.
         self.version_label = QLabel(f"Phiên bản {__version__}", page)
         self.version_label.setAlignment(Qt.AlignCenter)
         self.version_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.version_label.setStyleSheet(role_css(ROLE_RESULT, current_colors().text))
         layout.addWidget(self.version_label)
 
         subtitle = QLabel(f"{APP_NAME} -- {APP_DESCRIPTION.lower()}", page)
@@ -125,7 +132,9 @@ class AboutDialog(QDialog):
         )
         self.license_label.setAlignment(Qt.AlignCenter)
         self.license_label.setWordWrap(True)
-        self.license_label.setStyleSheet("font-size: 11px;")
+        # Static explanatory text -- the "hướng dẫn" role. Kept fully visible (no collapse) since it is the
+        # licence notice: a legal text should never be one click away from hidden.
+        self.license_label.setStyleSheet(role_css(ROLE_HINT, current_colors().muted_text))
         layout.addWidget(self.license_label)
 
         self.source_label = QLabel(page)
@@ -204,7 +213,15 @@ class AboutDialog(QDialog):
         self.legal_button.clicked.connect(lambda: self.stack.setCurrentWidget(self._legal_page))
         layout.addWidget(self.legal_button)
 
-        return page
+        # Scrolls as a whole once squeezed below this stack's natural height, instead of clipping (task A2) --
+        # this page is a stack of static, self-contained rows (logo, version, links...), not a split view.
+        scroll = QScrollArea(self)
+        scroll.setObjectName("AboutInfoScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setStyleSheet("#AboutInfoScroll, #AboutInfoScroll > QWidget > QWidget { background: transparent; border: none; }")
+        scroll.setWidget(page)
+        return scroll
 
     def _build_legal_page(self) -> QWidget:
         page = QWidget(self)

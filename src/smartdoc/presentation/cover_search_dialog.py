@@ -72,6 +72,7 @@ from smartdoc.presentation.cover_placeholder import _wrapped_lines
 from smartdoc.presentation.design_dialog import DesignDialog, note_box
 from smartdoc.presentation.flow_widget import FlowWidget
 from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.theme import ROLE_RESULT, role_css
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.worker_relay import WorkerRelay, post
 
@@ -274,8 +275,11 @@ class CoverSearchWidget(QWidget):
             "Bật tùy chọn này nếu sách hiếm, ít có trong các kho ảnh bìa."
         )
 
+        # "Tìm thấy N kết quả...", "Không tải được ảnh: ..." are results the app just produced -- the "kết quả"
+        # role (see docs/UI_TEXT_ROLES.md).
         self.status_label = QLabel("", self)
         self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         self.results_list = QListWidget(self)
         self.results_list.setViewMode(QListWidget.IconMode)
         self.results_list.setIconSize(_THUMB_SIZE)

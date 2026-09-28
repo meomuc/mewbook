@@ -51,12 +51,14 @@ from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.duplicate_list_pane import DuplicateListPane
 from smartdoc.presentation.file_actions import FileActionEngine
-from smartdoc.presentation.format_utils import human_size
+from smartdoc.presentation.format_utils import file_type_label, human_size
+from smartdoc.presentation.hint_label import HintLabel
+from smartdoc.presentation.theme import ROLE_RESULT, role_css
 from smartdoc.presentation.theme_manager import theme_manager
 
 _DOC_ROLE = Qt.UserRole + 1
 _GROUP_ROLE = Qt.UserRole + 2
-_COL_KEEP, _COL_PATH, _COL_SIZE, _COL_DATE, _COL_NOTE = range(5)
+_COL_KEEP, _COL_PATH, _COL_TYPE, _COL_SIZE, _COL_DATE, _COL_NOTE = range(6)
 MODE_EXACT, MODE_FUZZY = "exact", "fuzzy"
 
 
@@ -164,14 +166,17 @@ class DuplicateFinderDialog(DesignDialog):
         top_row.addLayout(modes)
         top_row.addStretch(1)
         top_row.addLayout(views)
+        # "N nhóm · N file" / the scan progress line are results the app just produced -- the "kết quả" role
+        # (bigger, bolder; see docs/UI_TEXT_ROLES.md), not plain muted body text.
         self.summary_label = QLabel(self)
-        self.summary_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
+        self.summary_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         self.group_list = QListWidget(self)
         self.group_list.setFrameShape(QFrame.NoFrame)
         self.group_list.setSpacing(2)
         self.group_list.currentRowChanged.connect(self._on_group_chosen)
         self.scan_status_label = QLabel(self)
         self.scan_status_label.setWordWrap(True)
+        self.scan_status_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         self.scan_progress = QProgressBar(self)
         self.scan_progress.setTextVisible(False)
         left = QVBoxLayout()
@@ -187,21 +192,35 @@ class DuplicateFinderDialog(DesignDialog):
         # -- right: the files of the chosen group --
         self.group_title = QLabel(self)
         self.group_title.setStyleSheet("font-weight: 600; font-size: 14px;")
-        self.file_table = QTableWidget(0, 5, self)
-        self.file_table.setHorizontalHeaderLabels(["GIỮ", "VỊ TRÍ FILE", "DUNG LƯỢNG", "NGÀY", "GHI CHÚ"])
+        self.file_table = QTableWidget(0, 6, self)
+        self.file_table.setHorizontalHeaderLabels(["GIỮ", "VỊ TRÍ FILE", "LOẠI FILE", "DUNG LƯỢNG", "NGÀY", "GHI CHÚ"])
         self.file_table.verticalHeader().setVisible(False)
         self.file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.file_table.setSelectionMode(QAbstractItemView.NoSelection)
         self.file_table.setShowGrid(False)
+        # B2: middle-elide (never end-elide) so the part that actually tells two copies of the same book apart --
+        # the folder near the end of the path -- stays visible; the full path is still one hover away (tooltip).
+        self.file_table.setTextElideMode(Qt.ElideMiddle)
         header = self.file_table.horizontalHeader()
         header.setSectionResizeMode(_COL_KEEP, QHeaderView.Fixed)
         self.file_table.setColumnWidth(_COL_KEEP, 48)
-        header.setSectionResizeMode(_COL_PATH, QHeaderView.Stretch)
+        # Interactive (not Stretch): the AC asks for a column the person can drag narrower/wider by hand, which
+        # Stretch mode explicitly disables. setStretchLastSection() below keeps the table filling the pane's
+        # width without needing any one column locked to Stretch.
+        header.setSectionResizeMode(_COL_PATH, QHeaderView.Interactive)
+        self.file_table.setColumnWidth(_COL_PATH, 320)
+        header.setSectionResizeMode(_COL_TYPE, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_SIZE, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_DATE, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_NOTE, QHeaderView.Interactive)
+        header.setStretchLastSection(True)
         self.file_table.setColumnWidth(_COL_NOTE, 170)
         self.file_table.verticalHeader().setDefaultSectionSize(44)
+        # Not setSortingEnabled(True) here: _COL_KEEP holds a real QRadioButton via setCellWidget(), which Qt's
+        # built-in row sort does not move along with its row -- the radios would end up pointing at the wrong
+        # file. A group is a handful of copies of the same book anyway (sorting a list of 2-5 rows buys little);
+        # DuplicateListPane's much longer table below sorts safely because its "tick" column is a plain checkable
+        # item, not a widget.
         self._radio_group: QButtonGroup | None = None
 
         self.remove_button = QPushButton(self)
@@ -214,15 +233,13 @@ class DuplicateFinderDialog(DesignDialog):
         buttons.addWidget(self.remove_button)
         buttons.addWidget(self.delete_button)
         buttons.addStretch(1)
-        self.hint_label = QLabel(
+        # Static how-to-use text -- the "hướng dẫn" role; HintLabel folds it to ~2 lines instead of running 3-4
+        # lines tall (task A1's AC).
+        self.hint_label = HintLabel(
             "MewBook không tự chọn bản nào để xóa: hãy xem từng nhóm và chọn bản giữ lại. “Bỏ khỏi thư viện”: file vẫn nằm "
             "trên máy. “Chuyển vào Thùng rác”: file vào thùng rác của MewBook, khôi phục được trước hạn.", self)
-        self.hint_label.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
-        self.hint_label.setWordWrap(True)
 
-        self.trash_note = QLabel(self)
-        self.trash_note.setWordWrap(True)
-        self.trash_note.setStyleSheet(f"color: {theme_manager().token('ink3')}; font-size: 12px;")
+        self.trash_note = HintLabel("", self)
         self.trash_button = QPushButton("Mở Thùng rác…", self)
         self.trash_button.clicked.connect(self._on_open_trash)
         trash_row = QHBoxLayout()
@@ -408,6 +425,7 @@ class DuplicateFinderDialog(DesignDialog):
             path_item.setToolTip(path_text)
             path_item.setData(_DOC_ROLE, doc)
             self.file_table.setItem(row, _COL_PATH, path_item)
+            self.file_table.setItem(row, _COL_TYPE, QTableWidgetItem(file_type_label(doc)))
             self.file_table.setItem(row, _COL_SIZE, QTableWidgetItem(_size(doc.get("file_size"))))
             self.file_table.setItem(row, _COL_DATE, QTableWidgetItem(_format_date(doc.get("created_at"))))
             note = QTableWidgetItem(note_for(doc, keeper, self._mode, suggested))

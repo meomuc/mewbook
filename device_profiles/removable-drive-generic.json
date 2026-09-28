@@ -1,0 +1,14 @@
+{
+  "id": "removable-drive-generic",
+  "display_name": "Ổ đĩa / thẻ nhớ (chung)",
+  "vendor": "",
+  "supported_formats": [],
+  "books_dir": "",
+  "filename_template": "{author} - {title}",
+  "ascii_filenames": false,
+  "max_filename_length": 0,
+  "cover_handling": "none",
+  "verified": true,
+  "verification_note": "",
+  "notes": "Không giới hạn định dạng hay đường dẫn -- đúng như luồng gửi thư mục hiện có từ trước."
+}

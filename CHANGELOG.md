@@ -8,6 +8,47 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Changed
+- **Chữ tĩnh, kết quả và hướng dẫn giờ phân biệt được cả khi không nhìn màu.** Số liệu/trạng thái do MewBook vừa tạo
+  ra (đã cập nhật bao nhiêu sách, đã gửi bao nhiêu sách, kết quả thử kết nối...) hiện to và đậm hơn nhãn tĩnh xung
+  quanh; văn bản hướng dẫn dài (cảnh báo ghi vào file gốc, giải thích Tìm file trùng...) giờ gập lại còn khoảng 2
+  dòng kèm "Xem hướng dẫn" thay vì chiếm nhiều dòng của hộp thoại. Áp dụng ở Cài đặt, Tìm thêm thông tin, Cập nhật
+  thông tin, Tìm file trùng, Gửi tới máy đọc sách, Giới thiệu.
+- Kết quả thử kết nối AI và ảnh bìa Google trong Cài đặt giờ dùng đúng màu của theme đang chọn thay vì màu cứng, nên
+  vẫn đọc rõ ở các theme tối.
+- **Một số hộp thoại co giãn đúng trên màn hình nhỏ thay vì bị cắt.** "Tìm thêm thông tin" và "Tạo/Sửa bộ sưu tập"
+  giờ tự cuộn nội dung khi cửa sổ nhỏ, thay vì đẩy nút "Áp dụng"/"Tạo" ra ngoài tầm bấm. Hộp thoại "Giới thiệu" và
+  "Giấy phép & quyền riêng tư" (hiện lúc mở app lần đầu) giờ co giãn được thay vì kích thước cố định. Sửa một lỗi
+  khiến giới hạn kích thước chung của mọi hộp thoại đôi khi không có tác dụng trên màn hình nhỏ.
+- **Thêm hiệu ứng "đang xử lý" dùng chung, kèm mèo minh họa tùy chọn.** "Tìm thêm thông tin" (đang tìm tên sách và
+  ảnh bìa) và "Tóm tắt AI" (đang gọi AI) giờ hiện một vòng tròn xoay thay vì chỉ có chữ trong lúc chờ -- tự dừng
+  ngay khi xong, khi hủy, hoặc khi cửa sổ bị ẩn; tôn trọng tùy chọn tắt hiệu ứng chuyển động của Windows nếu máy
+  bật tùy chọn đó.
+- **Tìm file trùng: thêm cột "Loại file"** ở cả hai kiểu xem ("Theo nhóm" và "Danh sách"). Cột "Vị trí file" giờ
+  cắt giữa (không cắt cuối) khi đường dẫn dài -- phần thư mục gần tên file, cái thực sự phân biệt hai bản sao, vẫn
+  hiện ra -- và kéo đổi độ rộng được bằng chuột; đưa chuột vào vẫn thấy đường dẫn đầy đủ như trước.
+- **Mới (bản thử): "Cập nhật thông tin sách hàng loạt…"** (menu Công cụ) -- tìm và điền tên sách, tác giả, nhà
+  xuất bản... cho cả danh sách đang xem (theo đúng bộ lọc/tìm kiếm hiện tại), chạy nền, không chặn giao diện.
+  Thông tin lấy theo thứ tự ưu tiên: trong file sách, rồi thư viện trên máy, rồi (khi tự bật) các nguồn Internet
+  -- mỗi nguồn Internet có ghi chú dùng được cho gì và giới hạn, độ chính xác ghi "Chưa đo" vì chưa đo thật; nguồn
+  Internet mặc định KHÔNG bật. Không bao giờ ghi đè thông tin bạn đã tự sửa tay, và không đụng tới file sách gốc.
+  Kết thúc báo "Đã cập nhật X, bỏ qua Y, lỗi Z" và có "Hoàn tác lượt này".
+- **Gửi sang máy đọc sách: thêm hồ sơ thiết bị (bản thử phạm vi hẹp).** Chọn được loại máy (BOOX Note Air4C, BOOX
+  Go 6, Kindle, hoặc "Ổ đĩa/thẻ nhớ chung" như trước); hồ sơ riêng theo máy hiện rõ "chưa kiểm chứng trên máy
+  thật" vì chưa có máy thật để đo (xem docs/spikes/2026-09-28_ereader_device_transport.md) -- chỉ dùng để cảnh
+  báo mềm khi định dạng có thể không đọc được, không bao giờ chặn cứng việc gửi. Trước khi chép, hộp thoại hiện
+  kế hoạch (sách nào sẽ gửi, sách nào đã có sẵn trên máy nên bỏ qua, sách nào có DRM bị từ chối) để duyệt trước;
+  không bao giờ ghi đè file cùng tên có sẵn trên máy đọc. Việc gửi giờ chạy nền, không chặn giao diện, và rút
+  thiết bị ra giữa chừng được báo rõ ràng thay vì làm ứng dụng lỗi. Đường kết nối MTP (không qua ổ đĩa) chưa làm
+  trong bản này.
+- **Mới (bản thử): "Chuyển đổi định dạng…"** (menu File/Công cụ và menu chuột phải, cạnh "Gửi tới máy đọc sách") --
+  đổi định dạng sách đã chọn (ví dụ EPUB ⇄ MOBI/AZW3) qua công cụ chuyển đổi của Calibre đã cài sẵn trên máy (không
+  đi kèm MewBook; chưa cài thì hộp thoại hướng dẫn cài bằng lời thường). Hiện kế hoạch trước khi chuyển (sách nào
+  sẽ đổi, sách nào chưa hỗ trợ, sách nào có DRM bị từ chối); cặp có rủi ro lệch bố cục (PDF làm nguồn) hiện cảnh báo
+  "định dạng gốc có thể không được giữ nguyên". File đã đổi lưu vào thư mục riêng, không bao giờ ghi đè hay sửa file
+  gốc. Chạy nền, hủy được, một file lỗi không dừng cả lô, có "Chuyển lại cuốn lỗi". Chỉ hỗ trợ một số cặp định dạng
+  phổ biến ở bản này; cặp khác để sau.
+
 ## [1.2.0] - 2026-09-28
 
 New features, backwards compatible: a MINOR release.

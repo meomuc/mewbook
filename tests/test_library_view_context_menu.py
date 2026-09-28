@@ -5,7 +5,7 @@ the offscreen Qt platform tests run under and hangs forever if actually
 invoked, so tests patch LibraryListWidget._exec_menu (a plain Python seam)
 instead of trying to intercept Qt's own exec().
 """
-from PySide6.QtCore import QItemSelectionModel
+from PySide6.QtCore import Qt, QItemSelectionModel
 from PySide6.QtWidgets import QMessageBox
 
 from smartdoc.presentation.library_view import LibraryListWidget
@@ -423,6 +423,22 @@ def _seed_two_docs_with_real_files(app_context, tmp_path):
     return file_a, file_b
 
 
+def _run_dialog_synchronously(monkeypatch, qapp, timeout: float = 5.0) -> None:
+    """Task C1 made the dialog non-modal and its send run on a background thread (never .exec()'d): these tests
+    stand in for the person clicking "Bắt đầu gửi" and then wait for the worker to actually finish."""
+    import time
+
+    def fake_show(self) -> None:
+        self.send_all()
+        deadline = time.time() + timeout
+        while self._running and time.time() < deadline:
+            qapp.processEvents()
+            time.sleep(0.01)
+        qapp.processEvents()
+
+    monkeypatch.setattr("smartdoc.presentation.library_view.EreaderSendDialog.show", fake_show)
+
+
 def test_send_to_ereader_copies_selected_files_using_the_saved_folder(qapp, app_context, monkeypatch, tmp_path):
     file_a, _file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
     target = tmp_path / "ereader"
@@ -433,7 +449,7 @@ def test_send_to_ereader_copies_selected_files_using_the_saved_folder(qapp, app_
 
     prompted = []
     monkeypatch.setattr("smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: prompted.append(1) or "")
-    monkeypatch.setattr("smartdoc.presentation.library_view.EreaderSendDialog.exec", lambda self: self.send_all())
+    _run_dialog_synchronously(monkeypatch, qapp)
 
     widget.send_selected_to_ereader()
 
@@ -453,7 +469,7 @@ def test_send_to_ereader_prompts_and_saves_folder_when_unset(qapp, app_context, 
     monkeypatch.setattr(
         "smartdoc.presentation.library_view.QFileDialog.getExistingDirectory", lambda *a, **k: str(target)
     )
-    monkeypatch.setattr("smartdoc.presentation.library_view.EreaderSendDialog.exec", lambda self: self.send_all())
+    _run_dialog_synchronously(monkeypatch, qapp)
 
     widget.send_selected_to_ereader()
 
@@ -500,6 +516,49 @@ def test_context_menu_send_to_ereader_action_invokes_send(qapp, app_context, mon
     widget._show_context_menu(position)
 
     assert called == [1]
+
+
+def test_context_menu_convert_format_action_invokes_convert(qapp, app_context, monkeypatch, tmp_path):
+    """Task C2: the context menu offers "Chuyển đổi định dạng..." right next to "Gửi tới máy đọc sách..."."""
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    position = _select_row(widget, qapp, 0)
+
+    called = []
+    monkeypatch.setattr(LibraryListWidget, "convert_selected_documents", lambda self: called.append(1))
+    monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Chuyển đổi định dạng"))
+
+    widget._show_context_menu(position)
+
+    assert called == [1]
+
+
+def test_convert_selected_documents_does_nothing_when_no_selection(qapp, app_context, monkeypatch, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+
+    opened = []
+    monkeypatch.setattr("smartdoc.presentation.library_view.FormatConversionDialog", lambda *a, **k: opened.append(1))
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a, **k: None))
+
+    widget.convert_selected_documents()
+
+    assert opened == []
+
+
+def test_convert_selected_documents_opens_the_dialog_non_modally(qapp, app_context, tmp_path):
+    _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0)
+
+    from smartdoc.presentation.format_conversion_dialog import FormatConversionDialog
+
+    widget.convert_selected_documents()
+
+    dialog = widget.findChild(FormatConversionDialog)
+    assert dialog is not None
+    assert dialog.testAttribute(Qt.WA_DeleteOnClose)
+    dialog.close()
 
 
 def _pick_submenu_action_containing(text_substring: str):

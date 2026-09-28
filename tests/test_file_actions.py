@@ -100,6 +100,44 @@ def test_send_to_ereader_reports_failures_without_raising(tmp_path, app_context)
     assert failed == [str(missing_source)]
 
 
+def test_copy_to_ereader_as_uses_the_given_name(tmp_path, app_context):
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"content")
+    target_dir = tmp_path / "ereader"
+    target_dir.mkdir()
+    engine = FileActionEngine(app_context)
+
+    reason = engine.copy_to_ereader_as(str(source), str(target_dir), "Author - Title.pdf")
+
+    assert reason == ""
+    assert (target_dir / "Author - Title.pdf").read_bytes() == b"content"
+
+
+def test_copy_to_ereader_as_never_overwrites_an_existing_file(tmp_path, app_context):
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"new content")
+    target_dir = tmp_path / "ereader"
+    target_dir.mkdir()
+    existing = target_dir / "Author - Title.pdf"
+    existing.write_bytes(b"original content, must survive")
+    engine = FileActionEngine(app_context)
+
+    reason = engine.copy_to_ereader_as(str(source), str(target_dir), "Author - Title.pdf")
+
+    assert reason != ""
+    assert existing.read_bytes() == b"original content, must survive"
+
+
+def test_copy_to_ereader_as_reports_a_missing_device_folder_distinctly(tmp_path, app_context):
+    source = tmp_path / "book.pdf"
+    source.write_bytes(b"content")
+    engine = FileActionEngine(app_context)
+
+    reason = engine.copy_to_ereader_as(str(source), str(tmp_path / "not-plugged-in"), "Author - Title.pdf")
+
+    assert "rút ra" in reason
+
+
 def test_open_file_never_uses_shell_true(monkeypatch, app_context, tmp_path):
     import sys
 

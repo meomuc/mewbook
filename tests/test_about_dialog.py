@@ -1,3 +1,5 @@
+from PySide6.QtWidgets import QScrollArea
+
 from smartdoc.presentation.about_dialog import AboutDialog
 from smartdoc.presentation.eula_dialog import EULA_TEXT
 
@@ -5,6 +7,17 @@ from smartdoc.presentation.eula_dialog import EULA_TEXT
 def test_starts_on_info_page(qapp):
     dialog = AboutDialog()
     assert dialog.stack.currentWidget() is dialog._info_page
+
+
+def test_dialog_is_resizable_not_fixed_and_the_info_page_scrolls(qapp):
+    """Task A2 (docs/UI_DIALOG_AUDIT.md): used to be setFixedSize(440, 600), which could not shrink to fit a very
+    small screen. Now it has a modest minimum and the info page is wrapped in a scroll area."""
+    dialog = AboutDialog()
+    assert dialog.minimumSize().width() < 440 and dialog.minimumSize().height() < 600
+    assert dialog.maximumSize().width() >= 16777215 or dialog.maximumSize().width() > 440  # no fixed upper bound
+    assert isinstance(dialog._info_page, QScrollArea)
+    dialog.resize(380, 440)  # smaller than the old fixed size -- must not be refused/clamped back up
+    assert dialog.width() == 380 and dialog.height() == 440
 
 
 def test_legal_button_shows_full_eula_text(qapp):

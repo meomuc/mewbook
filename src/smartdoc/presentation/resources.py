@@ -34,6 +34,15 @@ def layouts_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "layouts"
 
 
+def device_profiles_dir() -> Path:
+    """Packaged e-reader device profiles (`device_profiles/<id>.json`, task C1), next to `themes/`; bundled like it
+    in the frozen exe (packaging/MewBook.spec)."""
+    frozen_base = getattr(sys, "_MEIPASS", None)
+    if frozen_base:
+        return Path(frozen_base) / "device_profiles"
+    return Path(__file__).resolve().parents[3] / "device_profiles"
+
+
 def app_icon_path() -> Path:
     return assets_dir() / "app_icon.ico"
 

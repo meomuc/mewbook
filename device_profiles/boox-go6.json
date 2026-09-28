@@ -1,0 +1,14 @@
+{
+  "id": "boox-go6",
+  "display_name": "BOOX Go 6",
+  "vendor": "Onyx International",
+  "supported_formats": ["epub", "pdf", "mobi", "azw3", "txt", "fb2", "djvu", "cbz"],
+  "books_dir": "",
+  "filename_template": "{author} - {title}",
+  "ascii_filenames": false,
+  "max_filename_length": 0,
+  "cover_handling": "none",
+  "verified": false,
+  "verification_note": "Chưa kiểm chứng trên máy thật -- xem docs/spikes/2026-09-28_ereader_device_transport.md",
+  "notes": "Danh sách định dạng chỉ dùng để cảnh báo mềm, không chặn gửi. Chế độ USB (ổ đĩa hay MTP) và thư mục sách thật chưa đo."
+}

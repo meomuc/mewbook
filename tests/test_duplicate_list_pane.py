@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
 from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog, suggested_keeper
-from smartdoc.presentation.duplicate_list_pane import _C_NOTE, _C_TICK, DuplicateListPane
+from smartdoc.presentation.duplicate_list_pane import _C_NOTE, _C_SIZE, _C_TICK, _C_TYPE, DuplicateListPane
 
 
 def _doc(doc_id, title, author="X", path=None, size=1000, created=1.0, **extra):
@@ -73,10 +73,46 @@ def test_ticks_survive_searching_and_sorting(qapp):
     _tick(pane, "b3")
     pane.search_edit.setText("python")
     pane.search_edit.setText("")
-    pane.table.sortByColumn(4, Qt.DescendingOrder)  # by size
+    pane.table.sortByColumn(_C_SIZE, Qt.DescendingOrder)
     assert [d["id"] for d in pane.ticked_docs()] == ["b3"] and pane.remove_button.text() == "Bỏ 1 file khỏi thư viện"
-    sizes = [pane.table.item(r, 4).data(Qt.UserRole + 2) for r in range(pane.table.rowCount())]
+    sizes = [pane.table.item(r, _C_SIZE).data(Qt.UserRole + 2) for r in range(pane.table.rowCount())]
     assert sizes == sorted(sizes, reverse=True)  # a number sorts as a number ("30000" after "9000" as text would be wrong)
+    pane.deleteLater()
+
+
+def test_table_shows_a_file_type_column(qapp):
+    """Task B2: "Loại file", the document's own extension, upper-cased, "—" when unknown."""
+    pane = DuplicateListPane(suggested_keeper)
+    pane.show()
+    pane.set_groups([[_doc("x1", "T", path="a.epub", extension="epub"), _doc("x2", "T", path="b.pdf")]])
+
+    by_id = {pane.table.item(r, _C_TICK).data(Qt.UserRole + 1)["id"]: pane.table.item(r, _C_TYPE).text()
+             for r in range(pane.table.rowCount())}
+    assert by_id == {"x1": "EPUB", "x2": "PDF"}
+    pane.deleteLater()
+
+
+def test_table_shows_a_dash_when_the_extension_is_unknown(qapp):
+    pane = DuplicateListPane(suggested_keeper)
+    pane.show()
+    pane.set_groups([[_doc("x1", "T", extension=""), _doc("x2", "T", path="b.pdf", extension="pdf")]])
+
+    row = next(r for r in range(pane.table.rowCount()) if pane.table.item(r, _C_TICK).data(Qt.UserRole + 1)["id"] == "x1")
+    assert pane.table.item(row, _C_TYPE).text() == "—"
+    pane.deleteLater()
+
+
+def test_path_column_is_draggable_and_middle_elided(qapp):
+    """Task B2 AC: "kéo đổi độ rộng cột" needs Interactive resize mode -- Stretch explicitly forbids it -- and
+    "cắt giữa khi dài" needs ElideMiddle specifically (Qt's own default is end-elide)."""
+    from PySide6.QtWidgets import QHeaderView
+
+    from smartdoc.presentation.duplicate_list_pane import _C_PATH
+
+    pane = _pane(qapp)
+    header = pane.table.horizontalHeader()
+    assert header.sectionResizeMode(_C_PATH) == QHeaderView.Interactive
+    assert pane.table.textElideMode() == Qt.ElideMiddle
     pane.deleteLater()
 
 

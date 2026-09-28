@@ -67,8 +67,12 @@ class NewCollectionDialog(DesignDialog):
     def __init__(self, parent=None, collection: VirtualCollection | None = None, context=None) -> None:
         """`collection` set = editing that existing collection in place (its id/created_at are preserved so saving is
         an upsert); None = creating a new one. `context` (optional) enables the live "N sách khớp" count."""
+        # scrollable_body: "Thêm điều kiện" lets a person add up to MAX_ROWS rule rows -- name field + up to 6 rows
+        # + match box can still run taller than a small/scaled-up screen has room for, so the body scrolls instead
+        # of pushing "Lưu"/"Tạo" off screen (task A2, docs/UI_DIALOG_AUDIT.md).
         super().__init__(parent, title="Sửa bộ sưu tập" if collection else "Tạo bộ sưu tập theo luật",
-                         subtitle="Sách tự vào bộ sưu tập khi khớp điều kiện.", icon="bolt", width=520)
+                         subtitle="Sách tự vào bộ sưu tập khi khớp điều kiện.", icon="bolt", width=520,
+                         scrollable_body=True)
         self._editing = collection
         self._context = context
         self.delete_requested = False

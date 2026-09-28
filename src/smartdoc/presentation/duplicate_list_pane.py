@@ -31,10 +31,10 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.duplicate_finder import normalize
-from smartdoc.presentation.format_utils import human_size
+from smartdoc.presentation.format_utils import file_type_label, human_size
 from smartdoc.presentation.theme_manager import theme_manager
 
-_C_TICK, _C_TITLE, _C_AUTHOR, _C_PATH, _C_SIZE, _C_DATE, _C_GROUP, _C_NOTE = range(8)
+_C_TICK, _C_TITLE, _C_AUTHOR, _C_PATH, _C_TYPE, _C_SIZE, _C_DATE, _C_GROUP, _C_NOTE = range(9)
 _DOC_ROLE = Qt.UserRole + 1
 _SORT_ROLE = Qt.UserRole + 2
 
@@ -82,26 +82,35 @@ class DuplicateListPane(QWidget):
         top.addWidget(self.search_edit, 1)
         top.addWidget(self.count_label)
 
-        self.table = QTableWidget(0, 8, self)
-        self.table.setHorizontalHeaderLabels(["", "TÊN SÁCH", "TÁC GIẢ", "VỊ TRÍ FILE", "DUNG LƯỢNG", "NGÀY", "NHÓM", "GHI CHÚ"])
+        self.table = QTableWidget(0, 9, self)
+        self.table.setHorizontalHeaderLabels(
+            ["", "TÊN SÁCH", "TÁC GIẢ", "VỊ TRÍ FILE", "LOẠI FILE", "DUNG LƯỢNG", "NGÀY", "NHÓM", "GHI CHÚ"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.NoSelection)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
+        # B2: middle-elide (never end-elide) so the part that actually tells two copies of the same book apart --
+        # the folder near the end of the path -- stays visible; the full path is still one hover away (tooltip).
+        self.table.setTextElideMode(Qt.ElideMiddle)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(_C_TICK, QHeaderView.Fixed)
         self.table.setColumnWidth(_C_TICK, 34)
         header.setSectionResizeMode(_C_TITLE, QHeaderView.Interactive)
-        self.table.setColumnWidth(_C_TITLE, 190)  # the path is what tells copies apart: it gets the stretch
+        self.table.setColumnWidth(_C_TITLE, 190)
         header.setSectionResizeMode(_C_AUTHOR, QHeaderView.Interactive)
         self.table.setColumnWidth(_C_AUTHOR, 130)
-        header.setSectionResizeMode(_C_PATH, QHeaderView.Stretch)
-        for column in (_C_SIZE, _C_DATE, _C_GROUP):
+        # Interactive (not Stretch): the AC asks for a column the person can drag narrower/wider by hand, which
+        # Stretch mode explicitly disables. setStretchLastSection() below keeps the table filling the pane's
+        # width without needing any one column locked to Stretch.
+        header.setSectionResizeMode(_C_PATH, QHeaderView.Interactive)
+        self.table.setColumnWidth(_C_PATH, 260)
+        for column in (_C_TYPE, _C_SIZE, _C_DATE, _C_GROUP):
             header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_C_NOTE, QHeaderView.Interactive)
         self.table.setColumnWidth(_C_NOTE, 150)
+        header.setStretchLastSection(True)
         self.table.verticalHeader().setDefaultSectionSize(30)
         self.table.setSortingEnabled(True)
         self.table.itemChanged.connect(self._on_item_changed)
@@ -167,6 +176,7 @@ class DuplicateListPane(QWidget):
                 _C_TITLE: doc.get("title") or "(không có tên)",
                 _C_AUTHOR: doc.get("author") or "",
                 _C_PATH: doc.get("file_path", ""),
+                _C_TYPE: file_type_label(doc),
                 _C_NOTE: "Bản gợi ý giữ" if doc["id"] == self._suggested_keeper(group)["id"] else "",
             }
             for column, text in texts.items():

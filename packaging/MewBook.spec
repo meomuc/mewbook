@@ -112,8 +112,8 @@ _datas += [
 # Theme and layout packages: themes/<id>/ (theme.json, fonts/, preview/) with themes/_schema (schema + validators), and
 # layouts/<id>/ (layout.json, LAYOUT_SPEC.md, preview/). Each keeps its own folder -- a glob would flatten them.
 # `incoming/` (unimported zips) and `preview/` pictures never ship. presentation/resources.py themes_dir()/layouts_dir()
-# find them again.
-for _pack in ('themes', 'layouts'):
+# find them again. device_profiles/ (task C1): e-reader device profiles, read by domain/device_profiles.py.
+for _pack in ('themes', 'layouts', 'device_profiles'):
     for _file in sorted((_ROOT / _pack).rglob('*')):
         _rel = _file.relative_to(_ROOT / _pack)
         if _file.is_file() and _rel.parts[0] != 'incoming' and not {'preview', '__pycache__'} & set(_rel.parts):

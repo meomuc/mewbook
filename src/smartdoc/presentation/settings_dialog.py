@@ -84,7 +84,7 @@ from smartdoc.presentation.privacy_panel import PrivacyPanel
 from smartdoc.presentation.resources import donate_qr_path
 from smartdoc.presentation.layouts import compose_tokens, layout_for, selectable_layouts, theme_label
 from smartdoc.presentation.settings_widgets import LayoutCard, PillList, SettingsPage, ThemeCard, add_note_box, hint_pair
-from smartdoc.presentation.theme import colors_for, current_colors, resolve_font_family
+from smartdoc.presentation.theme import ROLE_HINT, ROLE_RESULT, colors_for, current_colors, resolve_font_family, role_css
 from smartdoc.presentation.theme_manager import available_themes, load_tokens, theme_manager
 from smartdoc.presentation.update_panel import UpdatePanel
 from smartdoc.presentation.worker_relay import WorkerRelay, post
@@ -544,7 +544,8 @@ class SettingsDialog(QDialog):
             f"Lúc này đang xử lý {active} sách cùng lúc. Máy của bạn làm tốt nhất khoảng {cpu_count} việc cùng lúc.", page
         )
         self.performance_status_label.setWordWrap(True)
-        self.performance_status_label.setStyleSheet(f"color: {theme_manager().token('ink2')};")
+        # A live measurement the app just produced -- the "kết quả" role (docs/UI_TEXT_ROLES.md).
+        self.performance_status_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         page.add_block(self.performance_status_label)
 
         self.page_size_combo = self._choice_combo(page, self._PAGE_SIZE_CHOICES, config.page_size or PAGE_SIZE, "{}")
@@ -717,7 +718,9 @@ class SettingsDialog(QDialog):
         self.ai_provider_guide_label = QLabel(page)
         self.ai_provider_guide_label.setWordWrap(True)
         self.ai_provider_guide_label.setOpenExternalLinks(True)
-        self.ai_provider_guide_label.setStyleSheet(f"color: {theme_manager().token('ink2')};")
+        # Static how-to-use text -- the "hướng dẫn" role (docs/UI_TEXT_ROLES.md). Not a HintLabel: it carries
+        # clickable links that widget doesn't support yet.
+        self.ai_provider_guide_label.setStyleSheet(f"{role_css(ROLE_HINT, theme_manager().token('ink2'))} background: transparent;")
         page.add_row("Cách lấy khóa", "Từng bước, theo nhà cung cấp bạn chọn ở trên.", self.ai_provider_guide_label)
         self._update_ai_provider_guide()
         return page
@@ -918,7 +921,10 @@ class SettingsDialog(QDialog):
         self.test_connection_button.setEnabled(True)
         self.test_connection_button.setText("Kiểm tra kết nối")
         self.connection_status_label.setText(message)
-        self.connection_status_label.setStyleSheet(f"color: {'green' if success else 'crimson'};")
+        # The pass/fail check the app just ran -- the "kết quả" role. Uses the theme's own ok/err tokens (never a
+        # hardcoded CSS color name) so it stays readable on every theme, dark ones included.
+        tm = theme_manager()
+        self.connection_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
 
     def _on_test_cover_connection(self) -> None:
         api_key = self.google_image_api_key_edit.text().strip()
@@ -954,7 +960,9 @@ class SettingsDialog(QDialog):
         self.cover_test_button.setEnabled(True)
         self.cover_test_button.setText("Kiểm tra kết nối")
         self.cover_test_status_label.setText(message)
-        self.cover_test_status_label.setStyleSheet(f"color: {'green' if success else 'crimson'};")
+        # Same "kết quả" role + theme token as the AI connection test above.
+        tm = theme_manager()
+        self.cover_test_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
 
     def _on_add_folder(self) -> None:
         start_dir = self.context.config.config.last_used_directory or ""

@@ -47,6 +47,7 @@ from smartdoc.core.event_bus import (
 from smartdoc.presentation.community import open_community_page
 from smartdoc.presentation.donate_dialog import DonateDialog
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
+from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.theme_manager import STATUS_BAR_H, theme_manager
 
@@ -76,6 +77,12 @@ BACKGROUND_TEXT = {
     "folder-scan": ("Đang quét thư mục", "Mèo đang xem các thư mục theo dõi có file mới nào thêm vào lúc MewBook đóng không."),
     "read-text": ("Đang đọc nội dung sách", "Mèo đang đọc chữ trong các e-book để bạn tìm được theo nội dung. Chỉ làm một lần, chạy nền."),
     "fingerprint": ("Đang ghi dấu nhận diện", "Mèo đang ghi dấu nhận diện cho từng sách để không nhầm lẫn khi cập nhật thông tin. Chạy nền."),
+    "metadata-batch-update": ("Đang cập nhật thông tin sách",
+                              "Mèo đang tìm và cập nhật thông tin sách cho danh sách bạn chọn. Bạn vẫn dùng MewBook bình thường."),
+    "ereader-send": ("Đang gửi sách sang máy đọc",
+                     "Mèo đang chép sách sang máy đọc sách của bạn. Đừng rút thiết bị ra giữa chừng."),
+    "format-conversion": ("Đang chuyển đổi định dạng",
+                          "Mèo đang nhờ Calibre chuyển đổi định dạng sách. File gốc không bị đụng tới."),
 }
 
 
@@ -362,6 +369,9 @@ class StatusBarPanel(QStatusBar):
         self.folders_label = _IconCount("folder", self)
         self.activity_label = QLabel(self)
         self.activity_label.setVisible(False)
+        # Task A3/B3: a shared busy indicator beside whatever background activity text is showing -- import,
+        # classification, quiet housekeeping, or a person-started "Chạy nền" job like batch metadata update.
+        self.activity_busy = BusyIndicator(self, dot_size=12)
         self.missing_label = _MissingFilesNotice(self)
         self.missing_label.setVisible(False)
         self.missing_label.clicked.connect(self.relink_requested)
@@ -403,6 +413,7 @@ class StatusBarPanel(QStatusBar):
                 self.incomplete_label,
                 self.folders_label,
                 self.collection_label,
+                self.activity_busy,
                 self.activity_label,
                 self.missing_label,
                 self.update_label,
@@ -563,6 +574,11 @@ class StatusBarPanel(QStatusBar):
         else:
             self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
 
+    def has_task(self, task_id: str) -> bool:
+        """Whether a `BackgroundTaskEvent` for this task is currently active -- used by MainWindow.closeEvent's
+        "đang bận" gate (task C1: sending to an e-reader shouldn't be interrupted by quitting mid-copy)."""
+        return task_id in self._background
+
     def _show_activity(self) -> None:
         """Import and classification progress: shown only while a job runs, as an icon and a count."""
         parts: list[str] = []
@@ -582,6 +598,7 @@ class StatusBarPanel(QStatusBar):
         self.activity_label.setText("  ".join(parts))
         self.activity_label.setToolTip("\n".join(tips))
         self.activity_label.setVisible(bool(parts))
+        self.activity_busy.set_busy(bool(parts))
 
     def _show_update(self, version: str, url: str) -> None:
         self._update_url = url

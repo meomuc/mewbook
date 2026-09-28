@@ -332,10 +332,13 @@ def test_performance_tab_shows_zero_active_when_no_import_manager(qapp, app_cont
 
 
 def test_cover_test_result_is_shown_in_the_status_label(qapp, app_context):
+    from smartdoc.presentation.theme_manager import theme_manager
+
     dialog = SettingsDialog(app_context)
     dialog._on_cover_test_finished(True, "✅ Kết nối thành công!")
     assert "thành công" in dialog.cover_test_status_label.text()
-    assert "green" in dialog.cover_test_status_label.styleSheet()
+    # The theme's own "ok" token, not a hardcoded CSS color name -- stays readable on every theme (task A1).
+    assert theme_manager().token("ok") in dialog.cover_test_status_label.styleSheet()
 
 
 def _theme_index(dialog, key):

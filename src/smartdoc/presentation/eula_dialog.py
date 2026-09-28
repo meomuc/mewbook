@@ -50,9 +50,12 @@ class EulaDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Giấy phép và quyền riêng tư")
-        # Fixed, modest size -- long as the text is, it belongs in the
-        # scroll area below, not in an ever-taller window.
-        self.setFixedSize(560, 560)
+        # Resizable, not fixed (task A2, docs/UI_DIALOG_AUDIT.md): a fixed size could not shrink on a very small
+        # screen, and this is the one dialog shown before the app's own DialogSizeGuard-covered main window even
+        # exists, so it needs to hold up on its own. Long as the text is, it already scrolls inside text_area
+        # below regardless of window size -- only heading + button (both compact, one line) need to fit.
+        self.setMinimumSize(360, 360)
+        self.resize(560, 560)
 
         heading = QLabel("Giấy phép và quyền riêng tư", self)
         heading.setStyleSheet("font-weight: 700; font-size: 15px;")

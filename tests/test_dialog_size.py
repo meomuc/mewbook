@@ -34,6 +34,51 @@ def test_oversized_dialog_is_capped_to_the_screen(qapp):
     dialog.close()
 
 
+def test_a_dialog_thats_too_tall_but_not_too_wide_is_capped_too(qapp):
+    """Regression (task A2): the layout's SetNoConstraint relaxation used to trigger on width overflow only, so a
+    dialog with many stacked rows (no single long label, so never wide) kept refusing to shrink below its content
+    height -- the cap on maximumHeight had no effect because the layout kept forcing the widget back up."""
+    screen_width, screen_height = _screen_limits(qapp)
+    dialog = QDialog()
+    layout = QVBoxLayout(dialog)
+    tall = QLabel("", dialog)
+    tall.setMinimumHeight(screen_height + 2000)  # tall, not wide -- unlike _dialog_with_huge_label
+    layout.addWidget(tall)
+
+    dialog.show()
+    qapp.processEvents()
+    assert dialog.height() > screen_height  # sanity: this really would overflow without help
+    assert dialog.width() <= screen_width  # sanity: and it is NOT also too wide
+
+    constrain_to_screen(dialog)
+    qapp.processEvents()
+
+    assert dialog.height() <= screen_height
+    dialog.close()
+
+
+def test_a_dialogs_own_explicit_minimum_size_is_lowered_too(qapp):
+    """Regression (task A2): a dialog that sets its OWN floor directly (`self.setMinimumSize(...)`, e.g.
+    SettingsDialog) never showed up in the layout's minimumSize() at all -- that only reflects the layout's
+    children, not an explicit widget-level override on top of it -- so the floor was left untouched. The cap's
+    maximumSize then ended up *below* that floor, and Qt honours the larger minimum, so the dialog stayed oversized."""
+    screen_width, screen_height = _screen_limits(qapp)
+    dialog = QDialog()
+    QVBoxLayout(dialog).addWidget(QLabel("ngắn"))  # a short, harmless label -- the layout's own minimum stays tiny
+    dialog.setMinimumSize(screen_width + 400, screen_height + 400)
+
+    dialog.show()
+    qapp.processEvents()
+    assert dialog.width() > screen_width and dialog.height() > screen_height  # sanity
+
+    constrain_to_screen(dialog)
+    qapp.processEvents()
+
+    assert dialog.width() <= screen_width
+    assert dialog.height() <= screen_height
+    dialog.close()
+
+
 def test_guard_caps_every_dialog_as_it_is_shown(qapp):
     screen_width, _ = _screen_limits(qapp)
     guard = DialogSizeGuard()

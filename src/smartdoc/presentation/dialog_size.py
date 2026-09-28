@@ -52,11 +52,20 @@ def constrain_to_screen(widget) -> None:
         _wrap_long_labels(widget, max_width)
 
     layout = widget.layout()
-    if layout is not None and layout.minimumSize().width() > max_width:
-        # SetDefaultConstraint (the default) forces the widget's minimum
-        # size up to the layout's -- which is exactly what was overriding
-        # the cap below.
-        layout.setSizeConstraint(QLayout.SetNoConstraint)
+    layout_min = layout.minimumSize() if layout is not None else None
+    layout_too_big = layout_min is not None and (layout_min.width() > max_width or layout_min.height() > max_height)
+    # A2 bug #2: a dialog that sets its OWN floor directly (`self.setMinimumSize(860, 560)`, e.g. SettingsDialog)
+    # never shows up in `layout.minimumSize()` at all -- that call only reflects the layout's children, not an
+    # explicit widget-level override sitting on top of it. Left alone, that floor stays above the cap set below,
+    # and Qt then honours the (now larger) minimum over the maximum: the cap silently loses on a small screen.
+    own_min_too_big = widget.minimumWidth() > max_width or widget.minimumHeight() > max_height
+    if layout_too_big or own_min_too_big:
+        if layout is not None:
+            # SetDefaultConstraint (the default) forces the widget's minimum size up to the layout's -- which is
+            # exactly what was overriding the cap below. (A2 bug #1: this used to check width only, so a dialog
+            # that was too *tall* but not too wide -- many stacked rows, no single long label -- kept refusing to
+            # shrink below its content height; the cap below silently had no effect.)
+            layout.setSizeConstraint(QLayout.SetNoConstraint)
         widget.setMinimumSize(min(widget.minimumWidth(), max_width), min(widget.minimumHeight(), max_height))
 
     widget.setMaximumSize(

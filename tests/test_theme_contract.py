@@ -112,6 +112,36 @@ def test_theme_text_helpers():
     assert section_text("Bộ sưu tập", THEMES["broadsheet"]) == "BỘ SƯU TẬP"
 
 
+def test_role_css_gives_each_text_role_a_distinct_size_and_weight():
+    """A1 (docs/UI_TEXT_ROLES.md): "chức năng", "kết quả" and "hướng dẫn" must read apart by size/weight alone,
+    never by color alone -- so the three css bodies below must differ even when `color` is the same."""
+    from smartdoc.presentation.theme import ROLE_FUNCTION, ROLE_HINT, ROLE_RESULT, role_css
+
+    bodies = {role: role_css(role, "#123456") for role in (ROLE_FUNCTION, ROLE_RESULT, ROLE_HINT)}
+    assert len(set(bodies.values())) == 3
+    for css in bodies.values():
+        assert "#123456" in css and "font-size" in css and "font-weight" in css
+    # "kết quả" (a system-produced number/status) must be the most prominent -- bigger and bolder than the
+    # static "chức năng" label beside it, which in turn is bigger/bolder than dim "hướng dẫn" text.
+    import re
+
+    def _px(css: str) -> int:
+        return int(re.search(r"font-size:\s*(\d+)px", css).group(1))
+
+    def _weight(css: str) -> int:
+        return int(re.search(r"font-weight:\s*(\d+)", css).group(1))
+
+    assert _px(bodies[ROLE_RESULT]) > _px(bodies[ROLE_FUNCTION]) > _px(bodies[ROLE_HINT])
+    assert _weight(bodies[ROLE_RESULT]) >= _weight(bodies[ROLE_FUNCTION]) > _weight(bodies[ROLE_HINT])
+
+
+def test_role_css_rejects_an_unknown_role():
+    from smartdoc.presentation.theme import role_css
+
+    with pytest.raises(ValueError):
+        role_css("emphasis", "#000000")
+
+
 def test_original_themes_get_no_global_stylesheet():
     from smartdoc.presentation.theme import app_stylesheet
 

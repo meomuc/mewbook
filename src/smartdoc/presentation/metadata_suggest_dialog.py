@@ -60,8 +60,11 @@ from smartdoc.application.metadata_lookup import LookupResult, MetadataLookupSer
 from smartdoc.application.metadata_writer import MetadataWriter
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.infrastructure.cover_manager import CoverCacheManager
+from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.cover_search_dialog import CoverSearchWidget
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.hint_label import HintLabel
+from smartdoc.presentation.theme import ROLE_RESULT, role_css
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.worker_relay import WorkerRelay, post
 
@@ -114,8 +117,11 @@ class MetadataSuggestDialog(DesignDialog):
     covers_finished = Signal(int, list, str)  # (search number, [(CoverSearchResult, image bytes)], error message) -- fed to cover_panel
 
     def __init__(self, context, doc: dict, parent=None, service=None, applier=None) -> None:
+        # scrollable_body: this dialog's own preferred size (980x920, see resize() below) does not fit most laptop
+        # screens; the body is a stack of sections, not a split view, so it scrolls as a whole when squeezed
+        # instead of clipping the footer's "Áp dụng" button off screen (task A2, docs/UI_DIALOG_AUDIT.md).
         super().__init__(parent, title="Tìm thêm thông tin", subtitle=doc.get("title", "") or "", icon="search",
-                         width=960)
+                         width=960, scrollable_body=True)
         self.context = context
         self.doc = doc
         self.applied = False  # something was applied or undone: callers refresh
@@ -158,8 +164,11 @@ class MetadataSuggestDialog(DesignDialog):
         search_row.addWidget(self.web_button)
         search_row.addStretch(1)
 
+        # "Đã tìm thấy...", "Tìm kiếm thất bại: ..." are results the app just produced -- the "kết quả" role
+        # (bigger, bolder than plain body text; see docs/UI_TEXT_ROLES.md).
         self.status_label = QLabel("", self)
         self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet(role_css(ROLE_RESULT, theme_manager().token("ink")))
         status_box = QFrame(self)
         status_box.setObjectName("StatusBox")
         status_box.setStyleSheet(f"#StatusBox {{ background: {theme_manager().token('surface')};"
@@ -167,6 +176,10 @@ class MetadataSuggestDialog(DesignDialog):
         status_box_layout = QVBoxLayout(status_box)
         status_box_layout.setContentsMargins(10, 8, 10, 8)
         status_box_layout.addWidget(self.status_label)
+        # Task A3: a search can take a few seconds against slow/internet sources -- the busy indicator says so
+        # visually instead of leaving the status text as the only sign anything is happening.
+        self.busy_indicator = BusyIndicator(status_box, mascot_role="searching")
+        status_box_layout.addWidget(self.busy_indicator)
 
         # -- Frame 2: thông tin tìm được (trái: kết quả, phải: chi tiết + chọn cập nhật) ----
         self.candidate_list = QListWidget(self)
@@ -214,13 +227,10 @@ class MetadataSuggestDialog(DesignDialog):
         self.cover_panel.selectionChanged.connect(self._update_apply_enabled)
 
         # -- Frame 4: tùy chọn cập nhật --------------------------------------------------------
+        # Static how-to-use text -- the "hướng dẫn" role (HintLabel folds it to ~2 lines once it runs long).
         self.write_check = QCheckBox("Ghi đè lên file sách gốc", self)
-        self.write_hint = QLabel("", self)
-        self.write_hint.setWordWrap(True)
-        self.write_hint.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px;")
-        self.locked_note = QLabel("", self)
-        self.locked_note.setWordWrap(True)
-        self.locked_note.setStyleSheet(f"color: {theme_manager().token('ink2')}; font-size: 13px;")
+        self.write_hint = HintLabel("", self, color_token="ink2")
+        self.locked_note = HintLabel("", self, color_token="ink2")
         self.locked_note.hide()
         self._setup_write_option()
 
@@ -322,6 +332,7 @@ class MetadataSuggestDialog(DesignDialog):
         self.cover_panel.clear_search_results()
         self.cover_panel.status_label.setText("Đang tìm ảnh bìa...")
         self._info_pending = self._cover_pending = True
+        self.busy_indicator.set_busy(True)
         self._update_apply_enabled()
 
         service, doc, relay = self._service, self.doc, self._relay
@@ -362,6 +373,10 @@ class MetadataSuggestDialog(DesignDialog):
         threading.Thread(target=lookup_worker, daemon=True).start()
         threading.Thread(target=cover_worker, daemon=True).start()
 
+    def _sync_busy(self) -> None:
+        """Busy exactly while either half of the search (information or cover) is still running."""
+        self.busy_indicator.set_busy(self._info_pending or self._cover_pending)
+
     @staticmethod
     def _lookup(service, doc: dict, readings: list[tuple[str, str]], include_internet: bool, min_score: float) -> LookupResult:
         """The information lookup for one line of text: the first reading of it (whole text as the title) that finds
@@ -381,6 +396,7 @@ class MetadataSuggestDialog(DesignDialog):
         if number != self._search_number:
             return
         self._cover_pending = False
+        self._sync_busy()
         self.cover_panel.show_search_results(downloaded, error)
         self._update_apply_enabled()
 
@@ -388,6 +404,7 @@ class MetadataSuggestDialog(DesignDialog):
         if number != self._search_number:
             return  # a newer search superseded this one
         self._info_pending = False
+        self._sync_busy()
         self.search_button.setEnabled(True)
         if result is None:
             self.status_label.setText(f"Tìm kiếm thất bại: {error}")

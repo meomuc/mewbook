@@ -92,8 +92,10 @@ class LibraryFilesMissingEvent(BaseEvent):
 
 @dataclass(frozen=True)
 class BackgroundTaskEvent(BaseEvent):
-    """Quiet housekeeping the person did not start is running (or has just ended): `task` names it, `done` of `total` is how far
-    it got (`total` 0 = unknown). Shown in the status bar so a busy disk is explained (application/background_task.py)."""
+    """A job is running on a background thread (or has just ended): `task` names it, `done` of `total` is how far
+    it got (`total` 0 = unknown). Shown in the status bar's left zone so a busy disk -- or a long "Chạy nền" job
+    the person did start, e.g. batch metadata update (task B3) -- is explained (application/background_task.py,
+    or any other service that reports its own progress this way)."""
 
     task: str
     done: int = 0

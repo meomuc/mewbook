@@ -745,6 +745,33 @@ def action_css(colors: ThemeColors | None = None, *, font_px: int = 14) -> str:
     return f"color: {colors.accent}; font-size: {font_px}px;"
 
 
+# -- Text roles (A1, docs/UI_TEXT_ROLES.md) ----------------------------------------------------------------------
+# Every piece of UI text plays exactly one of three roles: "chức năng" (a label naming what something IS -- a
+# button title, a field name -- static), "kết quả" (a number or status the app just produced -- dynamic, more
+# prominent since it is what changed) or "hướng dẫn" (static how-to-use-it text -- smaller and dimmer, and capped
+# at two lines by the caller; see HintLabel in presentation/hint_label.py). The three differ in size/weight, never
+# in color alone, so they still read apart in grayscale or a Windows high-contrast theme -- `color` stays the
+# caller's own token (never hardcoded here), only the size/weight are fixed by the role.
+ROLE_FUNCTION = "function"
+ROLE_RESULT = "result"
+ROLE_HINT = "hint"
+_ROLE_SIZE_WEIGHT: dict[str, tuple[int, int]] = {
+    ROLE_FUNCTION: (13, 600),
+    ROLE_RESULT: (15, 700),
+    ROLE_HINT: (12, 400),
+}
+
+
+def role_css(role: str, color: str) -> str:
+    """Stylesheet body (font-size + font-weight + color) for a label playing `role`. `color` is the caller's own
+    token for the text (e.g. `colors.text` / `theme_manager().token("ink3")`); the role only fixes size/weight, so
+    giving a label a role never needs a new color token."""
+    if role not in _ROLE_SIZE_WEIGHT:
+        raise ValueError(f"unknown text role {role!r} (expected one of {tuple(_ROLE_SIZE_WEIGHT)})")
+    size, weight = _ROLE_SIZE_WEIGHT[role]
+    return f"font-size: {size}px; font-weight: {weight}; color: {color};"
+
+
 def app_stylesheet(colors: ThemeColors) -> str:
     """Global stylesheet for themes whose buttons differ from Qt's own
     look. Empty for the original themes, so they render exactly as before."""

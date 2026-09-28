@@ -1,6 +1,23 @@
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 
 
+def test_body_scrolls_instead_of_being_forced_to_show_every_row_at_once(qapp):
+    """Task A2 (docs/UI_DIALOG_AUDIT.md): "Thêm điều kiện" adds rows up to MAX_ROWS (6) -- name field + 6 rows +
+    match box can still run taller than a small/scaled-up screen, so the body scrolls instead of the dialog being
+    forced to always show every row (which would push "Tạo bộ sưu tập" off screen with no way to reach it)."""
+    from smartdoc.presentation.collection_dialog import MAX_ROWS
+
+    dialog = NewCollectionDialog()
+    assert dialog._scroll_area is not None
+    for _ in range(MAX_ROWS + 3):  # a few clicks past the cap are harmlessly no-ops (add_row_button disables itself)
+        dialog.add_row_button.click()
+    assert len(dialog._rows) == MAX_ROWS
+
+    # A scroll area's minimum size hint is independent of its content by design -- that is exactly what lets the
+    # dialog be shown/resized shorter than its full content, scrolling instead of forcing every row on screen.
+    assert dialog.minimumSizeHint().height() < dialog.body_widget.sizeHint().height()
+
+
 def test_build_collection_returns_none_when_name_is_blank(qapp):
     dialog = NewCollectionDialog()
     dialog.name_edit.setText("")

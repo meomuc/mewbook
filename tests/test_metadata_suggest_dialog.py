@@ -1,3 +1,4 @@
+import threading
 import time
 
 from PySide6.QtCore import Qt
@@ -77,6 +78,52 @@ def test_opening_searches_and_lists_candidates_with_the_first_selected(qapp, app
     assert service.calls == [{"title": "scan_0042", "author": "", "include_internet": False}]  # one box; "Unknown" is not typed in
     assert dialog.candidate_list.count() == 1 and dialog.candidate_list.currentRow() == 0
     assert "Open Library" in dialog.candidate_list.item(0).text() and "95%" in dialog.candidate_list.item(0).text()
+
+
+def test_body_is_scrollable_so_squeezing_the_window_does_not_hide_the_footer(qapp, app_context, tmp_path):
+    """Task A2 (docs/UI_DIALOG_AUDIT.md): this dialog's preferred size (980x920) does not fit most laptop screens;
+    its body scrolls instead of clipping, so the footer's "Áp dụng" button stays reachable when squeezed small."""
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    dialog, _service = _open(qapp, app_context, doc)
+
+    assert dialog._scroll_area is not None
+    natural_body_height = dialog.body_widget.sizeHint().height()
+    assert natural_body_height > 420  # sanity: the content really is taller than the squeeze below
+
+    dialog.resize(dialog.width(), 420)
+    qapp.processEvents()
+
+    # The footer (with "Áp dụng") is still fully inside the dialog, not pushed off past its bottom edge.
+    footer_bottom = dialog._footer.mapTo(dialog, dialog._footer.rect().bottomLeft()).y()
+    assert footer_bottom <= dialog.height()
+    assert not dialog.apply_button.isHidden()  # isVisible() would read False regardless: the dialog is never shown here
+    # The scroll area's viewport is now shorter than the body's own natural content height -- it is actually
+    # scrolling the content, not just shrinking every child down to fit.
+    assert dialog._scroll_area.viewport().height() < natural_body_height
+
+
+def test_busy_indicator_stays_on_until_both_info_and_cover_search_finish(qapp, app_context, tmp_path, monkeypatch):
+    """Task A3: busy exactly while either half of the search is still running, not just one of them."""
+    import smartdoc.presentation.metadata_suggest_dialog as mod
+
+    doc = _doc(app_context, make_pdf(tmp_path / "a.pdf"), "pdf")
+    # The autouse fixture (conftest.py) already makes the cover search return [] synchronously; replace it here
+    # with one that waits for this test's own gate, so the "info half done, cover half still running" state can
+    # actually be observed instead of both finishing together.
+    cover_gate = threading.Event()
+    monkeypatch.setattr(mod, "search_covers_for_text", lambda *a, **k: (cover_gate.wait(2), [])[1])
+
+    service = _FakeService(LookupResult(candidates=[_candidate()]))
+    dialog = MetadataSuggestDialog(app_context, doc, service=service)
+    assert dialog.busy_indicator.is_busy()
+
+    assert _pump_until(qapp, lambda: not dialog._info_pending)
+    assert dialog.busy_indicator.is_busy()  # info half is done, but the cover half is still running
+
+    cover_gate.set()
+    assert _pump_until(qapp, lambda: not dialog._cover_pending)
+    assert not dialog.busy_indicator.is_busy()
+    assert not dialog.busy_indicator.is_running()
 
 
 def test_the_three_search_buttons_are_labelled_as_specified(qapp, app_context, tmp_path):

@@ -72,32 +72,20 @@
       "status": "planned"
     },
     {
-      "title": "Đồng bộ metadata cộng đồng: thứ tự ưu tiên nguồn",
-      "desc": "Máy cục bộ trước, rồi đến Cộng đồng MewBook, rồi mới đến nguồn khác trên Internet; xung đột giữa các nguồn luôn cho bạn xem trước và tự chọn nhận hay bỏ",
+      "title": "Chuyển trang web thành PDF để đọc ngoại tuyến",
+      "desc": "Dán link, Mèo lọc bỏ menu/quảng cáo rồi lưu bài viết thành PDF vào thư viện -- bản thử, có nhắc nhở tôn trọng bản quyền trang gốc",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Đồng bộ metadata cộng đồng: minh bạch & trạng thái",
-      "desc": "Trước khi bật, nói rõ chỉ chia sẻ metadata (không phải file sách) và có thể tắt bất cứ lúc nào; thanh trạng thái có icon riêng báo đang/đã đồng bộ",
+      "title": "Chia sẻ và đồng bộ thông tin sách với cộng đồng MewBook",
+      "desc": "Máy cục bộ trước, rồi đến Cộng đồng MewBook, rồi mới đến nguồn khác trên Internet; xung đột giữa các nguồn luôn cho bạn xem trước -- bản thử, luôn xin phép trước khi bật, tắt được bất cứ lúc nào, chỉ chia sẻ thông tin sách chứ không phải file sách",
       "eta": "Kế hoạch",
       "status": "next"
     },
     {
-      "title": "Lưu trang web thành PDF",
-      "desc": "Dán link, Mèo lọc bỏ menu/quảng cáo rồi lưu bài viết thành PDF vào thư viện, có nhắc nhở tôn trọng bản quyền trang gốc",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Chuyển đổi định dạng tài liệu: hàng loạt",
-      "desc": "Chọn nhiều sách cùng lúc, đổi định dạng có thanh tiến độ; một file lỗi không làm dừng cả lô",
-      "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Chuyển đổi định dạng tài liệu: minh bạch chất lượng",
-      "desc": "Cặp định dạng dễ lệch bố cục (như PDF sang định dạng chỉnh sửa được) sẽ được cảnh báo rõ trước khi đổi",
+      "title": "Mở rộng hỗ trợ máy đọc sách và chuyển đổi nhiều định dạng hơn",
+      "desc": "Thêm hồ sơ theo từng máy đọc sách (BOOX, Kindle...) và chuyển đổi định dạng tài liệu qua Calibre đã cài sẵn trên máy; cặp định dạng dễ lệch bố cục (như PDF sang định dạng chỉnh sửa được) luôn được cảnh báo rõ trước khi đổi",
       "eta": "Kế hoạch",
       "status": "next"
     }

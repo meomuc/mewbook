@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -35,13 +36,18 @@ class DesignDialog(QDialog):
     """See the module docstring. Subclasses add widgets to `self.body` and buttons with `add_footer_button`."""
 
     def __init__(self, parent=None, *, title: str, subtitle: str = "", icon: str | None = None,
-                 width: int | None = None) -> None:
+                 width: int | None = None, scrollable_body: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setObjectName("DesignDialog")
         if width:
             self.setMinimumWidth(width)
             self.resize(width, self.height())
+        # `scrollable_body=True`: for a dialog whose content is a long stack of sections (not a split view whose
+        # own panes already scroll on their own, like a table/list) -- see docs/UI_DIALOG_AUDIT.md (task A2).
+        # Squeezed below its natural height by DialogSizeGuard on a small screen, the body scrolls instead of
+        # clipping or pushing the footer buttons off screen.
+        self._scroll_area: QScrollArea | None = None
         self._icon_name = icon
         tm = theme_manager()
 
@@ -72,6 +78,14 @@ class DesignDialog(QDialog):
         self.body = QVBoxLayout(self.body_widget)
         self.body.setContentsMargins(BODY_MARGIN + 2, 8, BODY_MARGIN + 2, BODY_MARGIN)
         self.body.setSpacing(12)
+        body_container: QWidget = self.body_widget
+        if scrollable_body:
+            self._scroll_area = QScrollArea(self)
+            self._scroll_area.setObjectName("DialogBodyScroll")
+            self._scroll_area.setWidgetResizable(True)
+            self._scroll_area.setFrameShape(QFrame.NoFrame)
+            self._scroll_area.setWidget(self.body_widget)
+            body_container = self._scroll_area
 
         self._footer = QFrame(self)
         self._footer.setObjectName("DialogFooter")
@@ -90,7 +104,7 @@ class DesignDialog(QDialog):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
         outer.addWidget(self._header)
-        outer.addWidget(self.body_widget, 1)
+        outer.addWidget(body_container, 1)
         outer.addWidget(self._footer)
         self._restyle()
         tm.themeChanged.connect(self._restyle)
@@ -104,6 +118,7 @@ class DesignDialog(QDialog):
             f" #DialogSubtitle {{ color: {tm.token('ink2')}; font-size: 13px; }}"
             f" #DialogFooter {{ background: {tm.token('surface2')}; border-top: 1px solid {tm.token('line')}; }}"
             f" #DialogHeader {{ background: transparent; }}"
+            f" #DialogBodyScroll, #DialogBodyScroll > QWidget > QWidget {{ background: transparent; border: none; }}"
         )
         if self._icon_name:
             self._icon_label.setPixmap(line_icon(self._icon_name, tm.token("ink"), 20).pixmap(20, 20))
