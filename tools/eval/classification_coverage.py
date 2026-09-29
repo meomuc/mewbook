@@ -131,6 +131,13 @@ def main() -> None:
     parser.add_argument("--app-data", required=True, help="the app data dir (taxonomy.json, models/, if any)")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--out", default="classification_coverage_results.json")
+    parser.add_argument(
+        "--max-words", type=int, default=None,
+        help="override smart_classify_max_words; default reads the real value from --app-data's settings.json "
+             "(the whole point of B1 is to match what the real app actually does -- a hardcoded default here once "
+             "silently diverged from a real settings.json that had it changed to 5000, see the 2026-09-29 postmortem "
+             "note in classification_coverage_20260929.md)",
+    )
     args = parser.parse_args()
 
     app_data_dir = Path(args.app_data)
@@ -138,8 +145,16 @@ def main() -> None:
     model_path = resolve_model_path(app_data_dir)
     print("model_path:", model_path, flush=True)
 
+    if args.max_words is not None:
+        max_words = args.max_words
+    else:
+        from smartdoc.core.config import ConfigManager
+
+        max_words = ConfigManager(app_data_dir=app_data_dir).config.smart_classify_max_words
+    print("max_words:", max_words, flush=True)
+
     init_worker({
-        "model_path": str(model_path), "max_words": 3000, "app_data_dir": str(app_data_dir),
+        "model_path": str(model_path), "max_words": max_words, "app_data_dir": str(app_data_dir),
         "segmenter": "auto", "low_priority": False,
     })
     if "error" in _STATE:
