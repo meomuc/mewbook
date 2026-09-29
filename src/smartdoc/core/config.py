@@ -211,6 +211,14 @@ class AppConfig:
     # Upper bound on classification worker processes. Deliberately small: the
     # job is meant to trickle along in idle time, not to use the whole machine.
     smart_classify_max_workers: int = 2
+    # Task D1: Lớp 2 (application/classify_layer2.py) -- Ollama, called ONLY for books Lớp 1 left "chưa chắc".
+    # Off by default so importing a large library never makes a single Ollama call on its own; turning it on
+    # never re-sends a book Lớp 1 already tagged with confidence (enforced in classify_layer2, not just here).
+    # The server address is the same one used for AI Tóm tắt's Ollama connection (ai_base_url) -- one Ollama,
+    # configured once (Part E's "Kết nối" tab); the model can differ (classification wants strong structured-
+    # output support, which not every good summarizing model has), so it gets its own field.
+    smart_classify_layer2_enabled: bool = False
+    smart_classify_layer2_model: str | None = None
 
 
 SMART_CLASSIFY_ON_IMPORT_CHOICES = ("ask", "always", "never")

@@ -94,3 +94,60 @@ def test_deleting_a_document_drops_its_classification_record(app_context):
     db.apply_smart_classifications("r1", "v1", [item("d")])
     db.delete_document("d")
     assert db.smart_classification_records(["d"]) == {}
+
+
+def test_layer2_suggestion_records_on_the_layer1_row(app_context):
+    db = app_context.db
+    add(db, "d", "Sách")
+    db.apply_smart_classifications("r1", "v1", [{"doc_id": "d", "category_id": None, "confidence": 0.1}])  # Lớp 1: chưa chắc
+
+    written = db.apply_layer2_suggestion("d", ("novel", "crime_mystery"), 0.7, "qwen2.5")
+
+    assert written is True
+    record = db.smart_classification_records(["d"])["d"]
+    assert record["layer2_category_ids"] == "novel,crime_mystery"
+    assert record["layer2_confidence"] == 0.7
+    assert record["layer2_model"] == "qwen2.5"
+    assert record["layer2_checked_at"] is not None
+    assert record["layer2_error"] is None
+    assert tags(db, "d") == ""  # a suggestion is never a hashtag
+
+
+def test_layer2_suggestion_records_an_error(app_context):
+    db = app_context.db
+    add(db, "d", "Sách")
+    db.apply_smart_classifications("r1", "v1", [{"doc_id": "d", "category_id": None, "confidence": 0.0}])
+
+    db.apply_layer2_suggestion("d", (), 0.0, "qwen2.5", error="Ollama: không kết nối được")
+
+    record = db.smart_classification_records(["d"])["d"]
+    assert record["layer2_category_ids"] is None
+    assert record["layer2_error"] == "Ollama: không kết nối được"
+
+
+def test_layer2_suggestion_on_a_document_with_no_row_is_a_no_op(app_context):
+    assert app_context.db.apply_layer2_suggestion("ghost", ("novel",), 0.5, "qwen2.5") is False
+
+
+def test_reclassifying_confidently_clears_a_stale_layer2_suggestion(app_context):
+    db = app_context.db
+    add(db, "d", "Sách")
+    db.apply_smart_classifications("r1", "v1", [{"doc_id": "d", "category_id": None, "confidence": 0.1}])
+    db.apply_layer2_suggestion("d", ("novel",), 0.7, "qwen2.5")
+
+    db.apply_smart_classifications("r2", "v2", [item("d")])  # a retrained Lớp 1 model is now sure
+
+    record = db.smart_classification_records(["d"])["d"]
+    assert record["category_id"] == "history"
+    assert record["layer2_category_ids"] is None  # the earlier "chưa chắc" suggestion no longer applies
+
+
+def test_reclassifying_as_still_unsure_keeps_the_layer2_suggestion(app_context):
+    db = app_context.db
+    add(db, "d", "Sách")
+    db.apply_smart_classifications("r1", "v1", [{"doc_id": "d", "category_id": None, "confidence": 0.1}])
+    db.apply_layer2_suggestion("d", ("novel",), 0.7, "qwen2.5")
+
+    db.apply_smart_classifications("r2", "v2", [{"doc_id": "d", "category_id": None, "confidence": 0.1}])  # still unsure
+
+    assert db.smart_classification_records(["d"])["d"]["layer2_category_ids"] == "novel"

@@ -436,6 +436,27 @@ class DatabaseManager:
         if ran_any:
             self.connection.commit()
 
+        # Task D1/D2: Lớp 2 (Ollama, application/classify_layer2.py) suggestion for a book Lớp 1 left "chưa
+        # chắc" -- kept on the SAME row as Lớp 1's own verdict (one book, one classification story), never
+        # applied as a hashtag by anything that writes these columns; see docs/eval or the D1 report for why
+        # a separate table wasn't used. All nullable: NULL means "Lớp 2 hasn't looked at this book" (or its
+        # suggestion was cleared -- see apply_smart_classifications).
+        existing_sc_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(smart_classification)")}
+        sc_migrations = {
+            "layer2_category_ids": "ALTER TABLE smart_classification ADD COLUMN layer2_category_ids TEXT",
+            "layer2_confidence": "ALTER TABLE smart_classification ADD COLUMN layer2_confidence REAL",
+            "layer2_model": "ALTER TABLE smart_classification ADD COLUMN layer2_model TEXT",
+            "layer2_checked_at": "ALTER TABLE smart_classification ADD COLUMN layer2_checked_at REAL",
+            "layer2_error": "ALTER TABLE smart_classification ADD COLUMN layer2_error TEXT",
+        }
+        ran_sc_any = False
+        for column, statement in sc_migrations.items():
+            if column not in existing_sc_columns:
+                self.connection.execute(statement)
+                ran_sc_any = True
+        if ran_sc_any:
+            self.connection.commit()
+
     def add_or_update_document(self, doc_id: str, metadata: dict[str, Any], extracted_text: str = "") -> None:
         tags = metadata.get("tags", "")
         if isinstance(tags, (list, tuple)):
@@ -676,6 +697,42 @@ class DatabaseManager:
             "SELECT id, file_path, extension, file_size, content_hash, fingerprint, page_count, length(content) > 0 AS has_text FROM documents"
             " ORDER BY doc_rowid").fetchall()
         return [dict(r) for r in rows]
+
+    # Every column both the file-facts refresh (application/info_refresh.py) and the bibliographic lookup
+    # (application/metadata_batch_update.py) need, for the merged "Cập nhật thông tin sách" -- never `content`,
+    # the full extracted text, which for a big library is hundreds of MB and neither pass reads through this row.
+    _BATCH_UPDATE_COLUMNS = (
+        "id, title, author, tags, file_path, extension, isbn, pub_year, publisher, language, series, description, "
+        "file_size, content_hash, fingerprint, page_count, length(content) > 0 AS has_text"
+    )
+    # Same condition status_bar_panel's "N tài liệu còn thiếu thông tin" count is built on (count_metadata_completeness),
+    # minus cover_path: this tool never fetches covers, so a book missing only its cover would never gain anything
+    # from being included here.
+    _MISSING_INFO_SQL = (
+        "(title IS NULL OR title = '' OR author IS NULL OR author = '' OR author = 'Unknown' "
+        "OR publisher IS NULL OR publisher = '' OR pub_year IS NULL OR language IS NULL OR language = '' "
+        "OR isbn IS NULL OR isbn = '')"
+    )
+
+    def documents_for_batch_update(self, doc_ids: list[str] | None, only_missing_info: bool) -> list[dict[str, Any]]:
+        """Bulk fetch for MetadataBatchUpdateService.run() -- one query (chunked to stay under SQLite's bound-variable
+        limit) for however many books the chosen scope covers, instead of one `get_document()` per book. `doc_ids=None`
+        means the whole library; `only_missing_info` narrows to books this tool could actually still fill something in
+        for (see `_MISSING_INFO_SQL`)."""
+        where = [self._MISSING_INFO_SQL] if only_missing_info else []
+        if doc_ids is None:
+            sql = f"SELECT {self._BATCH_UPDATE_COLUMNS} FROM documents"
+            if where:
+                sql += " WHERE " + " AND ".join(where)
+            return [dict(r) for r in self.connection.execute(sql)]
+        rows: list[dict[str, Any]] = []
+        for start in range(0, len(doc_ids), 500):  # stay well under SQLite's bound-variable limit
+            chunk = doc_ids[start : start + 500]
+            placeholders = ",".join("?" for _ in chunk)
+            clauses = [f"id IN ({placeholders})", *where]
+            sql = f"SELECT {self._BATCH_UPDATE_COLUMNS} FROM documents WHERE " + " AND ".join(clauses)
+            rows.extend(dict(r) for r in self.connection.execute(sql, chunk))
+        return rows
 
     def documents_for_gather(self, doc_ids: list[str] | None = None) -> list[dict[str, Any]]:
         """(id, title, file_path, tags) of the given books, or of every book, for gathering files into one folder.
@@ -1501,12 +1558,41 @@ class DatabaseManager:
                     ON CONFLICT(doc_id) DO UPDATE SET
                         category_id=excluded.category_id, confidence=excluded.confidence,
                         model_version=excluded.model_version, classified_at=excluded.classified_at,
-                        applied_tag=excluded.applied_tag, run_id=excluded.run_id
+                        applied_tag=excluded.applied_tag, run_id=excluded.run_id,
+                        -- Lớp 1 just placed this book confidently: any earlier Lớp 2 (Ollama) suggestion was
+                        -- about the book being "chưa chắc" and no longer applies -- forget it rather than let
+                        -- "Cần xem lại" show a stale gợi ý for a book that no longer needs one. A book that is
+                        -- STILL unsure keeps whatever Lớp 2 already said about it.
+                        layer2_category_ids = CASE WHEN excluded.category_id IS NOT NULL THEN NULL ELSE layer2_category_ids END,
+                        layer2_confidence = CASE WHEN excluded.category_id IS NOT NULL THEN NULL ELSE layer2_confidence END,
+                        layer2_model = CASE WHEN excluded.category_id IS NOT NULL THEN NULL ELSE layer2_model END,
+                        layer2_checked_at = CASE WHEN excluded.category_id IS NOT NULL THEN NULL ELSE layer2_checked_at END,
+                        layer2_error = CASE WHEN excluded.category_id IS NOT NULL THEN NULL ELSE layer2_error END
                     """,
                     (doc_id, item.get("category_id"), float(item.get("confidence") or 0.0), model_version, now, applied, run_id),
                 )
             self.connection.commit()
         return stats
+
+    def apply_layer2_suggestion(
+        self, doc_id: str, category_ids: tuple[str, ...], confidence: float, model: str, error: str = ""
+    ) -> bool:
+        """Records one Lớp 2 (Ollama) result on the same row as Lớp 1's own verdict for `doc_id` (see
+        application/classify_layer2.py) -- never a hashtag, never a new smart_classification row: Lớp 1
+        always runs first, so a book reaching here already has one. Returns False (a no-op, not an error --
+        the book may have been deleted, or re-tagged confidently, between the call to Ollama and this write)
+        when there was no row to update."""
+        with self.write_lock:
+            cursor = self.connection.execute(
+                """
+                UPDATE smart_classification
+                SET layer2_category_ids = ?, layer2_confidence = ?, layer2_model = ?, layer2_checked_at = ?, layer2_error = ?
+                WHERE doc_id = ?
+                """,
+                (",".join(category_ids) or None, float(confidence or 0.0), model, time.time(), error or None, doc_id),
+            )
+            self.connection.commit()
+        return cursor.rowcount > 0
 
     def undo_smart_classification(self, run_id: str) -> int:
         """Takes back one classification run: removes the hashtags it added

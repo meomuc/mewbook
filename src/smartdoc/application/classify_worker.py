@@ -44,6 +44,12 @@ logger = logging.getLogger(__name__)
 # Per-process state, filled by init_worker().
 _STATE: dict = {}
 
+LAYER2_EXCERPT_CHARS = 1500
+"""How much of a book's already-extracted text rides back with an *unsure* verdict, for the optional Ollama
+second pass (application/classify_layer2.py) to read without opening the file a second time. Small and only
+ever attached when Lớp 1 withheld an answer -- a confidently-tagged book (the overwhelming majority of a run)
+pays nothing extra to cross the process boundary."""
+
 _WIN_BELOW_NORMAL_PRIORITY_CLASS = 0x00004000
 _WIN_PROCESS_IO_PRIORITY = 33  # NtSetInformationProcess class
 _WIN_IO_PRIORITY_LOW = 1  # 0 very low, 1 low, 2 normal
@@ -184,6 +190,10 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
                 # recorded and not retried on every run. A file that could not be opened stays an error, and is retried.
                 error=parts.error if not prediction.category_id and not parts.body_words and not is_final_error(parts.error) else "",
             )
+            if not prediction.category_id and parts.body_text:
+                # Only an *unsure* verdict carries this home (see LAYER2_EXCERPT_CHARS) -- Lớp 2 (D1) is the only
+                # reader, and it never runs on a book Lớp 1 already tagged with confidence.
+                result["excerpt"] = parts.body_text[:LAYER2_EXCERPT_CHARS]
         except Exception as exc:  # one bad book must not lose the rest of the chunk
             logger.debug("classify failed for %s", job.get("path"), exc_info=True)
             result["error"] = f"{type(exc).__name__}: {exc}"
