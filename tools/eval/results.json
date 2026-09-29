@@ -1,0 +1,1330 @@
+[
+  {
+    "model": "qwen2.5:14b",
+    "books": 29,
+    "accuracy": 51.7,
+    "top1_accuracy": 51.7,
+    "accuracy_vi": 33.3,
+    "accuracy_en": 56.5,
+    "errors": 0,
+    "avg_seconds": 8.73,
+    "median_seconds": 6.68,
+    "per_book": [
+      {
+        "title": "Pride and Prejudice",
+        "lang": "en",
+        "expected": "novel",
+        "predicted": [
+          "novel"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 18.63,
+        "error": ""
+      },
+      {
+        "title": "The Gift of the Magi (in The Four Million)",
+        "lang": "en",
+        "expected": "short_story",
+        "predicted": [
+          "short_story"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.57,
+        "error": ""
+      },
+      {
+        "title": "The Adventures of Sherlock Holmes",
+        "lang": "en",
+        "expected": "crime_mystery",
+        "predicted": [
+          "crime_mystery"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 7.14,
+        "error": ""
+      },
+      {
+        "title": "Dracula",
+        "lang": "en",
+        "expected": "horror",
+        "predicted": [
+          "horror"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.21,
+        "error": ""
+      },
+      {
+        "title": "The War of the Worlds",
+        "lang": "en",
+        "expected": "scifi_fantasy",
+        "predicted": [
+          "scifi_fantasy"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.74,
+        "error": ""
+      },
+      {
+        "title": "Wuthering Heights",
+        "lang": "en",
+        "expected": "romance",
+        "predicted": [
+          "novel"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.18,
+        "error": ""
+      },
+      {
+        "title": "Treasure Island",
+        "lang": "en",
+        "expected": "adventure",
+        "predicted": [
+          "adventure",
+          "novel"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 7.32,
+        "error": ""
+      },
+      {
+        "title": "Three Men in a Boat",
+        "lang": "en",
+        "expected": "humor",
+        "predicted": [
+          "short_story"
+        ],
+        "confidence": 0.85,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.68,
+        "error": ""
+      },
+      {
+        "title": "Hamlet",
+        "lang": "en",
+        "expected": "drama",
+        "predicted": [
+          "novel"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.64,
+        "error": ""
+      },
+      {
+        "title": "Alice's Adventures in Wonderland",
+        "lang": "en",
+        "expected": "children",
+        "predicted": [
+          "folktale",
+          "novel"
+        ],
+        "confidence": 0.85,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 7.17,
+        "error": ""
+      },
+      {
+        "title": "The History of the Decline and Fall of the Roman Empire (Vol. 1)",
+        "lang": "en",
+        "expected": "history",
+        "predicted": [
+          "history"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.15,
+        "error": ""
+      },
+      {
+        "title": "The Art of War",
+        "lang": "en",
+        "expected": "war_military",
+        "predicted": [
+          "history"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.5,
+        "error": ""
+      },
+      {
+        "title": "Up From Slavery",
+        "lang": "en",
+        "expected": "biography",
+        "predicted": [
+          "biography"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.4,
+        "error": ""
+      },
+      {
+        "title": "Manifesto of the Communist Party",
+        "lang": "en",
+        "expected": "politics_society",
+        "predicted": [
+          "politics_society"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.7,
+        "error": ""
+      },
+      {
+        "title": "Travels with a Donkey in the Cévennes",
+        "lang": "en",
+        "expected": "geography_travel",
+        "predicted": [
+          "geography_travel"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 18.9,
+        "error": ""
+      },
+      {
+        "title": "An Inquiry into the Wealth of Nations",
+        "lang": "en",
+        "expected": "economics",
+        "predicted": [
+          "economics"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 25.23,
+        "error": ""
+      },
+      {
+        "title": "As a Man Thinketh",
+        "lang": "en",
+        "expected": "self_help",
+        "predicted": [
+          "philosophy"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.66,
+        "error": ""
+      },
+      {
+        "title": "The Interpretation of Dreams",
+        "lang": "en",
+        "expected": "psychology",
+        "predicted": [
+          "psychology",
+          "philosophy"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.99,
+        "error": ""
+      },
+      {
+        "title": "Relativity: The Special and General Theory",
+        "lang": "en",
+        "expected": "physics_astronomy",
+        "predicted": [
+          "science"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.28,
+        "error": ""
+      },
+      {
+        "title": "On the Origin of Species",
+        "lang": "en",
+        "expected": "biology_nature",
+        "predicted": [
+          "science"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.13,
+        "error": ""
+      },
+      {
+        "title": "Meditations",
+        "lang": "en",
+        "expected": "philosophy",
+        "predicted": [
+          "philosophy"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.29,
+        "error": ""
+      },
+      {
+        "title": "The Tao Teh King",
+        "lang": "en",
+        "expected": "religion_spirituality",
+        "predicted": [
+          "philosophy"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.29,
+        "error": ""
+      },
+      {
+        "title": "Chess Fundamentals",
+        "lang": "en",
+        "expected": "hobby_lifestyle",
+        "predicted": [],
+        "confidence": 0.35,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.52,
+        "error": ""
+      },
+      {
+        "title": "Tắt đèn (chương I)",
+        "lang": "vi",
+        "expected": "novel",
+        "predicted": [
+          "vn_classics"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.93,
+        "error": ""
+      },
+      {
+        "title": "Chí Phèo (đoạn mở đầu)",
+        "lang": "vi",
+        "expected": "short_story",
+        "predicted": [
+          "vn_classics",
+          "novel"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.93,
+        "error": ""
+      },
+      {
+        "title": "Lục Vân Tiên (phần I)",
+        "lang": "vi",
+        "expected": "vn_classics",
+        "predicted": [
+          "vn_classics"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.87,
+        "error": ""
+      },
+      {
+        "title": "Vịnh bức địa đồ rách",
+        "lang": "vi",
+        "expected": "poetry",
+        "predicted": [
+          "vn_classics"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.1,
+        "error": ""
+      },
+      {
+        "title": "Tấm Cám",
+        "lang": "vi",
+        "expected": "folktale",
+        "predicted": [
+          "folktale"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 6.8,
+        "error": ""
+      },
+      {
+        "title": "Hà Nội băm sáu phố phường (Vẫn quà Hà Nội)",
+        "lang": "vi",
+        "expected": "memoir_essay",
+        "predicted": [
+          "vn_classics"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 25.23,
+        "error": ""
+      }
+    ],
+    "size_gb": 8.99,
+    "note": "Hai lỗi kết nối tạm thời (Ollama refused) trong lần chạy đầu đã thử lại thủ công và trả lời đúng cả hai; số liệu trên đã cập nhật theo kết quả thử lại."
+  },
+  {
+    "model": "qwen2.5:7b",
+    "books": 29,
+    "accuracy": 82.8,
+    "top1_accuracy": 44.8,
+    "accuracy_vi": 83.3,
+    "accuracy_en": 82.6,
+    "errors": 0,
+    "avg_seconds": 4.18,
+    "median_seconds": 3.97,
+    "per_book": [
+      {
+        "title": "Pride and Prejudice",
+        "lang": "en",
+        "expected": "novel",
+        "predicted": [
+          "novel",
+          "romance",
+          "memoir_essay"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 10.91,
+        "error": ""
+      },
+      {
+        "title": "The Gift of the Magi (in The Four Million)",
+        "lang": "en",
+        "expected": "short_story",
+        "predicted": [
+          "novel",
+          "short_story"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.84,
+        "error": ""
+      },
+      {
+        "title": "The Adventures of Sherlock Holmes",
+        "lang": "en",
+        "expected": "crime_mystery",
+        "predicted": [
+          "crime_mystery",
+          "biography",
+          "history"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 4.01,
+        "error": ""
+      },
+      {
+        "title": "Dracula",
+        "lang": "en",
+        "expected": "horror",
+        "predicted": [
+          "horror",
+          "novel"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.83,
+        "error": ""
+      },
+      {
+        "title": "The War of the Worlds",
+        "lang": "en",
+        "expected": "scifi_fantasy",
+        "predicted": [
+          "scifi_fantasy",
+          "science",
+          "history"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.92,
+        "error": ""
+      },
+      {
+        "title": "Wuthering Heights",
+        "lang": "en",
+        "expected": "romance",
+        "predicted": [
+          "novel",
+          "memoir_essay",
+          "psychology"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 4.04,
+        "error": ""
+      },
+      {
+        "title": "Treasure Island",
+        "lang": "en",
+        "expected": "adventure",
+        "predicted": [
+          "novel",
+          "adventure",
+          "drama"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.03,
+        "error": ""
+      },
+      {
+        "title": "Three Men in a Boat",
+        "lang": "en",
+        "expected": "humor",
+        "predicted": [
+          "novel",
+          "humor",
+          "adventure"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.01,
+        "error": ""
+      },
+      {
+        "title": "Hamlet",
+        "lang": "en",
+        "expected": "drama",
+        "predicted": [
+          "novel",
+          "drama",
+          "history"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.86,
+        "error": ""
+      },
+      {
+        "title": "Alice's Adventures in Wonderland",
+        "lang": "en",
+        "expected": "children",
+        "predicted": [
+          "novel",
+          "children",
+          "humor"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.24,
+        "error": ""
+      },
+      {
+        "title": "The History of the Decline and Fall of the Roman Empire (Vol. 1)",
+        "lang": "en",
+        "expected": "history",
+        "predicted": [
+          "history"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.57,
+        "error": ""
+      },
+      {
+        "title": "The Art of War",
+        "lang": "en",
+        "expected": "war_military",
+        "predicted": [
+          "history",
+          "politics_society"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.89,
+        "error": ""
+      },
+      {
+        "title": "Up From Slavery",
+        "lang": "en",
+        "expected": "biography",
+        "predicted": [
+          "history",
+          "memoir_essay",
+          "politics_society"
+        ],
+        "confidence": 0.85,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 4.03,
+        "error": ""
+      },
+      {
+        "title": "Manifesto of the Communist Party",
+        "lang": "en",
+        "expected": "politics_society",
+        "predicted": [
+          "politics_society",
+          "history",
+          "philosophy"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 4.02,
+        "error": ""
+      },
+      {
+        "title": "Travels with a Donkey in the Cévennes",
+        "lang": "en",
+        "expected": "geography_travel",
+        "predicted": [
+          "adventure",
+          "memoir_essay",
+          "geography_travel"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.17,
+        "error": ""
+      },
+      {
+        "title": "An Inquiry into the Wealth of Nations",
+        "lang": "en",
+        "expected": "economics",
+        "predicted": [
+          "economics"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.58,
+        "error": ""
+      },
+      {
+        "title": "As a Man Thinketh",
+        "lang": "en",
+        "expected": "self_help",
+        "predicted": [
+          "philosophy",
+          "self_help",
+          "psychology"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.95,
+        "error": ""
+      },
+      {
+        "title": "The Interpretation of Dreams",
+        "lang": "en",
+        "expected": "psychology",
+        "predicted": [
+          "psychology",
+          "philosophy"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.97,
+        "error": ""
+      },
+      {
+        "title": "Relativity: The Special and General Theory",
+        "lang": "en",
+        "expected": "physics_astronomy",
+        "predicted": [
+          "science",
+          "physics_astronomy"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.77,
+        "error": ""
+      },
+      {
+        "title": "On the Origin of Species",
+        "lang": "en",
+        "expected": "biology_nature",
+        "predicted": [
+          "science",
+          "biology_nature"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.82,
+        "error": ""
+      },
+      {
+        "title": "Meditations",
+        "lang": "en",
+        "expected": "philosophy",
+        "predicted": [
+          "philosophy",
+          "history",
+          "self_help"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.94,
+        "error": ""
+      },
+      {
+        "title": "The Tao Teh King",
+        "lang": "en",
+        "expected": "religion_spirituality",
+        "predicted": [
+          "vn_classics",
+          "philosophy",
+          "religion_spirituality"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.09,
+        "error": ""
+      },
+      {
+        "title": "Chess Fundamentals",
+        "lang": "en",
+        "expected": "hobby_lifestyle",
+        "predicted": [
+          "ai_data",
+          "programming",
+          "science"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.92,
+        "error": ""
+      },
+      {
+        "title": "Tắt đèn (chương I)",
+        "lang": "vi",
+        "expected": "novel",
+        "predicted": [
+          "novel",
+          "memoir_essay",
+          "vn_classics"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 4.16,
+        "error": ""
+      },
+      {
+        "title": "Chí Phèo (đoạn mở đầu)",
+        "lang": "vi",
+        "expected": "short_story",
+        "predicted": [
+          "vn_classics",
+          "novel",
+          "memoir_essay"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 4.0,
+        "error": ""
+      },
+      {
+        "title": "Lục Vân Tiên (phần I)",
+        "lang": "vi",
+        "expected": "vn_classics",
+        "predicted": [
+          "vn_classics",
+          "poetry"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.97,
+        "error": ""
+      },
+      {
+        "title": "Vịnh bức địa đồ rách",
+        "lang": "vi",
+        "expected": "poetry",
+        "predicted": [
+          "poetry"
+        ],
+        "confidence": 1.0,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.34,
+        "error": ""
+      },
+      {
+        "title": "Tấm Cám",
+        "lang": "vi",
+        "expected": "folktale",
+        "predicted": [
+          "folktale",
+          "children",
+          "vn_classics"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 4.34,
+        "error": ""
+      },
+      {
+        "title": "Hà Nội băm sáu phố phường (Vẫn quà Hà Nội)",
+        "lang": "vi",
+        "expected": "memoir_essay",
+        "predicted": [
+          "vn_classics",
+          "memoir_essay",
+          "history"
+        ],
+        "confidence": 0.95,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 4.12,
+        "error": ""
+      }
+    ],
+    "size_gb": 4.68
+  },
+  {
+    "model": "llama3.2:3b",
+    "books": 29,
+    "accuracy": 34.5,
+    "top1_accuracy": 6.9,
+    "accuracy_vi": 66.7,
+    "accuracy_en": 26.1,
+    "errors": 0,
+    "avg_seconds": 3.08,
+    "median_seconds": 2.98,
+    "per_book": [
+      {
+        "title": "Pride and Prejudice",
+        "lang": "en",
+        "expected": "novel",
+        "predicted": [],
+        "confidence": 0.9,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 6.67,
+        "error": ""
+      },
+      {
+        "title": "The Gift of the Magi (in The Four Million)",
+        "lang": "en",
+        "expected": "short_story",
+        "predicted": [
+          "politics_society",
+          "memoir_essay",
+          "short_story"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.08,
+        "error": ""
+      },
+      {
+        "title": "The Adventures of Sherlock Holmes",
+        "lang": "en",
+        "expected": "crime_mystery",
+        "predicted": [
+          "novel",
+          "crime_mystery",
+          "scifi_fantasy"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.22,
+        "error": ""
+      },
+      {
+        "title": "Dracula",
+        "lang": "en",
+        "expected": "horror",
+        "predicted": [
+          "folktale",
+          "adventure",
+          "poetry"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.1,
+        "error": ""
+      },
+      {
+        "title": "The War of the Worlds",
+        "lang": "en",
+        "expected": "scifi_fantasy",
+        "predicted": [
+          "history",
+          "war_military",
+          "science"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.04,
+        "error": ""
+      },
+      {
+        "title": "Wuthering Heights",
+        "lang": "en",
+        "expected": "romance",
+        "predicted": [
+          "wuxia",
+          "memoir_essay",
+          "short_story"
+        ],
+        "confidence": 0.7,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.08,
+        "error": ""
+      },
+      {
+        "title": "Treasure Island",
+        "lang": "en",
+        "expected": "adventure",
+        "predicted": [
+          "novel",
+          "crime_mystery",
+          "humor"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.98,
+        "error": ""
+      },
+      {
+        "title": "Three Men in a Boat",
+        "lang": "en",
+        "expected": "humor",
+        "predicted": [],
+        "confidence": 0.85,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.72,
+        "error": ""
+      },
+      {
+        "title": "Hamlet",
+        "lang": "en",
+        "expected": "drama",
+        "predicted": [
+          "politics_society",
+          "crime_mystery",
+          "vn_classics"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.94,
+        "error": ""
+      },
+      {
+        "title": "Alice's Adventures in Wonderland",
+        "lang": "en",
+        "expected": "children",
+        "predicted": [],
+        "confidence": 0.9,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.8,
+        "error": ""
+      },
+      {
+        "title": "The History of the Decline and Fall of the Roman Empire (Vol. 1)",
+        "lang": "en",
+        "expected": "history",
+        "predicted": [],
+        "confidence": 1.0,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.7,
+        "error": ""
+      },
+      {
+        "title": "The Art of War",
+        "lang": "en",
+        "expected": "war_military",
+        "predicted": [
+          "wuxia",
+          "vn_classics",
+          "history"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.92,
+        "error": ""
+      },
+      {
+        "title": "Up From Slavery",
+        "lang": "en",
+        "expected": "biography",
+        "predicted": [
+          "memoir_essay",
+          "history",
+          "biography"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 2.84,
+        "error": ""
+      },
+      {
+        "title": "Manifesto of the Communist Party",
+        "lang": "en",
+        "expected": "politics_society",
+        "predicted": [],
+        "confidence": 0.9,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.8,
+        "error": ""
+      },
+      {
+        "title": "Travels with a Donkey in the Cévennes",
+        "lang": "en",
+        "expected": "geography_travel",
+        "predicted": [
+          "humor",
+          "adventure",
+          "folktale"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.1,
+        "error": ""
+      },
+      {
+        "title": "An Inquiry into the Wealth of Nations",
+        "lang": "en",
+        "expected": "economics",
+        "predicted": [],
+        "confidence": 0.8,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.75,
+        "error": ""
+      },
+      {
+        "title": "As a Man Thinketh",
+        "lang": "en",
+        "expected": "self_help",
+        "predicted": [
+          "memoir_essay",
+          "politics_society",
+          "philosophy"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.09,
+        "error": ""
+      },
+      {
+        "title": "The Interpretation of Dreams",
+        "lang": "en",
+        "expected": "psychology",
+        "predicted": [
+          "vn_classics",
+          "psychology",
+          "sports"
+        ],
+        "confidence": 0.8,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.0,
+        "error": ""
+      },
+      {
+        "title": "Relativity: The Special and General Theory",
+        "lang": "en",
+        "expected": "physics_astronomy",
+        "predicted": [
+          "philosophy",
+          "physics_astronomy"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 2.97,
+        "error": ""
+      },
+      {
+        "title": "On the Origin of Species",
+        "lang": "en",
+        "expected": "biology_nature",
+        "predicted": [],
+        "confidence": 0.8,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.77,
+        "error": ""
+      },
+      {
+        "title": "Meditations",
+        "lang": "en",
+        "expected": "philosophy",
+        "predicted": [
+          "vn_classics",
+          "philosophy",
+          "psychology"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 2.97,
+        "error": ""
+      },
+      {
+        "title": "The Tao Teh King",
+        "lang": "en",
+        "expected": "religion_spirituality",
+        "predicted": [],
+        "confidence": 0.9,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.79,
+        "error": ""
+      },
+      {
+        "title": "Chess Fundamentals",
+        "lang": "en",
+        "expected": "hobby_lifestyle",
+        "predicted": [
+          "novel",
+          "crime_mystery",
+          "wuxia"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 3.19,
+        "error": ""
+      },
+      {
+        "title": "Tắt đèn (chương I)",
+        "lang": "vi",
+        "expected": "novel",
+        "predicted": [
+          "novel",
+          "crime_mystery",
+          "vn_classics"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 3.0,
+        "error": ""
+      },
+      {
+        "title": "Chí Phèo (đoạn mở đầu)",
+        "lang": "vi",
+        "expected": "short_story",
+        "predicted": [],
+        "confidence": 0.9,
+        "insufficient_evidence": true,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.62,
+        "error": ""
+      },
+      {
+        "title": "Lục Vân Tiên (phần I)",
+        "lang": "vi",
+        "expected": "vn_classics",
+        "predicted": [
+          "vn_classics",
+          "memoir_essay"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": true,
+        "seconds": 2.87,
+        "error": ""
+      },
+      {
+        "title": "Vịnh bức địa đồ rách",
+        "lang": "vi",
+        "expected": "poetry",
+        "predicted": [
+          "novel",
+          "wuxia",
+          "vn_classics"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": false,
+        "top1_correct": false,
+        "seconds": 2.98,
+        "error": ""
+      },
+      {
+        "title": "Tấm Cám",
+        "lang": "vi",
+        "expected": "folktale",
+        "predicted": [
+          "vn_classics",
+          "folktale",
+          "memoir_essay"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.07,
+        "error": ""
+      },
+      {
+        "title": "Hà Nội băm sáu phố phường (Vẫn quà Hà Nội)",
+        "lang": "vi",
+        "expected": "memoir_essay",
+        "predicted": [
+          "novel",
+          "crime_mystery",
+          "memoir_essay"
+        ],
+        "confidence": 0.9,
+        "insufficient_evidence": false,
+        "correct": true,
+        "top1_correct": false,
+        "seconds": 3.25,
+        "error": ""
+      }
+    ],
+    "size_gb": 2.02
+  }
+]
