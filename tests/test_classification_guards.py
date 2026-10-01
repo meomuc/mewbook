@@ -9,7 +9,13 @@ import pytest
 
 from _smart_helpers import COOKING_WORDS, PROGRAMMING_WORDS, WORKER_SETTINGS, make_toy_model, write_epub
 from smartdoc.application import classify_worker
-from smartdoc.application.classification_guards import REASON_MIXED_TOPICS, REASON_PERIODICAL, periodical_cue
+from smartdoc.application.classification_guards import (
+    REASON_MIXED_TOPICS,
+    REASON_PERIODICAL,
+    mixed_topics,
+    periodical_cue,
+)
+from smartdoc.domain.text_classifier import Prediction
 from smartdoc.infrastructure.text_sampler import TextSampler, looks_like_text
 
 
@@ -58,6 +64,108 @@ def test_text_that_jumps_between_subjects_is_withheld_but_a_steady_one_is_not(wo
 
     steady = _epub_of(tmp_path / "s.epub", [PROGRAMMING_WORDS] * 5)
     assert worker.classify_chunk([_job(steady)])[0]["category_id"] == "programming"
+
+
+# -- Task N2 (2026-09-29): mixed_topics() no longer treats "most slices too short to be sure" as ----------------------
+# evidence of disagreement (docs/eval/mixed_topics_fix_20260929.md) -----------------------------------------------
+
+class _FakeInfo:
+    def __init__(self, group: str) -> None:
+        self.group = group
+
+
+class _FakeModel:
+    """Stands in for TextClassifierModel: `slice_predictions` gives the canned Prediction for
+    each of the 5 slices in order, so a test can reproduce an exact real-world trace without a
+    real trained model. `count_words` below tags each slice's text with its own index so this
+    fake can tell them apart."""
+
+    def __init__(self, slice_predictions: list[Prediction]) -> None:
+        self.slice_predictions = slice_predictions
+        self.calls = 0
+
+    def predict(self, counts: dict) -> Prediction:
+        prediction = self.slice_predictions[self.calls]
+        self.calls += 1
+        return prediction
+
+    def class_by_id(self, category_id: str) -> _FakeInfo | None:
+        return _FakeInfo(category_id) if category_id else None
+
+
+def _count_words(text: str) -> dict:
+    return {text: 1.0}  # content is irrelevant to _FakeModel.predict -- it dispatches by call order
+
+
+def _long_enough_body() -> str:
+    return " ".join(f"w{i}" for i in range(1300))  # >= MIN_WORDS_TO_JUDGE_TOPICS, 5 equal slices
+
+
+def test_reported_bug_is_fixed_a_confident_book_is_no_longer_flagged_just_because_most_slices_were_unsure():
+    """The exact trace from docs/eval/classification_coverage_20260929.md's "Khai Thác Sức Mạnh
+    Tiềm Thức" example: the whole book was 0.969 confident about one category, but 4 of 5 slices
+    (each a fifth of the book -- too short for the model's confidence thresholds, tuned for a
+    whole document) came back "low_confidence", and only 1 slice committed to a group. The old
+    code counted those 4 uncertain slices as an opinion of "" each, reached its 3-opinion quorum
+    on padding, and then saw the 1 real opinion disagree with all that padding -- "mixed". This
+    is the failure the old aggregation had, made explicit."""
+    slice_predictions = [
+        Prediction(category_id=None, reason="low_confidence", confidence=0.843),
+        Prediction(category_id="self_help", reason="model", confidence=0.933),
+        Prediction(category_id=None, reason="low_confidence", confidence=0.253),
+        Prediction(category_id=None, reason="low_confidence", confidence=0.811),
+        Prediction(category_id=None, reason="low_confidence", confidence=0.282),
+    ]
+    model = _FakeModel(slice_predictions)
+    assert mixed_topics(model, _count_words, _long_enough_body()) is False  # only 1 of 5 slices had a real opinion
+
+
+def test_too_few_real_opinions_is_not_mixed_even_with_zero_agreement():
+    """1 slice committing to a group, the rest undecided: not enough opinions to conclude
+    anything either way (MIN_OPINIONS is 3) -- "don't know" must not present as "mixed"."""
+    model = _FakeModel([
+        Prediction(category_id="cooking", reason="model", confidence=0.9),
+        Prediction(category_id=None, reason="low_confidence"),
+        Prediction(category_id=None, reason="not_enough_evidence"),
+        Prediction(category_id=None, reason="low_confidence"),
+        Prediction(category_id=None, reason="no_text"),
+    ])
+    assert mixed_topics(model, _count_words, _long_enough_body()) is False
+
+
+def test_slices_that_agree_are_not_mixed_even_when_some_slices_stayed_silent():
+    """4 of 5 slices confidently agree on the same group (the 5th had too little to say): a
+    real, single-topic book, not "mixed" -- MIN_OPINIONS is met AND the opinions agree."""
+    model = _FakeModel([
+        Prediction(category_id="science", reason="model", confidence=0.9),
+        Prediction(category_id="science", reason="model", confidence=0.88),
+        Prediction(category_id=None, reason="low_confidence"),
+        Prediction(category_id="science", reason="model", confidence=0.91),
+        Prediction(category_id="science", reason="model", confidence=0.86),
+    ])
+    assert mixed_topics(model, _count_words, _long_enough_body()) is False
+
+
+def test_slices_that_really_disagree_are_still_flagged_mixed():
+    """The fix must not make the guard toothless: >= MIN_OPINIONS slices that confidently commit
+    to genuinely different groups is still what "mixed topics" means, and must still be caught
+    (this is the periodical/anthology case the guard exists for)."""
+    model = _FakeModel([
+        Prediction(category_id="novel", reason="model", confidence=0.9),          # group "Văn học"
+        Prediction(category_id="marketing_sales", reason="model", confidence=0.85),  # group "Kinh tế - Kinh doanh"
+        Prediction(category_id=None, reason="low_confidence"),
+        Prediction(category_id="science", reason="model", confidence=0.8),        # group "Khoa học"
+        Prediction(category_id="novel", reason="model", confidence=0.87),         # group "Văn học"
+    ])
+    assert mixed_topics(model, _count_words, _long_enough_body()) is True  # 4 opinions, best agreement 2/4 = 0.5 <= 0.6
+
+
+def test_a_short_book_is_never_judged_regardless_of_slice_content():
+    """Below MIN_WORDS_TO_JUDGE_TOPICS, mixed_topics() must return False without even calling
+    the model -- a short book's guard is "not enough evidence", handled elsewhere."""
+    model = _FakeModel([Prediction(category_id="novel", reason="model")] * 5)
+    assert mixed_topics(model, _count_words, "word " * 100) is False
+    assert model.calls == 0
 
 
 # -- reading scans and magazines --------------------------------------------------------------------------------------

@@ -87,21 +87,36 @@ def title_cue_verdict(taxonomy, title: str) -> str | None:
 
 
 def mixed_topics(model, count_words: Callable[[str], dict[str, float]], body: str) -> bool:
-    """True when slices of `body` confidently point at different groups. `count_words(text)` -> term counts, weighted as
-    the model was trained; `model` is a TextClassifierModel."""
+    """True when slices of `body` confidently point at *different* groups.
+
+    2026-09-29 (Task N2, docs/eval/classification_coverage_20260929.md and
+    docs/eval/mixed_topics_fix_20260929.md): the previous version counted a slice the model
+    would not decide on ("low_confidence" -- the slice is a fifth of the book, ~600-1000 words,
+    far shorter than the whole-document length the model's confidence thresholds were tuned
+    for, so most slices land there even for a perfectly ordinary single-topic book) as an
+    *opinion of "" (nothing)*, then treated a low agreement ratio *among those* as evidence of
+    disagreement. That conflated "most slices had too little text to be sure" with "the slices
+    that WERE sure disagreed with each other" -- on the real library this false-flagged 73% of
+    every hashtag-less book, the dominant cause of the whole coverage gap, typically while the
+    model was >90% confident about the book as a whole.
+
+    Now: only a slice the model actually committed to (`category_id` set) is an opinion.
+    "Mixed" requires BOTH (a) at least `MIN_OPINIONS` slices committed to *some* group -- not
+    silence padded out to look like a quorum -- AND (b) those opinions don't agree with each
+    other (the same low-agreement-ratio test as before, just computed over real opinions only).
+    Too few real opinions is "we don't know", not "it's mixed" -- so it returns False, leaving
+    the whole-document verdict (usually confident) stand."""
     words = body.split()
     if len(words) < MIN_WORDS_TO_JUDGE_TOPICS:
         return False
     size = len(words) // SLICES
-    groups: list[str] = []  # one entry per slice that has an opinion; "" = it saw evidence but could not decide
+    opinions: list[str] = []  # one entry per slice the model actually committed to a group for
     for index in range(SLICES):
         prediction = model.predict(count_words(" ".join(words[index * size:(index + 1) * size])))
         if prediction.category_id:
             info = model.class_by_id(prediction.category_id)
             if info is not None:
-                groups.append(info.group)
-        elif prediction.reason == "low_confidence":
-            groups.append("")  # a slice torn between subjects is what a magazine looks like: it counts against agreement
-    if len(groups) < MIN_OPINIONS:
-        return False
-    return Counter(g for g in groups if g).most_common(1)[0][1] / len(groups) <= MAX_AGREEMENT if any(groups) else True
+                opinions.append(info.group)
+    if len(opinions) < MIN_OPINIONS:
+        return False  # not enough of the slices were sure of anything -- "don't know", not "mixed"
+    return Counter(opinions).most_common(1)[0][1] / len(opinions) <= MAX_AGREEMENT
