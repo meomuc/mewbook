@@ -166,3 +166,52 @@ def test_the_placeholder_tag_is_swapped_for_a_real_one_once_the_person_decides(c
         assert context.db.get_document("vague")["tags"] == "Ẩm thực - Nấu ăn"  # the placeholder is gone, not left beside it
     finally:
         service.stop()
+
+
+# -- Task B2: a book the model leaned to (but not sure enough) is a suggestion to confirm, in the same list ---------------
+
+def test_a_low_confidence_book_with_a_clear_lean_is_a_suggestion_a_vague_one_is_not():
+    lean = {"reason": "low_confidence", "words": 900, "best_name": "Ẩm thực - Nấu ăn", "confidence": 0.52}
+    assert unsure_reason(lean) == "suggested"
+    assert unsure_reason({**lean, "confidence": 0.3}) == "low_confidence"  # too unsure to even suggest
+    assert unsure_reason({**lean, "best_name": ""}) == "low_confidence"
+    assert unsure_reason({**lean, "reason": "mixed_topics"}) == "mixed_topics"  # a guard's verdict is never turned into a suggestion
+
+
+def test_suggestions_form_their_own_group_with_the_lean_in_the_note():
+    docs = _docs(("a", "Ăn dặm kiểu Nhật", ""), ("b", "Mơ hồ", ""))
+    event = _event(unknown_ids=("a", "b"), unknown_items=(("a", "suggested"), ("b", "low_confidence")),
+                   unknown_hints=(("a", "Ẩm thực - Nấu ăn", 0.51),))
+    tree = {n.label: n for n in build_tree("unknown", event, docs)}
+    row = tree[UNSURE_REASONS["suggested"]].children[0]
+    assert row.suggestion == "Ẩm thực - Nấu ăn" and "51%" in row.note
+    assert tree[UNSURE_REASONS["low_confidence"]].children[0].suggestion == ""
+
+
+def test_accepting_suggestions_tags_each_book_with_its_own_lean_and_drops_the_placeholder(qapp, context, tmp_path):
+    add_book(context, "s1", write_epub(tmp_path / "s1.epub", ["zzz"]), title="Một")
+    add_book(context, "s2", write_epub(tmp_path / "s2.epub", ["qqq"]), title="Hai")
+    service = SmartClassifyService(context, executor_factory=thread_executor, worker_settings=WORKER_SETTINGS)
+    try:
+        service.start(ClassifyScope(doc_ids=["s1", "s2"]))
+        assert service.wait(timeout=30)
+        assert context.db.get_document("s1")["tags"] == UNSURE_TAG
+        docs = {d["id"]: d for d in context.db.get_documents_light(["s1", "s2"])}
+        event = _event(unknown_ids=("s1", "s2"), unknown_items=(("s1", "suggested"), ("s2", "suggested")),
+                       unknown_hints=(("s1", "Ẩm thực - Nấu ăn", 0.6), ("s2", "Công nghệ thông tin", 0.7)))
+        dialog = ClassifyBooksDialog(
+            None, title="t", subtitle="s", tree=build_tree("unknown", event, docs), docs=docs, choices=service.category_choices(),
+            tagger=service.tag_books, reload=lambda ids: {d["id"]: d for d in context.db.get_documents_light(list(ids))})
+        try:
+            assert not dialog.accept_button.isVisibleTo(dialog)
+            dialog.tree.expandAll()
+            dialog.tree.selectAll()
+            assert dialog.accept_button.isVisibleTo(dialog) and "2 cuốn" in dialog.accept_button.text()
+            dialog._on_accept_suggestions()
+            assert context.db.get_document("s1")["tags"] == "Ẩm thực - Nấu ăn"
+            assert context.db.get_document("s2")["tags"] == "Công nghệ thông tin"
+            assert "Đã nhận gợi ý cho 2" in dialog.detail_label.text()
+        finally:
+            dialog.deleteLater()
+    finally:
+        service.stop()

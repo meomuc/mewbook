@@ -103,10 +103,15 @@ class _Plan:
 # the moment one is found (see tag_books and the "replace_tag" below), so it never sits on a book next to its real hashtag.
 UNSURE_TAG = "Chưa chắc"
 
+# Task B2: a "low_confidence" book whose best category is at least this likely is shown as a suggestion to confirm, not as
+# plain "undecided". Only a display line: it never tags anything and the model's own thresholds (min_score and co.) are untouched.
+SUGGESTION_MIN_CONFIDENCE = 0.5
+
 UNSURE_REASONS = {
     "no_text": "Không có chữ đọc được (bản quét, có DRM hoặc định dạng không đọc được)",
     "periodical": "Tạp chí, báo: không thuộc thể loại sách nào",
     "mixed_topics": "Nội dung trộn nhiều chủ đề",
+    "suggested": "Gợi ý từ mô hình, cần bạn xác nhận",
     "low_confidence": "Mô hình phân vân giữa nhiều thể loại",
     "not_enough_evidence": "Ít chữ hoặc chưa đủ manh mối",
 }
@@ -117,6 +122,8 @@ def unsure_reason(result: dict) -> str:
     reason = result.get("reason") or ""
     if not result.get("words") and reason in ("", "no_text", "not_enough_evidence", "error"):
         return "no_text"
+    if reason == "low_confidence" and result.get("best_name") and (result.get("confidence") or 0.0) >= SUGGESTION_MIN_CONFIDENCE:
+        return "suggested"
     return reason if reason in UNSURE_REASONS else "not_enough_evidence"
 
 
@@ -399,6 +406,7 @@ class SmartClassifyService:
         failed_items: list[tuple[str, str]] = []
         tagged_items: list[tuple[str, str, str]] = []
         unknown_items: list[tuple[str, str]] = []
+        unknown_hints: list[tuple[str, str, float]] = []
         recent: deque = deque(maxlen=3)
         titles: dict[str, str] = {}
         error = ""
@@ -464,7 +472,10 @@ class SmartClassifyService:
                             failed_items.append((result["id"], error_text))
                         else:
                             unknown_ids.append(result["id"])
-                            unknown_items.append((result["id"], unsure_reason(result)))
+                            why = unsure_reason(result)
+                            unknown_items.append((result["id"], why))
+                            if why == "suggested":
+                                unknown_hints.append((result["id"], result["best_name"], float(result.get("confidence") or 0.0)))
                         recent.append((title, ""))
                         # A file that could not be read (unplugged drive, OneDrive placeholder,
                         # locked) is not a verdict about the book: leave no record, so the
@@ -562,6 +573,7 @@ class SmartClassifyService:
                 failed_items=tuple(failed_items),
                 tagged_items=tuple(tagged_items),
                 unknown_items=tuple(unknown_items),
+                unknown_hints=tuple(unknown_hints),
             )
             self.last_result = finished_event
             bus.publish(finished_event)

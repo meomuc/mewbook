@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Fixed
+- **Phân loại thông minh không còn bỏ sót phần lớn sách vì nhầm là "nội dung trộn nhiều chủ đề".** Trên thư viện thật,
+  tỷ lệ sách có hashtag thể loại tăng từ 26% lên khoảng 79% mà không hạ ngưỡng tự tin hay huấn luyện lại. Sách thật sự
+  gồm nhiều chủ đề (tuyển tập, tạp chí) vẫn được để lại cho bạn quyết định.
+
+### Added
+- **Gợi ý "chưa chắc" có thể nhận nhanh.** Trong danh sách kết quả phân loại, sách mô hình nghiêng về một thể loại
+  nhưng chưa đủ chắc nằm ở nhóm mới "Gợi ý từ mô hình, cần bạn xác nhận", ghi sẵn thể loại gợi ý. Chọn nhiều cuốn rồi
+  bấm "Nhận gợi ý" để gắn hàng loạt; hashtag "Chưa chắc" được thay bằng thể loại thật như khi gắn tay.
+
 ### Changed
 - **Chữ tĩnh, kết quả và hướng dẫn giờ phân biệt được cả khi không nhìn màu.** Số liệu/trạng thái do MewBook vừa tạo
   ra (đã cập nhật bao nhiêu sách, đã gửi bao nhiêu sách, kết quả thử kết nối...) hiện to và đậm hơn nhãn tĩnh xung
@@ -27,12 +37,18 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **Tìm file trùng: thêm cột "Loại file"** ở cả hai kiểu xem ("Theo nhóm" và "Danh sách"). Cột "Vị trí file" giờ
   cắt giữa (không cắt cuối) khi đường dẫn dài -- phần thư mục gần tên file, cái thực sự phân biệt hai bản sao, vẫn
   hiện ra -- và kéo đổi độ rộng được bằng chuột; đưa chuột vào vẫn thấy đường dẫn đầy đủ như trước.
-- **Mới (bản thử): "Cập nhật thông tin sách hàng loạt…"** (menu Công cụ) -- tìm và điền tên sách, tác giả, nhà
-  xuất bản... cho cả danh sách đang xem (theo đúng bộ lọc/tìm kiếm hiện tại), chạy nền, không chặn giao diện.
-  Thông tin lấy theo thứ tự ưu tiên: trong file sách, rồi thư viện trên máy, rồi (khi tự bật) các nguồn Internet
-  -- mỗi nguồn Internet có ghi chú dùng được cho gì và giới hạn, độ chính xác ghi "Chưa đo" vì chưa đo thật; nguồn
-  Internet mặc định KHÔNG bật. Không bao giờ ghi đè thông tin bạn đã tự sửa tay, và không đụng tới file sách gốc.
-  Kết thúc báo "Đã cập nhật X, bỏ qua Y, lỗi Z" và có "Hoàn tác lượt này".
+- **Gộp "Cập nhật thông tin sách ngay" và "...hàng loạt" thành một: "Cập nhật thông tin sách…"** (menu Công cụ) --
+  một lượt vừa làm mới thông tin file (dung lượng, mã nội dung, số trang) vừa tìm và điền tên sách, tác giả, nhà
+  xuất bản... còn thiếu, nhanh hơn hai lượt riêng vì không phải đọc lại cùng một file hai lần. Chọn phạm vi: chỉ
+  sách chưa có thông tin trong toàn bộ thư viện (mặc định), sách đang được lọc, hoặc toàn bộ thư viện. "Thực hiện"
+  chạy và giữ nguyên cửa sổ; "Chạy nền" chạy y hệt nhưng thu nhỏ cửa sổ ngay để dùng việc khác trong lúc chờ.
+  Thông tin sách lấy theo thứ tự ưu tiên: trong file sách, rồi thư viện trên máy, rồi (khi tự bật) các nguồn
+  Internet -- mỗi nguồn Internet có ghi chú dùng được cho gì và giới hạn, độ chính xác ghi "Chưa đo" vì chưa đo
+  thật; nguồn Internet mặc định KHÔNG bật. Không bao giờ ghi đè thông tin bạn đã tự sửa tay, và không đụng tới
+  file sách gốc. Kết thúc báo đã cập nhật/làm mới bao nhiêu sách, bỏ qua/không thấy file bao nhiêu, và có
+  "Hoàn tác lượt này" cho phần thông tin sách.
+- **Panel Chi tiết: thêm dòng "Tiến trình đọc"**, hiện trang/chương đang đọc và phần trăm, cập nhật ngay khi đọc
+  tiếp trong cửa sổ đọc sách mà không cần chọn lại sách đó.
 - **Gửi sang máy đọc sách: thêm hồ sơ thiết bị (bản thử phạm vi hẹp).** Chọn được loại máy (BOOX Note Air4C, BOOX
   Go 6, Kindle, hoặc "Ổ đĩa/thẻ nhớ chung" như trước); hồ sơ riêng theo máy hiện rõ "chưa kiểm chứng trên máy
   thật" vì chưa có máy thật để đo (xem docs/spikes/2026-09-28_ereader_device_transport.md) -- chỉ dùng để cảnh
@@ -48,6 +64,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   "định dạng gốc có thể không được giữ nguyên". File đã đổi lưu vào thư mục riêng, không bao giờ ghi đè hay sửa file
   gốc. Chạy nền, hủy được, một file lỗi không dừng cả lô, có "Chuyển lại cuốn lỗi". Chỉ hỗ trợ một số cặp định dạng
   phổ biến ở bản này; cặp khác để sau.
+
+### Fixed
+- **Tìm/cập nhật thông tin sách đôi khi vẫn hỏi Internet dù chưa bật "Nguồn Internet".** Một lỗi lâu năm trong bộ
+  tra cứu thông tin khiến việc tắt hẳn nguồn Internet cho một lượt tra cứu không có tác dụng thật (một `{}` rỗng bị
+  hiểu nhầm thành "dùng nguồn mặc định") -- chỉ lộ rõ khi máy không có mạng hoặc mạng chậm. Không có thông tin nào
+  bị gửi sai chỗ (vẫn chỉ tên sách/tác giả như tài liệu đã ghi), nhưng lượt tra cứu lẽ ra phải hoàn toàn cục bộ đôi
+  khi vẫn âm thầm gọi ra ngoài. Đã sửa tận gốc và thêm test chống tái phát.
 
 ## [1.2.0] - 2026-09-28
 

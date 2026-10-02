@@ -48,6 +48,14 @@ class DocumentUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class ReadingProgressUpdatedEvent(BaseEvent):
+    """The reader saved a new position (or a book was just opened) for `doc_id` -- lets the detail panel's
+    "Tiến trình đọc" row refresh live without polling, when that document happens to be the one on screen."""
+
+    doc_id: str = ""
+
+
+@dataclass(frozen=True)
 class LibraryUpdatedEvent(BaseEvent):
     pass
 
@@ -219,6 +227,7 @@ class SmartClassifyFinishedEvent(BaseEvent):
     failed_items: tuple[tuple[str, str], ...] = ()  # (book id, why it could not be read)
     tagged_items: tuple[tuple[str, str, str], ...] = ()  # (book id, hashtag given, sidebar folder): the result page groups by them
     unknown_items: tuple[tuple[str, str], ...] = ()  # (book id, why the classifier was not sure: see smart_classifier.UNSURE_REASONS)
+    unknown_hints: tuple[tuple[str, str, float], ...] = ()  # (book id, category the model leaned to, its confidence) for the "suggested" ones
 
 
 class EventBus:

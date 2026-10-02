@@ -176,6 +176,8 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
                     prediction.reason = "label" if confidence_override == LABEL_CONFIDENCE else "title_cue"
                     prediction.confidence = prediction.group_confidence = confidence_override
             info = model.class_by_id(prediction.category_id) if prediction.category_id else None
+            leaning = model.class_by_id(prediction.best_id) if prediction.best_id and not prediction.category_id else None
+            result["best_name"] = leaning.name if leaning else ""  # what an undecided book leaned to (shown as a suggestion, B2)
             result.update(
                 name=info.name if info else "",
                 group=info.group if info else "",

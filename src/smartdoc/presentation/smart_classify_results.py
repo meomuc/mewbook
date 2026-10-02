@@ -41,6 +41,7 @@ from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.theme_manager import theme_manager
 
 _ROW_ROLE = Qt.UserRole + 1
+_SUGGEST_ROLE = Qt.UserRole + 2
 NO_GROUP = "Chưa xếp thư mục"
 UNTITLED = "(không có tên)"
 
@@ -51,6 +52,7 @@ class Row:
     title: str
     author: str = ""
     note: str = ""
+    suggestion: str = ""  # category the model leaned to (B2): "Nhận gợi ý" files the selected books under it
 
 
 @dataclass
@@ -71,9 +73,16 @@ def failure_reason(error: str) -> str:
 
 def build_tree(kind: str, event, docs: dict[str, dict]) -> list[Node]:
     """The groups of one card: `kind` is "tagged", "unknown" or "failed"; `docs` maps a book id to its light row."""
+    hints = {doc_id: (name, confidence) for doc_id, name, confidence in getattr(event, "unknown_hints", ())}
+
     def row(doc_id: str, note: str = "") -> Row | None:
         doc = docs.get(doc_id)
-        return None if doc is None else Row(doc_id, doc.get("title") or UNTITLED, doc.get("author") or "", note)
+        if doc is None:
+            return None
+        name, confidence = hints.get(doc_id, ("", 0.0))
+        if name and not note:
+            note = f"Mô hình nghiêng về \"{name}\" ({round(confidence * 100)}%) nhưng chưa đủ chắc để tự gắn"
+        return Row(doc_id, doc.get("title") or UNTITLED, doc.get("author") or "", note, name)
 
     if kind == "tagged":
         by_group: dict[str, dict[str, list[Row]]] = {}
@@ -155,6 +164,9 @@ class ClassifyBooksDialog(DesignDialog):
         self.tag_button = None
         if self._tagger is not None:
             self.tag_button = self.add_footer_button("Gắn hashtag…", "primary", on_click=self._on_tag, left=True)
+        self.accept_button = None
+        if self._tagger is not None:
+            self.accept_button = self.add_footer_button("Nhận gợi ý", on_click=self._on_accept_suggestions, left=True)
         self.open_file_button = self.add_footer_button("Mở file", on_click=self._open_file, left=True)
         self.open_folder_button = self.add_footer_button("Mở thư mục chứa file", on_click=self._open_folder, left=True)
         self.add_footer_button("Đóng", "primary", on_click=self.accept)
@@ -184,6 +196,9 @@ class ClassifyBooksDialog(DesignDialog):
             else:
                 leaf = QTreeWidgetItem([child.title, child.author, self._tags_of(child.doc_id)])
                 leaf.setData(0, _ROW_ROLE, child.doc_id)
+                leaf.setData(0, _SUGGEST_ROLE, child.suggestion)
+                if child.suggestion:
+                    leaf.setText(1, f"{child.author}  ·  gợi ý: {child.suggestion}" if child.author else f"gợi ý: {child.suggestion}")
                 if child.note:
                     leaf.setToolTip(0, child.note)
                 item.addChild(leaf)
@@ -241,6 +256,10 @@ class ClassifyBooksDialog(DesignDialog):
         if self.tag_button is not None:
             self.tag_button.setEnabled(bool(ids))
             self.tag_button.setText(f"Gắn hashtag cho {len(ids)} cuốn…" if len(ids) > 1 else "Gắn hashtag…")
+        if self.accept_button is not None:
+            suggested = self._selected_suggestions()
+            self.accept_button.setVisible(bool(suggested))
+            self.accept_button.setText(f"Nhận gợi ý cho {len(suggested)} cuốn" if len(suggested) > 1 else "Nhận gợi ý")
         if len(ids) > 1:
             self.detail_label.setText(f"Đã chọn {len(ids)} cuốn. Bấm \"Gắn hashtag\" để gắn cùng một hashtag cho tất cả.")
             return
@@ -278,6 +297,34 @@ class ClassifyBooksDialog(DesignDialog):
                 item.setText(2, self._tags_of(doc_id))
         self._on_selection()
         self.detail_label.setText(f"Đã gắn \"{tag}\" cho {count} cuốn.")
+
+    def _selected_suggestions(self) -> dict[str, str]:
+        """{book id: the category the model leaned to} for the selected books that have one."""
+        return {item.data(0, _ROW_ROLE): item.data(0, _SUGGEST_ROLE) for item in self.tree.selectedItems()
+                if item.data(0, _ROW_ROLE) and item.data(0, _SUGGEST_ROLE) and not item.isHidden()}
+
+    def _on_accept_suggestions(self) -> None:
+        """The person agrees with the model's lean: each selected book gets its own suggested category, through the same
+        tagger as "Gắn hashtag…" (so the "Chưa chắc" placeholder is swapped out, never doubled)."""
+        suggested = self._selected_suggestions()
+        if not suggested or self._tagger is None:
+            return
+        by_name: dict[str, list[str]] = {}
+        for doc_id, name in suggested.items():
+            by_name.setdefault(name, []).append(doc_id)
+        done = 0
+        for name, ids in by_name.items():
+            tag, count = self._tagger(ids, name)
+            done += count if tag else 0
+        ids = list(suggested)
+        if self._reload is not None:
+            self._docs.update(self._reload(ids))
+        for item in self._all_leaves():
+            doc_id = item.data(0, _ROW_ROLE)
+            if doc_id in suggested:
+                item.setText(2, self._tags_of(doc_id))
+        self._on_selection()
+        self.detail_label.setText(f"Đã nhận gợi ý cho {done} cuốn.")
 
     def _all_leaves(self) -> list[QTreeWidgetItem]:
         found: list[QTreeWidgetItem] = []
