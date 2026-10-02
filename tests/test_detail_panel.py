@@ -1,7 +1,7 @@
 """Tests for the Document Detail Side Panel."""
 import time
 
-from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent, ReadingProgressUpdatedEvent
 from smartdoc.presentation.detail_panel import (
     DocumentDetailPanel,
     _format_datetime,
@@ -252,6 +252,54 @@ def test_library_updated_event_refreshes_panel(qapp, app_context):
     app_context.event_bus.publish(LibraryUpdatedEvent())
 
     assert _pump_until(qapp, lambda: "New Title" in panel.title_edit.text(), timeout=3.0)
+
+
+def test_reading_progress_row_shows_never_read_by_default(qapp, app_context):
+    app_context.db.add_or_update_document("d1", {**_sample_doc(), "created_at": 1.0})
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(app_context.db.get_document("d1"))
+    assert panel.reading_progress_label.text() == "Chưa đọc lần nào"
+
+
+def test_reading_progress_row_shows_position_and_percent(qapp, app_context):
+    app_context.db.add_or_update_document("d1", {**_sample_doc(), "created_at": 1.0})
+    app_context.db.record_reading_open("d1", unit="page", total=200)
+    app_context.db.record_reading_position("d1", 50, total=200)
+    panel = DocumentDetailPanel(app_context)
+
+    panel.set_document(app_context.db.get_document("d1"))
+
+    assert panel.reading_progress_label.text() == "Trang 50 / 200 (25%)"
+
+
+def test_reading_progress_row_uses_chapter_wording_for_epub(qapp, app_context):
+    app_context.db.add_or_update_document("d1", {**_sample_doc(extension="epub"), "created_at": 1.0})
+    app_context.db.record_reading_open("d1", unit="chapter", total=10)
+    app_context.db.record_reading_position("d1", 3, total=10)
+    panel = DocumentDetailPanel(app_context)
+
+    panel.set_document(app_context.db.get_document("d1"))
+
+    assert panel.reading_progress_label.text() == "Chương 3 / 10 (30%)"
+
+
+def test_reading_progress_updated_event_refreshes_only_the_current_documents_row(qapp, app_context):
+    app_context.db.add_or_update_document("d1", {**_sample_doc(), "created_at": 1.0})
+    app_context.db.add_or_update_document("d2", {**_sample_doc(id="d2"), "created_at": 1.0})
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(app_context.db.get_document("d1"))
+    assert panel.reading_progress_label.text() == "Chưa đọc lần nào"
+
+    # A page saved for a DIFFERENT book must not touch what is on screen.
+    app_context.db.record_reading_position("d2", 5, total=10)
+    app_context.event_bus.publish(ReadingProgressUpdatedEvent(doc_id="d2"))
+    assert _pump_until(qapp, lambda: True, timeout=0.2)  # let the bridged event, if any, settle
+    assert panel.reading_progress_label.text() == "Chưa đọc lần nào"
+
+    app_context.db.record_reading_position("d1", 5, total=10)
+    app_context.event_bus.publish(ReadingProgressUpdatedEvent(doc_id="d1"))
+
+    assert _pump_until(qapp, lambda: "5 / 10" in panel.reading_progress_label.text())
 
 
 def test_refresh_button_reloads_current_document(qapp, app_context):

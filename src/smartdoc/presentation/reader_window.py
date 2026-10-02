@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc.core.event_bus import ReadingProgressUpdatedEvent
 from smartdoc.infrastructure.epub_reader import EpubDocument, EpubReadError
 from smartdoc.presentation.dialog_size import fit_window_to_screen
 from smartdoc.presentation.file_actions import FileActionEngine
@@ -343,6 +344,7 @@ class ReaderWindow(QMainWindow):
         unit, total = self._reading_unit_and_total()
         saved = self.context.db.get_reading_progress(doc_id) or {}
         self.context.db.record_reading_open(doc_id, unit=unit, total=total)
+        self.context.event_bus.publish(ReadingProgressUpdatedEvent(doc_id=doc_id))
         target = int(saved.get("position") or 0)
         self._history_ready = True  # from here on a page change is the reader's own, not the initial load
         if 1 < target <= max(total, 1) and total:
@@ -364,6 +366,7 @@ class ReaderWindow(QMainWindow):
         if self._pending_position > 0 and self.doc.get("id"):
             _, total = self._reading_unit_and_total()
             self.context.db.record_reading_position(self.doc["id"], self._pending_position, total=total)
+            self.context.event_bus.publish(ReadingProgressUpdatedEvent(doc_id=self.doc["id"]))
             self._pending_position = 0
 
     # ── The frame: top bar, contents column, page area, bottom bar ──────────

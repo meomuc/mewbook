@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Cập nhật ngay: the on-demand scan brings file facts up to date, counts what changed, and never touches what a person typed."""
+"""InfoRefresh (application/info_refresh.py): the file-facts scan service brings file facts up to date, counts
+what changed, and never touches what a person typed. Its own standalone dialog was retired when "Cập nhật thông
+tin sách" merged this with the bibliographic lookup (see test_metadata_batch_update.py and
+test_metadata_batch_dialog.py for the merged tool's own tests -- `InfoRefresh.refresh_one()`, exercised here per
+document, is what that merged run calls directly per book instead of going through `run()`'s own query)."""
 from __future__ import annotations
-
-import time
 
 import pytest
 
@@ -52,14 +54,10 @@ def test_it_can_be_cancelled_between_books(app_context, library):
     assert result.cancelled and result.checked == 0
 
 
-def test_the_window_runs_in_the_background_and_reports_the_number(qapp, app_context, library):
-    from smartdoc.presentation.info_refresh_dialog import InfoRefreshDialog
-
-    dialog = InfoRefreshDialog(app_context)
-    dialog.start()
-    deadline = time.time() + 10
-    while dialog._running and time.time() < deadline:
-        qapp.processEvents()
-        time.sleep(0.01)
-    assert "3 / 3 sách" in dialog.status_label.text() and dialog.action_button.text() == "Đóng"
-    dialog.deleteLater()
+def test_refresh_one_is_the_per_document_entry_point_the_merged_tool_reuses(app_context, library):
+    """The merged "Cập nhật thông tin sách" (metadata_batch_update.py) calls `refresh_one()` directly, per its own
+    bulk-fetched row, instead of `run()`'s whole-library query -- this is the public method that keeps working for
+    that caller (renamed from `_refresh_one` on purpose: two collaborating services now use it deliberately)."""
+    row = app_context.db.documents_for_batch_update(["d1"], only_missing_info=False)[0]
+    assert app_context.info_refresh.refresh_one(row) is True
+    assert app_context.db.get_document("d1")["content_hash"]

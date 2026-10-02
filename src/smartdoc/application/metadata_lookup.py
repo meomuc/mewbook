@@ -292,11 +292,15 @@ class MetadataLookupService:
     def __init__(self, context, internet_sources: dict | None = None) -> None:
         self.context = context
         # name -> callable(title, author, isbn, limit) -> [(title, author, fields)]; injectable for tests.
-        self._internet_sources = internet_sources or {
+        # `is None`, not `or` -- an explicitly passed `{}` means "no internet sources at all" (how every caller
+        # that wants internet lookups fully disabled asks for that, e.g. metadata_batch_update.py's
+        # `internet_sources={} if not use_internet else None`) and must not silently fall back to the real
+        # sources just because an empty dict is falsy.
+        self._internet_sources = {
             SOURCE_OPEN_LIBRARY: _open_library,
             SOURCE_GOOGLE_BOOKS: lambda t, a, i, n: _google_books(t, a, i, n, self.context.config.config.google_image_api_key),
             SOURCE_APPLE_BOOKS: _apple_books,
-        }
+        } if internet_sources is None else internet_sources
 
     def lookup(
         self,
@@ -392,6 +396,12 @@ class MetadataLookupService:
 
     def _from_internet(self, title, author, isbn, min_score) -> tuple[list[MetadataCandidate], list[str]]:
         if not title.strip() and not isbn:
+            return [], []
+        if not self._internet_sources:
+            # This service was built with no internet sources at all (the caller's own choice -- e.g. a batch
+            # update with "Nguồn Internet" left unticked), not a user setting to point back at: nothing to search,
+            # nothing to report. Different from the "every real source got filtered out below" case, which is a
+            # real, actionable "bật lại trong Cài đặt" situation.
             return [], []
         limit = 12
         candidates: list[MetadataCandidate] = []

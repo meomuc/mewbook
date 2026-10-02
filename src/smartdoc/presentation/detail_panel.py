@@ -4,11 +4,12 @@ place.
 
 Layout, top to bottom: header "CHI TIẾT" (refresh, close) · the cover with a "Bấm để đọc" pill beside a column of four
 actions (★ Sẽ đọc, Đổi bìa, Tìm thêm thông tin, Gửi máy đọc) · title and author as editable fields with the link to the
-author's other books · a read-only table (format, publisher, year and language, ISBN, added/modified, rating, file
-location) · hashtag chips · the AI summary card. Editable fields are dashed with a pen icon; read-only rows have
-neither (see editable_field.py) -- the difference is a shape, not only a colour.
+author's other books · a read-only table (format, publisher, year and language, ISBN, added/modified, reading
+progress, rating, file location) · hashtag chips · the AI summary card. Editable fields are dashed with a pen icon;
+read-only rows have neither (see editable_field.py) -- the difference is a shape, not only a colour.
 
-The panel reacts to `DocumentSelectedEvent` (published by the library view) and `LibraryUpdatedEvent`, through
+The panel reacts to `DocumentSelectedEvent` (published by the library view), `LibraryUpdatedEvent` and
+`ReadingProgressUpdatedEvent` (a page turned in the reader window, for the currently-shown book only), through
 QtEventBridge. It writes only title, author and hashtags, through DatabaseManager, and never touches the book file.
 
 Publisher / year / language / ISBN come straight off the document row -- never a live read of the file, that would
@@ -41,7 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent, ReadingProgressUpdatedEvent
 from smartdoc.domain.author_names import split_author_names
 from smartdoc.domain.library_filter import LibraryFilter
 from smartdoc.infrastructure.cloud_files import is_cloud_only
@@ -313,6 +314,7 @@ class DocumentDetailPanel(QFrame):
         self.year_label = self._value_label()
         self.isbn_label = self._value_label()
         self.dates_label = self._value_label()
+        self.reading_progress_label = self._value_label()
         self.rating_label = _ClickableLabel(self)
         self.rating_label.setToolTip("Bấm để xem / viết đánh giá")
         self.rating_label.setTextFormat(Qt.RichText)
@@ -329,7 +331,8 @@ class DocumentDetailPanel(QFrame):
         rows = (
             ("Định dạng", self.format_size_label), ("Nhà xuất bản", self.publisher_label),
             ("Năm, ngôn ngữ", self.year_label), ("ISBN", self.isbn_label),
-            ("Thêm / sửa", self.dates_label), ("Đánh giá", self.rating_label), ("Vị trí file", self.path_label),
+            ("Thêm / sửa", self.dates_label), ("Tiến trình đọc", self.reading_progress_label),
+            ("Đánh giá", self.rating_label), ("Vị trí file", self.path_label),
         )
         for row, (caption, value) in enumerate(rows):
             label = QLabel(caption, self)
@@ -409,6 +412,7 @@ class DocumentDetailPanel(QFrame):
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, DocumentSelectedEvent)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
+        self._bridge.subscribe(context.event_bus, ReadingProgressUpdatedEvent)
         # Page counts are worked out on a worker thread; the signal hands the result back to the GUI thread.
         self._counting: set[str] = set()
         self._page_count_ready.connect(self._on_page_count_ready)
@@ -530,6 +534,7 @@ class DocumentDetailPanel(QFrame):
         self.dates_label.setText(f"{_format_date(doc.get('created_at'))} · {_format_date(doc.get('updated_at'))}")
         self.dates_label.setToolTip(
             f"Thêm: {_format_datetime(doc.get('created_at'))}\nSửa: {_format_datetime(doc.get('updated_at'))}")
+        self._update_reading_progress_label(doc.get("id") or "")
 
         avg, count = doc.get("avg_rating"), doc.get("review_count") or 0
         if avg is not None:
@@ -565,6 +570,21 @@ class DocumentDetailPanel(QFrame):
         size = _human_size(doc.get("file_size", 0)).replace(".", ",")
         pages = _pages_text(doc)
         self.format_size_label.setText(chip + ", ".join(part for part in (size, pages) if part))
+
+    def _update_reading_progress_label(self, doc_id: str) -> None:
+        """"Tiến trình đọc": reads reading_progress fresh (never cached on `doc`, so a page turned in the reader
+        shows up here without re-fetching the whole document row -- see ReadingProgressUpdatedEvent below)."""
+        progress = self.context.db.get_reading_progress(doc_id) if doc_id else None
+        if not progress:
+            self.reading_progress_label.setText("Chưa đọc lần nào")
+            return
+        position, total = int(progress.get("position") or 0), int(progress.get("total") or 0)
+        unit = "Chương" if progress.get("unit") == "chapter" else "Trang"
+        if position > 0 and total > 0:
+            percent = round(position / total * 100)
+            self.reading_progress_label.setText(f"{unit} {position} / {total} ({percent}%)")
+        else:
+            self.reading_progress_label.setText("Đã mở, chưa ghi nhận trang")
 
     def _update_star(self, doc: dict) -> None:
         starred = doc.get("id") in self.context.db.reading_list_ids()
@@ -610,6 +630,9 @@ class DocumentDetailPanel(QFrame):
             self.set_document(event.doc)
         elif isinstance(event, LibraryUpdatedEvent):
             self._refresh_current_document()
+        elif isinstance(event, ReadingProgressUpdatedEvent):
+            if self._current_doc and self._current_doc.get("id") == event.doc_id:
+                self._update_reading_progress_label(event.doc_id)
 
     def _refresh_current_document(self) -> None:
         """Re-fetches the current document and repopulates the panel -- automatically on LibraryUpdatedEvent and by

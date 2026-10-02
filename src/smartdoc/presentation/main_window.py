@@ -45,6 +45,7 @@ from smartdoc.presentation.import_card import ImportStatusCard
 from smartdoc.presentation.library_view import LibraryListWidget
 from smartdoc.presentation.manual_report_dialog import ManualReportDialog
 from smartdoc.presentation.omnibar import OmnibarSearchBar
+from smartdoc.presentation.library_cleanup_dialog import LibraryCleanupDialog
 from smartdoc.presentation.relink_dialog import RelinkDialog
 from smartdoc.presentation.resources import app_icon_path
 from smartdoc.presentation.settings_dialog import SettingsDialog
@@ -249,9 +250,9 @@ class MainWindow(QMainWindow):
         menu.addAction(vi.TOOL_TRASH, self._on_open_trash)
         menu.addAction(vi.TOOL_EXCLUDED, self._on_open_excluded)
         menu.addAction(vi.TOOL_GATHER, self._on_open_gather)
-        menu.addAction(vi.TOOL_REFRESH, self._on_refresh_info)
-        menu.addAction(vi.TOOL_METADATA_BATCH_UPDATE, self._on_open_metadata_batch_update)
+        menu.addAction(vi.TOOL_METADATA_UPDATE, self._on_open_metadata_batch_update)
         menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
+        menu.addAction("Dọn dẹp thư viện…", self._on_open_library_cleanup)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
         menu.addAction(vi.TOOL_CONVERT_FORMAT, self._on_convert_format)
         menu.addSeparator()
@@ -335,6 +336,9 @@ class MainWindow(QMainWindow):
         relink_action = QAction("Tìm lại file thiếu...", self)
         relink_action.triggered.connect(self._on_open_relink)
         tools_menu.addAction(relink_action)
+        cleanup_action = QAction("Dọn dẹp thư viện (file quá nhỏ, sách mất file)...", self)
+        cleanup_action.triggered.connect(self._on_open_library_cleanup)
+        tools_menu.addAction(cleanup_action)
         backup_action = QAction("Sao lưu thư viện...", self)
         backup_action.triggered.connect(lambda: self._on_open_settings(initial_tab="backup"))
         tools_menu.addAction(backup_action)
@@ -374,27 +378,17 @@ class MainWindow(QMainWindow):
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
 
-    def _on_refresh_info(self) -> None:
-        """"Cập nhật ngay": a window that is not modal, so the library stays usable while the scan runs."""
-        from smartdoc.presentation.info_refresh_dialog import InfoRefreshDialog
-
-        old = getattr(self, "_refresh_dialog", None)
-        if old is not None and shiboken6.isValid(old) and old.isVisible():
-            old.raise_()
-            return
-        dialog = InfoRefreshDialog(self.context, self)
-        dialog.setAttribute(Qt.WA_DeleteOnClose)
-        self._refresh_dialog = dialog
-        dialog.show()
-        dialog.start()
-
     def _on_open_metadata_batch_update(self) -> None:
-        """Task B3: not modal, so the library stays usable while it runs on a background thread."""
+        """"Cập nhật thông tin sách" -- the merged file-facts + bibliographic-lookup tool. Not modal, so the
+        library stays usable while it runs on a background thread."""
         from smartdoc.presentation.metadata_batch_dialog import MetadataBatchUpdateDialog
 
         old = getattr(self, "_metadata_batch_dialog", None)
         if old is not None and shiboken6.isValid(old) and old.isVisible():
+            if old.isMinimized():  # "Chạy nền" minimizes it while it works -- bring it back, not just to the front
+                old.showNormal()
             old.raise_()
+            old.activateWindow()
             return
         dialog = MetadataBatchUpdateDialog(self.context, self.library_view.classification_scope, self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
@@ -437,6 +431,11 @@ class MainWindow(QMainWindow):
 
     def _on_open_relink(self) -> None:
         dialog = RelinkDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _on_open_library_cleanup(self) -> None:
+        dialog = LibraryCleanupDialog(self.context, self, on_relink=self._on_open_relink)
         dialog.exec()
         dialog.deleteLater()
 

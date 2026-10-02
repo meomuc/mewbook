@@ -121,3 +121,53 @@ def test_find_by_isbn_and_delete_removes_history(app_context):
 
     db.delete_document("d1")
     assert db.metadata_run("run1") == []
+
+
+# -- documents_for_batch_update (the merged "Cập nhật thông tin sách" bulk fetch) ---------------------------------
+
+def test_documents_for_batch_update_returns_everything_without_content(app_context):
+    db = app_context.db
+    _add(db, "d1")
+    _add(db, "d2")
+
+    rows = db.documents_for_batch_update(None, only_missing_info=False)
+
+    assert {r["id"] for r in rows} == {"d1", "d2"}
+    assert "content" not in rows[0]  # never the full extracted text
+
+
+def test_documents_for_batch_update_only_missing_info_excludes_complete_books(app_context):
+    db = app_context.db
+    _add(db, "complete", publisher="NXB", pub_year=2020, language="vi", isbn="9780000000002")
+    _add(db, "incomplete")
+
+    rows = db.documents_for_batch_update(None, only_missing_info=True)
+
+    assert [r["id"] for r in rows] == ["incomplete"]
+
+
+def test_documents_for_batch_update_filters_by_id_when_given(app_context):
+    db = app_context.db
+    _add(db, "d1")
+    _add(db, "d2")
+    _add(db, "d3")
+
+    rows = db.documents_for_batch_update(["d1", "d3"], only_missing_info=False)
+
+    assert {r["id"] for r in rows} == {"d1", "d3"}
+
+
+def test_documents_for_batch_update_combines_ids_and_missing_info(app_context):
+    db = app_context.db
+    _add(db, "complete", publisher="NXB", pub_year=2020, language="vi", isbn="9780000000002")
+    _add(db, "incomplete")
+    _add(db, "not_in_scope")  # incomplete too, but not in the requested ids
+
+    rows = db.documents_for_batch_update(["complete", "incomplete"], only_missing_info=True)
+
+    assert [r["id"] for r in rows] == ["incomplete"]
+
+
+def test_documents_for_batch_update_with_empty_id_list_returns_nothing(app_context):
+    _add(app_context.db, "d1")
+    assert app_context.db.documents_for_batch_update([], only_missing_info=False) == []

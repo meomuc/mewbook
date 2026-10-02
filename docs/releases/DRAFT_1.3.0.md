@@ -7,8 +7,12 @@ bị sửa**; đổi số thật sự là việc của lúc phát hành, không 
 
 ## Điểm mới
 
-- **Cập nhật thông tin sách hàng loạt** (menu Công cụ) -- tìm và điền tên sách, tác giả, nhà xuất bản... cho cả
-  danh sách đang xem, chạy nền không chặn giao diện, không bao giờ ghi đè thông tin bạn đã tự sửa tay.
+- **Gộp "Cập nhật thông tin sách ngay" và "...hàng loạt" thành một: "Cập nhật thông tin sách"** (menu Công cụ) --
+  một lượt vừa làm mới thông tin file vừa tìm và điền tên sách, tác giả, nhà xuất bản... còn thiếu, nhanh hơn vì
+  không đọc lại cùng file hai lần. Ba phạm vi chọn được (chỉ sách chưa có thông tin -- mặc định, đang lọc, toàn
+  bộ thư viện); "Thực hiện" giữ nguyên cửa sổ, "Chạy nền" chạy y hệt nhưng thu nhỏ cửa sổ ngay. Không bao giờ ghi
+  đè thông tin bạn đã tự sửa tay, không đụng tới file sách gốc.
+- **Panel Chi tiết: thêm dòng "Tiến trình đọc"** (trang/chương đang đọc, phần trăm), cập nhật ngay khi đọc tiếp.
 - **Gửi sang máy đọc sách: thêm hồ sơ thiết bị** (BOOX Note Air4C, BOOX Go 6, Kindle) -- xem trước kế hoạch trước
   khi chép, không bao giờ ghi đè file cùng tên, rút thiết bị giữa chừng không làm lỗi ứng dụng.
   **Phiên bản thử nghiệm ban đầu:** hồ sơ riêng theo từng máy chưa được kiểm chứng trên phần cứng thật (chưa có

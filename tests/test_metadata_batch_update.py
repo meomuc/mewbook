@@ -5,7 +5,13 @@ field, and never touching the book's own file."""
 from __future__ import annotations
 
 from smartdoc.application.metadata_applier import MetadataApplier
-from smartdoc.application.metadata_batch_update import BatchUpdateOptions, MetadataBatchUpdateService
+from smartdoc.application.metadata_batch_update import (
+    SCOPE_ALL,
+    SCOPE_FILTERED,
+    SCOPE_MISSING_INFO,
+    BatchUpdateOptions,
+    MetadataBatchUpdateService,
+)
 from smartdoc.application.metadata_lookup import MetadataLookupError, MetadataLookupService
 from smartdoc.application.smart_classifier import ClassifyScope
 
@@ -290,3 +296,70 @@ def test_the_batch_never_writes_to_the_book_file_only_the_library(app_context, t
 
     assert result.updated == 1
     assert path.read_bytes() == before  # byte-for-byte unchanged
+
+
+# -- merged-tool scope choices (the "gộp 2 chức năng" request) --------------------------------------------------
+
+def test_default_scope_is_filtered_so_every_existing_caller_is_unaffected():
+    """BatchUpdateOptions() alone must behave exactly like before the scope picker existed: honor the passed
+    ClassifyScope, not silently switch to "toàn bộ thư viện" or "chỉ sách chưa có thông tin"."""
+    assert BatchUpdateOptions().scope == SCOPE_FILTERED
+
+
+def test_scope_all_covers_the_whole_library_ignoring_the_passed_scope(app_context):
+    db = app_context.db
+    _add(db, "d1")
+    _add(db, "d2")
+    service = _service(app_context)
+
+    result = service.run(ClassifyScope(doc_ids=("d1",)), BatchUpdateOptions(scope=SCOPE_ALL))
+
+    assert result.checked == 2  # both, even though the passed scope named only d1
+
+
+def test_scope_missing_info_only_includes_books_still_missing_basic_fields(app_context):
+    db = app_context.db
+    _add(db, "complete", title="Đủ rồi", author="Ai đó", publisher="NXB", pub_year="2020", language="vi", isbn="9780000000002")
+    _add(db, "incomplete")  # _add()'s own defaults leave publisher/pub_year/language/isbn empty
+    service = _service(app_context)
+
+    assert service.preview_count(ClassifyScope(), SCOPE_MISSING_INFO) == 1
+    result = service.run(ClassifyScope(), BatchUpdateOptions(scope=SCOPE_MISSING_INFO))
+
+    assert result.checked == 1  # "complete" was skipped before any lookup was even attempted
+
+
+def test_preview_count_respects_the_scope_argument_not_just_the_passed_classify_scope(app_context):
+    db = app_context.db
+    _add(db, "d1")
+    _add(db, "d2")
+    service = _service(app_context)
+
+    assert service.preview_count(ClassifyScope(doc_ids=("d1",))) == 1  # default: SCOPE_FILTERED
+    assert service.preview_count(ClassifyScope(doc_ids=("d1",)), SCOPE_ALL) == 2
+
+
+# -- merged-tool file facts (the former "Cập nhật ngay") ----------------------------------------------------------
+
+def test_the_merged_run_also_refreshes_file_facts_like_the_former_cap_nhat_ngay(app_context, tmp_path):
+    path = tmp_path / "a.txt"
+    path.write_bytes(b"noi dung sach")
+    doc = _add(db := app_context.db, "d1", file_path=str(path), extension="txt", file_size=0)
+
+    service = _service(app_context)
+    result = service.run(ClassifyScope(doc_ids=(doc["id"],)), BatchUpdateOptions())
+
+    assert result.files_refreshed == 1
+    stored = db.get_document("d1")
+    assert stored["file_size"] == len(b"noi dung sach") and stored["content_hash"]
+
+
+def test_a_missing_file_is_counted_and_file_status_recorded_without_stopping_metadata_lookup(app_context, tmp_path):
+    doc = _add(app_context.db, "d1", file_path=str(tmp_path / "gone.pdf"), extension="pdf")
+    service = _service(app_context)
+
+    result = service.run(ClassifyScope(doc_ids=(doc["id"],)), BatchUpdateOptions())
+
+    assert result.missing_files == 1 and result.files_refreshed == 0
+    assert app_context.db.get_document("d1")["file_status"] == "missing"
+    assert result.checked == 1  # the metadata-lookup pass still ran (and found nothing -> skipped)

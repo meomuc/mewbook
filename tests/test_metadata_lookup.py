@@ -166,6 +166,22 @@ def test_the_internet_is_searched_when_the_library_has_nothing(app_context):
     assert candidate.score >= 0.95
 
 
+def test_an_explicitly_empty_internet_sources_dict_means_none_at_all_not_the_real_defaults(app_context, monkeypatch):
+    """Regression: `internet_sources={} or {...real sources...}` treated an explicitly-passed empty dict as falsy
+    and silently fell back to the real Open Library/Google Books/Apple Books callables -- exactly the "disabled"
+    request every internet-off caller makes (metadata_batch_update.py's own
+    `internet_sources={} if not use_internet else None`), meaning a batch run with Internet left unticked could
+    still make real network calls whenever the library had no confident answer."""
+    for name in ("_open_library", "_apple_books"):
+        monkeypatch.setattr(ml, name, lambda *a, **k: (_ for _ in ()).throw(AssertionError(f"{name} must not be called")))
+    monkeypatch.setattr(ml, "_google_books", lambda *a, **k: (_ for _ in ()).throw(AssertionError("_google_books must not be called")))
+
+    service = MetadataLookupService(app_context, internet_sources={})
+    result = service.lookup(WANTED, include_internet=False)  # no library match either -> "not confident" -> would search
+
+    assert result.searched_internet and result.candidates == [] and result.errors == []
+
+
 def test_a_failing_source_is_reported_while_the_others_still_answer(app_context):
     app_context.config.config.disabled_cover_sources = []  # Apple Books is off by default
     good = ("Gia Định thành thông chí", "Trịnh Hoài Đức", {"title": "Gia Định thành thông chí", "publisher": "NXB Ok"})

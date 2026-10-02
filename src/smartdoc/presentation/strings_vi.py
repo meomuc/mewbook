@@ -21,8 +21,9 @@ TOOL_EXCLUDED = "Sách đã gỡ khỏi thư viện…"
 TOOL_EXPORT = "Xuất danh sách sách (CSV)…"
 TOOL_BACKUP = "Sao lưu thư viện…"
 TOOL_GATHER = "Gom sách về một thư mục…"
-TOOL_REFRESH = "Cập nhật thông tin sách ngay…"
-TOOL_METADATA_BATCH_UPDATE = "Cập nhật thông tin sách hàng loạt…"
+# Merged tool (was two separate menu items: "...ngay" -- a file-facts-only rescan -- and "...hàng loạt" -- a
+# bibliographic lookup); one dialog, one pass, does both -- see metadata_batch_update.py's module docstring.
+TOOL_METADATA_UPDATE = "Cập nhật thông tin sách…"
 TOOL_RELINK = "Tìm lại file…"
 TOOL_SEND_EREADER = "Gửi sang máy đọc sách…"
 TOOL_CONVERT_FORMAT = "Chuyển đổi định dạng…"

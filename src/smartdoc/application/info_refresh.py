@@ -71,7 +71,7 @@ class InfoRefresh:
                 result.skipped_cloud += 1
                 continue
             try:
-                if self._refresh_one(row):
+                if self.refresh_one(row):
                     result.updated += 1
                     result.changed_ids.append(row["id"])
             except Exception:  # noqa: BLE001 -- one unreadable file must not stop the pass over the rest
@@ -88,8 +88,11 @@ class InfoRefresh:
         logger.info("Info refresh: %d checked, %d updated, %d missing", result.checked, result.updated, result.missing)
         return result
 
-    def _refresh_one(self, row: dict) -> bool:
-        """Bring one book's file facts up to date; True when something new or different was stored."""
+    def refresh_one(self, row: dict) -> bool:
+        """Bring one book's file facts up to date; True when something new or different was stored. Public (not
+        `_refresh_one`): the merged "Cập nhật thông tin sách" (application/metadata_batch_update.py) calls this
+        directly per document, on its own bulk-fetched row shape, instead of going through `run()`'s own
+        whole-library query -- see that module's docstring for why."""
         path, extension = row["file_path"], (row["extension"] or "")
         db = self.context.db
         size = os.stat(path).st_size

@@ -1,11 +1,14 @@
 # CLAUDE.md — MewBook ("Mèo Mực")
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## 1. Project Overview & Architecture
 Windows desktop ebook/document manager: Python 3.12, PySide6 (Qt 6) UI, SQLite FTS5, PyMuPDF/EPUB extractors, watchdog, requests; built with uv + hatchling, packaged with PyInstaller + Inno Setup.
 Clean Architecture under `src/smartdoc/`: `core/` (AppContext, EventBus, ConfigManager, diagnostics) → `domain/` (models, taxonomy, classifier) → `infrastructure/` (DatabaseManager, extractors, cover cache) → `application/` (file watcher, import queue, smart classifier, cover search, cloud reviews, AI summary) → `presentation/` (all Qt widgets). `app.py` is the composition root.
 Flow: file watcher / import workers (background threads) → `EventBus.publish()` → `QtEventBridge` marshals onto the GUI thread → widgets re-query `context.db.query_documents()` (the single read path: FTS text + parameterized WHERE).
 What the library is filtered by (search text, collections, hashtags, authors, formats) is **one** immutable `LibraryFilter` owned by `context.filters` (`FilterService`); every widget changes it through the service (`select/remove/set_query/clear`) and listens to the single `FilterChangedEvent`; live sidebar counts come from `context.facets` (`FacetCounter`); SQL for it is `db.filter_where()`. Don't publish the legacy `SearchRequestedEvent`/`FacetFilterChangedEvent`/`CollectionSelectedEvent` — see `docs/FILTER_REDESIGN_SPEC.md`.
 Every class takes `context: AppContext` and reaches `context.db / .config / .event_bus`; never construct collaborators or import a singleton. More detail: `README.md` (Architecture), `docs/THEME_DESIGN_BRIEF.md`, module docstrings (they explain *why*).
+Smart classification (Phân loại) has two layers and one review surface. **Lớp 1** (`application/smart_classifier.py` → worker processes in `classify_worker.py`: text sample → SVM model → guards `periodical_cue`/`mixed_topics` in `classification_guards.py`) tags the library. **Lớp 2** (`classify_layer2.py` + `ollama_classifier.py`, off by default, Settings → Phân loại) only ever looks at books Lớp 1 left unsure and only produces suggestions. Every unsure book gets the one placeholder hashtag `UNSURE_TAG` ("Chưa chắc"); the result list (`presentation/smart_classify_results.py`) groups them by `UNSURE_REASONS`, and "Gắn hashtag…" / "Nhận gợi ý" go through `SmartClassifyService.tag_books`, which swaps the placeholder for the real hashtag. A new kind of unsure book is a new `UNSURE_REASONS` key (plus a hint in `SmartClassifyFinishedEvent.unknown_hints` if it carries a suggestion) -- never a second placeholder tag or a second review screen (`docs/ARCHITECTURE_CLASSIFICATION_UI.md`). Never lower `min_score`/`min_group_prob`/`min_class_prob` to raise coverage; that is the owner's decision. To measure coverage on a real `library.db` run `tools/eval/classification_coverage.py` (reads the real `max_words` from settings -- a hardcoded one once gave wrong numbers); results go in `docs/eval/`.
 
 ## 2. Build & Test Commands
 ```
@@ -15,6 +18,7 @@ uv run pytest -q                        # all tests (QT_QPA_PLATFORM=offscreen i
 uv run pytest tests/test_x.py -q -k name
 powershell -ExecutionPolicy Bypass -File packaging\build.ps1   # tests + exe + installer
 ```
+- If `uv run` fails while re-installing the project (access denied under OneDrive) and `import smartdoc` stops working, run `PYTHONPATH=src uv run --no-sync pytest -q`. A background shell task is killed after 10 minutes: for anything longer (library-wide diagnostics) split the work into several detached processes.
 - **Lint only, no formatter:** `uvx ruff check src tests tools` (config in `pyproject.toml`: E/F/W/BLE, E501 off). About 20 pre-existing findings are not yet cleaned up; don't add new ones. Don't add black/mypy or reformat files; match the surrounding style (lines up to ~120 chars).
 - Offscreen Qt has **no fonts installed**: font-dependent assertions need stubbing; use the real platform (unset `QT_QPA_PLATFORM`) to eyeball rendering.
 - Known env issue: the SVM trainer tests need scikit-learn/numpy (they come with `pyvi`) and skip themselves without. The timing-based tests (`test_file_watcher`, `test_import_queue`) were made robust to a starved CPU (S1-08); if one still fails, rerun it alone before suspecting your change. **A native crash you may meet:** `Windows fatal exception: code 0xc0000374` with `Garbage-collecting` as the top frame means a widget was left for Python's cycle collector instead of being destroyed by Qt (`tests/conftest.py` now deletes every leftover top-level widget explicitly, which also halved the suite's run time). New code should do the same: a dialog you `exec()` and discard gets `deleteLater()`, and don't hand a widget's own bound methods to objects it owns. It is layout-sensitive, so it can look like an unrelated change broke a test. PyMuPDF is also guarded by a lock (`infrastructure/pymupdf_lock.py`) -- MuPDF is not thread-safe -- as a precaution; that was not the cause of the crash.
@@ -106,6 +110,18 @@ Thiếu khối nào = dùng kiểu mặc định phẳng. Kiểu không nhận r
 - `dark` phải khớp độ sáng thật của bg.
 - Phông kèm gói phải có giấy phép OFL hoặc Apache 2.0 và đủ dấu tiếng Việt.
 - Trạng thái luôn có hình dạng/chữ đi kèm, không bao giờ chỉ bằng màu.
+- GIAO THỨC BÁO CÁO (CHANGELOG.MD PROTOCOL) - BẮT BUỘC
++ Để AI Architect giám sát tiến độ mà không cần đọc toàn bộ mã nguồn, sau **MỖI LẦN** hoàn thành một tác vụ do người dùng yêu cầu, bạn **BẮT BUỘC** phải ghi log vào file `CHANGELOG.md` ở thư mục gốc. 
++ Nếu file `CHANGELOG.md` chưa tồn tại, hãy tạo mới. Luôn ghi nối (append) nội dung mới lên ĐẦU file theo định dạng chuẩn sau:
+ [Ngày/Tháng/Năm - Giờ:Phút] - Task: [Tên ngắn gọn của tác vụ]
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: (VD: `:app`, `:core:location`)
+  - File tạo mới / Chỉnh sửa: (Liệt kê path và 1 câu giải thích chức năng)
+  - Dependencies: (Các thư viện vừa thêm nếu có)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - (Giải thích ngắn gọn cách giải quyết bài toán và pattern áp dụng)
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - (Ghi chú nguy cơ Memory Leak, vấn đề Permission, OOM, v.v. Nếu an toàn, ghi "Không có").
 
 ### Test bắt buộc: tests/test_themes.py
 - Mọi `themes/*/theme.json` qua validate_theme (mã thoát 0).

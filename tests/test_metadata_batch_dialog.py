@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""MetadataBatchUpdateDialog (task B3): the picker page shows "Sẽ cập nhật N tài liệu" and never ticks Internet
-by default; running it reports progress, ends with "Đã cập nhật X, bỏ qua Y, lỗi Z", offers "Hoàn tác lượt này",
-and never blocks the event loop while it works."""
+"""MetadataBatchUpdateDialog: the merged "Cập nhật thông tin sách" -- a 3-way scope picker ("chỉ sách chưa có
+thông tin" by default, "đang được lọc", "toàn bộ thư viện"), the picker page shows "Sẽ cập nhật N tài liệu" and
+never ticks Internet by default; running it (via "Thực hiện", which keeps the window as it is, or "Chạy nền",
+which also minimizes it) reports progress, ends with the file-facts-and-bibliographic result line, offers
+"Hoàn tác lượt này", and never blocks the event loop while it works."""
 from __future__ import annotations
 
 import time
 
-from smartdoc.application.metadata_batch_update import MetadataBatchUpdateService
+from smartdoc.application.metadata_batch_update import SCOPE_ALL, SCOPE_FILTERED, SCOPE_MISSING_INFO, MetadataBatchUpdateService
 from smartdoc.core.event_bus import BackgroundTaskEvent
 from smartdoc.presentation.metadata_batch_dialog import MetadataBatchUpdateDialog
 from smartdoc.application.smart_classifier import ClassifyScope
@@ -183,4 +185,100 @@ def test_processing_events_never_blocks_while_running(qapp, app_context):
     # Wait for the real finish too (not just this proof-of-non-blocking loop), so the background thread is not
     # still touching app_context.db when this test's fixture tears it down right after returning.
     _wait_until_done(qapp, dialog)
+    dialog.deleteLater()
+
+
+# -- the merged tool's own additions: 3-way scope, "Thực hiện" vs "Chạy nền" -------------------------------------
+
+def test_the_three_scope_choices_are_offered_with_missing_info_selected_by_default(qapp, app_context):
+    dialog = _open(app_context)
+    assert set(dialog._scope_buttons) == {SCOPE_MISSING_INFO, SCOPE_FILTERED, SCOPE_ALL}
+    assert dialog._scope_buttons[SCOPE_MISSING_INFO].isChecked()
+    assert not dialog._scope_buttons[SCOPE_FILTERED].isChecked()
+    assert not dialog._scope_buttons[SCOPE_ALL].isChecked()
+    dialog.deleteLater()
+
+
+def test_switching_the_scope_radio_updates_the_preview_count(qapp, app_context):
+    db = app_context.db
+    _add(db, "complete", publisher="NXB", pub_year=2020, language="vi", isbn="9780000000002")
+    _add(db, "incomplete1")
+    _add(db, "incomplete2")
+    # "current filter" = complete + incomplete1 only (incomplete2 is outside it) -- a scope distinct from either
+    # "whole library" (3) or "whole library, missing info" (2: incomplete1 + incomplete2).
+    dialog = MetadataBatchUpdateDialog(
+        app_context, lambda: ClassifyScope(doc_ids=("complete", "incomplete1")), service=_fast_service(app_context))
+
+    assert "2" in dialog.preview_label.text()  # default: SCOPE_MISSING_INFO, whole library
+
+    dialog._scope_buttons[SCOPE_FILTERED].setChecked(True)
+    assert "2" in dialog.preview_label.text()  # the current filter, regardless of completeness
+
+    dialog._scope_buttons[SCOPE_ALL].setChecked(True)
+    assert "3" in dialog.preview_label.text()  # every document
+    dialog.deleteLater()
+
+
+def test_thuc_hien_starts_the_run_and_leaves_the_window_as_it_is(qapp, app_context):
+    _add(app_context.db, "d1")
+    dialog = _open(app_context)
+
+    dialog.run_button.click()
+
+    assert dialog._running and not dialog.isMinimized()
+    _wait_until_done(qapp, dialog)
+    dialog.deleteLater()
+
+
+def test_chay_nen_starts_the_run_and_minimizes_the_window(qapp, app_context):
+    _add(app_context.db, "d1")
+    dialog = _open(app_context)
+
+    dialog.background_button.click()
+
+    assert dialog._running and dialog.isMinimized()
+    _wait_until_done(qapp, dialog)
+    dialog.deleteLater()
+
+
+def test_chay_nen_mid_run_minimizes_without_starting_a_second_run(qapp, app_context):
+    _add(app_context.db, "d1")
+    dialog = _open(app_context)
+    dialog.run_button.click()
+    assert dialog._running and not dialog.isMinimized()
+
+    dialog.background_button.click()  # changed their mind after choosing "Thực hiện"
+
+    assert dialog._running and dialog.isMinimized()
+    _wait_until_done(qapp, dialog)
+    dialog.deleteLater()
+
+
+def test_finishing_does_not_force_the_window_back_out_of_minimized(qapp, app_context):
+    """The whole point of "Chạy nền" is not being interrupted -- finishing must not un-minimize it on its own."""
+    _add(app_context.db, "d1")
+    dialog = _open(app_context)
+    dialog.background_button.click()
+    assert dialog.isMinimized()
+
+    _wait_until_done(qapp, dialog)
+
+    assert dialog.isMinimized()
+    dialog.deleteLater()
+
+
+def test_result_line_mentions_file_facts_refreshed_and_missing_files(qapp, app_context, tmp_path):
+    real = tmp_path / "a.txt"
+    real.write_bytes(b"noi dung")
+    _add(app_context.db, "present", file_path=str(real), extension="txt", file_size=0)
+    _add(app_context.db, "gone", file_path=str(tmp_path / "missing.pdf"), extension="pdf")
+    dialog = MetadataBatchUpdateDialog(app_context, lambda: ClassifyScope(doc_ids=("present", "gone")),
+                                       service=_fast_service(app_context))
+    dialog._scope_buttons[SCOPE_FILTERED].setChecked(True)
+
+    dialog.run_button.click()
+    _wait_until_done(qapp, dialog)
+
+    assert "làm mới file cho 1 sách" in dialog.status_label.text()
+    assert "1 không thấy file" in dialog.status_label.text()
     dialog.deleteLater()
