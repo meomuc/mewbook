@@ -33,6 +33,7 @@ from smartdoc.domain.library_filter import (
     AUTHORS,
     COLLECTIONS,
     FORMATS,
+    STATUSES,
     TAGS,
     LibraryFilter,
     value_key,
@@ -136,6 +137,10 @@ class FacetCounter:
         author_keys_wanted = {value_key(AUTHORS, v) for v in flt.authors} if exclude != AUTHORS else set()
         tag_keys_wanted = {value_key(TAGS, v) for v in flt.tags} if exclude != TAGS else set()
         formats_wanted = {value_key(FORMATS, v) for v in flt.formats} if exclude != FORMATS else set()
+        status_ids: frozenset[str] | None = None
+        if flt.statuses and exclude != STATUSES:
+            where_sql, params = self.context.db.filter_where(LibraryFilter(statuses=flt.statuses))
+            status_ids = frozenset(self.context.db.list_document_ids_matching(where_sql=where_sql, params=params))
         collection_ids: frozenset[str] | None = None
         if flt.collections and exclude != COLLECTIONS:
             members = self._collection_members()
@@ -145,6 +150,8 @@ class FacetCounter:
             if text_ids is not None and doc_id not in text_ids:
                 continue
             if collection_ids is not None and doc_id not in collection_ids:
+                continue
+            if status_ids is not None and doc_id not in status_ids:
                 continue
             if author_keys_wanted and author_keys_wanted.isdisjoint(authors):
                 continue

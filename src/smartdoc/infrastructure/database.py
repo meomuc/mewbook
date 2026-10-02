@@ -35,7 +35,18 @@ from smartdoc.domain.author_names import (
     tag_key,
     tag_keys,
 )
-from smartdoc.domain.library_filter import AUTHORS, COLLECTIONS, FORMATS, TAGS, LibraryFilter, value_key
+from smartdoc.domain.library_filter import (
+    AUTHORS,
+    COLLECTIONS,
+    FORMATS,
+    STATUS_MISSING,
+    STATUS_TINY,
+    STATUSES,
+    TAGS,
+    TINY_FILE_BYTES,
+    LibraryFilter,
+    value_key,
+)
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.infrastructure import schema_migrations
 
@@ -554,6 +565,20 @@ class DatabaseManager:
             "WHERE file_status = 'missing' ORDER BY title COLLATE NOCASE"
         ).fetchall()
         return [dict(r) for r in rows]
+
+    def tiny_documents(self, limit_bytes: int = TINY_FILE_BYTES) -> list[dict[str, Any]]:
+        """Books whose stored size is under `limit_bytes` (smallest first): stubs and failed downloads, for the clean-up list."""
+        rows = self.connection.execute(
+            "SELECT id, title, author, file_path, file_size, extension, file_status FROM documents "
+            "WHERE file_size < ? AND COALESCE(file_status, '') != 'missing' ORDER BY file_size, title COLLATE NOCASE", (limit_bytes,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def count_file_statuses(self) -> dict[str, int]:
+        """{STATUS value: how many books} for the STATUSES filter group (zeros included)."""
+        missing = self.count_missing()
+        tiny = int(self.connection.execute("SELECT COUNT(*) FROM documents WHERE file_size < ?", (TINY_FILE_BYTES,)).fetchone()[0])
+        return {STATUS_MISSING: missing, STATUS_TINY: tiny}
 
     def find_id_by_path(self, file_path: str) -> str | None:
         """The book already filed under this path (Windows paths compare case-insensitively), or None."""
@@ -1799,6 +1824,16 @@ class DatabaseManager:
             collection_sql, collection_params = self.collections_where_fragment(flt.collections)
             fragments.append(collection_sql)
             params.extend(collection_params)
+
+        if flt.statuses and STATUSES not in exclude:
+            parts: list[str] = []
+            if STATUS_MISSING in flt.statuses:
+                parts.append("documents.file_status = 'missing'")
+            if STATUS_TINY in flt.statuses:
+                parts.append("documents.file_size < ?")
+                params.append(TINY_FILE_BYTES)
+            if parts:
+                fragments.append("(" + " OR ".join(f"({part})" for part in parts) + ")")
 
         return " AND ".join(fragments), tuple(params)
 

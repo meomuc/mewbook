@@ -26,16 +26,26 @@ COLLECTIONS = "collections"
 TAGS = "tags"
 AUTHORS = "authors"
 FORMATS = "formats"
+STATUSES = "statuses"
 # Not a value group: names the search text where a chip needs a "category".
 QUERY = "query"
 # Display order everywhere (chips, summaries).
-CATEGORIES = (COLLECTIONS, TAGS, AUTHORS, FORMATS)
+CATEGORIES = (COLLECTIONS, TAGS, AUTHORS, FORMATS, STATUSES)
 CATEGORY_LABELS = {
     COLLECTIONS: "Bộ sưu tập",
     TAGS: "Hashtag",
     AUTHORS: "Tác giả",
     FORMATS: "Định dạng",
+    STATUSES: "Tình trạng file",
 }
+
+# The values of the STATUSES group are what the person reads on the chip, so the SQL for each lives in
+# DatabaseManager.filter_where, keyed by these. TINY_FILE_BYTES: below it a "book" is almost always a stub, a failed
+# download or a placeholder. Deliberately low: a one-article EPUB is ~6 KB and is a real (short) document, so a higher
+# default would flag good books; the clean-up dialog lets the person look wider.
+STATUS_MISSING = "Thiếu file"
+STATUS_TINY = "File quá nhỏ"
+TINY_FILE_BYTES = 5 * 1024
 
 # How a list of facet values is ordered -- shared by the sidebar's sections (facet_panel.py, count/name only) and the
 # "Lọc nhanh" suggestions (quick_filter.py, which also offers "relevance": the box's own best-match-first ranking).
@@ -82,6 +92,7 @@ class LibraryFilter:
     tags: tuple[str, ...] = ()
     authors: tuple[str, ...] = ()
     formats: tuple[str, ...] = ()
+    statuses: tuple[str, ...] = ()
 
     def values(self, category: str) -> tuple[str, ...]:
         return getattr(self, category)

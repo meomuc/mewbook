@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 
 from smartdoc.core.event_bus import LibraryFilesMissingEvent, LibraryUpdatedEvent
+from smartdoc.domain.library_filter import STATUS_MISSING, STATUSES
 from smartdoc.presentation import strings_vi as vi
 from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
@@ -29,11 +30,15 @@ class MissingFilesStrip(QFrame):
         self.button = QPushButton(vi.FIND_AGAIN, self)
         self.button.setCursor(Qt.PointingHandCursor)
         self.button.clicked.connect(self.relink_requested)
+        self.view_button = QPushButton("Xem các sách này", self)  # the same books as a filter chip, to look at or deal with
+        self.view_button.setCursor(Qt.PointingHandCursor)
+        self.view_button.clicked.connect(self._on_view)
         row = QHBoxLayout(self)
         row.setContentsMargins(16, 6, 16, 6)
         row.setSpacing(10)
         row.addWidget(self.icon_label)
         row.addWidget(self.text_label, 1)
+        row.addWidget(self.view_button)
         row.addWidget(self.button)
         self._restyle()
         theme_manager().themeChanged.connect(self._restyle)
@@ -46,6 +51,9 @@ class MissingFilesStrip(QFrame):
         # doesn't keep showing a number that no longer matches the library.
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
         self.set_count(context.db.count_missing())
+
+    def _on_view(self) -> None:
+        self.context.filters.set(self.context.filters.current.with_values(STATUSES, (STATUS_MISSING,)))
 
     def _restyle(self, _key: str = "") -> None:
         tm = theme_manager()

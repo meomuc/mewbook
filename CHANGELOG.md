@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **Gợi ý "chưa chắc" có thể nhận nhanh.** Trong danh sách kết quả phân loại, sách mô hình nghiêng về một thể loại
   nhưng chưa đủ chắc nằm ở nhóm mới "Gợi ý từ mô hình, cần bạn xác nhận", ghi sẵn thể loại gợi ý. Chọn nhiều cuốn rồi
   bấm "Nhận gợi ý" để gắn hàng loạt; hashtag "Chưa chắc" được thay bằng thể loại thật như khi gắn tay.
+- **Dọn dẹp thư viện.** Mục mới "Dọn dẹp thư viện…" trong menu Công cụ gom hai loại sách vô lý vào một danh sách: file
+  quá nhỏ (mặc định dưới 5 KB, chỉnh được) và sách đã mất file. File nhỏ chuyển vào Thùng rác của MewBook, khôi phục được;
+  sách mất file thì "Tìm lại file…" hoặc "Gỡ khỏi thư viện" (chỉ xóa mục trong thư viện, không đụng file). Cả hai chỉ làm
+  khi bạn chọn và xác nhận, và kiểm tra lại ổ đĩa ngay lúc làm để không xóa nhầm khi ổ chỉ đang tháo ra.
+- **Bộ lọc "Tình trạng file".** Dải báo mất file có nút "Xem các sách này": thư viện chỉ hiện những sách thiếu file,
+  như một chip lọc bình thường (bỏ chip để quay về).
 - **Tùy chọn nhờ AI (Ollama) gợi ý thêm cho sách chưa chắc.** Bật ở Cài đặt › Phân loại (mặc định tắt, cần Ollama chạy
   trên máy). Sau mỗi lượt phân loại, những sách mô hình chưa dám đoán được hỏi Ollama và hiện ở nhóm "Gợi ý từ AI
   (Ollama), cần bạn xác nhận" trong danh sách kết quả; không gì được gắn nếu bạn chưa bấm "Nhận gợi ý".

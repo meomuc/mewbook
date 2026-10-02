@@ -20,7 +20,7 @@ _RULE_FOR_GROUP = {
 
 def rules_from_filter(flt: LibraryFilter) -> tuple[list[SmartRule], str] | None:
     """(rules, logic) equivalent to `flt`, or None when it can't be expressed."""
-    if flt.query or flt.collections:
+    if flt.query or flt.collections or flt.statuses:  # a file's state is not a rule a saved collection can follow
         return None
     groups = [category for category in _RULE_FOR_GROUP if flt.values(category)]
     if not groups:
