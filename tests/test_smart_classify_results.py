@@ -215,3 +215,56 @@ def test_accepting_suggestions_tags_each_book_with_its_own_lean_and_drops_the_pl
             dialog.deleteLater()
     finally:
         service.stop()
+
+
+# -- Task B4: the optional Ollama pass puts its guesses in the same list, and is silent when switched off ------------------
+
+def _run_vague(context, tmp_path):
+    add_book(context, "vague", write_epub(tmp_path / "v.epub", ["zzz", "qqq"]), title="Không rõ")
+    service = SmartClassifyService(context, executor_factory=thread_executor, worker_settings=WORKER_SETTINGS)
+    service.start(ClassifyScope(doc_ids=["vague"]))
+    assert service.wait(timeout=30)
+    return service
+
+
+def test_layer2_names_a_category_for_an_undecided_book_as_an_ai_suggestion(context, tmp_path, monkeypatch):
+    from smartdoc.application.ollama_classifier import Layer2Suggestion
+
+    calls = []
+    monkeypatch.setattr("smartdoc.application.classify_layer2.probe_ollama", lambda url: True)
+    monkeypatch.setattr("smartdoc.application.classify_layer2._call_ollama",
+                        lambda job, taxonomy, url, model: calls.append(job.doc_id) or Layer2Suggestion(("cooking",), 0.8, False))
+    context.config.config.smart_classify_layer2_enabled = True
+    service = _run_vague(context, tmp_path)
+    try:
+        event = service.last_result
+        assert calls == ["vague"] and event.unknown_items == (("vague", "ai_suggested"),)
+        assert event.unknown_hints[0][0] == "vague" and event.unknown_hints[0][1] == "Ẩm thực - Nấu ăn"
+        assert context.db.get_document("vague")["tags"] == UNSURE_TAG  # a suggestion, not a hashtag
+        row = build_tree("unknown", event, _docs(("vague", "Không rõ", "")))[0].children[0]
+        assert row.suggestion == "Ẩm thực - Nấu ăn" and "AI (Ollama)" in row.note
+    finally:
+        service.stop()
+
+
+def test_layer2_is_never_called_when_switched_off(context, tmp_path, monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("Ollama must not be called")
+
+    monkeypatch.setattr("smartdoc.application.classify_layer2._call_ollama", boom)
+    context.config.config.smart_classify_layer2_enabled = False
+    service = _run_vague(context, tmp_path)
+    try:
+        assert service.last_result.unknown_items[0][1] != "ai_suggested" and service.last_result.unknown_hints == ()
+    finally:
+        service.stop()
+
+
+def test_a_dead_ollama_loses_nothing(context, tmp_path, monkeypatch):
+    monkeypatch.setattr("smartdoc.application.classify_layer2.probe_ollama", lambda url: False)  # on, but Ollama is not running
+    context.config.config.smart_classify_layer2_enabled = True
+    service = _run_vague(context, tmp_path)
+    try:
+        assert service.last_result.unknown_hints == () and context.db.get_document("vague")["tags"] == UNSURE_TAG
+    finally:
+        service.stop()

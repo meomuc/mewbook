@@ -75,13 +75,14 @@ def build_tree(kind: str, event, docs: dict[str, dict]) -> list[Node]:
     """The groups of one card: `kind` is "tagged", "unknown" or "failed"; `docs` maps a book id to its light row."""
     hints = {doc_id: (name, confidence) for doc_id, name, confidence in getattr(event, "unknown_hints", ())}
 
-    def row(doc_id: str, note: str = "") -> Row | None:
+    def row(doc_id: str, note: str = "", source: str = "") -> Row | None:
         doc = docs.get(doc_id)
         if doc is None:
             return None
         name, confidence = hints.get(doc_id, ("", 0.0))
         if name and not note:
-            note = f"Mô hình nghiêng về \"{name}\" ({round(confidence * 100)}%) nhưng chưa đủ chắc để tự gắn"
+            who = "AI (Ollama) đoán" if source == "ai_suggested" else "Mô hình nghiêng về"
+            note = f"{who} \"{name}\" ({round(confidence * 100)}%) nhưng chưa đủ chắc để tự gắn: hãy kiểm tra trước khi nhận"
         return Row(doc_id, doc.get("title") or UNTITLED, doc.get("author") or "", note, name)
 
     if kind == "tagged":
@@ -98,7 +99,7 @@ def build_tree(kind: str, event, docs: dict[str, dict]) -> list[Node]:
     if kind == "unknown":
         by_reason: dict[str, list[Row]] = {}
         for doc_id, reason in event.unknown_items:
-            item = row(doc_id)
+            item = row(doc_id, source=reason)
             if item is not None:
                 by_reason.setdefault(UNSURE_REASONS.get(reason, UNSURE_REASONS["not_enough_evidence"]), []).append(item)
         if not by_reason:

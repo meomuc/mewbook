@@ -139,7 +139,7 @@ class Layer2ClassifyService:
             return True, ""
         return False, OLLAMA_UNREACHABLE_REASON
 
-    def review(self, jobs: Iterable[dict]) -> list[Layer2Outcome]:
+    def review(self, jobs: Iterable[dict], should_stop: Callable[[], bool] | None = None) -> list[Layer2Outcome]:
         """Calls Ollama for every book in `jobs` that Lớp 1 left unsure, and records each
         result on that book's smart_classification row (never a hashtag -- see the module
         docstring). Does not send a single request -- whatever `jobs` contains -- unless
@@ -161,6 +161,8 @@ class Layer2ClassifyService:
         taxonomy, base_url, model = self.taxonomy, self.base_url(), self.model()
         outcomes: list[Layer2Outcome] = []
         for job in candidates:
+            if should_stop is not None and should_stop():  # "Dừng" in the wizard: one book is seconds, a library is not
+                break
             try:
                 suggestion = self._caller(job, taxonomy, base_url, model)
                 outcome = Layer2Outcome(

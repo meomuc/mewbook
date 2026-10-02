@@ -631,6 +631,13 @@ class SettingsDialog(QDialog):
         page.add_row("Số tiến trình nền tối đa",
                      "Chạy ở mức ưu tiên thấp; thư viện nhỏ luôn chỉ dùng một tiến trình.", self.smart_workers_spin)
 
+        self.smart_layer2_check = QCheckBox("Bật", page)
+        self.smart_layer2_check.setChecked(bool(config.smart_classify_layer2_enabled))
+        page.add_row("Nhờ AI (Ollama) gợi ý thêm",
+                     "Tùy chọn, mặc định tắt. Cần Ollama chạy trên máy này với mô hình qwen2.5:7b (cùng địa chỉ với AI Tóm tắt); "
+                     "không gửi gì ra Internet. Chỉ hỏi những sách mô hình thường chưa dám đoán, và chỉ là gợi ý để bạn xác nhận.",
+                     self.smart_layer2_check)
+
         for label, description in (
             ("Nguồn dùng để phân loại", "Tên file, thông tin trong file, mục lục, vài trang đầu, AI."),
             ("Mức chắc chắn tối thiểu", "Dưới mức này, sách được để lại cho bạn tự chọn."),
@@ -1094,6 +1101,7 @@ class SettingsDialog(QDialog):
         config.smart_classify_on_import = self.smart_on_import_combo.currentData()
         config.smart_classify_max_words = self.smart_max_words_spin.value()
         config.smart_classify_max_workers = self.smart_workers_spin.value()
+        config.smart_classify_layer2_enabled = self.smart_layer2_check.isChecked()
 
         config.ai_provider = self.ai_provider_combo.currentData()
         config.ai_api_key = self.ai_api_key_edit.text().strip() or None

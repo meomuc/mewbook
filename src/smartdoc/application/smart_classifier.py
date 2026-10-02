@@ -107,11 +107,17 @@ UNSURE_TAG = "Chưa chắc"
 # plain "undecided". Only a display line: it never tags anything and the model's own thresholds (min_score and co.) are untouched.
 SUGGESTION_MIN_CONFIDENCE = 0.5
 
+# Task B4: only these unsure books are worth an Ollama call -- the ones Lớp 1 read text for but could neither decide nor
+# lean to. A guard's verdict (magazine, mixed subjects) is deliberate, a scan has nothing to read, a "suggested" one is
+# already a suggestion.
+LAYER2_REASONS = ("low_confidence", "not_enough_evidence")
+
 UNSURE_REASONS = {
     "no_text": "Không có chữ đọc được (bản quét, có DRM hoặc định dạng không đọc được)",
     "periodical": "Tạp chí, báo: không thuộc thể loại sách nào",
     "mixed_topics": "Nội dung trộn nhiều chủ đề",
     "suggested": "Gợi ý từ mô hình, cần bạn xác nhận",
+    "ai_suggested": "Gợi ý từ AI (Ollama), cần bạn xác nhận",
     "low_confidence": "Mô hình phân vân giữa nhiều thể loại",
     "not_enough_evidence": "Ít chữ hoặc chưa đủ manh mối",
 }
@@ -351,6 +357,30 @@ class SmartClassifyService:
         """(sidebar folder, hashtag, category id) of every category, in the taxonomy's order: what "Gắn hashtag" offers."""
         return [(c.group, c.name, c.id) for c in self.taxonomy]
 
+    def _layer2_pass(self, results: list[dict], plan_jobs: list[dict]) -> list[tuple[str, str, float]]:
+        """Task B4, optional (AppConfig.smart_classify_layer2_enabled, off by default): the books Lớp 1 could not even lean
+        to get a second look from the person's own Ollama. Returns (book id, category name, confidence) hints for the ones
+        it named -- shown under UNSURE_REASONS["ai_suggested"], never tagged: the person confirms like any other suggestion.
+        Never raises: Ollama being off or slow must not lose the Lớp 1 result that is already saved."""
+        from smartdoc.application.classify_layer2 import Layer2ClassifyService
+
+        service = Layer2ClassifyService(self.context, taxonomy=self.taxonomy)
+        if not service.enabled:
+            return []
+        by_id = {job["id"]: job for job in plan_jobs}
+        merged = [{**by_id.get(r["id"], {}), **r} for r in results]
+        hints: list[tuple[str, str, float]] = []
+        try:
+            for outcome in service.review(merged, should_stop=self._cancel.is_set):
+                if outcome.error or outcome.insufficient_evidence or not outcome.category_ids:
+                    continue
+                category = self.taxonomy.get(outcome.category_ids[0])
+                if category is not None:
+                    hints.append((outcome.doc_id, category.name, outcome.confidence))
+        except Exception:  # noqa: BLE001 -- the optional second layer must never take the saved first-layer result down
+            logger.exception("layer 2 pass failed")
+        return hints
+
     def tag_books(self, doc_ids: list[str], label: str) -> tuple[str, int]:
         """The person's own hashtag for these books (from the result list): `label` is a category of the taxonomy (by name or
         alias) or any text they typed. A category files the hashtag under its sidebar folder like an automatic run does; anything
@@ -407,6 +437,7 @@ class SmartClassifyService:
         tagged_items: list[tuple[str, str, str]] = []
         unknown_items: list[tuple[str, str]] = []
         unknown_hints: list[tuple[str, str, float]] = []
+        layer2_jobs: list[dict] = []  # unsure results Lớp 2 (optional, Ollama) may take a second look at, B4
         recent: deque = deque(maxlen=3)
         titles: dict[str, str] = {}
         error = ""
@@ -474,6 +505,8 @@ class SmartClassifyService:
                             unknown_ids.append(result["id"])
                             why = unsure_reason(result)
                             unknown_items.append((result["id"], why))
+                            if why in LAYER2_REASONS and result.get("excerpt"):
+                                layer2_jobs.append(result)
                             if why == "suggested":
                                 unknown_hints.append((result["id"], result["best_name"], float(result.get("confidence") or 0.0)))
                         recent.append((title, ""))
@@ -550,6 +583,11 @@ class SmartClassifyService:
                     flush()
             killed = self._cancel.is_set() or bool(error)
             flush(final=True)
+            if not killed and layer2_jobs:
+                ai_hints = self._layer2_pass(layer2_jobs, plan.jobs)
+                named = {doc_id for doc_id, _name, _confidence in ai_hints}
+                unknown_items[:] = [(doc_id, "ai_suggested" if doc_id in named else why) for doc_id, why in unknown_items]
+                unknown_hints.extend(ai_hints)
         except Exception as exc:
             logger.exception("smart classification job failed")
             error = f"{type(exc).__name__}: {exc}"

@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - **Gợi ý "chưa chắc" có thể nhận nhanh.** Trong danh sách kết quả phân loại, sách mô hình nghiêng về một thể loại
   nhưng chưa đủ chắc nằm ở nhóm mới "Gợi ý từ mô hình, cần bạn xác nhận", ghi sẵn thể loại gợi ý. Chọn nhiều cuốn rồi
   bấm "Nhận gợi ý" để gắn hàng loạt; hashtag "Chưa chắc" được thay bằng thể loại thật như khi gắn tay.
+- **Tùy chọn nhờ AI (Ollama) gợi ý thêm cho sách chưa chắc.** Bật ở Cài đặt › Phân loại (mặc định tắt, cần Ollama chạy
+  trên máy). Sau mỗi lượt phân loại, những sách mô hình chưa dám đoán được hỏi Ollama và hiện ở nhóm "Gợi ý từ AI
+  (Ollama), cần bạn xác nhận" trong danh sách kết quả; không gì được gắn nếu bạn chưa bấm "Nhận gợi ý".
 
 ### Changed
 - **Chữ tĩnh, kết quả và hướng dẫn giờ phân biệt được cả khi không nhìn màu.** Số liệu/trạng thái do MewBook vừa tạo
