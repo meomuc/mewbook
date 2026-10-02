@@ -95,7 +95,7 @@ class LibraryCleanupDialog(DesignDialog):
         self.tree.clear()
         groups = (
             (KIND_TINY, "File quá nhỏ", self.service.tiny(self._limit_bytes())),
-            (KIND_MISSING, "Sách mất file (không còn ở đường dẫn cũ)", self.service.missing()),
+            (KIND_MISSING, "Sách mất file", self.service.missing()),
         )
         for kind, label, docs in groups:
             top = QTreeWidgetItem([f"{label}  ({len(docs):,})".replace(",", "."), "", ""])
