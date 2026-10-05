@@ -219,6 +219,11 @@ class AppConfig:
     # output support, which not every good summarizing model has), so it gets its own field.
     smart_classify_layer2_enabled: bool = False
     smart_classify_layer2_model: str | None = None
+    # Settings > Ảnh bìa: when a book is imported with no local cover, automatically query internet sources with a
+    # high threshold (90 %) and silently apply the top result. Off by default to avoid unexpected network calls.
+    auto_cover_on_import: bool = False
+    # Settings > Đánh giá cộng đồng: draw a small ★ avg_rating badge overlaid on the bottom-right of cover thumbnails.
+    show_community_rating_badge: bool = True
 
 
 SMART_CLASSIFY_ON_IMPORT_CHOICES = ("ask", "always", "never")

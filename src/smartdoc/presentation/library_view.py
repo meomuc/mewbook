@@ -770,7 +770,7 @@ class LibraryListWidget(QWidget):
         self.model = ShelfModel(self, context=context)
         # Reading-list stars: one set lookup per painted cover, refreshed once per reload() (see _starred_ids).
         self._starred_ids: set[str] = set()
-        self.list_view = ShelfView(self, is_starred=self._is_starred, on_toggle=self.toggle_reading_list)
+        self.list_view = ShelfView(self, context=context, is_starred=self._is_starred, on_toggle=self.toggle_reading_list)
         self.list_view.setModel(self.model)
         self.list_view.setIconSize(ICON_SIZE)
         self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)

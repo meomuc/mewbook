@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Cài đặt: tab "Thông tin sách" gộp AI Tóm tắt, Ảnh bìa và Đánh giá cộng đồng.** Ba mục riêng lẻ được gộp vào một
+  pill duy nhất với sub-tab ở trên, giúp danh sách Cài đặt bớt dài (11 → 9 pill). Mọi tùy chọn nội dung đều ở đây;
+  khóa API vẫn ở "Kết nối & Dịch vụ".
+- **Nút "Gom sách…" trong Cài đặt › Quản lý File đã hoạt động.** Mở trực tiếp GatherDialog để sao chép hoặc di chuyển
+  toàn bộ sách về một thư mục (trước đây nút bị khóa "Sắp có").
+
+### Added
+- **Tự tìm ảnh bìa cho sách mới khi nhập (`auto_cover_on_import`).** Nếu không tìm được bìa từ file (PDF trang 1 /
+  EPUB manifest), MewBook tự tra Google Images với ngưỡng khớp >= 90%. Mặc định tắt; bật tại Cài đặt › Thông tin sách
+  › Ảnh bìa.
+- **Huy hiệu điểm cộng đồng trên bìa sách (`show_community_rating_badge`).** Góc dưới phải bìa hiển thị "sao X.X" khi
+  sách có điểm trung bình. Mặc định bật; tắt tại Cài đặt › Thông tin sách › Đánh giá cộng đồng.
+
+### Changed
 - **Cài đặt: tab "Kết nối & Dịch vụ" tập trung mọi cấu hình API.** Khóa API nhà cung cấp AI, Google Images (key + Search
   Engine ID) và Đánh giá cộng đồng (bật/tắt, nick name) nay nằm cùng một tab mới "Kết nối & Dịch vụ". Tab "AI Tóm tắt"
   giữ lại tùy chọn kiểu/độ dài/ngôn ngữ; tab "Ảnh bìa" giữ lại nguồn tra cứu và độ khớp tối thiểu.

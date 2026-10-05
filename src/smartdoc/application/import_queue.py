@@ -440,15 +440,49 @@ class ImportQueueManager:
 
         self.context.db.add_or_update_document(doc_id, clean_metadata, extracted_text)
         # If no cover was extracted (encrypted PDF, cover-less EPUB, etc.), regenerate from first page.
+        regen_ok = False
         if not cover_path and self._cover_regen_svc is not None:
             doc_stub = {"id": doc_id, "file_path": path, "extension": extension}
             try:
-                self._cover_regen_svc.regen_one(doc_stub)  # noqa: BLE001 -- already caught inside regen_one
-            except Exception:
-                pass  # noqa: BLE001 -- cover is a nice-to-have; don't abort the import
+                regen_ok = self._cover_regen_svc.regen_one(doc_stub)
+            except Exception:  # noqa: BLE001 -- cover is a nice-to-have; don't abort the import
+                pass
+        # Auto internet cover search: only when local extraction also failed and the user opted in.
+        if not cover_path and not regen_ok and self.context.config.config.auto_cover_on_import:
+            self._auto_search_cover(doc_id, clean_metadata)
         self.context.event_bus.publish(DocumentIndexedEvent(doc_id=doc_id, batch_id=batch_id))
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return "success"
+
+    def _auto_search_cover(self, doc_id: str, metadata: dict) -> None:
+        """Silently fetch the best-matching internet cover (≥ 90 %) for a newly imported book that has no cover.
+        Imported lazily to keep the GUI process light (cover_search pulls in requests)."""
+        try:
+            from smartdoc.application.cover_search import download_cover_image, search_covers  # noqa: PLC0415
+            from smartdoc.infrastructure.cover_manager import CoverCacheManager  # noqa: PLC0415
+
+            config = self.context.config.config
+            title = (metadata.get("title") or "").strip()
+            if not title:
+                return
+            results = search_covers(
+                title,
+                metadata.get("author") or "",
+                limit=1,
+                google_api_key=config.google_image_api_key,
+                google_cx=config.google_image_search_cx,
+                min_score=0.9,
+                disabled_sources=config.disabled_cover_sources,
+            )
+            if not results:
+                return
+            image_bytes = download_cover_image(results[0], validate=True)
+            if image_bytes:
+                saved = CoverCacheManager(self.context).save_cover(doc_id, image_bytes)
+                if saved:
+                    self.context.db.update_document_cover(doc_id, saved)
+        except Exception:  # noqa: BLE001 -- cover is a nice-to-have; don't abort the import
+            logger.exception("auto_cover: internet search failed for doc %s", doc_id)
 
 
 if __name__ == "__main__":

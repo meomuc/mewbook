@@ -1,4 +1,4 @@
-"""Settings window (stage G9): a column of ten pills on the left and one page per pill on the right.
+﻿"""Settings window (stage G9): a column of ten pills on the left and one page per pill on the right.
 
 Pages: Quản lý File, Giao diện (seven theme cards + both font axes), Hiệu năng (every option says what raising and
 lowering it does), Phân loại, AI Tóm tắt, Ảnh bìa, Đánh giá cộng đồng, Sao lưu, Cập nhật & ủng hộ, Quyền riêng tư.
@@ -146,7 +146,7 @@ class SettingsDialog(QDialog):
     FOLDER_LIST_MAX_ROWS = 5  # the watched-folders box grows up to this many rows, then scrolls
 
     # -- frame ------------------------------------------------------------------------------------------------------
-    _PAGE_KEYS = ("file", "theme", "perf", "classify", "api", "ai", "cover", "reviews", "backup", "update", "privacy")
+    _PAGE_KEYS = ("file", "theme", "perf", "classify", "api", "bookinfo", "backup", "update", "privacy")
 
     def __init__(self, context, parent=None, watcher=None, import_manager=None, initial_tab: str | None = None) -> None:
         super().__init__(parent)
@@ -179,9 +179,7 @@ class SettingsDialog(QDialog):
             ("bolt", "Hiệu năng", self._build_performance_tab(config)),
             ("tag", "Phân loại", self._build_smart_classify_tab(config)),
             ("globe", "Kết nối & Dịch vụ", self._build_api_tab(config)),
-            ("bot", "AI Tóm tắt", self._build_ai_tab(config)),
-            ("image", "Ảnh bìa", self._build_cover_search_tab(config)),
-            ("star", "Đánh giá cộng đồng", self._build_reviews_tab(config)),
+            ("book", "Thông tin sách", self._build_bookinfo_tab(config)),
             ("archive", "Sao lưu", self.backup_panel),
             ("download", "Cập nhật & ủng hộ", self._add_donation(self.update_panel)),
             ("shield", "Quyền riêng tư", self.privacy_panel),
@@ -301,9 +299,10 @@ class SettingsDialog(QDialog):
         page.add_row("Nhập từ Calibre", "Đọc thư viện Calibre của bạn; Calibre không bị thay đổi.", self.calibre_button)
 
         page.add_block(add_note_box(page, "<b>MewBook không bao giờ di chuyển, đổi tên hay xóa file sách gốc của bạn.</b> "
-                                    "Chỉ khi chính bạn chọn (chuyển file trùng vào Thùng rác của MewBook, hoặc “Gom sách” bằng cách di chuyển), và luôn có bước xác nhận.", "ok"))
-        page.add_row("Gom sách về một thư mục", "Sao chép hoặc di chuyển sách về một nơi cho gọn.", QPushButton("Gom sách…", page),
-                     soon=True)
+                                    "Chỉ khi chính bạn chọn (chuyển file trùng vào Thùng rác của MewBook, hoặc \"Gom sách\" bằng cách di chuyển), và luôn có bước xác nhận.", "ok"))
+        self.gather_button = QPushButton("Gom sách…", page)
+        self.gather_button.clicked.connect(self._on_open_gather)
+        page.add_row("Gom sách về một thư mục", "Sao chép hoặc di chuyển sách về một nơi cho gọn.", self.gather_button)
 
         ereader = QWidget(page)
         ereader_row = QHBoxLayout(ereader)
@@ -870,10 +869,12 @@ class SettingsDialog(QDialog):
         page.add_row("Độ khớp tối thiểu", "Thấp hơn: ra nhiều kết quả hơn, có thể kém liên quan. Cao hơn: ít kết quả, sát hơn. "
                      "Mỗi kết quả vẫn hiện % khớp của nó.", self.cover_match_spin)
 
-        page.add_row("Tự tìm bìa cho sách mới", "Chỉ thay khi khớp từ 90% trở lên.", QCheckBox("Bật", page), soon=True)
+        self.auto_cover_check = QCheckBox("Bật", page)
+        self.auto_cover_check.setChecked(config.auto_cover_on_import)
+        page.add_row("Tự tìm bìa cho sách mới", "Chỉ thay khi khớp từ 90% trở lên.", self.auto_cover_check)
         return page
 
-    def _build_reviews_tab(self, _config) -> QWidget:
+    def _build_reviews_tab(self, config) -> QWidget:
         """Privacy summary for community reviews. Connection settings (toggle, server, nickname) are in 'Kết nối & Dịch vụ'."""
         page = SettingsPage("Đánh giá cộng đồng",
                             "Xem và viết nhận xét về sách cùng những người dùng MewBook khác. "
@@ -882,8 +883,34 @@ class SettingsDialog(QDialog):
             page,
             "<b>Chỉ gửi</b> khi bạn đăng bài: nick name, số sao, nhận xét và mã của cuốn sách.<br>"
             "<b>Không gửi:</b> file sách, đường dẫn, tên máy, hay danh sách sách của bạn.", "ok"))
-        page.add_row("Hiện điểm cộng đồng trên bìa", "Một huy hiệu nhỏ ở góc bìa sách.", QCheckBox("Bật", page), soon=True)
+        self.community_badge_check = QCheckBox("Bật", page)
+        self.community_badge_check.setChecked(config.show_community_rating_badge)
+        page.add_row("Hiện điểm cộng đồng trên bìa", "Một huy hiệu nhỏ ở góc bìa sách.", self.community_badge_check)
         return page
+
+    def _build_bookinfo_tab(self, config) -> QWidget:
+        """Parent tab grouping 'AI Tóm tắt', 'Ảnh bìa' and 'Đánh giá cộng đồng' under one pill."""
+        tm = theme_manager()
+        container = QWidget(self)
+        inner = QTabWidget(container)
+        inner.setDocumentMode(True)
+        inner.setTabPosition(QTabWidget.North)
+        inner.setStyleSheet(
+            f"QTabWidget::pane {{ border: 0; }}"
+            f" QTabBar {{ background: {tm.token('surface2')}; border-bottom: 1px solid {tm.token('line')}; }}"
+            f" QTabBar::tab {{ padding: 8px 20px; font-size: 13px; color: {tm.token('ink2')}; border: none; }}"
+            f" QTabBar::tab:selected {{ color: {tm.token('ink')}; font-weight: 600;"
+            f"   border-bottom: 2px solid {tm.token('accent')}; background: transparent; }}"
+            f" QTabBar::tab:hover {{ color: {tm.token('ink')}; background: transparent; }}"
+        )
+        inner.addTab(self._build_ai_tab(config), "AI Tóm tắt")
+        inner.addTab(self._build_cover_search_tab(config), "Ảnh bìa")
+        inner.addTab(self._build_reviews_tab(config), "Đánh giá cộng đồng")
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(inner)
+        return container
 
     def _config_with_switch(self):
         """The saved config with the checkbox as it is now (before "Đóng" saves it), for the status line."""
@@ -1035,6 +1062,12 @@ class SettingsDialog(QDialog):
         tm = theme_manager()
         self.reviews_test_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
 
+    def _on_open_gather(self) -> None:
+        from smartdoc.presentation.gather_dialog import GatherDialog
+        dialog = GatherDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+
     def _on_add_folder(self) -> None:
         start_dir = self.context.config.config.last_used_directory or ""
         folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi", start_dir)
@@ -1173,6 +1206,7 @@ class SettingsDialog(QDialog):
         config.ai_base_url = self.ai_base_url_edit.text().strip().rstrip("/") or None
 
         config.cover_match_percent = self.cover_match_spin.value()
+        config.auto_cover_on_import = self.auto_cover_check.isChecked()
         config.google_image_api_key = self.google_image_api_key_edit.text().strip() or None
         config.google_image_search_cx = self.google_image_cx_edit.text().strip() or None
         # Keep entries this tab has no checkbox for (e.g. a hand-added "Google Images").
@@ -1187,6 +1221,7 @@ class SettingsDialog(QDialog):
         config.ai_summary_length = self.ai_summary_length_combo.currentData()
         config.ai_summary_language = self.ai_summary_language_combo.currentData()
         config.community_reviews_enabled = self.community_reviews_check.isChecked()
+        config.show_community_rating_badge = self.community_badge_check.isChecked()
         config.reviewer_nickname = self.reviewer_nickname_edit.text().strip()
         old_page_size = config.page_size
         config.page_size = self.page_size_combo.currentData()

@@ -69,8 +69,9 @@ class _Shelf:
 
 
 class ShelfView(QAbstractItemView):
-    def __init__(self, parent=None, *, is_starred=None, on_toggle=None) -> None:
+    def __init__(self, parent=None, *, context=None, is_starred=None, on_toggle=None) -> None:
         super().__init__(parent)
+        self._context = context
         self._is_starred = is_starred or (lambda _doc_id: False)
         self._on_toggle = on_toggle or (lambda _doc_id: None)
         self._icon_size = QSize(120, int(120 * 1.42))
@@ -492,6 +493,7 @@ class ShelfView(QAbstractItemView):
             self._paint_placeholder(painter, cover, doc, tm)
 
         self._paint_format_chip(painter, cover, doc)
+        self._paint_rating_badge(painter, cover, doc)
         self._paint_star(painter, cover, doc, tm)
         if doc.get("file_status") == "missing":
             self._paint_missing(painter, cover, tm)
@@ -608,6 +610,33 @@ class ShelfView(QAbstractItemView):
         painter.setFont(font)
         painter.setPen(QColor(255, 255, 255))
         painter.drawText(chip, Qt.AlignCenter, extension)
+        painter.restore()
+
+    def _paint_rating_badge(self, painter: QPainter, cover: QRect, doc: dict) -> None:
+        """Small ★ avg_rating pill at the bottom-right of the cover when the setting is on.
+        Dark semi-transparent background (same overlay pattern as the format chip) ensures
+        readability regardless of cover art colour."""
+        if self._context is None or not self._context.config.config.show_community_rating_badge:
+            return
+        rating = doc.get("avg_rating")
+        if not rating:
+            return
+        badge_text = f"★ {float(rating):.1f}"
+        font = QFont(theme_manager().font_family("ui"))
+        font.setPixelSize(10)
+        font.setWeight(QFont.DemiBold)
+        metrics = QFontMetrics(font)
+        pad_x, pad_y = 5, 2
+        badge_w = metrics.horizontalAdvance(badge_text) + pad_x * 2
+        badge_h = metrics.height() + pad_y * 2
+        chip = QRect(cover.right() - badge_w - 5, cover.bottom() - badge_h - 5, badge_w, badge_h)
+        painter.save()
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 150))  # semi-transparent overlay; not themed — must contrast any cover
+        painter.drawRoundedRect(chip, 3, 3)
+        painter.setFont(font)
+        painter.setPen(QColor(255, 255, 255))   # white on dark overlay is always readable
+        painter.drawText(chip, Qt.AlignCenter, badge_text)
         painter.restore()
 
     def _paint_star(self, painter: QPainter, cover: QRect, doc: dict, tm) -> None:

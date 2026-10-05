@@ -519,15 +519,12 @@ def test_a_full_folder_box_does_not_push_the_other_settings_off_the_window(qapp,
 # --- the community-review page: on/off, nickname, and what is (not) sent ---
 
 
-def test_settings_have_eleven_pages_in_the_designed_order(qapp, app_context):
-    from PySide6.QtWidgets import QTabWidget
-
+def test_settings_have_nine_pages_in_the_designed_order(qapp, app_context):
     dialog = SettingsDialog(app_context)
-    tabs = dialog.findChild(QTabWidget)
-    names = [tabs.tabText(i) for i in range(tabs.count())]
+    names = [dialog.tabs.tabText(i) for i in range(dialog.tabs.count())]
     assert names == ["Quản lý File", "Giao diện", "Hiệu năng", "Phân loại", "Kết nối & Dịch vụ",
-                     "AI Tóm tắt", "Ảnh bìa", "Đánh giá cộng đồng", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
-    assert dialog.pills.count() == 11 and not hasattr(dialog, "supabase_url_edit")
+                     "Thông tin sách", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
+    assert dialog.pills.count() == 9 and not hasattr(dialog, "supabase_url_edit")
 
 
 def test_the_pills_drive_the_pages(qapp, app_context):
@@ -586,7 +583,7 @@ def test_coming_soon_rows_are_disabled(qapp, app_context):
 
     dialog = SettingsDialog(app_context)
     badges = [label for label in dialog.findChildren(QLabel) if label.text() == "Sắp có"]
-    assert len(badges) >= 5
+    assert len(badges) >= 3
     assert all(not label.parent().isEnabled() for label in badges)
 
 
@@ -599,3 +596,23 @@ def test_saving_settings_keeps_an_existing_community_review_connection(qapp, app
 
     assert app_context.config.config.supabase_url == "https://saved.supabase.co"
     assert app_context.config.config.supabase_anon_key == "saved-key"
+
+
+def test_auto_cover_on_import_is_saved(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.auto_cover_check.setChecked(True)
+    dialog._on_save()
+    assert app_context.config.config.auto_cover_on_import is True
+    dialog.auto_cover_check.setChecked(False)
+    dialog._on_save()
+    assert app_context.config.config.auto_cover_on_import is False
+
+
+def test_community_rating_badge_is_saved(qapp, app_context):
+    dialog = SettingsDialog(app_context)
+    dialog.community_badge_check.setChecked(False)
+    dialog._on_save()
+    assert app_context.config.config.show_community_rating_badge is False
+    dialog.community_badge_check.setChecked(True)
+    dialog._on_save()
+    assert app_context.config.config.show_community_rating_badge is True
