@@ -86,8 +86,11 @@ def test_the_key_tabs_use_plain_words(qapp, app_context, tab_name):
     """The AI and cover-search tabs (where the API-key guides live). The community-review tab is left out on
     purpose: it is for whoever runs the server, and the SQL and table names there are what they must copy."""
     dialog = SettingsDialog(app_context)
-    tabs = dialog.extension_flow.window().findChild(QTabWidget)
-    tab = next(tabs.widget(i) for i in range(tabs.count()) if tab_name in tabs.tabText(i))
+    # "AI Tóm tắt" and "Ảnh bìa" live inside the "Thông tin sách" pill as a nested QTabWidget.
+    outer = dialog.extension_flow.window().findChild(QTabWidget)
+    bookinfo = next(outer.widget(i) for i in range(outer.count()) if "Thông tin sách" in outer.tabText(i))
+    inner = bookinfo.findChild(QTabWidget)
+    tab = next(inner.widget(i) for i in range(inner.count()) if tab_name in inner.tabText(i))
     dialog.ai_provider_combo.setCurrentIndex(dialog.ai_provider_combo.findData("ollama"))  # show a real guide too
 
     assert _offences(_texts(tab)) == []
