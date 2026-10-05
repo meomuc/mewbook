@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
         menu.addAction("Dọn dẹp thư viện…", self._on_open_library_cleanup)
         menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
         menu.addAction(vi.TOOL_CONVERT_FORMAT, self._on_convert_format)
+        menu.addAction("Tạo bìa từ trang đầu (sách chưa có bìa)…", self._on_regen_covers)
         menu.addSeparator()
         menu.addAction(vi.TOOL_EXPORT, self._on_export_library)
         menu.addAction(vi.TOOL_BACKUP, lambda: self._on_open_settings(initial_tab="backup"))
@@ -433,6 +434,30 @@ class MainWindow(QMainWindow):
         dialog = RelinkDialog(self.context, self)
         dialog.exec()
         dialog.deleteLater()
+
+    def _on_regen_covers(self) -> None:
+        from smartdoc.application.cover_regen import CoverRegenService
+        from smartdoc.presentation.task_progress_dialog import run_with_progress
+
+        svc = CoverRegenService(self.context)
+        pending = svc.pending()
+        if not pending:
+            QMessageBox.information(self, "Tạo bìa từ trang đầu", "Tất cả sách đã có bìa.")
+            return
+        msg = f"Sẽ tạo bìa cho {len(pending)} sách chưa có bìa (PDF và EPUB)."
+
+        def work(progress):
+            return svc.regen_all(progress=progress)
+
+        result, error = run_with_progress(
+            self, title="Tạo bìa", message=msg,
+            work=work, delay_ms=300,
+            hint="Đọc trang đầu tiên của từng file — có thể mất vài phút với thư viện lớn.")
+        if error:
+            QMessageBox.warning(self, "Tạo bìa", f"Có lỗi: {error}")
+        elif result is not None:
+            done, total = result
+            QMessageBox.information(self, "Tạo bìa từ trang đầu", f"Đã tạo bìa: {done}/{total} sách.")
 
     def _on_open_library_cleanup(self) -> None:
         dialog = LibraryCleanupDialog(self.context, self, on_relink=self._on_open_relink)

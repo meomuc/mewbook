@@ -1147,6 +1147,17 @@ class DatabaseManager:
             )
             self.connection.commit()
 
+    def documents_without_cover(self) -> list[dict]:
+        """All PDF/EPUB documents that have no cover_path and are not missing from disk."""
+        rows = self.connection.execute(
+            "SELECT id, file_path, extension FROM documents"
+            " WHERE (cover_path IS NULL OR cover_path = '')"
+            "   AND COALESCE(file_status, '') != 'missing'"
+            "   AND lower(extension) IN ('pdf', 'epub')"
+            " ORDER BY created_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def update_rating_stats(self, doc_id: str, avg_rating: float | None, review_count: int) -> None:
         """Caches Supabase-side review aggregates locally so the list view's
         rating/review-count columns and the "highest rated" sort can read
