@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+- **Tạo bìa từ trang đầu.** Mục mới "Tạo bìa từ trang đầu (sách chưa có bìa)…" trong menu Công cụ xử lý hàng loạt mọi
+  PDF/EPUB chưa có ảnh bìa: PDF dùng trang đầu tiên, EPUB lấy ảnh bìa từ manifest. Tiến trình hiện trong cửa sổ chờ;
+  sách mất file hoặc trên đám mây bị bỏ qua tự động.
+- **Chuyển đổi định dạng native (không cần Calibre).** EPUB→PDF và EPUB→TXT nay dùng PyMuPDF (đã có trong MewBook), không
+  cần Calibre. Các cặp khác (EPUB↔MOBI/AZW3, PDF→EPUB…) vẫn dùng Calibre như cũ khi có sẵn.
+- **Tìm file trùng: 4 cải tiến UI.** (1) Cột "Vị trí file" hiện ổ đĩa + … + 2 thư mục cuối (không tên file); click mở
+  Explorer đến thư mục đó. (2) Cột STT + màu nền xanh/cam phân biệt bản giữ / bản xóa sau khi chọn. (3) Nút "Mở Thùng
+  rác…" dời sang footer cạnh nút "Xong". (4) Header nhóm có nền surface2, panel trái có thể kéo rộng.
+- **Đổi tên menu:** "Cập nhật thông tin sách…" → "Cập nhật thông tin sách hàng loạt…" cho rõ phạm vi hàng loạt.
+
 ### Fixed
 - **Phân loại thông minh không còn bỏ sót phần lớn sách vì nhầm là "nội dung trộn nhiều chủ đề".** Trên thư viện thật,
   tỷ lệ sách có hashtag thể loại tăng từ 26% lên khoảng 79% mà không hạ ngưỡng tự tin hay huấn luyện lại. Sách thật sự
