@@ -47,14 +47,20 @@ MAX_PER_SOURCE = 4
 
 SOURCE_FILE = "Trong file"
 SOURCE_LIBRARY = "Thư viện của bạn"
+SOURCE_COMMUNITY = "Cộng đồng MewBook"   # Tier 2 -- between local library and internet
 SOURCE_OPEN_LIBRARY = cs.SOURCE_OPEN_LIBRARY
 SOURCE_GOOGLE_BOOKS = cs.SOURCE_GOOGLE_BOOKS
 SOURCE_APPLE_BOOKS = cs.SOURCE_APPLE_BOOKS
 
-# Whether a source's terms let its data be shared onward (community phase). Open
-# Library data is open; Google's and Apple's are assumed NOT to allow redistribution
-# until their terms have been reviewed -- see the spec, §6.
-_SHAREABLE = {SOURCE_OPEN_LIBRARY: True, SOURCE_GOOGLE_BOOKS: False, SOURCE_APPLE_BOOKS: False}
+# Whether a source's terms let its data be shared onward. Open Library is open;
+# Google/Apple are NOT until terms are reviewed (spec §6); community data is not
+# re-shared (it already came from the community).
+_SHAREABLE = {
+    SOURCE_OPEN_LIBRARY: True,
+    SOURCE_GOOGLE_BOOKS: False,
+    SOURCE_APPLE_BOOKS: False,
+    SOURCE_COMMUNITY: False,
+}
 
 _LANGUAGES = {
     "vie": "vi", "eng": "en", "fre": "fr", "fra": "fr", "ger": "de", "deu": "de", "chi": "zh", "zho": "zh",
@@ -326,7 +332,11 @@ class MetadataLookupService:
         local = self._from_library(doc, wanted_title, wanted_author, embedded, min_score)
         result.candidates.extend(local)
 
-        confident = any(c.score >= CONFIDENT_SCORE for c in local)
+        # Tier 2: community database (between local library and the open internet).
+        community = self._from_community(doc, wanted_title, wanted_author, embedded, min_score)
+        result.candidates.extend(community)
+
+        confident = any(c.score >= CONFIDENT_SCORE for c in local + community)
         if include_internet or not confident:
             internet, errors = self._from_internet(wanted_title, wanted_author, self._known_isbn(doc, embedded), min_score)
             result.candidates.extend(internet)
@@ -391,6 +401,66 @@ class MetadataLookupService:
             if fields:
                 candidates.append(MetadataCandidate(SOURCE_LIBRARY, 1, fields, score, shareable=False))
         return sorted(candidates, key=lambda c: -c.score)
+
+    # -- tier 2 --------------------------------------------------------------------
+
+    def _from_community(
+        self,
+        doc: dict,
+        wanted_title: str,
+        wanted_author: str,
+        embedded: MetadataCandidate | None,
+        min_score: float,
+    ) -> list[MetadataCandidate]:
+        """Query the community-metadata Supabase table for this book.
+
+        Only runs when ``community_metadata_enabled`` is True in the config
+        and a review endpoint is reachable; returns an empty list on any
+        network failure (never raises) so the dialog still opens.
+        """
+        config = self.context.config.config
+        if not config.community_metadata_enabled:
+            return []
+
+        from smartdoc.application.community_metadata_sync import (
+            CommunityMetadataSync,
+            CommunityMetadataSyncError,
+            make_fingerprint,
+        )
+        from smartdoc.application.review_endpoint import resolve_review_endpoint
+
+        endpoint = resolve_review_endpoint(config)
+        if endpoint is None:
+            return []
+
+        isbn = self._known_isbn(doc, embedded)
+        fingerprint = make_fingerprint(wanted_title, wanted_author, isbn or None)
+
+        try:
+            row = CommunityMetadataSync(endpoint.url, endpoint.anon_key).fetch(fingerprint)
+        except CommunityMetadataSyncError as exc:
+            logger.debug("community metadata fetch failed: %s", exc)
+            return []
+
+        if row is None:
+            return []
+
+        fields = _clean_fields({
+            "title": row.get("title"),
+            "author": row.get("author"),
+            "publisher": row.get("publisher"),
+            "pub_year": row.get("pub_year"),
+            "language": row.get("language"),
+            "isbn": row.get("isbn"),
+        })
+        if not fields:
+            return []
+
+        score = _score(row.get("title", ""), row.get("author", ""), wanted_title, wanted_author, SOURCE_COMMUNITY)
+        if score < min_score:
+            return []
+
+        return [MetadataCandidate(SOURCE_COMMUNITY, 2, fields, score, shareable=False)]
 
     # -- tier 3 --------------------------------------------------------------------
 

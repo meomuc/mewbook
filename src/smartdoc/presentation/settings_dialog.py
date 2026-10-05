@@ -807,6 +807,28 @@ class SettingsDialog(QDialog):
         reviews_test_layout.addWidget(self.reviews_test_status_label)
         page.add_row("Thử kết nối", "Xác nhận máy chủ đánh giá đang hoạt động.", reviews_test_box)
 
+        # --- Community metadata section ---
+        section_meta = QLabel("Đồng bộ metadata cộng đồng", page)
+        section_meta.setStyleSheet(f"color: {tm.token('ink')}; font-weight: 600; padding: 16px 0 2px 0;")
+        page.add_block(section_meta)
+
+        self.community_metadata_check = QCheckBox("Nhận thông tin sách từ cộng đồng", page)
+        self.community_metadata_check.setChecked(config.community_metadata_enabled)
+        self.community_metadata_check.toggled.connect(self._on_community_metadata_toggled)
+        page.add_row(
+            "Tra cứu từ cộng đồng",
+            "Khi tra thông tin sách, MewBook tìm thêm từ cơ sở dữ liệu chung trước khi ra Internet.",
+            self.community_metadata_check,
+        )
+
+        self.community_metadata_contribute_check = QCheckBox("Đóng góp thông tin sách (ẩn danh)", page)
+        self.community_metadata_contribute_check.setChecked(config.community_metadata_contribute)
+        page.add_row(
+            "Đóng góp metadata",
+            "Khi bạn xác nhận thông tin từ Open Library, MewBook gửi ẩn danh về cơ sở dữ liệu chung.",
+            self.community_metadata_contribute_check,
+        )
+
         return page
 
     def _build_ai_tab(self, config) -> QWidget:
@@ -911,6 +933,62 @@ class SettingsDialog(QDialog):
         layout.setSpacing(0)
         layout.addWidget(inner)
         return container
+
+    def _on_community_metadata_toggled(self, checked: bool) -> None:
+        """Show a one-time consent dialog when the user first enables community metadata."""
+        if not checked:
+            return
+        config = self.context.config.config
+        if config.community_metadata_consent_version >= 1:
+            return  # already consented; no need to ask again
+
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Đồng bộ metadata cộng đồng")
+        dlg.setMinimumWidth(420)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 16, 20, 16)
+
+        info = QTextBrowser(dlg)
+        info.setReadOnly(True)
+        info.setOpenExternalLinks(False)
+        info.setFrameStyle(0)
+        info.setHtml(
+            "<p><b>MewBook sẽ làm gì khi tính năng này bật:</b></p>"
+            "<ul>"
+            "<li>Tra cứu tên sách, tác giả, ISBN… từ cơ sở dữ liệu chung của cộng đồng khi bạn dùng "
+            "<em>Tìm thông tin sách</em>.</li>"
+            "<li>Nếu bạn bật thêm <em>Đóng góp metadata</em>, MewBook gửi thông tin sách "
+            "(tên, tác giả, ISBN…) tới cơ sở dữ liệu đó một cách <b>ẩn danh</b>.</li>"
+            "</ul>"
+            "<p><b>MewBook không bao giờ:</b></p>"
+            "<ul>"
+            "<li>Gửi file sách của bạn.</li>"
+            "<li>Gắn danh tính cá nhân vào bất kỳ dữ liệu nào.</li>"
+            "</ul>"
+            "<p>Bạn có thể tắt bất cứ lúc nào trong Cài đặt › Kết nối &amp; Dịch vụ.</p>"
+        )
+        info.setMaximumHeight(220)
+        layout.addWidget(info)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, dlg)
+        buttons.button(QDialogButtonBox.Ok).setText("Đồng ý")
+        buttons.button(QDialogButtonBox.Cancel).setText("Hủy")
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() == QDialog.Accepted:
+            # Persist consent flag immediately so a later "Cancel" on the settings
+            # dialog doesn't lose it (the user agreed; only an explicit untick revokes).
+            self.context.config.config.community_metadata_consent_version = 1
+        else:
+            # User cancelled consent: uncheck the box without re-triggering the signal.
+            self.community_metadata_check.blockSignals(True)
+            self.community_metadata_check.setChecked(False)
+            self.community_metadata_check.blockSignals(False)
+        dlg.deleteLater()
 
     def _config_with_switch(self):
         """The saved config with the checkbox as it is now (before "Đóng" saves it), for the status line."""
@@ -1223,6 +1301,8 @@ class SettingsDialog(QDialog):
         config.community_reviews_enabled = self.community_reviews_check.isChecked()
         config.show_community_rating_badge = self.community_badge_check.isChecked()
         config.reviewer_nickname = self.reviewer_nickname_edit.text().strip()
+        config.community_metadata_enabled = self.community_metadata_check.isChecked()
+        config.community_metadata_contribute = self.community_metadata_contribute_check.isChecked()
         old_page_size = config.page_size
         config.page_size = self.page_size_combo.currentData()
         config.cover_cache_mb = self.cover_cache_combo.currentData()

@@ -119,6 +119,11 @@ class AppConfig:
     cover_cache_mb: int = 0
     # Settings > Đánh giá cộng đồng: switch the whole feature off (nothing is fetched or sent).
     community_reviews_enabled: bool = True
+    # Settings > Kết nối & Dịch vụ: community metadata sync. Off until the user consents.
+    # consent_version 0 = never asked; 1 = agreed to the current wording.
+    community_metadata_enabled: bool = False
+    community_metadata_contribute: bool = False
+    community_metadata_consent_version: int = 0
     sidebar_width: int = 0
     detail_width: int = 0
     # Sidebar filter sections the user folded away ("tags", "authors", "formats").

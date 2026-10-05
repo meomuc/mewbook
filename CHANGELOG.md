@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+- **Đồng bộ metadata cộng đồng — Tier 2 trong tra cứu thông tin sách.** Khi bật "Nhận thông tin sách từ cộng đồng"
+  (Cài đặt › Kết nối & Dịch vụ), `MetadataLookupService` tra thêm cơ sở dữ liệu chung (Supabase) giữa thư viện cục
+  bộ và Internet, theo đúng thứ tự: Trong file → Thư viện của bạn → **Cộng đồng MewBook** → Internet. Mặc định tắt;
+  yêu cầu xác nhận đồng ý một lần trước khi bật.
+- **Đóng góp metadata ẩn danh (`community_metadata_contribute`).** Khi xác nhận kết quả từ Open Library, MewBook có thể
+  gửi thông tin sách (tên, tác giả, ISBN…) ẩn danh lên cơ sở dữ liệu chung để người dùng khác hưởng lợi. Tắt mặc định;
+  bật tại Cài đặt › Kết nối & Dịch vụ › Đồng bộ metadata cộng đồng.
+- **SQL migration `004_community_metadata.sql`** — bảng `public.community_metadata` + RPC `contribute_metadata(text, jsonb)`
+  cho Supabase (chỉ owner chạy; xem `docs/handoff/OWNER_ACTIONS.md`).
+- **`MetadataSyncStatusEvent`** — sự kiện mới trong EventBus để layer UI theo dõi trạng thái đồng bộ metadata.
+
 ### Changed
 - **Cài đặt: tab "Thông tin sách" gộp AI Tóm tắt, Ảnh bìa và Đánh giá cộng đồng.** Ba mục riêng lẻ được gộp vào một
   pill duy nhất với sub-tab ở trên, giúp danh sách Cài đặt bớt dài (11 → 9 pill). Mọi tùy chọn nội dung đều ở đây;

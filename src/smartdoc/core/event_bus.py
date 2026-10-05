@@ -99,6 +99,20 @@ class LibraryFilesMissingEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class MetadataSyncStatusEvent(BaseEvent):
+    """Community-metadata sync changed state (application/community_metadata_sync.py).
+
+    Fired by MetadataLookupService when a Tier-2 fetch completes or fails, and
+    by MetadataApplier when a contribution is sent.  The status bar subscribes
+    to update its cloud zone tooltip.
+    """
+
+    state: str = "idle"   # "fetching" | "contributed" | "error" | "idle"
+    count: int = 0        # documents touched in this operation
+    message: str = ""     # short human-readable detail (empty = no tooltip change)
+
+
+@dataclass(frozen=True)
 class BackgroundTaskEvent(BaseEvent):
     """A job is running on a background thread (or has just ended): `task` names it, `done` of `total` is how far
     it got (`total` 0 = unknown). Shown in the status bar's left zone so a busy disk -- or a long "Chạy nền" job
