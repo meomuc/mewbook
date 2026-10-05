@@ -52,3 +52,26 @@ def review_state(config, builtin: tuple[str, str] | None = None) -> str:
     if not config.community_reviews_enabled:
         return STATE_OFF
     return STATE_ON if resolve_review_endpoint(config, builtin) is not None else STATE_NO_SERVER
+
+
+class ReviewConnectionError(Exception):
+    """Raised when the reviews server cannot be reached or is not configured."""
+
+
+def test_connection(config) -> str:
+    """Probe the reviews server. Returns a success message or raises ReviewConnectionError.
+    A 4xx response still counts as success (server is up, just declining the anonymous request)."""
+    import requests as _requests  # noqa: PLC0415
+
+    endpoint = resolve_review_endpoint(config)
+    if endpoint is None:
+        raise ReviewConnectionError("Bản này chưa có máy chủ đánh giá. Tính năng không khả dụng.")
+    try:
+        resp = _requests.head(endpoint.url.rstrip("/") + "/rest/v1/", timeout=5)
+        if resp.status_code < 500:
+            return "Kết nối thành công đến máy chủ đánh giá."
+        raise ReviewConnectionError(f"Máy chủ trả về lỗi {resp.status_code}.")
+    except ReviewConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 -- network errors are expected here
+        raise ReviewConnectionError(f"Không kết nối được: {exc}") from exc

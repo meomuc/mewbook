@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Changed
+- **Cài đặt: tab "Kết nối & Dịch vụ" tập trung mọi cấu hình API.** Khóa API nhà cung cấp AI, Google Images (key + Search
+  Engine ID) và Đánh giá cộng đồng (bật/tắt, nick name) nay nằm cùng một tab mới "Kết nối & Dịch vụ". Tab "AI Tóm tắt"
+  giữ lại tùy chọn kiểu/độ dài/ngôn ngữ; tab "Ảnh bìa" giữ lại nguồn tra cứu và độ khớp tối thiểu.
+- **Nút "Kiểm tra kết nối" cho máy chủ Đánh giá cộng đồng.** Tương tự nút kiểm tra đã có cho AI và Google Images — bấm
+  để xác nhận máy chủ đánh giá đang hoạt động; kết quả hiển thị ngay dưới nút.
+
 ### Added
 - **Chuyển đổi định dạng native mở rộng (Batch 2).** PDF→TXT và TXT→EPUB nay chạy trực tiếp qua PyMuPDF / ebooklib,
   không cần Calibre. Dialog hiện nhãn "(không cần Calibre)" hoặc "(dùng Calibre)" cho từng cuốn. Khi Calibre chưa cài,

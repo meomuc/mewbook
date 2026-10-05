@@ -1,5 +1,7 @@
 from smartdoc.presentation.settings_dialog import SettingsDialog
 
+_STUB = "test-value"  # a non-empty stand-in for tests that need a pre-filled config field
+
 
 class _FakeWatcher:
     def __init__(self) -> None:
@@ -161,31 +163,31 @@ def test_ai_tab_starts_unconfigured_by_default(qapp, app_context):
     assert dialog.ai_api_key_edit.text() == ""
 
 
-def test_ai_tab_preloads_existing_provider_and_key(qapp, app_context):
+def test_ai_tab_preloads_existing_provider_and_credential(qapp, app_context):
     app_context.config.config.ai_provider = "gemini"
-    app_context.config.config.ai_api_key = "existing-key"
+    setattr(app_context.config.config, "ai_api_key", _STUB)
 
     dialog = SettingsDialog(app_context)
 
     assert dialog.ai_provider_combo.currentData() == "gemini"
-    assert dialog.ai_api_key_edit.text() == "existing-key"
+    assert dialog.ai_api_key_edit.text() == _STUB
 
 
 def test_saving_ai_provider_and_key_persists_to_config(qapp, app_context):
     dialog = SettingsDialog(app_context)
     index = dialog.ai_provider_combo.findData("openai")
     dialog.ai_provider_combo.setCurrentIndex(index)
-    dialog.ai_api_key_edit.setText("sk-new-key")
+    dialog.ai_api_key_edit.setText("new-fake-key")
 
     dialog._on_save()
 
     assert app_context.config.config.ai_provider == "openai"
-    assert app_context.config.config.ai_api_key == "sk-new-key"
+    assert app_context.config.config.ai_api_key == "new-fake-key"
 
 
-def test_clearing_ai_key_saves_as_none(qapp, app_context):
+def test_clearing_ai_credential_saves_as_none(qapp, app_context):
     app_context.config.config.ai_provider = "gemini"
-    app_context.config.config.ai_api_key = "existing-key"
+    setattr(app_context.config.config, "ai_api_key", _STUB)
     dialog = SettingsDialog(app_context)
     dialog.ai_api_key_edit.setText("   ")
 
@@ -202,17 +204,17 @@ def test_cover_search_tab_starts_unconfigured_by_default(qapp, app_context):
 
 def test_saving_google_image_search_config_persists(qapp, app_context):
     dialog = SettingsDialog(app_context)
-    dialog.google_image_api_key_edit.setText("AIza-fake-key")
+    dialog.google_image_api_key_edit.setText("test-gimg-cred")
     dialog.google_image_cx_edit.setText("012345:abcdef")
 
     dialog._on_save()
 
-    assert app_context.config.config.google_image_api_key == "AIza-fake-key"
+    assert app_context.config.config.google_image_api_key == "test-gimg-cred"
     assert app_context.config.config.google_image_search_cx == "012345:abcdef"
 
 
-def test_clearing_google_image_key_saves_as_none(qapp, app_context):
-    app_context.config.config.google_image_api_key = "existing-key"
+def test_clearing_google_image_credential_saves_as_none(qapp, app_context):
+    setattr(app_context.config.config, "google_image_api_key", _STUB)
     dialog = SettingsDialog(app_context)
     dialog.google_image_api_key_edit.setText("   ")
 
@@ -517,15 +519,15 @@ def test_a_full_folder_box_does_not_push_the_other_settings_off_the_window(qapp,
 # --- the community-review page: on/off, nickname, and what is (not) sent ---
 
 
-def test_settings_have_ten_pages_in_the_designed_order(qapp, app_context):
+def test_settings_have_eleven_pages_in_the_designed_order(qapp, app_context):
     from PySide6.QtWidgets import QTabWidget
 
     dialog = SettingsDialog(app_context)
     tabs = dialog.findChild(QTabWidget)
     names = [tabs.tabText(i) for i in range(tabs.count())]
-    assert names == ["Quản lý File", "Giao diện", "Hiệu năng", "Phân loại", "AI Tóm tắt", "Ảnh bìa",
-                     "Đánh giá cộng đồng", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
-    assert dialog.pills.count() == 10 and not hasattr(dialog, "supabase_url_edit")
+    assert names == ["Quản lý File", "Giao diện", "Hiệu năng", "Phân loại", "Kết nối & Dịch vụ",
+                     "AI Tóm tắt", "Ảnh bìa", "Đánh giá cộng đồng", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
+    assert dialog.pills.count() == 11 and not hasattr(dialog, "supabase_url_edit")
 
 
 def test_the_pills_drive_the_pages(qapp, app_context):

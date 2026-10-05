@@ -71,7 +71,9 @@ from smartdoc.application.cover_search import (
 from smartdoc.application.cover_search import test_connection as test_cover_connection
 from smartdoc.application.review_endpoint import STATE_OFF as STATE_REVIEWS_OFF
 from smartdoc.application.review_endpoint import STATE_ON as STATE_REVIEWS_ON
+from smartdoc.application.review_endpoint import ReviewConnectionError
 from smartdoc.application.review_endpoint import review_state
+from smartdoc.application.review_endpoint import test_connection as test_reviews_connection
 from smartdoc.core.event_bus import AiConnectionChangedEvent, LibraryUpdatedEvent
 from smartdoc.core.config import AI_PROVIDER_CHOICES, AI_PROVIDER_DISPLAY_NAMES, KNOWN_EXTENSIONS
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
@@ -138,12 +140,13 @@ vì đó là chữ trên trang của Google.</p>
 class SettingsDialog(QDialog):
     connection_test_finished = Signal(bool, str)  # (success, message)
     cover_test_finished = Signal(bool, str)  # (success, message)
+    reviews_test_finished = Signal(bool, str)  # (success, message)
     calibre_import_requested = Signal()  # "Nhập từ Calibre…": the main window owns that flow
 
     FOLDER_LIST_MAX_ROWS = 5  # the watched-folders box grows up to this many rows, then scrolls
 
     # -- frame ------------------------------------------------------------------------------------------------------
-    _PAGE_KEYS = ("file", "theme", "perf", "classify", "ai", "cover", "reviews", "backup", "update", "privacy")
+    _PAGE_KEYS = ("file", "theme", "perf", "classify", "api", "ai", "cover", "reviews", "backup", "update", "privacy")
 
     def __init__(self, context, parent=None, watcher=None, import_manager=None, initial_tab: str | None = None) -> None:
         super().__init__(parent)
@@ -175,6 +178,7 @@ class SettingsDialog(QDialog):
             ("palette", "Giao diện", self._build_theme_tab(config)),
             ("bolt", "Hiệu năng", self._build_performance_tab(config)),
             ("tag", "Phân loại", self._build_smart_classify_tab(config)),
+            ("globe", "Kết nối & Dịch vụ", self._build_api_tab(config)),
             ("bot", "AI Tóm tắt", self._build_ai_tab(config)),
             ("image", "Ảnh bìa", self._build_cover_search_tab(config)),
             ("star", "Đánh giá cộng đồng", self._build_reviews_tab(config)),
@@ -191,6 +195,7 @@ class SettingsDialog(QDialog):
 
         self.connection_test_finished.connect(self._on_connection_test_finished)
         self.cover_test_finished.connect(self._on_cover_test_finished)
+        self.reviews_test_finished.connect(self._on_reviews_test_finished)
 
         heading = QLabel("CÀI ĐẶT", self)
         heading.setStyleSheet(f"color: {tm.token('ink3')}; font-size: 12px; letter-spacing: 1px; padding: 14px 0 0 18px;"
@@ -660,11 +665,19 @@ class SettingsDialog(QDialog):
             parts.append(f"{int(docs):,} sách")
         return " · ".join(parts)
 
-    def _build_ai_tab(self, config) -> QWidget:
+    def _build_api_tab(self, config) -> QWidget:
+        """Centralised connections page: AI provider, Google Images, and community reviews -- all API/service config in one place."""
         page = SettingsPage(
-            "AI Tóm tắt",
-            "AI viết phần giới thiệu, ý chính hoặc nhận xét về một cuốn sách. Mọi yêu cầu đi thẳng từ máy bạn tới nhà cung cấp bạn chọn.",
+            "Kết nối & Dịch vụ",
+            "Toàn bộ khóa API và cài đặt kết nối tại một nơi. Khóa được mã hóa và chỉ lưu trên máy bạn.",
             self)
+        tm = theme_manager()
+
+        # --- AI provider section ---
+        section_ai = QLabel("AI Tóm tắt", page)
+        section_ai.setStyleSheet(f"color: {tm.token('ink')}; font-weight: 600; padding: 8px 0 2px 0;")
+        page.add_block(section_ai)
+
         self.ai_provider_combo = QComboBox(page)
         self.ai_provider_combo.addItem("(Chưa cấu hình)", None)
         for provider_id in AI_PROVIDER_CHOICES:
@@ -680,7 +693,7 @@ class SettingsDialog(QDialog):
         self.ai_api_key_edit.setEchoMode(QLineEdit.Password)
         self.ai_api_key_edit.setPlaceholderText("Dán API key vào đây...")
         show_key_button = QToolButton(page)
-        show_key_button.setIcon(line_icon("eye", theme_manager().token("ink2"), 14))
+        show_key_button.setIcon(line_icon("eye", tm.token("ink2"), 14))
         show_key_button.setCheckable(True)
         show_key_button.setToolTip("Hiện/ẩn API key")
         show_key_button.toggled.connect(
@@ -691,11 +704,9 @@ class SettingsDialog(QDialog):
         key_row.setContentsMargins(0, 0, 0, 0)
         key_row.addWidget(self.ai_api_key_edit)
         key_row.addWidget(show_key_button)
-        page.add_row("Khóa API", "Chuỗi ký tự giống mật khẩu do nhà cung cấp cấp cho bạn.", key_box,
+        page.add_row("Khóa API", "Chuỗi ký tự giống mật khẩu do nhà cung cấp cấp.", key_box,
                      extra=self._build_key_security_note(page))
 
-        # Optional model override -- providers retire/rename models every few months, so this lets the user move on
-        # without an app update.
         self.ai_model_edit = QLineEdit(config.ai_model or "", page)
         self.ai_model_edit.setToolTip("Để trống để dùng mẫu AI mặc định của nhà cung cấp.")
         page.add_row("Mẫu AI", "Để trống nếu không rõ.", self.ai_model_edit)
@@ -703,12 +714,6 @@ class SettingsDialog(QDialog):
         self.ai_base_url_edit = QLineEdit(config.ai_base_url or "", page)
         self.ai_base_url_edit.setPlaceholderText(OLLAMA_DEFAULT_BASE_URL)
         self._ai_base_url_row = page.add_row("Địa chỉ Ollama", "Chỉ cần khi dùng Ollama trên máy khác.", self.ai_base_url_edit)
-
-        self.ai_summary_style_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_STYLES.items()}, config.ai_summary_style)
-        self.ai_summary_length_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_LENGTHS.items()}, config.ai_summary_length)
-        self.ai_summary_language_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_LANGUAGES.items()}, config.ai_summary_language)
-        page.add_row("Mặc định khi tóm tắt", "Kiểu, độ dài và ngôn ngữ; đổi lại được ở từng lần tóm tắt.",
-                     self._pair(self.ai_summary_style_combo, self.ai_summary_length_combo, self.ai_summary_language_combo))
 
         test_box = QWidget(page)
         test_layout = QVBoxLayout(test_box)
@@ -719,17 +724,102 @@ class SettingsDialog(QDialog):
         self.connection_status_label = QLabel(test_box)
         self.connection_status_label.setWordWrap(True)
         test_layout.addWidget(self.connection_status_label)
-        page.add_row("Thử kết nối", "Kiểm tra nhanh khóa và nhà cung cấp đã đúng chưa.", test_box)
+        page.add_row("Thử kết nối AI", "Kiểm tra nhanh khóa và nhà cung cấp đã đúng chưa.", test_box)
 
-        # Where to get a key for whichever provider is currently selected, updated live as the dropdown changes.
         self.ai_provider_guide_label = QLabel(page)
         self.ai_provider_guide_label.setWordWrap(True)
         self.ai_provider_guide_label.setOpenExternalLinks(True)
-        # Static how-to-use text -- the "hướng dẫn" role (docs/UI_TEXT_ROLES.md). Not a HintLabel: it carries
-        # clickable links that widget doesn't support yet.
-        self.ai_provider_guide_label.setStyleSheet(f"{role_css(ROLE_HINT, theme_manager().token('ink2'))} background: transparent;")
-        page.add_row("Cách lấy khóa", "Từng bước, theo nhà cung cấp bạn chọn ở trên.", self.ai_provider_guide_label)
+        self.ai_provider_guide_label.setStyleSheet(f"{role_css(ROLE_HINT, tm.token('ink2'))} background: transparent;")
+        page.add_row("Cách lấy khóa AI", "Từng bước, theo nhà cung cấp bạn chọn ở trên.", self.ai_provider_guide_label)
         self._update_ai_provider_guide()
+
+        # --- Google Images section ---
+        section_cover = QLabel("Tìm ảnh bìa · Google Images (tùy chọn)", page)
+        section_cover.setStyleSheet(f"color: {tm.token('ink')}; font-weight: 600; padding: 16px 0 2px 0;")
+        page.add_block(section_cover)
+
+        self.google_image_api_key_edit = QLineEdit(config.google_image_api_key or "", page)
+        self.google_image_api_key_edit.setEchoMode(QLineEdit.Password)
+        self.google_image_api_key_edit.setPlaceholderText("Dán API key vào đây...")
+        show_g_button = QToolButton(page)
+        show_g_button.setIcon(line_icon("eye", tm.token("ink2"), 14))
+        show_g_button.setCheckable(True)
+        show_g_button.setToolTip("Hiện/ẩn API key")
+        show_g_button.toggled.connect(
+            lambda checked: self.google_image_api_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+        )
+        g_key_box = QWidget(page)
+        g_key_row = QHBoxLayout(g_key_box)
+        g_key_row.setContentsMargins(0, 0, 0, 0)
+        g_key_row.addWidget(self.google_image_api_key_edit)
+        g_key_row.addWidget(show_g_button)
+        self.google_image_cx_edit = QLineEdit(config.google_image_search_cx or "", page)
+        self.google_image_cx_edit.setPlaceholderText("Dán Search Engine ID vào đây...")
+        google_box = QWidget(page)
+        google_layout = QVBoxLayout(google_box)
+        google_layout.setContentsMargins(0, 0, 0, 0)
+        google_layout.addWidget(g_key_box)
+        google_layout.addWidget(self.google_image_cx_edit)
+        google_layout.addWidget(self._build_key_security_note(google_box))
+        self.cover_test_button = QPushButton("Kiểm tra kết nối", google_box)
+        self.cover_test_button.clicked.connect(self._on_test_cover_connection)
+        google_layout.addWidget(self.cover_test_button, 0, Qt.AlignLeft)
+        self.cover_test_status_label = QLabel(google_box)
+        self.cover_test_status_label.setWordWrap(True)
+        google_layout.addWidget(self.cover_test_status_label)
+        page.add_row("API key và Search Engine ID",
+                     "Tìm trên toàn web. Google đã ngừng nhận khách hàng mới; chỉ dùng được với tài khoản có sẵn. ○ Chưa thiết lập.",
+                     google_box)
+
+        guide = QLabel(_COVER_SEARCH_SETUP_GUIDE, page)
+        guide.setWordWrap(True)
+        guide.setTextFormat(Qt.RichText)
+        guide.setOpenExternalLinks(True)
+        guide.setStyleSheet(f"color: {tm.token('ink2')};")
+        page.add_row("Cách lấy khóa Google", "Từng bước; mất khoảng 5 phút.", guide)
+
+        # --- Community reviews section ---
+        section_reviews = QLabel("Đánh giá cộng đồng", page)
+        section_reviews.setStyleSheet(f"color: {tm.token('ink')}; font-weight: 600; padding: 16px 0 2px 0;")
+        page.add_block(section_reviews)
+
+        self.community_reviews_check = QCheckBox("Bật đánh giá cộng đồng", page)
+        self.community_reviews_check.setChecked(config.community_reviews_enabled)
+        page.add_row("Đánh giá cộng đồng", "Tắt thì MewBook không lấy và không gửi gì. Mặc định là bật.", self.community_reviews_check)
+
+        self.reviews_server_label = QLabel(page)
+        self.reviews_server_label.setWordWrap(True)
+        self._show_reviews_server(config)
+        self.community_reviews_check.toggled.connect(lambda _on: self._show_reviews_server(self._config_with_switch()))
+        page.add_row("Máy chủ", "Kết nối có sẵn trong MewBook; bạn không cần nhập gì.", self.reviews_server_label)
+
+        self.reviewer_nickname_edit = QLineEdit(config.reviewer_nickname or "", page)
+        self.reviewer_nickname_edit.setPlaceholderText("Ví dụ: Mèo Mực")
+        page.add_row("Nick name", "Tên hiện cạnh nhận xét của bạn. Không cần thật.", self.reviewer_nickname_edit)
+
+        reviews_test_box = QWidget(page)
+        reviews_test_layout = QVBoxLayout(reviews_test_box)
+        reviews_test_layout.setContentsMargins(0, 0, 0, 0)
+        self.reviews_test_button = QPushButton("Kiểm tra kết nối", reviews_test_box)
+        self.reviews_test_button.clicked.connect(self._on_test_reviews_connection)
+        reviews_test_layout.addWidget(self.reviews_test_button, 0, Qt.AlignLeft)
+        self.reviews_test_status_label = QLabel(reviews_test_box)
+        self.reviews_test_status_label.setWordWrap(True)
+        reviews_test_layout.addWidget(self.reviews_test_status_label)
+        page.add_row("Thử kết nối", "Xác nhận máy chủ đánh giá đang hoạt động.", reviews_test_box)
+
+        return page
+
+    def _build_ai_tab(self, config) -> QWidget:
+        page = SettingsPage(
+            "AI Tóm tắt",
+            "Tùy chỉnh kiểu, độ dài và ngôn ngữ mặc định khi tóm tắt. Cài đặt nhà cung cấp và khóa API xem trong 'Kết nối & Dịch vụ'.",
+            self)
+        self.ai_summary_style_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_STYLES.items()}, config.ai_summary_style)
+        self.ai_summary_length_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_LENGTHS.items()}, config.ai_summary_length)
+        self.ai_summary_language_combo = self._summary_combo(page, {k: v[0] for k, v in SUMMARY_LANGUAGES.items()}, config.ai_summary_language)
+        page.add_row("Mặc định khi tóm tắt", "Kiểu, độ dài và ngôn ngữ; đổi lại được ở từng lần tóm tắt.",
+                     self._pair(self.ai_summary_style_combo, self.ai_summary_length_combo, self.ai_summary_language_combo))
         return page
 
     @staticmethod
@@ -750,12 +840,12 @@ class SettingsDialog(QDialog):
         return note
 
     def _build_cover_search_tab(self, config) -> QWidget:
-        """Which sources "Đổi ảnh bìa" may ask, and the optional Google Custom Search (Image) setup -- see
-        application/cover_search.py. Without a key here, cover search still works via the free sources."""
+        """Which sources 'Đổi ảnh bìa' may ask. Google Images API key is in 'Kết nối & Dịch vụ'."""
         page = SettingsPage(
-            "Ảnh bìa", "Chọn nơi MewBook được phép tìm ảnh bìa. Tên sách và tác giả sẽ được gửi tới nơi bạn bật.", self)
+            "Ảnh bìa",
+            "Chọn nơi MewBook được phép tìm ảnh bìa. Cài đặt Google Images API xem trong 'Kết nối & Dịch vụ'.",
+            self)
 
-        # Which keyless sources may be contacted at all (search text goes to them); see docs/legal/DATA_SOURCES.md.
         sources = QWidget(page)
         sources_layout = QVBoxLayout(sources)
         sources_layout.setContentsMargins(0, 0, 0, 0)
@@ -780,63 +870,14 @@ class SettingsDialog(QDialog):
         page.add_row("Độ khớp tối thiểu", "Thấp hơn: ra nhiều kết quả hơn, có thể kém liên quan. Cao hơn: ít kết quả, sát hơn. "
                      "Mỗi kết quả vẫn hiện % khớp của nó.", self.cover_match_spin)
 
-        self.google_image_api_key_edit = QLineEdit(config.google_image_api_key or "", page)
-        self.google_image_api_key_edit.setEchoMode(QLineEdit.Password)
-        self.google_image_api_key_edit.setPlaceholderText("Dán API key vào đây...")
-        show_button = QToolButton(page)
-        show_button.setIcon(line_icon("eye", theme_manager().token("ink2"), 14))
-        show_button.setCheckable(True)
-        show_button.setToolTip("Hiện/ẩn API key")
-        show_button.toggled.connect(
-            lambda checked: self.google_image_api_key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
-        )
-        key_box = QWidget(page)
-        key_row = QHBoxLayout(key_box)
-        key_row.setContentsMargins(0, 0, 0, 0)
-        key_row.addWidget(self.google_image_api_key_edit)
-        key_row.addWidget(show_button)
-        self.google_image_cx_edit = QLineEdit(config.google_image_search_cx or "", page)
-        self.google_image_cx_edit.setPlaceholderText("Dán Search Engine ID vào đây...")
-        google_box = QWidget(page)
-        google_layout = QVBoxLayout(google_box)
-        google_layout.setContentsMargins(0, 0, 0, 0)
-        google_layout.addWidget(key_box)
-        google_layout.addWidget(self.google_image_cx_edit)
-        google_layout.addWidget(self._build_key_security_note(google_box))
-        self.cover_test_button = QPushButton("Kiểm tra kết nối", google_box)
-        self.cover_test_button.clicked.connect(self._on_test_cover_connection)
-        google_layout.addWidget(self.cover_test_button, 0, Qt.AlignLeft)
-        self.cover_test_status_label = QLabel(google_box)
-        self.cover_test_status_label.setWordWrap(True)
-        google_layout.addWidget(self.cover_test_status_label)
-        page.add_row("Google Images (tùy chọn)",
-                     "Tìm trên toàn web. Google đã ngừng nhận khách hàng mới cho dịch vụ này, nên chỉ dùng được với tài khoản có sẵn. ○ Chưa thiết lập.",
-                     google_box)
-
         page.add_row("Tự tìm bìa cho sách mới", "Chỉ thay khi khớp từ 90% trở lên.", QCheckBox("Bật", page), soon=True)
-
-        guide = QLabel(_COVER_SEARCH_SETUP_GUIDE, page)
-        guide.setWordWrap(True)
-        guide.setTextFormat(Qt.RichText)
-        guide.setOpenExternalLinks(True)
-        guide.setStyleSheet(f"color: {theme_manager().token('ink2')};")
-        page.add_row("Cách lấy khóa Google", "Từng bước; mất khoảng 5 phút.", guide)
         return page
 
-    def _build_reviews_tab(self, config) -> QWidget:
-        page = SettingsPage("Đánh giá cộng đồng", "Xem và viết nhận xét về sách cùng những người dùng MewBook khác.", self)
-        self.community_reviews_check = QCheckBox("Bật đánh giá cộng đồng", page)
-        self.community_reviews_check.setChecked(config.community_reviews_enabled)
-        page.add_row("Đánh giá cộng đồng", "Tắt thì MewBook không lấy và không gửi gì cho tính năng này. Mặc định là bật.", self.community_reviews_check)
-        # The connection is the app's own and always defined; only the person's switch decides whether it is used.
-        self.reviews_server_label = QLabel(page)
-        self.reviews_server_label.setWordWrap(True)
-        self._show_reviews_server(config)
-        self.community_reviews_check.toggled.connect(lambda _on: self._show_reviews_server(self._config_with_switch()))
-        page.add_row("Máy chủ", "Kết nối có sẵn trong MewBook; bạn không cần nhập gì.", self.reviews_server_label)
-        self.reviewer_nickname_edit = QLineEdit(config.reviewer_nickname or "", page)
-        self.reviewer_nickname_edit.setPlaceholderText("Ví dụ: Mèo Mực")
-        page.add_row("Nick name", "Tên hiện cạnh nhận xét của bạn. Không cần thật.", self.reviewer_nickname_edit)
+    def _build_reviews_tab(self, _config) -> QWidget:
+        """Privacy summary for community reviews. Connection settings (toggle, server, nickname) are in 'Kết nối & Dịch vụ'."""
+        page = SettingsPage("Đánh giá cộng đồng",
+                            "Xem và viết nhận xét về sách cùng những người dùng MewBook khác. "
+                            "Bật/tắt và nick name xem trong 'Kết nối & Dịch vụ'.", self)
         page.add_block(add_note_box(
             page,
             "<b>Chỉ gửi</b> khi bạn đăng bài: nick name, số sao, nhận xét và mã của cuốn sách.<br>"
@@ -970,6 +1011,29 @@ class SettingsDialog(QDialog):
         # Same "kết quả" role + theme token as the AI connection test above.
         tm = theme_manager()
         self.cover_test_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
+
+    def _on_test_reviews_connection(self) -> None:
+        self.reviews_test_button.setEnabled(False)
+        self.reviews_test_button.setText("Đang kiểm tra...")
+        self.reviews_test_status_label.setText("Đang kết nối tới máy chủ, vui lòng đợi...")
+        config = self.context.config.config
+        relay = self._relay
+
+        def worker() -> None:
+            try:
+                msg = test_reviews_connection(config)
+                post(relay, "reviews_test_finished", True, msg)
+            except ReviewConnectionError as exc:
+                post(relay, "reviews_test_finished", False, str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_reviews_test_finished(self, success: bool, message: str) -> None:
+        self.reviews_test_button.setEnabled(True)
+        self.reviews_test_button.setText("Kiểm tra kết nối")
+        self.reviews_test_status_label.setText(message)
+        tm = theme_manager()
+        self.reviews_test_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
 
     def _on_add_folder(self) -> None:
         start_dir = self.context.config.config.last_used_directory or ""
