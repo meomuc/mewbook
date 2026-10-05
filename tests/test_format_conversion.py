@@ -13,6 +13,7 @@ from smartdoc.application.format_conversion import (
     CalibreNotFoundError,
     ConversionJob,
     FormatConversionService,
+    NativeConverter,
     deferred_reason,
     find_calibre_ebook_convert,
     is_pair_supported,
@@ -200,6 +201,73 @@ def test_convert_many_reports_every_job_failed_when_calibre_is_missing_instead_o
     service = FormatConversionService(app_context, ebook_convert_path="")
     result = service.convert_many(jobs, "mobi", str(tmp_path / "out"))
     assert result.failed == 1 and not result.items[0].ok
+
+
+# -- NativeConverter (EPUB→PDF, EPUB→TXT via PyMuPDF — no Calibre) -------------------------------------------------
+
+def test_native_converter_recognises_epub_pdf_and_epub_txt():
+    nc = NativeConverter()
+    assert nc.can_convert("epub", "pdf")
+    assert nc.can_convert("EPUB", "TXT")
+    assert not nc.can_convert("epub", "mobi")   # still needs Calibre
+    assert not nc.can_convert("mobi", "epub")
+
+
+def test_epub_to_pdf_goes_native_without_calibre(app_context, tmp_path):
+    """EPUB→PDF must succeed even when Calibre is not installed."""
+    import fitz  # noqa: PLC0415
+    epub_path = tmp_path / "sample.epub"
+    # Build a minimal EPUB (valid enough for fitz to open)
+    import zipfile
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr("META-INF/container.xml",
+                    '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">'
+                    '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>'
+                    '</rootfiles></container>')
+        zf.writestr("OEBPS/content.opf",
+                    '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">'
+                    '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">Test</dc:title></metadata>'
+                    '<manifest><item id="p1" href="page1.html" media-type="application/xhtml+xml"/></manifest>'
+                    '<spine><itemref idref="p1"/></spine></package>')
+        zf.writestr("OEBPS/page1.html",
+                    '<?xml version="1.0"?><html><body><p>Hello MewBook</p></body></html>')
+
+    job = ConversionJob(doc_id="d1", title="Sample", source_path=str(epub_path))
+    # No ebook_convert_path — would raise CalibreNotFoundError if routing goes wrong
+    service = FormatConversionService(app_context, ebook_convert_path="")
+
+    result = service.convert_one(job, "pdf", str(tmp_path / "out"))
+
+    assert result.ok, result.error
+    assert result.output_path.endswith(".pdf")
+
+
+def test_epub_to_txt_goes_native_without_calibre(app_context, tmp_path):
+    """EPUB→TXT must succeed even when Calibre is not installed."""
+    import zipfile
+    epub_path = tmp_path / "sample.epub"
+    with zipfile.ZipFile(epub_path, "w") as zf:
+        zf.writestr("mimetype", "application/epub+zip")
+        zf.writestr("META-INF/container.xml",
+                    '<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">'
+                    '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>'
+                    '</rootfiles></container>')
+        zf.writestr("OEBPS/content.opf",
+                    '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="id">'
+                    '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">Test</dc:title></metadata>'
+                    '<manifest><item id="p1" href="page1.html" media-type="application/xhtml+xml"/></manifest>'
+                    '<spine><itemref idref="p1"/></spine></package>')
+        zf.writestr("OEBPS/page1.html",
+                    '<?xml version="1.0"?><html><body><p>Hello MewBook TXT</p></body></html>')
+
+    job = ConversionJob(doc_id="d1", title="Sample", source_path=str(epub_path))
+    service = FormatConversionService(app_context, ebook_convert_path="")
+
+    result = service.convert_one(job, "txt", str(tmp_path / "out"))
+
+    assert result.ok, result.error
+    assert result.output_path.endswith(".txt")
 
 
 # -- real Calibre (skipped when not installed on this machine) ------------------------------------------------------

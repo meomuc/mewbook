@@ -46,6 +46,8 @@ class CalibreNotFoundError(FormatConversionError):
 #: device profiles (BOOX/Kindle) actually list, plus the common "I have a PDF, want it reflowable" request.
 SUPPORTED_PAIRS: frozenset[tuple[str, str]] = frozenset({
     ("epub", "mobi"), ("epub", "azw3"),
+    ("epub", "pdf"),  # native via PyMuPDF -- no Calibre needed
+    ("epub", "txt"),  # native via PyMuPDF
     ("mobi", "epub"), ("mobi", "azw3"),
     ("azw3", "epub"), ("azw3", "mobi"),
     ("txt", "epub"),
@@ -61,7 +63,7 @@ RISKY_PAIRS: frozenset[tuple[str, str]] = frozenset({pair for pair in SUPPORTED_
 DEFERRED_PAIRS: dict[tuple[str, str], str] = {
     ("docx", "epub"): "Chưa có bộ tài liệu mẫu để đo chất lượng chuyển đổi từ DOCX; để đánh giá kỹ hơn ở bản sau.",
     ("epub", "docx"): "Không phục vụ trực tiếp việc gửi sách sang máy đọc sách; ưu tiên thấp hơn các cặp ở trên.",
-    ("epub", "pdf"): "BOOX và Kindle đã đọc PDF gốc trực tiếp -- không cần đổi EPUB thành PDF để gửi máy đọc sách.",
+    # ("epub", "pdf") has moved to SUPPORTED_PAIRS: now handled natively by NativeConverter via PyMuPDF.
     ("fb2", "epub"): "Ít gặp trong thư viện thử nghiệm; để sau khi có mẫu thật để kiểm tra.",
     ("cbz", "epub"): "Truyện tranh (ảnh theo trang) không phù hợp chảy chữ lại; cần cách tiếp cận khác, không phải MVP này.",
 }
@@ -167,6 +169,42 @@ def _default_run_subprocess(args: list[str], timeout: int) -> "subprocess.Comple
     return subprocess.run(args, capture_output=True, encoding="utf-8", errors="replace", timeout=timeout, check=False)
 
 
+class NativeConverter:
+    """Converts EPUB→PDF and EPUB→TXT without Calibre, using PyMuPDF (already bundled).
+
+    Both conversions open the EPUB once through fitz, which supports EPUB natively since MuPDF 1.14.
+    The lock (pymupdf_lock) is held only for the duration of the open+save, the same as PdfExtractor.
+    """
+
+    NATIVE_PAIRS: frozenset[tuple[str, str]] = frozenset({
+        ("epub", "pdf"),
+        ("epub", "txt"),
+    })
+
+    def can_convert(self, src_ext: str, target_ext: str) -> bool:
+        return (src_ext.lower(), target_ext.lower()) in self.NATIVE_PAIRS
+
+    def convert(self, src: str, target_ext: str, dest: str) -> None:
+        """Convert `src` to `dest`. Raises `FormatConversionError` on failure."""
+        import fitz  # noqa: PLC0415 -- heavy; loaded only on demand so the GUI thread stays light at start-up
+        from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
+
+        ext = target_ext.lower()
+        try:
+            with pymupdf_lock, fitz.open(src) as doc:
+                if ext == "pdf":
+                    doc.save(dest)
+                elif ext == "txt":
+                    text = "\n\n".join(page.get_text() for page in doc)
+                    Path(dest).write_text(text, encoding="utf-8")
+                else:
+                    raise FormatConversionError(f"Cặp định dạng chưa hỗ trợ native: {ext}")
+        except FormatConversionError:
+            raise
+        except Exception as exc:
+            raise FormatConversionError(f"Lỗi khi chuyển đổi: {exc}") from exc
+
+
 class FormatConversionService:
     def __init__(self, context, *, ebook_convert_path: str | None = None,
                  run_subprocess: RunSubprocess | None = None) -> None:
@@ -190,19 +228,30 @@ class FormatConversionService:
     def convert_one(self, job: ConversionJob, target_format: str, output_dir: str) -> ConversionItemResult:
         target_ext = target_format.lower().lstrip(".")
         source = Path(job.source_path)
+        source_ext = source.suffix.lstrip(".").lower()
 
         if not source.is_file():
             return ConversionItemResult(job.doc_id, job.title, False, error="Không tìm thấy file trên máy")
         if is_drm_protected(str(source)):
             return ConversionItemResult(job.doc_id, job.title, False, error="Có DRM, không chuyển đổi được")
 
-        ebook_convert = self._resolve()
-        if not ebook_convert:
-            raise CalibreNotFoundError(INSTALL_HINT)
-
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         output_path = _unique_output_path(out_dir, source.stem, target_ext)
+
+        # Try native converter first (no Calibre required).
+        native = NativeConverter()
+        if native.can_convert(source_ext, target_ext):
+            try:
+                native.convert(str(source), target_ext, str(output_path))
+            except FormatConversionError as exc:
+                return ConversionItemResult(job.doc_id, job.title, False, error=str(exc))
+            return ConversionItemResult(job.doc_id, job.title, True, output_path=str(output_path))
+
+        # Fall back to Calibre for pairs not handled natively.
+        ebook_convert = self._resolve()
+        if not ebook_convert:
+            raise CalibreNotFoundError(INSTALL_HINT)
 
         before = _sha256(str(source)) if source.stat().st_size else None
         try:
@@ -214,9 +263,8 @@ class FormatConversionService:
             return ConversionItemResult(job.doc_id, job.title, False, error=f"Không chạy được Calibre: {exc}")
 
         if before is not None and source.is_file() and _sha256(str(source)) != before:
-            # Should never happen -- ebook-convert only ever reads the source -- but the AC asks this to be
-            # actively checked, not assumed, so a future regression (here or in Calibre itself) is caught loudly
-            # instead of silently shipping a corrupted "original".
+            # Should never happen -- ebook-convert only ever reads the source -- but actively checked so a future
+            # regression (here or in Calibre itself) is caught loudly rather than silently.
             logger.error("Source file changed during conversion: %s", source)
             return ConversionItemResult(job.doc_id, job.title, False, error="File gốc đã bị thay đổi khi chuyển đổi -- đã dừng")
 
