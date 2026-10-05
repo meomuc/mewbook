@@ -213,7 +213,7 @@ def test_a_file_that_cannot_be_moved_is_reported_and_stays(qapp, app_context, tm
 def test_the_dialog_points_at_the_trash_and_no_longer_at_a_coming_soon_block(qapp, app_context):
     dialog = DuplicateFinderDialog(app_context)
     assert not hasattr(dialog, "soon_toggle") and dialog.trash_button.text().startswith("Mở Thùng rác")
-    assert "30 ngày" in dialog.trash_note.text()
+    assert "30 ngày" in dialog.trash_button.toolTip()
     dialog.reject()
     dialog.deleteLater()
 

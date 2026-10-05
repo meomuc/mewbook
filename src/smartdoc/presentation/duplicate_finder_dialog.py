@@ -21,11 +21,13 @@ keeps a copy). Both go through the same two actions below.
 """
 from __future__ import annotations
 
+import os
 import threading
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -40,6 +42,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QStackedWidget,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -58,7 +61,7 @@ from smartdoc.presentation.theme_manager import theme_manager
 
 _DOC_ROLE = Qt.UserRole + 1
 _GROUP_ROLE = Qt.UserRole + 2
-_COL_KEEP, _COL_PATH, _COL_TYPE, _COL_SIZE, _COL_DATE, _COL_NOTE = range(6)
+_COL_NUM, _COL_KEEP, _COL_PATH, _COL_TYPE, _COL_SIZE, _COL_DATE, _COL_NOTE = range(7)
 MODE_EXACT, MODE_FUZZY = "exact", "fuzzy"
 
 
@@ -111,6 +114,34 @@ def note_for(doc: dict, keeper: dict | None, mode: str, suggested: dict | None =
     if doc.get("file_status") == "missing":
         parts.append("không thấy file")
     return ", ".join(parts)
+
+
+class PathDelegate(QStyledItemDelegate):
+    """Formats a full file path as «drive … parent/folder» (no filename) and opens the folder on single-click."""
+
+    def displayText(self, value, locale) -> str:  # noqa: ARG002
+        path = str(value) if value else ""
+        if not path:
+            return ""
+        parts = Path(path).parts
+        dirs = parts[:-1] if len(parts) > 1 else parts  # strip filename
+        if not dirs:
+            return path
+        if len(dirs) <= 2:
+            return "/".join(str(d) for d in dirs)
+        return f"{dirs[0]} … {dirs[-2]}/{dirs[-1]}"
+
+    def editorEvent(self, event, model, option, index) -> bool:
+        if event.type() == QEvent.Type.MouseButtonRelease:
+            path = model.data(index, Qt.DisplayRole)
+            if path:
+                folder = os.path.dirname(str(path))
+                if folder and os.path.isdir(folder):
+                    try:
+                        os.startfile(folder)
+                    except OSError:
+                        pass
+        return False
 
 
 class DuplicateFinderDialog(DesignDialog):
@@ -187,28 +218,31 @@ class DuplicateFinderDialog(DesignDialog):
         left.addWidget(self.scan_progress)
         left_box = QWidget(self)
         left_box.setLayout(left)
-        left_box.setFixedWidth(270)
+        left_box.setMinimumWidth(220)
 
         # -- right: the files of the chosen group --
         self.group_title = QLabel(self)
-        self.group_title.setStyleSheet("font-weight: 600; font-size: 14px;")
-        self.file_table = QTableWidget(0, 6, self)
-        self.file_table.setHorizontalHeaderLabels(["GIỮ", "VỊ TRÍ FILE", "LOẠI FILE", "DUNG LƯỢNG", "NGÀY", "GHI CHÚ"])
+        self.group_title.setWordWrap(True)
+        _tm = theme_manager()
+        self.group_title.setStyleSheet(
+            f"font-weight: 600; font-size: 14px; padding: 8px 10px; "
+            f"background: {_tm.token('surface2')}; border-radius: 6px;")
+        self.file_table = QTableWidget(0, 7, self)
+        self.file_table.setHorizontalHeaderLabels(["STT", "GIỮ", "VỊ TRÍ FILE", "LOẠI FILE", "DUNG LƯỢNG", "NGÀY", "GHI CHÚ"])
         self.file_table.verticalHeader().setVisible(False)
         self.file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.file_table.setSelectionMode(QAbstractItemView.NoSelection)
         self.file_table.setShowGrid(False)
-        # B2: middle-elide (never end-elide) so the part that actually tells two copies of the same book apart --
-        # the folder near the end of the path -- stays visible; the full path is still one hover away (tooltip).
         self.file_table.setTextElideMode(Qt.ElideMiddle)
         header = self.file_table.horizontalHeader()
+        header.setSectionResizeMode(_COL_NUM, QHeaderView.Fixed)
+        self.file_table.setColumnWidth(_COL_NUM, 36)
         header.setSectionResizeMode(_COL_KEEP, QHeaderView.Fixed)
         self.file_table.setColumnWidth(_COL_KEEP, 48)
-        # Interactive (not Stretch): the AC asks for a column the person can drag narrower/wider by hand, which
-        # Stretch mode explicitly disables. setStretchLastSection() below keeps the table filling the pane's
-        # width without needing any one column locked to Stretch.
+        # Interactive (not Stretch): the person can drag columns narrower/wider by hand; setStretchLastSection()
+        # keeps the table filling the pane without locking any single column to Stretch.
         header.setSectionResizeMode(_COL_PATH, QHeaderView.Interactive)
-        self.file_table.setColumnWidth(_COL_PATH, 320)
+        self.file_table.setColumnWidth(_COL_PATH, 300)
         header.setSectionResizeMode(_COL_TYPE, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_SIZE, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(_COL_DATE, QHeaderView.ResizeToContents)
@@ -216,6 +250,7 @@ class DuplicateFinderDialog(DesignDialog):
         header.setStretchLastSection(True)
         self.file_table.setColumnWidth(_COL_NOTE, 170)
         self.file_table.verticalHeader().setDefaultSectionSize(44)
+        self.file_table.setItemDelegateForColumn(_COL_PATH, PathDelegate(self.file_table))
         # Not setSortingEnabled(True) here: _COL_KEEP holds a real QRadioButton via setCellWidget(), which Qt's
         # built-in row sort does not move along with its row -- the radios would end up pointing at the wrong
         # file. A group is a handful of copies of the same book anyway (sorting a list of 2-5 rows buys little);
@@ -239,20 +274,12 @@ class DuplicateFinderDialog(DesignDialog):
             "MewBook không tự chọn bản nào để xóa: hãy xem từng nhóm và chọn bản giữ lại. “Bỏ khỏi thư viện”: file vẫn nằm "
             "trên máy. “Chuyển vào Thùng rác”: file vào thùng rác của MewBook, khôi phục được trước hạn.", self)
 
-        self.trash_note = HintLabel("", self)
-        self.trash_button = QPushButton("Mở Thùng rác…", self)
-        self.trash_button.clicked.connect(self._on_open_trash)
-        trash_row = QHBoxLayout()
-        trash_row.addWidget(self.trash_note, 1)
-        trash_row.addWidget(self.trash_button)
-
         right = QVBoxLayout()
         right.setSpacing(10)
         right.addWidget(self.group_title)
         right.addWidget(self.file_table, 1)
         right.addLayout(buttons)
         right.addWidget(self.hint_label)
-        right.addLayout(trash_row)
         right_box = QWidget(self)
         right_box.setLayout(right)
 
@@ -274,6 +301,7 @@ class DuplicateFinderDialog(DesignDialog):
         self.position_label = self.add_footer_note("")
         self.previous_button = self.add_footer_button("Nhóm trước", on_click=lambda: self._step(-1))
         self.next_button = self.add_footer_button("Nhóm sau", on_click=lambda: self._step(1))
+        self.trash_button = self.add_footer_button("Mở Thùng rác…", on_click=self._on_open_trash)
         self.done_button = self.add_footer_button("Xong", "primary", on_click=self.accept)
 
         self.refresh()
@@ -410,6 +438,9 @@ class DuplicateFinderDialog(DesignDialog):
         self._radio_group = QButtonGroup(self.file_table)
         tm = theme_manager()
         for row, doc in enumerate(group):
+            num_item = QTableWidgetItem(str(row + 1))
+            num_item.setTextAlignment(Qt.AlignCenter)
+            self.file_table.setItem(row, _COL_NUM, num_item)
             radio = QRadioButton(self.file_table)
             radio.setChecked(keeper is not None and doc.get("id") == keeper.get("id"))
             radio.setProperty("doc_id", doc.get("id"))
@@ -420,8 +451,7 @@ class DuplicateFinderDialog(DesignDialog):
             holder.layout().setContentsMargins(0, 0, 0, 0)
             self.file_table.setCellWidget(row, _COL_KEEP, holder)
             path_text = doc.get("file_path", "")
-            kept = keeper is not None and doc.get("id") == keeper.get("id")
-            path_item = QTableWidgetItem(path_text + ("  · giữ" if kept else ""))
+            path_item = QTableWidgetItem(path_text)
             path_item.setToolTip(path_text)
             path_item.setData(_DOC_ROLE, doc)
             self.file_table.setItem(row, _COL_PATH, path_item)
@@ -431,6 +461,7 @@ class DuplicateFinderDialog(DesignDialog):
             note = QTableWidgetItem(note_for(doc, keeper, self._mode, suggested))
             note.setForeground(tm.color("ink3"))
             self.file_table.setItem(row, _COL_NOTE, note)
+        self._apply_row_colors(keeper)
         self._update_action_buttons(group)
 
     def _on_keeper_chosen(self, doc: dict) -> None:
@@ -452,9 +483,9 @@ class DuplicateFinderDialog(DesignDialog):
         for row in range(self.file_table.rowCount()):
             path_item = self.file_table.item(row, _COL_PATH)
             row_doc = path_item.data(_DOC_ROLE)
-            kept = keeper is not None and row_doc.get("id") == keeper.get("id")
-            path_item.setText(row_doc.get("file_path", "") + ("  · giữ" if kept else ""))
+            path_item.setText(row_doc.get("file_path", ""))
             self.file_table.item(row, _COL_NOTE).setText(note_for(row_doc, keeper, self._mode, suggested))
+        self._apply_row_colors(keeper)
         self._update_action_buttons(group)
 
     def _others(self) -> list[dict]:
@@ -472,10 +503,30 @@ class DuplicateFinderDialog(DesignDialog):
         self.remove_button.setText(f"Bỏ {count} bản kia khỏi thư viện")
         self.delete_button.setText(f"Chuyển {count} file vào Thùng rác…")
         days = self.context.trash.retention_days()
-        self.trash_note.setText(f"Tự xóa hẳn sau {days} ngày; bạn đổi được ở cửa sổ Thùng rác." if days
-                                else "Giữ trong thùng rác đến khi bạn tự xóa.")
+        tip = (f"Tự xóa hẳn sau {days} ngày; bạn đổi được ở cửa sổ Thùng rác." if days
+               else "Giữ trong thùng rác đến khi bạn tự xóa.")
+        self.trash_button.setToolTip(tip)
         self.remove_button.setEnabled(count > 0)
         self.delete_button.setEnabled(count > 0)
+
+    def _apply_row_colors(self, keeper: dict | None) -> None:
+        """Color table rows: keeper row gets ok (green tint), others get warn (orange tint), no keeper → no tint."""
+        tm = theme_manager()
+        for row in range(self.file_table.rowCount()):
+            path_item = self.file_table.item(row, _COL_PATH)
+            if path_item is None:
+                continue
+            row_doc = path_item.data(_DOC_ROLE)
+            if keeper is None or row_doc is None:
+                bg = Qt.NoBrush
+            else:
+                is_keeper = row_doc.get("id") == keeper.get("id")
+                bg = QColor(tm.token("ok" if is_keeper else "warn"))
+                bg.setAlpha(45)
+            for col in (_COL_NUM, _COL_PATH, _COL_TYPE, _COL_SIZE, _COL_DATE, _COL_NOTE):
+                item = self.file_table.item(row, col)
+                if item:
+                    item.setBackground(bg)
 
     def _step(self, delta: int) -> None:
         target = self._current + delta
