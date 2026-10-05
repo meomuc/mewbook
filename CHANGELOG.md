@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Performance (06/10/2026 — Performance audit fixes)
+- **4 missing DB indexes.** Thêm `CREATE INDEX` cho `documents.created_at`, `extension`, `file_path COLLATE NOCASE`, và `file_status` (guarded — chỉ khi cột đã tồn tại). Giảm full-scan trên các truy vấn thường gặp.
+- **Batch SELECT trong `apply_smart_classifications`.** Thay N+1 queries (1 SELECT/sách) bằng một batch pre-fetch cho toàn bộ `doc_id` trước vòng lặp; tiết kiệm đáng kể với thư viện lớn.
+- **LRU eviction cho cache pixmap trong `ShelfView`.** Đổi từ `dict.clear()` (xóa toàn bộ 300 ảnh một lúc → stutter khi scroll) sang `OrderedDict` với LRU eviction từng entry — giữ cache nóng khi scroll qua kệ sách.
+- **Fix test `test_status_icons_share_one_slot_width_and_sit_evenly`.** Cập nhật để bao gồm cả `metadata_sync_label` (icon thứ 4 thêm ở sprint trước) vào danh sách icons kiểm tra.
+
 ### Added (05/10/2026 — Tuần 3-4 roadmap sprint)
 - **Hiển thị thứ tự ưu tiên nguồn trong hộp thoại Tìm thông tin sách.** Một dòng chú thích ở trên danh sách kết quả giải thích rõ thứ tự: Trong file → Thư viện của bạn → Cộng đồng MewBook → Internet.
 - **Icon đồng bộ metadata cộng đồng trên thanh trạng thái.** Icon mới (refresh) hiện ở vùng "hệ thống" khi metadata sync đang chạy hoặc đã hoàn thành; click vào để xem thông báo.

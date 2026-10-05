@@ -444,6 +444,12 @@ class DatabaseManager:
                 ran_any = True
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_fingerprint ON documents(fingerprint)")
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_isbn ON documents(isbn)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_extension ON documents(extension)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_path_nocase ON documents(file_path COLLATE NOCASE)")
+        # file_status is added by schema migration 1 (runs after this function on a fresh DB).
+        if "file_status" in existing_columns:
+            self.connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_status ON documents(file_status)")
         if ran_any:
             self.connection.commit()
 
@@ -1548,15 +1554,23 @@ class DatabaseManager:
             filed = {
                 row["value"] for row in self.connection.execute("SELECT value FROM facet_group_members WHERE category = 'tag'")
             }
+            # Pre-fetch all tags in one batch to avoid N+1 queries inside the write_lock.
+            all_doc_ids = [item["doc_id"] for item in items]
+            tags_by_id: dict[str, str | None] = {}
+            for _start in range(0, len(all_doc_ids), 500):
+                _chunk = all_doc_ids[_start : _start + 500]
+                _ph = ",".join("?" for _ in _chunk)
+                for _r in self.connection.execute(f"SELECT id, tags FROM documents WHERE id IN ({_ph})", tuple(_chunk)):
+                    tags_by_id[_r["id"]] = _r["tags"]
+
             for item in items:
                 doc_id, tag = item["doc_id"], item.get("tag")
-                row = self.connection.execute("SELECT tags FROM documents WHERE id = ?", (doc_id,)).fetchone()
-                if row is None:
+                if doc_id not in tags_by_id:
                     stats["missing"] += 1
                     continue
                 applied: str | None = None
                 if tag:
-                    current = [t.strip() for t in (row["tags"] or "").split(",") if t.strip()]
+                    current = [t.strip() for t in (tags_by_id[doc_id] or "").split(",") if t.strip()]
                     replaced = item.get("replace_tag")
                     if replaced and replaced.casefold() != tag.casefold():
                         current = [t for t in current if t.casefold() != replaced.casefold()]

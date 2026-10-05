@@ -17,6 +17,7 @@ ring when selected. Geometry and painting branch on that one metric, never on a 
 """
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import QModelIndex, QPoint, QPointF, QRect, QRectF, QSize, Qt
@@ -79,7 +80,7 @@ class ShelfView(QAbstractItemView):
         self._shelves: list[_Shelf] = []
         self._rects: dict[int, QRect] = {}  # row -> cover box in content coordinates (before the lift)
         self._content_h = 0
-        self._scaled: dict[tuple[int, int, int], QPixmap] = {}
+        self._scaled: OrderedDict[tuple[int, int, int], QPixmap] = OrderedDict()
         self._star_pressed = -1
         self.setFrameShape(QFrame.NoFrame)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
@@ -384,12 +385,15 @@ class ShelfView(QAbstractItemView):
         key = (source.cacheKey(), size.width(), size.height())
         cached = self._scaled.get(key)
         if cached is not None:
+            self._scaled.move_to_end(key)  # LRU: promote to most-recently used
             return cached
         scaled = source.scaled(int(size.width() * dpr), int(size.height() * dpr), Qt.IgnoreAspectRatio,
                                Qt.SmoothTransformation)
         scaled.setDevicePixelRatio(dpr)
-        if len(self._scaled) > 300:
-            self._scaled.clear()
+        # Evict the 50 oldest entries instead of clearing everything — avoids
+        # a full-miss repaint after a scroll.
+        while len(self._scaled) >= 300:
+            self._scaled.popitem(last=False)
         self._scaled[key] = scaled
         return scaled
 
