@@ -209,6 +209,8 @@ def test_native_converter_recognises_epub_pdf_and_epub_txt():
     nc = NativeConverter()
     assert nc.can_convert("epub", "pdf")
     assert nc.can_convert("EPUB", "TXT")
+    assert nc.can_convert("pdf", "txt")
+    assert nc.can_convert("txt", "epub")
     assert not nc.can_convert("epub", "mobi")   # still needs Calibre
     assert not nc.can_convert("mobi", "epub")
 
@@ -268,6 +270,39 @@ def test_epub_to_txt_goes_native_without_calibre(app_context, tmp_path):
 
     assert result.ok, result.error
     assert result.output_path.endswith(".txt")
+
+
+def test_pdf_to_txt_goes_native_without_calibre(app_context, tmp_path):
+    """PDF→TXT must succeed without Calibre, using PyMuPDF."""
+    import fitz  # noqa: PLC0415
+    pdf_path = tmp_path / "sample.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Hello MewBook PDF")
+    doc.save(str(pdf_path))
+    doc.close()
+
+    job = ConversionJob(doc_id="d1", title="Sample", source_path=str(pdf_path))
+    service = FormatConversionService(app_context, ebook_convert_path="")
+
+    result = service.convert_one(job, "txt", str(tmp_path / "out"))
+
+    assert result.ok, result.error
+    assert result.output_path.endswith(".txt")
+
+
+def test_txt_to_epub_goes_native_without_calibre(app_context, tmp_path):
+    """TXT→EPUB must succeed without Calibre, using ebooklib."""
+    txt_path = tmp_path / "sample.txt"
+    txt_path.write_text("Nội dung thử nghiệm chuyển sang EPUB.", encoding="utf-8")
+
+    job = ConversionJob(doc_id="d1", title="Sample", source_path=str(txt_path))
+    service = FormatConversionService(app_context, ebook_convert_path="")
+
+    result = service.convert_one(job, "epub", str(tmp_path / "out"))
+
+    assert result.ok, result.error
+    assert result.output_path.endswith(".epub")
 
 
 # -- real Calibre (skipped when not installed on this machine) ------------------------------------------------------

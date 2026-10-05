@@ -43,6 +43,9 @@ audit, with the reasoning and the open questions, is in
 | python-crfsuite / sklearn-crfsuite | 0.9.12 / 0.5.0 | MIT |
 | tabulate | 0.10.0 | MIT |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |
+| ebooklib | 0.18 | BSD-2-Clause |
+| lxml | 6.1.3 | BSD-3-Clause |
+| six | 1.17.0 | MIT |
 
 Build tools (not part of the application code): PyInstaller (its bootloader is
 embedded in `MewBook.exe`), Inno Setup, hatchling, pytest, uv.

@@ -114,6 +114,10 @@ SORT_OPTIONS: dict[str, str] = {
     "Tác giả (A-Z)": "documents.author ASC",
     "Kích thước file (lớn nhất)": "documents.file_size DESC",
     "Được đánh giá cao nhất": "documents.avg_rating DESC",
+    "Sách đã tóm tắt": (
+        "CASE WHEN documents.ai_summary IS NOT NULL AND documents.ai_summary != '' THEN 0 ELSE 1 END,"
+        " documents.title ASC"
+    ),
 }
 
 # Selecting this one specifically triggers a background Supabase sync of
@@ -1232,24 +1236,41 @@ class LibraryListWidget(QWidget):
         self.context.event_bus.publish(LibraryUpdatedEvent())
 
     def _show_single_document_menu(self, menu: QMenu, doc: dict, position) -> None:
-        read_action = menu.addAction("Đọc trong ứng dụng")
-        open_action = menu.addAction("Mở bằng ứng dụng khác")
-        reveal_action = menu.addAction("Mở vị trí file")
-        edit_action = menu.addAction("Chỉnh sửa thông tin")
-        review_action = menu.addAction("Xem / Viết đánh giá")
-        metadata_search_action = menu.addAction("Tìm thêm thông tin...")  # information and cover, one window
-        cover_search_action = menu.addAction("Đổi ảnh bìa...")  # by link or from a file
-        ai_summary_action = menu.addAction("Tóm tắt AI...")
-        smart_classify_action = menu.addAction("Phân loại thông minh")
+        def _a(label: str):  # returns QAction
+            return menu.addAction(label)
+
+        read_action = _a("Đọc trong ứng dụng")
+        read_action.setIcon(line_icon("book"))
+        open_action = _a("Mở bằng ứng dụng khác")
+        open_action.setIcon(line_icon("expand"))
+        reveal_action = _a("Mở vị trí file")
+        reveal_action.setIcon(line_icon("folder"))
+        edit_action = _a("Chỉnh sửa thông tin")
+        edit_action.setIcon(line_icon("pen"))
+        review_action = _a("Xem / Viết đánh giá")
+        review_action.setIcon(line_icon("star"))
+        metadata_search_action = _a("Tìm thêm thông tin...")  # information and cover, one window
+        metadata_search_action.setIcon(line_icon("search"))
+        cover_search_action = _a("Đổi ảnh bìa...")  # by link or from a file
+        cover_search_action.setIcon(line_icon("image"))
+        ai_summary_action = _a("Tóm tắt AI...")
+        ai_summary_action.setIcon(line_icon("bot"))
+        smart_classify_action = _a("Phân loại thông minh")
+        smart_classify_action.setIcon(line_icon("tag"))
         menu.addSeparator()
-        copy_action = menu.addAction("Sao chép")
-        cut_action = menu.addAction("Cắt")
+        copy_action = _a("Sao chép")
+        copy_action.setIcon(line_icon("file"))
+        cut_action = _a("Cắt")
+        cut_action.setIcon(line_icon("file"))
         menu.addSeparator()
         _submenu, collection_actions = self._build_add_to_collection_menu(menu)
-        send_ereader_action = menu.addAction("Gửi tới máy đọc sách...")
-        convert_format_action = menu.addAction("Chuyển đổi định dạng...")
+        send_ereader_action = _a("Gửi tới máy đọc sách...")
+        send_ereader_action.setIcon(line_icon("send"))
+        convert_format_action = _a("Chuyển đổi định dạng...")
+        convert_format_action.setIcon(line_icon("refresh"))
         menu.addSeparator()
-        delete_action = menu.addAction("Xóa khỏi thư viện")
+        delete_action = _a("Xóa khỏi thư viện")
+        delete_action.setIcon(line_icon("trash"))
 
         chosen = self._exec_menu(menu, position)
         if chosen == open_action:

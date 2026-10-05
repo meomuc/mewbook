@@ -48,9 +48,10 @@ SUPPORTED_PAIRS: frozenset[tuple[str, str]] = frozenset({
     ("epub", "mobi"), ("epub", "azw3"),
     ("epub", "pdf"),  # native via PyMuPDF -- no Calibre needed
     ("epub", "txt"),  # native via PyMuPDF
+    ("pdf", "txt"),   # native via PyMuPDF
+    ("txt", "epub"),  # native via ebooklib -- no Calibre needed
     ("mobi", "epub"), ("mobi", "azw3"),
     ("azw3", "epub"), ("azw3", "mobi"),
-    ("txt", "epub"),
     ("pdf", "epub"), ("pdf", "mobi"), ("pdf", "azw3"),  # risky -- see RISKY_PAIRS
 })
 
@@ -170,15 +171,19 @@ def _default_run_subprocess(args: list[str], timeout: int) -> "subprocess.Comple
 
 
 class NativeConverter:
-    """Converts EPUB→PDF and EPUB→TXT without Calibre, using PyMuPDF (already bundled).
+    """Converts formats without Calibre, using PyMuPDF (bundled) and ebooklib (BSD-2).
 
-    Both conversions open the EPUB once through fitz, which supports EPUB natively since MuPDF 1.14.
-    The lock (pymupdf_lock) is held only for the duration of the open+save, the same as PdfExtractor.
+    Supported pairs:
+    - EPUB→PDF, EPUB→TXT : fitz opens EPUB natively (MuPDF 1.14+); lock held during open+save.
+    - PDF→TXT            : fitz extracts text from every page.
+    - TXT→EPUB           : ebooklib wraps the text in a minimal EPUB structure.
     """
 
     NATIVE_PAIRS: frozenset[tuple[str, str]] = frozenset({
         ("epub", "pdf"),
         ("epub", "txt"),
+        ("pdf", "txt"),
+        ("txt", "epub"),
     })
 
     def can_convert(self, src_ext: str, target_ext: str) -> bool:
@@ -186,23 +191,59 @@ class NativeConverter:
 
     def convert(self, src: str, target_ext: str, dest: str) -> None:
         """Convert `src` to `dest`. Raises `FormatConversionError` on failure."""
-        import fitz  # noqa: PLC0415 -- heavy; loaded only on demand so the GUI thread stays light at start-up
-        from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
-
+        src_ext = Path(src).suffix.lstrip(".").lower()
         ext = target_ext.lower()
         try:
-            with pymupdf_lock, fitz.open(src) as doc:
-                if ext == "pdf":
-                    doc.save(dest)
-                elif ext == "txt":
-                    text = "\n\n".join(page.get_text() for page in doc)
-                    Path(dest).write_text(text, encoding="utf-8")
-                else:
-                    raise FormatConversionError(f"Cặp định dạng chưa hỗ trợ native: {ext}")
+            if ext in ("pdf", "txt") and src_ext in ("epub", "pdf"):
+                self._fitz_convert(src, ext, dest)
+            elif src_ext == "txt" and ext == "epub":
+                self._txt_to_epub(src, dest)
+            else:
+                raise FormatConversionError(f"Cặp định dạng chưa hỗ trợ native: {src_ext}→{ext}")
         except FormatConversionError:
             raise
         except Exception as exc:
             raise FormatConversionError(f"Lỗi khi chuyển đổi: {exc}") from exc
+
+    def _fitz_convert(self, src: str, target_ext: str, dest: str) -> None:
+        import fitz  # noqa: PLC0415 -- heavy; loaded only on demand so the GUI thread stays light at start-up
+        from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
+
+        with pymupdf_lock, fitz.open(src) as doc:
+            if target_ext == "pdf":
+                doc.save(dest)
+            else:  # txt
+                text = "\n\n".join(page.get_text() for page in doc)
+                Path(dest).write_text(text, encoding="utf-8")
+
+    def _txt_to_epub(self, src: str, dest: str) -> None:
+        try:
+            from ebooklib import epub  # noqa: PLC0415
+        except ImportError as exc:
+            raise FormatConversionError("ebooklib chưa được cài (uv add ebooklib)") from exc
+
+        import uuid  # noqa: PLC0415
+        book = epub.EpubBook()
+        book.set_identifier("mewbook-" + str(uuid.uuid4()))
+        title = Path(src).stem
+        book.set_title(title)
+        book.set_language("vi")
+        text = Path(src).read_text(encoding="utf-8", errors="replace")
+        safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        chapter = epub.EpubHtml(title=title, file_name="content.xhtml", lang="vi")
+        # ebooklib 0.18 requires bytes or an already-encoded string for .content
+        chapter.content = (
+            "<?xml version='1.0' encoding='utf-8'?>"
+            "<html xmlns='http://www.w3.org/1999/xhtml'><body><pre>"
+            + safe
+            + "</pre></body></html>"
+        ).encode("utf-8")
+        book.add_item(chapter)
+        book.toc = (epub.Link("content.xhtml", title, "content"),)
+        book.add_item(epub.EpubNcx())
+        book.add_item(epub.EpubNav())
+        book.spine = ["nav", chapter]
+        epub.write_epub(dest, book)
 
 
 class FormatConversionService:

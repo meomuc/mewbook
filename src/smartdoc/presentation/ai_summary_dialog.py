@@ -98,6 +98,16 @@ class AISummaryDialog(QDialog):
         self.save_button.clicked.connect(self._on_save)
         self.save_button.setEnabled(bool(existing))
 
+        if self._configured:
+            provider_str = self._provider or "?"
+            model_str = self._model or "mặc định"
+            self._model_info_label: QLabel | None = QLabel(
+                f"Mô hình:  {provider_str}  /  {model_str}", self)
+            self._model_info_label.setObjectName("AISummaryModelInfo")
+            self._model_info_label.setStyleSheet("font-size: 11px; padding: 2px 0;")
+        else:
+            self._model_info_label = None
+
         button_row = QHBoxLayout()
         button_row.addWidget(self.generate_button)
         button_row.addStretch(1)
@@ -112,6 +122,8 @@ class AISummaryDialog(QDialog):
         layout.addWidget(self.summary_edit, stretch=1)
         layout.addWidget(self.status_label)
         layout.addWidget(self.busy_indicator)
+        if self._model_info_label is not None:
+            layout.addWidget(self._model_info_label)
         layout.addLayout(button_row)
 
         self.generation_finished.connect(self._on_generation_finished)

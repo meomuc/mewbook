@@ -8,7 +8,10 @@ Only layout lives here; every control keeps the name and behaviour it had before
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -22,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.presentation.line_icons import line_icon
+from smartdoc.presentation.resources import themes_dir
 from smartdoc.presentation.theme import ROLE_FUNCTION, ROLE_HINT, role_css
 from smartdoc.presentation.theme_manager import theme_manager
 
@@ -202,12 +206,27 @@ class ThemeCard(QFrame):
         # `tokens`: the theme composed for the layout being chosen (a layout may retune colours), else the plain theme.
         self._tokens = tokens if tokens is not None else load_tokens().get(token_key_for(key), {})
         self._selected = False
+        # Preview screenshot: first image in themes/<id>/preview/, scaled to card width.
+        self._preview_pixmap: QPixmap | None = self._load_preview(key)
         self.setFixedSize(150, 138)
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.StrongFocus)
         self.name = name
         self.caption = caption
         self.setAccessibleName(f"{name}, {caption}")
+
+    @staticmethod
+    def _load_preview(key: str) -> QPixmap | None:
+        preview_dir = themes_dir() / key / "preview"
+        if not preview_dir.is_dir():
+            return None
+        for ext in ("*.png", "*.jpg", "*.webp"):
+            images = sorted(preview_dir.glob(ext))
+            if images:
+                px = QPixmap(str(images[0]))
+                if not px.isNull():
+                    return px.scaled(148, 68, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        return None
 
     def sizeHint(self) -> QSize:  # noqa: N802 -- Qt override (a flow layout asks every child for it)
         return QSize(150, 138)
@@ -246,19 +265,33 @@ class ThemeCard(QFrame):
         painter.setPen(QPen(tm.color("accent") if self._selected else tm.color("line"), 2 if self._selected else 1))
         painter.setBrush(tm.color("surface"))
         painter.drawRoundedRect(outer, 8, 8)
-        # The little shelf: the theme's own background, three books and the plank.
+        # Preview area: screenshot thumbnail if available, otherwise the drawn shelf.
         art = outer.adjusted(1, 1, -1, -(outer.height() - 70))
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(colour("bg"))
-        painter.drawRoundedRect(art, 7, 7)
-        painter.drawRect(art.adjusted(0, 10, 0, 0))
-        base = art.bottom() - 10
-        for x, height, brush in ((art.left() + 14, 40, colour("accent")), (art.left() + 42, 32, colour("ink")),
-                                 (art.left() + 68, 46, colour("surface2"))):
-            painter.setBrush(brush)
-            painter.drawRoundedRect(x, base - height, 22, height, 2, 2)
-        painter.setBrush(colour("shelf"))
-        painter.drawRect(art.left() + 6, base, art.width() - 12, 4)
+        if self._preview_pixmap is not None:
+            # Clip to rounded corners, then stamp the screenshot.
+            from PySide6.QtGui import QPainterPath
+            clip = QPainterPath()
+            clip.addRoundedRect(art, 7, 7)
+            painter.setClipPath(clip)
+            px = self._preview_pixmap
+            # Center-crop: the pixmap was scaled to KeepAspectRatioByExpanding so one side may be larger.
+            src_x = max(0, (px.width() - art.width()) // 2)
+            src_y = max(0, (px.height() - art.height()) // 2)
+            from PySide6.QtCore import QRect
+            painter.drawPixmap(art, px, QRect(src_x, src_y, art.width(), art.height()))
+            painter.setClipping(False)
+        else:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(colour("bg"))
+            painter.drawRoundedRect(art, 7, 7)
+            painter.drawRect(art.adjusted(0, 10, 0, 0))
+            base = art.bottom() - 10
+            for x, height, brush in ((art.left() + 14, 40, colour("accent")), (art.left() + 42, 32, colour("ink")),
+                                     (art.left() + 68, 46, colour("surface2"))):
+                painter.setBrush(brush)
+                painter.drawRoundedRect(x, base - height, 22, height, 2, 2)
+            painter.setBrush(colour("shelf"))
+            painter.drawRect(art.left() + 6, base, art.width() - 12, 4)
         # Name and light/dark caption under the picture.
         painter.setPen(tm.color("ink"))
         font = painter.font()

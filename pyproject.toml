@@ -24,6 +24,7 @@ dependencies = [
     # the short-lived, low-priority classification worker process -- never in
     # the GUI process (see infrastructure/vi_tokenizer.py).
     "pyvi>=0.1.1",
+    "ebooklib>=0.20",
 ]
 
 [project.scripts]

@@ -44,10 +44,22 @@ def _wait_until_done(qapp, dialog, timeout: float = 5.0) -> None:
     qapp.processEvents()
 
 
-def test_shows_calibre_not_found_guidance_and_nothing_else(qapp, app_context, tmp_path):
+def test_shows_calibre_not_found_guidance_and_allows_native_pairs(qapp, app_context, tmp_path):
+    # Since Batch 2, the dialog always builds the full UI. Native pairs work without Calibre;
+    # Calibre-required pairs are marked unsupported with a clear message.
     docs = _docs(tmp_path, ["a.epub"])
     dialog = FormatConversionDialog(app_context, docs, service=_service(app_context, ebook_convert_path=""))
-    assert not hasattr(dialog, "run_button")  # the whole picker UI is skipped
+    assert hasattr(dialog, "run_button")  # full UI always built
+    assert not dialog._calibre_available
+    dialog._output_dir = str(tmp_path / "out")
+    # epub→pdf is native: marked will_convert even without Calibre
+    _pick_target(dialog, "pdf")
+    dialog._refresh_plan()
+    assert any(s == "will_convert" for s in dialog._plan.values())
+    # epub→mobi requires Calibre: marked unsupported when Calibre absent
+    _pick_target(dialog, "mobi")
+    dialog._refresh_plan()
+    assert all(s == "unsupported" for s in dialog._plan.values())
     dialog.deleteLater()
 
 

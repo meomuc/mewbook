@@ -62,9 +62,11 @@ class _BatchProgress:
 
 
 class ImportQueueManager:
-    def __init__(self, context, num_workers: int = 4, use_process_pool: bool = False) -> None:
+    def __init__(self, context, num_workers: int = 4, use_process_pool: bool = False,
+                 cover_regen_svc=None) -> None:
         self.context = context
         self.num_workers = num_workers
+        self._cover_regen_svc = cover_regen_svc
         # Reading PDFs in separate processes (infrastructure/pdf_worker.py): PyMuPDF is not thread-safe, so the import
         # threads otherwise take turns on the heavy part. The app turns it on; a test or a tool leaves it off.
         self._use_process_pool = use_process_pool
@@ -437,6 +439,13 @@ class ImportQueueManager:
         clean_metadata["cover_path"] = cover_path
 
         self.context.db.add_or_update_document(doc_id, clean_metadata, extracted_text)
+        # If no cover was extracted (encrypted PDF, cover-less EPUB, etc.), regenerate from first page.
+        if not cover_path and self._cover_regen_svc is not None:
+            doc_stub = {"id": doc_id, "file_path": path, "extension": extension}
+            try:
+                self._cover_regen_svc.regen_one(doc_stub)  # noqa: BLE001 -- already caught inside regen_one
+            except Exception:
+                pass  # noqa: BLE001 -- cover is a nice-to-have; don't abort the import
         self.context.event_bus.publish(DocumentIndexedEvent(doc_id=doc_id, batch_id=batch_id))
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return "success"

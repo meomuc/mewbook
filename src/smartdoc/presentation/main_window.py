@@ -55,6 +55,7 @@ from smartdoc.presentation.missing_files_strip import MissingFilesStrip
 from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
 from smartdoc.presentation.task_progress_dialog import run_with_progress
+from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
 
@@ -243,24 +244,37 @@ class MainWindow(QMainWindow):
         return menu
 
     def _build_tools_menu(self) -> QMenu:
+        def _a(label: str, slot, icon_name: str) -> None:
+            act = menu.addAction(label, slot)
+            act.setIcon(line_icon(icon_name))
+
         menu = QMenu(self)
-        menu.addAction(vi.TOOL_SMART_CLASSIFY, lambda: self.open_smart_classify())
-        menu.addAction(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup)
-        menu.addAction(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder)
-        menu.addAction(vi.TOOL_TRASH, self._on_open_trash)
-        menu.addAction(vi.TOOL_EXCLUDED, self._on_open_excluded)
-        menu.addAction(vi.TOOL_GATHER, self._on_open_gather)
-        menu.addAction(vi.TOOL_METADATA_UPDATE, self._on_open_metadata_batch_update)
-        menu.addAction(vi.TOOL_RELINK, self._on_open_relink)
-        menu.addAction("Dọn dẹp thư viện…", self._on_open_library_cleanup)
-        menu.addAction(vi.TOOL_SEND_EREADER, self._on_send_to_ereader)
-        menu.addAction(vi.TOOL_CONVERT_FORMAT, self._on_convert_format)
-        menu.addAction("Tạo bìa từ trang đầu (sách chưa có bìa)…", self._on_regen_covers)
+        # --- Phân tích & tổ chức --------------------------------------------------
+        _a(vi.TOOL_SMART_CLASSIFY, lambda: self.open_smart_classify(), "tag")
+        _a(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder, "search")
+        _a(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup, "pen")
         menu.addSeparator()
-        menu.addAction(vi.TOOL_EXPORT, self._on_export_library)
-        menu.addAction(vi.TOOL_BACKUP, lambda: self._on_open_settings(initial_tab="backup"))
+        # --- Quản lý sách ---------------------------------------------------------
+        _a(vi.TOOL_METADATA_UPDATE, self._on_open_metadata_batch_update, "refresh")
+        _a(vi.TOOL_RELINK, self._on_open_relink, "folder")
+        _a(vi.TOOL_GATHER, self._on_open_gather, "archive")
+        _a("Dọn dẹp thư viện…", self._on_open_library_cleanup, "check")
         menu.addSeparator()
+        # --- Xuất & gửi -----------------------------------------------------------
+        _a(vi.TOOL_SEND_EREADER, self._on_send_to_ereader, "send")
+        _a(vi.TOOL_CONVERT_FORMAT, self._on_convert_format, "file")
+        _a(vi.TOOL_EXPORT, self._on_export_library, "download")
+        menu.addSeparator()
+        # --- Sao lưu --------------------------------------------------------------
+        _a(vi.TOOL_BACKUP, lambda: self._on_open_settings(initial_tab="backup"), "shield")
+        menu.addSeparator()
+        # --- Sách đặc biệt (đã xóa / đã gỡ) -------------------------------------
+        _a(vi.TOOL_TRASH, self._on_open_trash, "trash")
+        _a(vi.TOOL_EXCLUDED, self._on_open_excluded, "eye")
+        menu.addSeparator()
+        # --- Trợ giúp -------------------------------------------------------------
         help_menu = menu.addMenu(vi.TOOL_HELP_HEADING)
+        help_menu.setIcon(line_icon("question"))
         help_menu.addAction("Giới thiệu…", self._on_open_about)
         help_menu.addAction("Trang web chính thức", lambda: open_website())
         help_menu.addAction("Fanpage cộng đồng", lambda: open_community_page())
@@ -434,30 +448,6 @@ class MainWindow(QMainWindow):
         dialog = RelinkDialog(self.context, self)
         dialog.exec()
         dialog.deleteLater()
-
-    def _on_regen_covers(self) -> None:
-        from smartdoc.application.cover_regen import CoverRegenService
-        from smartdoc.presentation.task_progress_dialog import run_with_progress
-
-        svc = CoverRegenService(self.context)
-        pending = svc.pending()
-        if not pending:
-            QMessageBox.information(self, "Tạo bìa từ trang đầu", "Tất cả sách đã có bìa.")
-            return
-        msg = f"Sẽ tạo bìa cho {len(pending)} sách chưa có bìa (PDF và EPUB)."
-
-        def work(progress):
-            return svc.regen_all(progress=progress)
-
-        result, error = run_with_progress(
-            self, title="Tạo bìa", message=msg,
-            work=work, delay_ms=300,
-            hint="Đọc trang đầu tiên của từng file — có thể mất vài phút với thư viện lớn.")
-        if error:
-            QMessageBox.warning(self, "Tạo bìa", f"Có lỗi: {error}")
-        elif result is not None:
-            done, total = result
-            QMessageBox.information(self, "Tạo bìa từ trang đầu", f"Đã tạo bìa: {done}/{total} sách.")
 
     def _on_open_library_cleanup(self) -> None:
         dialog = LibraryCleanupDialog(self.context, self, on_relink=self._on_open_relink)

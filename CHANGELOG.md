@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Added
+- **Chuyển đổi định dạng native mở rộng (Batch 2).** PDF→TXT và TXT→EPUB nay chạy trực tiếp qua PyMuPDF / ebooklib,
+  không cần Calibre. Dialog hiện nhãn "(không cần Calibre)" hoặc "(dùng Calibre)" cho từng cuốn. Khi Calibre chưa cài,
+  các cặp native vẫn dùng được; cặp cần Calibre hiện thông báo rõ thay vì block toàn bộ.
+- **Bìa từ trang đầu chạy ngầm khi nhập sách.** Sau khi nhập mỗi sách, nếu chưa có bìa, worker nhập tự trích bìa từ
+  trang đầu PDF/EPUB ngay tại chỗ — không còn mục "Tạo bìa…" trong menu Công cụ.
+- **Menu Công cụ tổ chức lại theo nhóm + icon.** Năm nhóm phân cách bằng separator. Mỗi mục có icon line art.
+  "Thùng rác" đổi tên thành "Sách đã xóa…", xuống nhóm cuối trước Trợ giúp.
+- **Click phải chuột trên sách có icon.** Tất cả mục trong context menu nay có icon line art tương ứng.
+- **AI tóm tắt: hiện tên mô hình đang dùng.** Dòng "Mô hình: \<provider\> / \<model\>" xuất hiện phía trên nút
+  Tóm tắt khi AI đã cấu hình.
+- **Sắp xếp "Sách đã tóm tắt".** Tùy chọn mới trong dropdown sắp xếp: sách có tóm tắt AI lên trước, trong đó xếp
+  theo tên.
+- **Giao diện: xem trước ảnh chụp theme.** Thẻ theme trong Cài đặt › Giao diện hiển thị ảnh chụp màn hình thật
+  từ `themes/<id>/preview/`; fallback về hình vẽ tượng trưng nếu không có ảnh.
+
+### Added
 - **Tạo bìa từ trang đầu.** Mục mới "Tạo bìa từ trang đầu (sách chưa có bìa)…" trong menu Công cụ xử lý hàng loạt mọi
   PDF/EPUB chưa có ảnh bìa: PDF dùng trang đầu tiên, EPUB lấy ảnh bìa từ manifest. Tiến trình hiện trong cửa sổ chờ;
   sách mất file hoặc trên đám mây bị bỏ qua tự động.

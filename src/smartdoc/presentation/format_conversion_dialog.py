@@ -22,6 +22,7 @@ from smartdoc.application.format_conversion import (
     ConversionJob,
     ConversionResult,
     FormatConversionService,
+    NativeConverter,
     deferred_reason,
     is_pair_supported,
     is_risky_pair,
@@ -41,8 +42,8 @@ _WILL_CONVERT = "will_convert"
 _UNSUPPORTED = "unsupported"
 _DRM = "drm"
 
-#: Target formats offered in the picker -- every format any MVP pair converts *into* (task C2's SUPPORTED_PAIRS).
-_TARGET_FORMATS = ("epub", "mobi", "azw3")
+#: Target formats offered in the picker -- native pairs first (no Calibre needed), then Calibre-required.
+_TARGET_FORMATS = ("epub", "mobi", "azw3", "pdf", "txt")
 
 
 class FormatConversionDialog(DesignDialog):
@@ -60,18 +61,17 @@ class FormatConversionDialog(DesignDialog):
         self._running = False
         self._cancel = threading.Event()
         self._relay = WorkerRelay(self)
+        self._calibre_available = self.service.is_calibre_available()
         tm = theme_manager()
 
-        if not self.service.is_calibre_available():
-            self.body.addWidget(HintLabel(INSTALL_HINT, self, color_token="warn"))
-            self.done_button = self.add_footer_button("Đóng", "primary", on_click=self.accept)
-            self._progress.connect(self._on_progress)
-            self._finished.connect(self._on_finished)
-            return
-
-        self.body.addWidget(HintLabel(
-            "File gốc không bị sửa hay xóa -- bản chuyển đổi được lưu vào một thư mục riêng. Bản thử này dùng "
-            "Calibre đã cài sẵn trên máy bạn; chưa hỗ trợ mọi cặp định dạng.", self))
+        if not self._calibre_available:
+            self.body.addWidget(HintLabel(
+                INSTALL_HINT + " Các định dạng hỗ trợ sẵn (EPUB↔PDF, EPUB↔TXT, PDF→TXT, TXT→EPUB) vẫn dùng được "
+                "mà không cần Calibre.", self, color_token="warn"))
+        else:
+            self.body.addWidget(HintLabel(
+                "File gốc không bị sửa hay xóa -- bản chuyển đổi được lưu vào một thư mục riêng. "
+                "Các cặp ghi '(không cần Calibre)' chạy thẳng bằng thư viện đi kèm.", self))
 
         format_row = QHBoxLayout()
         format_row.setContentsMargins(0, 0, 0, 0)
@@ -173,11 +173,18 @@ class FormatConversionDialog(DesignDialog):
                 status = _UNSUPPORTED
                 note = f"Chưa hỗ trợ .{source_ext} → .{target}" + (f" ({reason})" if reason else "")
             else:
-                status = _WILL_CONVERT
-                note = "Sẽ chuyển đổi"
-                if is_risky_pair(source_ext, target):
-                    any_risky = True
-                    note = "Sẽ chuyển đổi -- định dạng gốc có thể không được giữ nguyên"
+                _nc = NativeConverter()
+                is_native = _nc.can_convert(source_ext, target)
+                if not is_native and not self._calibre_available:
+                    status = _UNSUPPORTED
+                    note = f"Cần cài Calibre để chuyển .{source_ext} → .{target}"
+                else:
+                    status = _WILL_CONVERT
+                    native_tag = " (không cần Calibre)" if is_native else " (dùng Calibre)"
+                    note = "Sẽ chuyển đổi" + native_tag
+                    if is_risky_pair(source_ext, target):
+                        any_risky = True
+                        note = "Sẽ chuyển đổi -- định dạng gốc có thể không được giữ nguyên" + native_tag
             self._plan[doc_id] = status
             self._paint_row(item, status, note)
             self.book_list.addItem(item)

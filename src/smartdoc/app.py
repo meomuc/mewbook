@@ -14,6 +14,7 @@ from smartdoc import APP_DISPLAY_NAME, APP_NAME, APP_PUBLISHER, __version__
 from smartdoc.application.file_watcher import LibraryWatcher
 from smartdoc.application.content_backfill import ContentBackfill
 from smartdoc.application.fingerprint_backfill import FingerprintBackfill
+from smartdoc.application.cover_regen import CoverRegenService
 from smartdoc.application.import_queue import ImportQueueManager
 from smartdoc.application.smart_classifier import AutoClassifyOnImport, SmartClassifyService
 from smartdoc.core.app_context import AppContext
@@ -186,7 +187,12 @@ def main() -> None:
     # it up front so it's visible in the sidebar before the first star.
     context.db.ensure_reading_list()
 
-    import_manager = ImportQueueManager(context, num_workers=context.config.config.worker_thread_count, use_process_pool=True)
+    import_manager = ImportQueueManager(
+        context,
+        num_workers=context.config.config.worker_thread_count,
+        use_process_pool=True,
+        cover_regen_svc=CoverRegenService(context),
+    )
     import_manager.start()
 
     watcher = LibraryWatcher(context)
