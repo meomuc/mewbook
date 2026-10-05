@@ -19,7 +19,7 @@ from smartdoc.core.event_bus import FilterChangedEvent
 from smartdoc.domain.library_filter import MODE_GO
 from smartdoc.presentation.qt_event_bridge import QtEventBridge
 from smartdoc.presentation.search_suggest_popup import SearchSuggestPopup
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
 

@@ -240,6 +240,9 @@ class AppConfig:
     auto_cover_on_import: bool = False
     # Settings > Đánh giá cộng đồng: draw a small ★ avg_rating badge overlaid on the bottom-right of cover thumbnails.
     show_community_rating_badge: bool = True
+    # Settings > Giao diện: language of the application UI ("vi" = Vietnamese, "en" = English).
+    # Takes effect after restarting the application.
+    ui_language: str = "vi"
 
 
 SMART_CLASSIFY_ON_IMPORT_CHOICES = ("ask", "always", "never")

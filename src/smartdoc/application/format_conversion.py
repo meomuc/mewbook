@@ -50,8 +50,10 @@ SUPPORTED_PAIRS: frozenset[tuple[str, str]] = frozenset({
     ("epub", "txt"),  # native via PyMuPDF
     ("pdf", "txt"),   # native via PyMuPDF
     ("txt", "epub"),  # native via ebooklib -- no Calibre needed
-    ("mobi", "epub"), ("mobi", "azw3"),
-    ("azw3", "epub"), ("azw3", "mobi"),
+    ("mobi", "epub"),  # native via mobi.extract -- no Calibre needed
+    ("mobi", "azw3"),
+    ("azw3", "epub"),  # native via mobi.extract -- no Calibre needed
+    ("azw3", "mobi"),
     ("pdf", "epub"), ("pdf", "mobi"), ("pdf", "azw3"),  # risky -- see RISKY_PAIRS
 })
 
@@ -65,6 +67,7 @@ DEFERRED_PAIRS: dict[tuple[str, str], str] = {
     ("docx", "epub"): "Chưa có bộ tài liệu mẫu để đo chất lượng chuyển đổi từ DOCX; để đánh giá kỹ hơn ở bản sau.",
     ("epub", "docx"): "Không phục vụ trực tiếp việc gửi sách sang máy đọc sách; ưu tiên thấp hơn các cặp ở trên.",
     # ("epub", "pdf") has moved to SUPPORTED_PAIRS: now handled natively by NativeConverter via PyMuPDF.
+    # ("mobi", "epub") and ("azw3", "epub") have moved to SUPPORTED_PAIRS: now handled natively by NativeConverter via mobi.extract.
     ("fb2", "epub"): "Ít gặp trong thư viện thử nghiệm; để sau khi có mẫu thật để kiểm tra.",
     ("cbz", "epub"): "Truyện tranh (ảnh theo trang) không phù hợp chảy chữ lại; cần cách tiếp cận khác, không phải MVP này.",
 }
@@ -171,12 +174,15 @@ def _default_run_subprocess(args: list[str], timeout: int) -> "subprocess.Comple
 
 
 class NativeConverter:
-    """Converts formats without Calibre, using PyMuPDF (bundled) and ebooklib (BSD-2).
+    """Converts formats without Calibre, using PyMuPDF (bundled), ebooklib (BSD-2), and mobi (GPL-2+).
 
     Supported pairs:
-    - EPUB→PDF, EPUB→TXT : fitz opens EPUB natively (MuPDF 1.14+); lock held during open+save.
-    - PDF→TXT            : fitz extracts text from every page.
-    - TXT→EPUB           : ebooklib wraps the text in a minimal EPUB structure.
+    - EPUB→PDF, EPUB→TXT  : fitz opens EPUB natively (MuPDF 1.14+); lock held during open+save.
+    - PDF→TXT             : fitz extracts text from every page.
+    - TXT→EPUB            : ebooklib wraps the text in a minimal EPUB structure.
+    - MOBI→EPUB, AZW3→EPUB: mobi.extract() unpacks the Kindle container into EPUB or HTML; when
+                            the extracted archive contains an .epub file it is simply copied out,
+                            otherwise the HTML content is repackaged via ebooklib.
     """
 
     NATIVE_PAIRS: frozenset[tuple[str, str]] = frozenset({
@@ -184,6 +190,8 @@ class NativeConverter:
         ("epub", "txt"),
         ("pdf", "txt"),
         ("txt", "epub"),
+        ("mobi", "epub"),
+        ("azw3", "epub"),
     })
 
     def can_convert(self, src_ext: str, target_ext: str) -> bool:
@@ -198,6 +206,8 @@ class NativeConverter:
                 self._fitz_convert(src, ext, dest)
             elif src_ext == "txt" and ext == "epub":
                 self._txt_to_epub(src, dest)
+            elif src_ext in ("mobi", "azw3") and ext == "epub":
+                self._mobi_to_epub(src, dest)
             else:
                 raise FormatConversionError(f"Cặp định dạng chưa hỗ trợ native: {src_ext}→{ext}")
         except FormatConversionError:
@@ -244,6 +254,74 @@ class NativeConverter:
         book.add_item(epub.EpubNav())
         book.spine = ["nav", chapter]
         epub.write_epub(dest, book)
+
+    def _mobi_to_epub(self, src: str, dest: str) -> None:
+        """Unpack a MOBI or AZW3 file to EPUB using the `mobi` library (GPL-2+, bundled).
+
+        mobi.extract() creates its own temp directory and returns (tmpdir, extracted_path).
+        When the extraction produces a .epub file directly (modern KF8/AZW3 containers almost
+        always do), it is simply copied out.  Otherwise the extracted HTML content is
+        repackaged into a minimal EPUB via ebooklib so the caller always receives a valid .epub.
+        """
+        import shutil  # noqa: PLC0415 -- stdlib; lazy import to match the pattern of fitz/ebooklib above
+
+        try:
+            import mobi as mobi_lib  # noqa: PLC0415 -- heavy (drags in Kindle-format parsers)
+        except ImportError as exc:
+            raise FormatConversionError("Thư viện mobi chưa được cài (uv add mobi)") from exc
+
+        try:
+            tmpdir, extracted_path = mobi_lib.extract(src)
+        except Exception as exc:
+            raise FormatConversionError(f"Không giải nén được file MOBI/AZW3: {exc}") from exc
+
+        try:
+            search_root = Path(tmpdir)
+            extracted = Path(extracted_path)
+
+            # Modern AZW3/KFX: mobi.extract drops a ready-made .epub inside the temp folder.
+            epub_files = (
+                [extracted] if extracted.suffix.lower() == ".epub" else []
+            ) or list(search_root.rglob("*.epub"))
+
+            if epub_files:
+                shutil.copy2(str(epub_files[0]), dest)
+                return
+
+            # Older MOBI: extraction gave us HTML + images; repackage with ebooklib.
+            try:
+                from ebooklib import epub  # noqa: PLC0415
+            except ImportError as exc:
+                raise FormatConversionError("ebooklib chưa được cài (uv add ebooklib)") from exc
+
+            import uuid  # noqa: PLC0415
+
+            html_files = sorted(search_root.rglob("*.html")) + sorted(search_root.rglob("*.htm"))
+            if not html_files:
+                raise FormatConversionError("Không tìm thấy nội dung HTML sau khi giải nén MOBI")
+
+            book = epub.EpubBook()
+            book.set_identifier("mewbook-" + str(uuid.uuid4()))
+            title = Path(src).stem
+            book.set_title(title)
+            book.set_language("vi")
+
+            chapters = []
+            for i, html_path in enumerate(html_files):
+                content = html_path.read_bytes()
+                ch = epub.EpubHtml(title=f"Phần {i + 1}", file_name=f"ch{i:03d}.xhtml", lang="vi")
+                ch.content = content
+                book.add_item(ch)
+                chapters.append(ch)
+
+            book.toc = tuple(epub.Link(ch.file_name, ch.title, f"ch{i}") for i, ch in enumerate(chapters))
+            book.add_item(epub.EpubNcx())
+            book.add_item(epub.EpubNav())
+            book.spine = ["nav"] + chapters
+            epub.write_epub(dest, book)
+        finally:
+            # mobi.extract() creates a temp dir it expects the caller to clean up.
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 class FormatConversionService:

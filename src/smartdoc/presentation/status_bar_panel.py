@@ -40,6 +40,7 @@ from smartdoc.core.event_bus import (
     ImportProgressEvent,
     LibraryFilesMissingEvent,
     LibraryUpdatedEvent,
+    MetadataSyncStatusEvent,
     SmartClassifyFinishedEvent,
     SmartClassifyProgressEvent,
     UpdateAvailableEvent,
@@ -356,6 +357,8 @@ class StatusBarPanel(QStatusBar):
         self._import_progress: tuple[int, int] | None = None
         self._classify_progress: tuple[int, int] | None = None
         self._background: dict[str, tuple[int, int]] = {}  # quiet housekeeping now running: task -> (done, total)
+        self._metadata_sync_state: str = "idle"   # "idle" | "fetching" | "contributed" | "error"
+        self._metadata_sync_message: str = ""
 
         self.setFixedHeight(STATUS_BAR_H)
         self._apply_style()
@@ -383,6 +386,7 @@ class StatusBarPanel(QStatusBar):
 
         # -- middle zone: system & connections --
         self.cloud_label = _StatusIcon("cloud", self)
+        self.metadata_sync_label = _StatusIcon("refresh", self)
         self.ai_label = _StatusIcon("bot", self)
         self.network_label = _StatusIcon("globe", self)
 
@@ -421,10 +425,10 @@ class StatusBarPanel(QStatusBar):
             spacing=_ZONE_SPACING_WIDE,
             trailing_stretch=True,
         )
-        self.system_zone = self._zone([self.cloud_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT)
+        self.system_zone = self._zone([self.cloud_label, self.metadata_sync_label, self.ai_label, self.network_label], spacing=_ZONE_SPACING_TIGHT)
         self.support_zone = self._zone([self.donate_ticker, self.community_label, self.author_label], spacing=_ZONE_SPACING_WIDE)
-        for label in (self.cloud_label, self.ai_label, self.network_label):
-            label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the three icons sit evenly, whatever their glyphs
+        for label in (self.cloud_label, self.metadata_sync_label, self.ai_label, self.network_label):
+            label.setFixedWidth(_STATUS_ICON_WIDTH)  # equal slots: the four icons sit evenly, whatever their glyphs
         for widget in (
             self.complete_label,
             self.incomplete_label,
@@ -433,6 +437,7 @@ class StatusBarPanel(QStatusBar):
             self.community_label,
             self.author_label,
             self.cloud_label,
+            self.metadata_sync_label,
             self.ai_label,
             self.network_label,
         ):
@@ -466,12 +471,14 @@ class StatusBarPanel(QStatusBar):
             BackgroundTaskEvent,
             SmartClassifyProgressEvent,
             SmartClassifyFinishedEvent,
+            MetadataSyncStatusEvent,
         ):
             self._bridge.subscribe(context.event_bus, event_type)
 
         self._ollama_probed.connect(self._on_ollama_probed)
         self._cloud_probed.connect(self._on_cloud_probed)
         self.cloud_label.clicked.connect(self._on_cloud_clicked)
+        self.metadata_sync_label.clicked.connect(lambda: self._say(self.metadata_sync_label))
         self.ai_label.clicked.connect(lambda: self._say(self.ai_label))
         self.network_label.clicked.connect(lambda: self._say(self.network_label))
         self._ollama_timer = QTimer(self)
@@ -571,6 +578,11 @@ class StatusBarPanel(QStatusBar):
         elif isinstance(event, SmartClassifyFinishedEvent):
             self._classify_progress = None
             self._show_activity()
+        elif isinstance(event, MetadataSyncStatusEvent):
+            self._metadata_sync_state = event.state
+            if event.message:
+                self._metadata_sync_message = event.message
+            self._refresh_metadata_sync()
         else:
             self._refresh_timer.start()  # LibraryUpdatedEvent bursts during imports
 
@@ -653,7 +665,7 @@ class StatusBarPanel(QStatusBar):
         self.folders_label.setToolTip(f"Đang theo dõi {folder_count} thư mục: sách mới bỏ vào đó sẽ tự được thêm")
 
         self._refresh_cloud()
-
+        self._refresh_metadata_sync()
         self._refresh_ai()
         self._refresh_network()
         self._fit_ticker()
@@ -677,6 +689,27 @@ class StatusBarPanel(QStatusBar):
             self.cloud_label.set_state(STATE_ERROR, "Đánh giá cộng đồng: chưa kết nối được. Bấm để kiểm tra lại")
         else:
             self.cloud_label.set_state(STATE_OK, "Đánh giá cộng đồng: đang bật, bạn có thể xem và viết đánh giá. Bấm để kiểm tra kết nối")
+
+    def _refresh_metadata_sync(self) -> None:
+        """Update the community-metadata sync status icon from the last MetadataSyncStatusEvent."""
+        config = self.context.config.config
+        if not config.community_metadata_enabled:
+            self.metadata_sync_label.set_state(STATE_OFF,
+                "Đồng bộ metadata cộng đồng: chưa bật. Vào Cài đặt > Kết nối & Dịch vụ để bật. Bấm để xem.")
+            return
+        state = self._metadata_sync_state
+        if state == "error":
+            tip = self._metadata_sync_message or "Đồng bộ metadata cộng đồng: lần vừa rồi gặp lỗi kết nối."
+            self.metadata_sync_label.set_state(STATE_ERROR, tip + " Bấm để xem.")
+        elif state == "fetching":
+            self.metadata_sync_label.set_state(STATE_OK, "Đồng bộ metadata cộng đồng: đang tìm thông tin từ cộng đồng…")
+        elif state == "contributed":
+            count = ""
+            if self._metadata_sync_message:
+                count = f" ({self._metadata_sync_message})"
+            self.metadata_sync_label.set_state(STATE_OK, f"Đồng bộ metadata cộng đồng: đã đóng góp thông tin{count}. Bấm để xem.")
+        else:
+            self.metadata_sync_label.set_state(STATE_OK, "Đồng bộ metadata cộng đồng: đang bật. Bấm để xem.")
 
     # -- a click on a status icon: the state in words, never a settings window --
 

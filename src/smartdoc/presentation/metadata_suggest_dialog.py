@@ -182,6 +182,14 @@ class MetadataSuggestDialog(DesignDialog):
         status_box_layout.addWidget(self.busy_indicator)
 
         # -- Frame 2: thông tin tìm được (trái: kết quả, phải: chi tiết + chọn cập nhật) ----
+        # Source-priority legend: shows the 3-tier order once so the user understands which source "wins" and
+        # why the suggested value may differ from the current one.
+        self.priority_hint = HintLabel(
+            "Thứ tự ưu tiên: Trong file → Thư viện của bạn → Cộng đồng MewBook → Internet. "
+            "Mỗi kết quả dưới đây đến từ một nguồn khác nhau — bạn chọn kết quả nào thì dùng thông tin của nguồn đó.",
+            self, color_token="ink2",
+        )
+
         self.candidate_list = QListWidget(self)
         row_height = self.candidate_list.fontMetrics().height() + 8
         self.candidate_list.setFixedHeight(row_height * 5 + 6)  # 5 rows visible; more scrolls
@@ -209,6 +217,7 @@ class MetadataSuggestDialog(DesignDialog):
 
         info_split = QHBoxLayout()
         left_col = QVBoxLayout()
+        left_col.addWidget(self.priority_hint)
         left_col.addWidget(self.candidate_list)
         left_col.addStretch(1)
         right_col = QVBoxLayout()

@@ -20,7 +20,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.brand import accessible_name, mascot_pixmap
 from smartdoc.presentation.theme_manager import theme_manager
 

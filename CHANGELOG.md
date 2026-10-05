@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added (05/10/2026 — Tuần 3-4 roadmap sprint)
+- **Hiển thị thứ tự ưu tiên nguồn trong hộp thoại Tìm thông tin sách.** Một dòng chú thích ở trên danh sách kết quả giải thích rõ thứ tự: Trong file → Thư viện của bạn → Cộng đồng MewBook → Internet.
+- **Icon đồng bộ metadata cộng đồng trên thanh trạng thái.** Icon mới (refresh) hiện ở vùng "hệ thống" khi metadata sync đang chạy hoặc đã hoàn thành; click vào để xem thông báo.
+- **Lưu trang web thành PDF (File › Lưu trang web thành PDF…).** Dán link, MewBook tải và lọc bỏ quảng cáo/menu rồi tạo PDF, tự thêm vào thư viện; có nhắc nhở bản quyền; thực hiện trong nền không chặn giao diện. Hỗ trợ mọi trang HTML/HTTPS; yêu cầu PyMuPDF ≥ 1.21.
+- **Sửa mã hóa cũ trong tên sách (Tools › Sửa mã hóa cũ…).** Quét toàn bộ tên sách/tác giả tìm chuỗi bị đọc nhầm bảng mã TCVN3/VNI, đề xuất tên đúng Unicode, người dùng chọn rồi áp dụng.
+- **Giao diện tiếng Anh (Cài đặt › Giao diện › Ngôn ngữ).** Thêm combo "Tiếng Việt / English" trong tab Giao diện; áp dụng sau khi khởi động lại. `AppConfig.ui_language` lưu lựa chọn; `strings.py` dispatch đúng module strings khi khởi động.
+- **Chuyển đổi định dạng MOBI/AZW3 sang EPUB không cần Calibre.** `NativeConverter` xử lý được hai cặp định dạng này bằng thư viện `mobi` đã cài sẵn; không cần cài Calibre nữa cho MOBI/AZW3→EPUB.
+
 ### Added
 - **Cài đặt phân loại nâng cao (Phân loại → Nguồn & ngưỡng).** Ba hàng "Sắp có" trong tab Phân loại đã
   được thay bằng controls thật: (1) hai checkbox chọn nguồn — "Nhãn thể loại, mô tả và mục lục nhúng trong

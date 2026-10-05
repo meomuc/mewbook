@@ -29,7 +29,7 @@ from smartdoc import APP_DISPLAY_NAME, APP_NAME
 from smartdoc.application.calibre_migrator import CalibreImporter
 from smartdoc.application.library_export import export_library_csv
 from smartdoc.application.smart_classifier import ClassifyScope, SmartClassifyService
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.about_dialog import AboutDialog
 from smartdoc.presentation.active_filter_bar import ActiveFilterBar
 from smartdoc.presentation.add_document_dialog import AddDocumentDialog
@@ -55,6 +55,8 @@ from smartdoc.presentation.missing_files_strip import MissingFilesStrip
 from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
 from smartdoc.presentation.status_bar_panel import StatusBarPanel
 from smartdoc.presentation.task_progress_dialog import run_with_progress
+from smartdoc.presentation.encoding_fix_dialog import EncodingFixDialog
+from smartdoc.presentation.webpage_to_pdf_dialog import WebpageToPdfDialog
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import DETAIL_W, SIDEBAR_W, theme_manager
 from smartdoc.presentation.toolbar import LibraryToolbar
@@ -305,6 +307,9 @@ class MainWindow(QMainWindow):
         convert_format_action = QAction(vi.TOOL_CONVERT_FORMAT, self)
         convert_format_action.triggered.connect(self._on_convert_format)
         file_menu.addAction(convert_format_action)
+        webpage_pdf_action = QAction("Lưu trang web thành PDF...", self)
+        webpage_pdf_action.triggered.connect(self._on_webpage_to_pdf)
+        file_menu.addAction(webpage_pdf_action)
         file_menu.addSeparator()
         exit_action = QAction("Thoát", self)
         exit_action.triggered.connect(self.close)
@@ -357,6 +362,9 @@ class MainWindow(QMainWindow):
         backup_action = QAction("Sao lưu thư viện...", self)
         backup_action.triggered.connect(lambda: self._on_open_settings(initial_tab="backup"))
         tools_menu.addAction(backup_action)
+        encoding_fix_action = QAction("Sửa mã hóa cũ trong tên sách (TCVN3/VNI)...", self)
+        encoding_fix_action.triggered.connect(self._on_encoding_fix)
+        tools_menu.addAction(encoding_fix_action)
         tools_menu.addSeparator()
         settings_action = QAction("Cài đặt...", self)
         settings_action.triggered.connect(self._on_open_settings)
@@ -523,6 +531,16 @@ class MainWindow(QMainWindow):
 
     def _on_convert_format(self) -> None:
         self.library_view.convert_selected_documents()
+
+    def _on_webpage_to_pdf(self) -> None:
+        dialog = WebpageToPdfDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _on_encoding_fix(self) -> None:
+        dialog = EncodingFixDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_classify_selected(self, doc_ids: list) -> None:
         scope = ClassifyScope(doc_ids=tuple(doc_ids), description=f"{len(doc_ids):,} sách đã chọn trong danh sách")

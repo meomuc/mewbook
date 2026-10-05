@@ -11,7 +11,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from smartdoc import APP_DISPLAY_NAME, APP_NAME
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.resources import brand_logo_path
 from smartdoc.presentation.theme_manager import theme_manager

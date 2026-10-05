@@ -380,6 +380,14 @@ class SettingsDialog(QDialog):
         page.add_row("Hình phong cảnh", "Một hình mờ phía sau lưới sách ở các theme có (lá thu, núi, đồi…). Tắt đi thì nền phẳng.",
                      self.backdrop_check)
 
+        self.ui_language_combo = QComboBox(page)
+        self.ui_language_combo.addItem("Tiếng Việt", "vi")
+        self.ui_language_combo.addItem("English", "en")
+        self.ui_language_combo.setCurrentIndex(max(0, self.ui_language_combo.findData(config.ui_language)))
+        page.add_row("Ngôn ngữ / Language",
+                     "Áp dụng sau khi khởi động lại ứng dụng. / Takes effect after restarting the app.",
+                     self.ui_language_combo)
+
         # With no font chosen by the user, a font picker shows the theme's own typeface -- and follows the theme
         # cards as they change.
         theme_family = resolve_font_family(colors_for(config.theme))
@@ -1327,6 +1335,7 @@ class SettingsDialog(QDialog):
         config.community_reviews_enabled = self.community_reviews_check.isChecked()
         config.show_community_rating_badge = self.community_badge_check.isChecked()
         config.reviewer_nickname = self.reviewer_nickname_edit.text().strip()
+        config.ui_language = self.ui_language_combo.currentData() or "vi"
         config.community_metadata_enabled = self.community_metadata_check.isChecked()
         config.community_metadata_contribute = self.community_metadata_contribute_check.isChecked()
         old_page_size = config.page_size

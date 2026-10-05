@@ -212,7 +212,8 @@ def test_native_converter_recognises_epub_pdf_and_epub_txt():
     assert nc.can_convert("pdf", "txt")
     assert nc.can_convert("txt", "epub")
     assert not nc.can_convert("epub", "mobi")   # still needs Calibre
-    assert not nc.can_convert("mobi", "epub")
+    assert nc.can_convert("mobi", "epub")       # native via mobi.extract
+    assert nc.can_convert("azw3", "epub")       # native via mobi.extract
 
 
 def test_epub_to_pdf_goes_native_without_calibre(app_context, tmp_path):

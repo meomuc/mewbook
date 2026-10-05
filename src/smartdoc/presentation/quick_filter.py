@@ -38,7 +38,7 @@ from smartdoc.domain.library_filter import (
     SORT_BY_RELEVANCE,
     SORT_LABELS,
 )
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.line_icons import line_icon
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.sidebar_style import ROW_HEIGHT, CountRowDelegate

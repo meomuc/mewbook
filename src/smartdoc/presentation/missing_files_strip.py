@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton
 
 from smartdoc.core.event_bus import LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.domain.library_filter import STATUS_MISSING, STATUSES
-from smartdoc.presentation import strings_vi as vi
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
 from smartdoc.presentation.ornaments import notice_qss
