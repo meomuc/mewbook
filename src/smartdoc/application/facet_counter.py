@@ -33,6 +33,8 @@ from smartdoc.domain.library_filter import (
     AUTHORS,
     COLLECTIONS,
     FORMATS,
+    STATUS_MISSING,
+    STATUS_TINY,
     STATUSES,
     TAGS,
     LibraryFilter,
@@ -220,6 +222,22 @@ class FacetCounter:
                     result.append(FacetCount(value, self._label(category, value), 0))
         # Real values by count; the "unknown"/"untagged" buckets always sit last.
         result.sort(key=lambda c: (c.value in buckets, -c.count, c.label.casefold()))
+        return result
+
+    def status_counts(self, flt: LibraryFilter) -> list[FacetCount]:
+        """Counts for the STATUSES chip group: how many docs match each status
+        under the current filter (STATUSES excluded so sibling choices stay visible)."""
+        base_sql, base_params = self.context.db.filter_where(flt, exclude=(STATUSES,))
+        result = []
+        for status in (STATUS_MISSING, STATUS_TINY):
+            status_sql, status_params = self.context.db.filter_where(LibraryFilter(statuses=(status,)))
+            combined_sql = f"({status_sql}) AND ({base_sql})" if base_sql else status_sql
+            combined_params = status_params + base_params
+            count = self.context.db.count_documents_matching(
+                fts_query=flt.query, where_sql=combined_sql, params=combined_params
+            )
+            if count or flt.has_value(STATUSES, status):
+                result.append(FacetCount(status, status, count))
         return result
 
     def group_count(self, category: str, members, flt: LibraryFilter) -> int:

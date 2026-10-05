@@ -50,6 +50,7 @@ from smartdoc.domain.library_filter import (
     SORT_BY_COUNT,
     SORT_BY_NAME,
     SORT_LABELS,
+    STATUSES,
     TAGS,
     LibraryFilter,
     value_key,
@@ -73,7 +74,7 @@ _SORT_LABELS = SORT_LABELS  # local alias: this file's own code refers to it by 
 
 # Which key facet folders are stored under (see database.FACET_CATEGORIES).
 _GROUP_CATEGORY = {TAGS: "tag", AUTHORS: "author", FORMATS: "extension"}
-_SECTIONS = ((TAGS, "Hashtag"), (AUTHORS, "Tác giả"), (FORMATS, "Định dạng"))
+_SECTIONS = ((TAGS, "Hashtag"), (AUTHORS, "Tác giả"), (FORMATS, "Định dạng"), (STATUSES, "Tình trạng file"))
 HINT_TEXT = "Nhấp: chuyển tới mục đó · Ctrl+nhấp: chọn thêm"
 
 
@@ -131,7 +132,7 @@ class _Section(QWidget):
         self.menu_button.setCursor(Qt.PointingHandCursor)
         self.menu_button.setAutoRaise(True)
         self.menu_button.clicked.connect(lambda: panel._show_section_menu(key, self.menu_button))
-        self.menu_button.setVisible(key != FORMATS)
+        self.menu_button.setVisible(key not in (FORMATS, STATUSES))
 
         self.body = QWidget(self)
         self.body_layout = QVBoxLayout(self.body)
@@ -182,8 +183,8 @@ class FacetPanel(QWidget):
         self.collapsed_sections: set[str] = set(context.config.config.collapsed_filter_sections)
         self._sort_keys = {TAGS: SORT_BY_COUNT, AUTHORS: SORT_BY_COUNT, FORMATS: SORT_BY_COUNT}
         self._expanded: set[str] = set()  # sections showing every value, not just the top few
-        self._chips: dict[str, dict[str, QPushButton]] = {TAGS: {}, FORMATS: {}}
-        self._entries: dict[str, dict[str, _Entry]] = {TAGS: {}, AUTHORS: {}, FORMATS: {}}
+        self._chips: dict[str, dict[str, QPushButton]] = {TAGS: {}, FORMATS: {}, STATUSES: {}}
+        self._entries: dict[str, dict[str, _Entry]] = {TAGS: {}, AUTHORS: {}, FORMATS: {}, STATUSES: {}}
 
         colors = current_colors()
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -218,6 +219,7 @@ class FacetPanel(QWidget):
         self._build_tag_section()
         self._build_author_section()
         self._build_format_section()
+        self._build_status_section()
 
         scroll = QScrollArea(self)
         scroll.setWidget(content)
@@ -288,6 +290,9 @@ class FacetPanel(QWidget):
     def _build_format_section(self) -> None:
         self.format_cloud = self._build_cloud(FORMATS)
 
+    def _build_status_section(self) -> None:
+        self.status_cloud = self._build_cloud(STATUSES)
+
     # -- events -------------------------------------------------------------------
 
     def _on_bridged_event(self, event) -> None:
@@ -315,6 +320,11 @@ class FacetPanel(QWidget):
         """(folders, values, hidden) for one group: the folder entries; the
         values to show (top N, plus anything selected, plus the buckets); and how
         many were left out."""
+        if category == STATUSES:
+            # Fixed two-value group: no user folders, no paging, counts from SQL.
+            facet_counts = self.context.facets.status_counts(flt)
+            values = [_Entry(c.value, c.label, c.count, flt.has_value(STATUSES, c.value)) for c in facet_counts]
+            return [], values, 0
         facets = self.context.facets
         counts = facets.counts(category, flt)
         group_key = _GROUP_CATEGORY[category]
@@ -367,13 +377,17 @@ class FacetPanel(QWidget):
             self.sections[category].set_badge(len(flt.values(category)))
             if category == AUTHORS:
                 self._fill_author_rows(folders, values, hidden)
-            else:
+            elif category in self._chips:
                 self._fill_chips(category, folders, values, hidden)
 
     # -- chips (hashtags, formats) ------------------------------------------------------
 
     def _cloud_for(self, category: str) -> FlowWidget:
-        return self.tag_cloud if category == TAGS else self.format_cloud
+        if category == TAGS:
+            return self.tag_cloud
+        if category == FORMATS:
+            return self.format_cloud
+        return self.status_cloud
 
     def _fill_chips(self, category: str, folders: list[_Entry], values: list[_Entry], hidden: int) -> None:
         cloud = self._cloud_for(category)

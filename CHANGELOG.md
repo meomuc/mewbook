@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   sách mất file thì "Tìm lại file…" hoặc "Gỡ khỏi thư viện" (chỉ xóa mục trong thư viện, không đụng file). Cả hai chỉ làm
   khi bạn chọn và xác nhận, và kiểm tra lại ổ đĩa ngay lúc làm để không xóa nhầm khi ổ chỉ đang tháo ra.
 - **Bộ lọc "Tình trạng file".** Dải báo mất file có nút "Xem các sách này": thư viện chỉ hiện những sách thiếu file,
-  như một chip lọc bình thường (bỏ chip để quay về).
+  như một chip lọc bình thường (bỏ chip để quay về). Thanh bên cũng có mục "Tình trạng file" hiện số sách thiếu file
+  và file quá nhỏ; bấm chip để lọc, bấm lại để bỏ lọc.
 - **Tùy chọn nhờ AI (Ollama) gợi ý thêm cho sách chưa chắc.** Bật ở Cài đặt › Phân loại (mặc định tắt, cần Ollama chạy
   trên máy). Sau mỗi lượt phân loại, những sách mô hình chưa dám đoán được hỏi Ollama và hiện ở nhóm "Gợi ý từ AI
   (Ollama), cần bạn xác nhận" trong danh sách kết quả; không gì được gắn nếu bạn chưa bấm "Nhận gợi ý".
