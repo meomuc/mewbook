@@ -485,7 +485,7 @@ def test_status_icons_share_one_slot_width_and_sit_evenly(qapp, app_context, mon
     panel.resize(2100, 26)
     panel.show()
     qapp.processEvents()
-    icons = [panel.cloud_label, panel.ai_label, panel.network_label]
+    icons = [panel.cloud_label, panel.metadata_sync_label, panel.ai_label, panel.network_label]
 
     assert len({icon.width() for icon in icons}) == 1
     lefts = [icon.mapTo(panel, icon.rect().topLeft()).x() for icon in icons]
