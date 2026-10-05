@@ -97,7 +97,7 @@ Mục tiêu: repo sẵn sàng công khai đúng pháp lý, không lộ bí mật
 
 - [ ] **S4-01** Chuẩn hóa NFC cho metadata và tên file thiết bị; công cụ phát hiện mã hóa cũ (TCVN3/VNI) chỉ đề xuất, xem trước rồi áp dụng vào DB; **không đổi tên file gốc**.
 - [ ] **S4-02** Tiêu chí tìm kiếm không dấu (FR-VN-04): viết test; nếu chưa đạt thì sửa cấu hình tokenizer FTS5 (chỉ thêm, không phá dữ liệu; cần đường tái lập chỉ mục an toàn).
-- [ ] **S4-03 [O3]** `conversion_service` + `calibre_cli` + hộp thoại (`02` mục 10, `03` mục 5); từ chối DRM; bộ nhớ đệm; tích hợp với hộp thoại gửi; test với bộ chuyển đổi giả; test tích hợp có đánh dấu bỏ qua được khi không có Calibre.
+- [x] **S4-03 [O3]** `conversion_service` + `calibre_cli` + hộp thoại (`02` mục 10, `03` mục 5); từ chối DRM; bộ nhớ đệm; tích hợp với hộp thoại gửi; test với bộ chuyển đổi giả; test tích hợp có đánh dấu bỏ qua được khi không có Calibre. *(Xong 2026-10-05: `NativeConverter` (EPUB→PDF/TXT, TXT→EPUB qua PyMuPDF+ebooklib), `FormatConversionDialog` (batch, thanh tiến độ, cảnh báo cặp lệch bố cục, từ chối DRM), `calibre_cli` cho cặp cần Calibre; mỗi cuốn gắn nhãn "(không cần Calibre)"/"(dùng Calibre)". Tích hợp hộp thoại Gửi thiết bị để S3b.)*
 - [ ] **S4-04** Bộ mẫu kiểm chuẩn tiếng Việt (tệp nguồn từ văn bản thuộc phạm vi công cộng) và báo cáo chất lượng chuyển đổi.
 - [ ] **S4-05** i18n: cơ chế dịch, trích xuất chuỗi, tiếng Việt + tiếng Anh, cài đặt ngôn ngữ; làm từng module một.
 
