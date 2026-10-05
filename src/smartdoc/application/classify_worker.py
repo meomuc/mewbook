@@ -156,7 +156,27 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
                 extension=job.get("extension"),
             )
             cue = periodical_cue(job.get("title", ""), job.get("path"))
-            prediction = model.predict(parts.merged(hints=True))
+            _settings = _STATE.get("settings", {})
+            use_hints = _settings.get("use_hints", True)
+            use_body = _settings.get("use_body", True)
+            if use_body:
+                counts = parts.merged(hints=use_hints)
+            else:
+                # Body (and front, which is a zone of the body) excluded; keep title/author/tags + hints only.
+                counts = dict(parts.plain)
+                if use_hints:
+                    for _t, _v in parts.hints.items():
+                        counts[_t] = counts.get(_t, 0.0) + _v
+            prediction = model.predict(counts)
+            # Apply user-configured threshold (bidirectional: may lower OR raise the default 0.05).
+            _custom_min = _settings.get("min_score")
+            if _custom_min is not None:
+                if prediction.reason == "low_confidence" and prediction.score >= _custom_min and prediction.best_id:
+                    prediction.category_id = prediction.best_id
+                    prediction.reason = "model"
+                elif prediction.category_id and prediction.score < _custom_min:
+                    prediction.category_id = None
+                    prediction.reason = "low_confidence"
             confidence_override = None
             if cue:  # a magazine / newspaper issue is not one of the book categories: withhold rather than force one
                 prediction.category_id, prediction.reason = None, REASON_PERIODICAL
@@ -178,6 +198,7 @@ def classify_chunk(jobs: list[dict]) -> list[dict]:
             info = model.class_by_id(prediction.category_id) if prediction.category_id else None
             leaning = model.class_by_id(prediction.best_id) if prediction.best_id and not prediction.category_id else None
             result["best_name"] = leaning.name if leaning else ""  # what an undecided book leaned to (shown as a suggestion, B2)
+            result["best_group"] = leaning.group if leaning else ""  # group for priority-tag promotion in smart_classifier
             result.update(
                 name=info.name if info else "",
                 group=info.group if info else "",

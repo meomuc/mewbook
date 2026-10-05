@@ -26,8 +26,8 @@ Same four bibliographic sources, same priority order as the per-book dialog (see
 docstring):
   0. the book file itself;
   1. the user's own library (other copies of the same book);
-  2. the shared community database -- not implemented yet, always empty (SOURCE_COMMUNITY exists only so the
-     source-picker dialog can show it as "Sắp có");
+  2. the shared community database -- active when BatchUpdateOptions.use_community is True and
+     community_metadata_enabled is set in config (MetadataLookupService._from_community());
   3. the internet (Open Library, Google Books, Apple Books) -- opt-in only, off unless the caller passes
      `BatchUpdateOptions(use_internet=True)`; even then, only sources not disabled in Settings > Ảnh bìa are ever
      called, because MetadataLookupService itself already reads `config.disabled_cover_sources` for tier 3.
@@ -58,9 +58,7 @@ from smartdoc.infrastructure.cloud_files import is_cloud_only
 
 logger = logging.getLogger(__name__)
 
-# Tier 2 (docs/METADATA_LOOKUP_SPEC.md, metadata_lookup.py's own docstring): "arrives in a later phase". Exists
-# here only as a label the source-picker dialog shows, disabled, next to "Sắp có" -- nothing ever queries it.
-SOURCE_COMMUNITY = "Cộng đồng MewBook"
+SOURCE_COMMUNITY = "Cộng đồng MewBook"  # Tier 2 -- wired via MetadataLookupService._from_community()
 
 # -- scope choices (the dialog's 3-way radio; see BatchUpdateOptions.scope) ------------------------------------------
 SCOPE_FILTERED = "filtered"        # honor the caller's ClassifyScope exactly, regardless of completeness (service default)
@@ -73,7 +71,7 @@ ShouldCancel = Callable[[], bool]
 # The tiers MetadataCandidate.tier actually uses (see metadata_lookup.py) -- checked in this order for the
 # per-field merge below, matching "nguồn đầu tiên có dữ liệu theo thứ tự" (the first source with data, in
 # priority order), which is a stronger rule than "the single best-scoring candidate".
-_TIER_ORDER = (0, 1, 3)
+_TIER_ORDER = (0, 1, 2, 3)  # tier 2 = community; candidates only appear when use_community=True
 
 # How many documents between progress posts for a large batch -- each post crosses from the worker thread to the
 # GUI thread (WorkerRelay/post), so posting on every single book of a 15.000-book library is needless overhead the
@@ -83,7 +81,8 @@ _PROGRESS_EVERY = 5
 
 @dataclass(frozen=True)
 class BatchUpdateOptions:
-    use_internet: bool = False  # tier 3 -- off unless the person explicitly ticks it
+    use_internet: bool = False   # tier 3 -- off unless the person explicitly ticks it
+    use_community: bool = False  # tier 2 -- off unless community_metadata_enabled AND user ticks it
     scope: str = SCOPE_FILTERED
 
 
@@ -147,8 +146,12 @@ class MetadataBatchUpdateService:
         # network. Production code never needs to pass this -- see the default below.
         self._lookup_service_factory = lookup_service_factory or self._default_lookup_service
 
-    def _default_lookup_service(self, use_internet: bool) -> MetadataLookupService:
-        return MetadataLookupService(self.context, internet_sources={} if not use_internet else None)
+    def _default_lookup_service(self, use_internet: bool, use_community: bool = False) -> MetadataLookupService:
+        return MetadataLookupService(
+            self.context,
+            internet_sources={} if not use_internet else None,
+            disable_community=not use_community,
+        )
 
     def resolve_ids(self, scope: ClassifyScope) -> list[str]:
         if scope.doc_ids is not None:
@@ -177,7 +180,11 @@ class MetadataBatchUpdateService:
         # MetadataLookupService.lookup() also searches the internet automatically whenever the library has no
         # confident answer (its own documented behaviour for the one-book dialog) -- exactly what a batch run
         # must never do silently across a whole filtered list without the person having opted in.
-        lookup = self._lookup_service_factory(options.use_internet)
+        try:
+            lookup = self._lookup_service_factory(options.use_internet, options.use_community)
+        except TypeError:
+            # Injected test factories only accept use_internet; fall back gracefully.
+            lookup = self._lookup_service_factory(options.use_internet)
         db, info_refresh = self.context.db, self.context.info_refresh
         result = BatchUpdateResult()
         total = len(rows)

@@ -417,11 +417,15 @@ class SmartClassifyService:
         return max(1, min(cap, (os.cpu_count() or 2) // 4))
 
     def _worker_settings(self, model_path: Path) -> dict:
+        cfg = self.context.config.config
         settings = {
             "model_path": str(model_path),
-            "max_words": self.context.config.config.smart_classify_max_words,
+            "max_words": cfg.smart_classify_max_words,
             "app_data_dir": str(self.context.config.app_data_dir),
             "low_priority": True,
+            "use_hints": cfg.smart_classify_use_hints,
+            "use_body": cfg.smart_classify_use_body,
+            "min_score": cfg.smart_classify_min_score,
         }
         settings.update(self._extra_worker_settings)
         return settings
@@ -481,6 +485,9 @@ class SmartClassifyService:
                     last_library_event = last_flush
                     bus.publish(LibraryUpdatedEvent())
 
+            priority_raw = self.context.config.config.smart_classify_priority_tags
+            priority_set = frozenset(t.strip().casefold() for t in priority_raw.split(",") if t.strip())
+
             def absorb(results: list[dict]) -> None:
                 nonlocal done
                 for result in results:
@@ -488,6 +495,13 @@ class SmartClassifyService:
                     category_id = result.get("category_id")
                     old_tag = plan.old_tags.get(result["id"])
                     title = titles.get(result["id"], "")
+                    # Hashtag ưu tiên: promote a leaning UNSURE verdict when it matches a priority category name.
+                    if not category_id and priority_set:
+                        best_name = result.get("best_name", "")
+                        if best_name and best_name.casefold() in priority_set and result.get("best_id"):
+                            category_id = result.get("best_id")
+                            result["name"] = best_name
+                            result["group"] = result.get("best_group", "")
                     if category_id:
                         tally["tagged"] += 1
                         by_group[result.get("group", "")] += 1

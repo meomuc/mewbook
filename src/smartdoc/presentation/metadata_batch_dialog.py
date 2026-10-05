@@ -148,13 +148,15 @@ class MetadataBatchUpdateDialog(DesignDialog):
         layout.addWidget(self.library_check)
 
         self.community_check = QCheckBox(SOURCE_COMMUNITY, page)
-        self.community_check.setChecked(False)
-        self.community_check.setEnabled(False)
+        community_enabled = bool(getattr(self.context.config.config, "community_metadata_enabled", False))
+        self.community_check.setChecked(community_enabled)
+        self.community_check.setEnabled(community_enabled)
         community_row = QHBoxLayout()
         community_row.setContentsMargins(0, 0, 0, 0)
         community_row.setSpacing(8)
         community_row.addWidget(self.community_check)
-        community_row.addWidget(soon_badge(page), 0)
+        if not community_enabled:
+            community_row.addWidget(soon_badge(page), 0)
         community_row.addStretch(1)
         layout.addLayout(community_row)
 
@@ -241,7 +243,11 @@ class MetadataBatchUpdateDialog(DesignDialog):
         if self._running:
             return
         scope_choice = self._current_scope_choice()
-        options = BatchUpdateOptions(use_internet=self.internet_check.isChecked(), scope=scope_choice)
+        options = BatchUpdateOptions(
+            use_internet=self.internet_check.isChecked(),
+            use_community=self.community_check.isChecked(),
+            scope=scope_choice,
+        )
         self._running = True
         self._cancel.clear()
         self.pages.setCurrentIndex(1)

@@ -579,11 +579,12 @@ def test_the_theme_cards_drive_the_theme_and_show_the_current_one(qapp, app_cont
 
 
 def test_coming_soon_rows_are_disabled(qapp, app_context):
+    """The 3 classify-tab "Sắp có" rows were replaced with real controls; remaining badges (if any)
+    must still be disabled -- this test ensures no badge row is accidentally left enabled."""
     from PySide6.QtWidgets import QLabel
 
     dialog = SettingsDialog(app_context)
     badges = [label for label in dialog.findChildren(QLabel) if label.text() == "Sắp có"]
-    assert len(badges) >= 3
     assert all(not label.parent().isEnabled() for label in badges)
 
 

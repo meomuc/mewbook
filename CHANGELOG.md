@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Added
+- **Cài đặt phân loại nâng cao (Phân loại → Nguồn & ngưỡng).** Ba hàng "Sắp có" trong tab Phân loại đã
+  được thay bằng controls thật: (1) hai checkbox chọn nguồn — "Nhãn thể loại, mô tả và mục lục nhúng trong
+  file" và "Nội dung văn bản (vài trang đầu sách)" — điều khiển `use_hints`/`use_body` trong worker; (2)
+  spinbox "Mức chắc chắn tối thiểu" (0.02–0.25, mặc định 0.05) điều chỉnh ngưỡng SVM theo cả hai chiều;
+  (3) ô "Hashtag ưu tiên" — tên thể loại cách nhau bằng dấu phẩy, khi model "lưỡng lự" nhưng dự đoán cao
+  nhất khớp tên này thì tự động gắn hashtag thay vì để ở trạng thái "Chưa chắc".
+- **Cộng đồng MewBook trong hộp thoại "Cập nhật thông tin sách hàng loạt".** Khi `community_metadata_enabled`
+  đã bật (Cài đặt › Kết nối & Dịch vụ), checkbox "Cộng đồng MewBook" trong dialog chuyển từ "Sắp có" / tắt
+  sang có thể chọn (mặc định bật theo trạng thái cài đặt); khi bỏ dấu, lượt chạy bỏ qua tier 2.
+
+### Added
 - **Đồng bộ metadata cộng đồng — Tier 2 trong tra cứu thông tin sách.** Khi bật "Nhận thông tin sách từ cộng đồng"
   (Cài đặt › Kết nối & Dịch vụ), `MetadataLookupService` tra thêm cơ sở dữ liệu chung (Supabase) giữa thư viện cục
   bộ và Internet, theo đúng thứ tự: Trong file → Thư viện của bạn → **Cộng đồng MewBook** → Internet. Mặc định tắt;

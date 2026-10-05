@@ -224,6 +224,17 @@ class AppConfig:
     # output support, which not every good summarizing model has), so it gets its own field.
     smart_classify_layer2_enabled: bool = False
     smart_classify_layer2_model: str | None = None
+    # Settings > Phân loại > "Nguồn dùng để phân loại":
+    #   use_hints = embedded subject labels + description + ToC (classification_features.FeatureParts.hints)
+    #   use_body  = first N words of the book body (FeatureParts.body + front)
+    smart_classify_use_hints: bool = True
+    smart_classify_use_body: bool = True
+    # Settings > Phân loại > "Mức chắc chắn tối thiểu": overrides DEFAULT_PARAMS["min_score"] (0.05).
+    # Raising → fewer tags, higher confidence; lowering → more coverage, more guesses.
+    smart_classify_min_score: float = 0.05
+    # Settings > Phân loại > "Hashtag ưu tiên": comma-separated category names.
+    # An UNSURE book whose top prediction matches one of these is auto-tagged instead of queued for review.
+    smart_classify_priority_tags: str = ""
     # Settings > Ảnh bìa: when a book is imported with no local cover, automatically query internet sources with a
     # high threshold (90 %) and silently apply the top result. Off by default to avoid unexpected network calls.
     auto_cover_on_import: bool = False

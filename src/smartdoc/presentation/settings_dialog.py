@@ -642,12 +642,34 @@ class SettingsDialog(QDialog):
                      "không gửi gì ra Internet. Chỉ hỏi những sách mô hình thường chưa dám đoán, và chỉ là gợi ý để bạn xác nhận.",
                      self.smart_layer2_check)
 
-        for label, description in (
-            ("Nguồn dùng để phân loại", "Tên file, thông tin trong file, mục lục, vài trang đầu, AI."),
-            ("Mức chắc chắn tối thiểu", "Dưới mức này, sách được để lại cho bạn tự chọn."),
-            ("Hashtag ưu tiên", "Danh sách hashtag MewBook nên chọn trước."),
-        ):
-            page.add_row(label, description, QPushButton("Thiết lập…", page), soon=True)
+        sources_box = QWidget(page)
+        sources_layout = QVBoxLayout(sources_box)
+        sources_layout.setContentsMargins(0, 0, 0, 0)
+        sources_layout.setSpacing(4)
+        self.classify_hints_check = QCheckBox("Nhãn thể loại, mô tả và mục lục nhúng trong file", sources_box)
+        self.classify_hints_check.setChecked(config.smart_classify_use_hints)
+        self.classify_body_check = QCheckBox("Nội dung văn bản (vài trang đầu sách)", sources_box)
+        self.classify_body_check.setChecked(config.smart_classify_use_body)
+        sources_layout.addWidget(self.classify_hints_check)
+        sources_layout.addWidget(self.classify_body_check)
+        page.add_row("Nguồn dùng để phân loại",
+                     "Tên file và tác giả luôn được dùng. Hai nguồn dưới đây có thể bật tắt riêng.",
+                     sources_box)
+
+        self.classify_min_score_spin = QDoubleSpinBox(page)
+        self.classify_min_score_spin.setRange(0.02, 0.25)
+        self.classify_min_score_spin.setSingleStep(0.01)
+        self.classify_min_score_spin.setDecimals(2)
+        self.classify_min_score_spin.setValue(max(0.02, min(0.25, config.smart_classify_min_score)))
+        page.add_row("Mức chắc chắn tối thiểu",
+                     "0.05 = mặc định. Tăng lên → ít gắn nhãn hơn, chắc chắn hơn. Giảm xuống → gắn nhiều hơn, có thể sai hơn.",
+                     self.classify_min_score_spin)
+
+        self.classify_priority_tags_edit = QLineEdit(config.smart_classify_priority_tags or "", page)
+        self.classify_priority_tags_edit.setPlaceholderText("Ví dụ: Kỹ năng, Khoa học, Lịch sử")
+        page.add_row("Hashtag ưu tiên",
+                     "Tên thể loại cách nhau bằng dấu phẩy. Sách nghiêng về thể loại này được gắn nhãn thay vì xếp vào mục 'Chưa chắc'.",
+                     self.classify_priority_tags_edit)
         return page
 
     def _smart_classify_model_text(self) -> str:
@@ -1277,6 +1299,10 @@ class SettingsDialog(QDialog):
         config.smart_classify_max_words = self.smart_max_words_spin.value()
         config.smart_classify_max_workers = self.smart_workers_spin.value()
         config.smart_classify_layer2_enabled = self.smart_layer2_check.isChecked()
+        config.smart_classify_use_hints = self.classify_hints_check.isChecked()
+        config.smart_classify_use_body = self.classify_body_check.isChecked()
+        config.smart_classify_min_score = round(self.classify_min_score_spin.value(), 2)
+        config.smart_classify_priority_tags = self.classify_priority_tags_edit.text().strip()
 
         config.ai_provider = self.ai_provider_combo.currentData()
         config.ai_api_key = self.ai_api_key_edit.text().strip() or None

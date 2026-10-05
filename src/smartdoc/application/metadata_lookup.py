@@ -295,8 +295,9 @@ def _apple_books(title: str, author: str, isbn: str, limit: int) -> list[tuple[s
 
 
 class MetadataLookupService:
-    def __init__(self, context, internet_sources: dict | None = None) -> None:
+    def __init__(self, context, internet_sources: dict | None = None, *, disable_community: bool = False) -> None:
         self.context = context
+        self._disable_community = disable_community
         # name -> callable(title, author, isbn, limit) -> [(title, author, fields)]; injectable for tests.
         # `is None`, not `or` -- an explicitly passed `{}` means "no internet sources at all" (how every caller
         # that wants internet lookups fully disabled asks for that, e.g. metadata_batch_update.py's
@@ -419,7 +420,7 @@ class MetadataLookupService:
         network failure (never raises) so the dialog still opens.
         """
         config = self.context.config.config
-        if not config.community_metadata_enabled:
+        if not config.community_metadata_enabled or self._disable_community:
             return []
 
         from smartdoc.application.community_metadata_sync import (
