@@ -168,7 +168,9 @@ def test_trashing_moves_only_the_others_into_the_trash_after_a_question(qapp, ap
     dialog.delete_button.click()
 
     assert (tmp_path / "a.pdf").exists() and not (tmp_path / "a2.pdf").exists() and (tmp_path / "b.pdf").exists()
-    assert app_context.db.get_document("d1") is not None and app_context.db.get_document("d2") is None
+    assert app_context.db.get_document("d1") is not None
+    d2 = app_context.db.get_document("d2")
+    assert d2 is not None and d2["file_status"] == "trashed"  # row kept; use Thùng rác to restore or delete for good
     (item,) = app_context.trash.list_items()
     assert item.original_path == str(tmp_path / "a2.pdf")  # restorable
     dialog.deleteLater()

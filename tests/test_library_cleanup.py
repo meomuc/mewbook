@@ -69,7 +69,9 @@ def test_tiny_files_go_to_the_trash_and_a_file_that_grew_is_left_alone(app_conte
     assert (result.done, result.skipped) == (0, 1) and (tmp_path / "tiny.epub").exists()  # not moved on an old list
     (tmp_path / "tiny.epub").write_bytes(b"x" * 900)
     result = service.trash_tiny([ids["tiny"]])
-    assert result.done == 1 and not (tmp_path / "tiny.epub").exists() and app_context.db.get_document(ids["tiny"]) is None
+    trashed_doc = app_context.db.get_document(ids["tiny"])
+    assert result.done == 1 and not (tmp_path / "tiny.epub").exists()
+    assert trashed_doc is not None and trashed_doc["file_status"] == "trashed"  # row kept for 'File đã xóa' display
     assert len(app_context.trash.list_items()) == 1  # restorable, not deleted for good
 
 
