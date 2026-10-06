@@ -1,5 +1,20 @@
 # Changelog
 
+<!-- [06/10/2026 - 14:00] - Task: Phase 1+2 fixes — worker count, backup UI redesign
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:smart_classifier`, `:presentation:backup_panel`, `:presentation:settings_dialog`, `:tests:test_backup_panel`
+  - File chỉnh sửa:
+    - `src/smartdoc/application/smart_classifier.py:417` — `_choose_workers()`: `// 4` → `// 2` (bug: luôn trả về 1 trên máy 4 nhân)
+    - `src/smartdoc/presentation/backup_panel.py` — tái thiết kế tab Sao lưu: bỏ folder row, 3 nút (Thư mục sao lưu, Sao lưu ngay, Khôi phục), disable backup/restore khi chưa chọn thư mục, xác nhận khi sẽ xóa bản cũ
+    - `src/smartdoc/presentation/settings_dialog.py:183` — đổi tab label "Sao lưu" → "Sao lưu và khôi phục"
+    - `tests/test_backup_panel.py` — cập nhật test: thêm folder setup trước click backup, folder_warning → folder_path_label/status_label
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Worker fix: os.cpu_count() // 4 trả về 1 trên máy 4 nhân → đổi thành // 2 để respect user setting
+  - Backup UI: yêu cầu folder tường minh trước khi enable backup/restore; xác nhận prune khi retention vượt; restore backend đã đúng (test pass), issue do UI không chỉ dẫn rõ cần chọn folder trước
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Không có: tất cả 28 backup test pass.
+-->
+
 <!-- [06/10/2026 - 09:15] - Task: MewBook 1.3.0 official release build + website sync
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:strings`, `:tests:conftest`, `:website:content`

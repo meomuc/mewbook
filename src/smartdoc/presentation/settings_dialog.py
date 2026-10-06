@@ -180,7 +180,7 @@ class SettingsDialog(QDialog):
             ("tag", "Phân loại", self._build_smart_classify_tab(config)),
             ("globe", "Kết nối & Dịch vụ", self._build_api_tab(config)),
             ("book", "Thông tin sách", self._build_bookinfo_tab(config)),
-            ("archive", "Sao lưu", self.backup_panel),
+            ("archive", "Sao lưu và khôi phục", self.backup_panel),
             ("download", "Cập nhật & ủng hộ", self._add_donation(self.update_panel)),
             ("shield", "Quyền riêng tư", self.privacy_panel),
         )

@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Settings -> "Sao lưu" tab: back up the library now, see the backups, restore one (S1-03).
+"""Settings -> "Sao lưu và khôi phục" tab: back up the library now, see the backups, restore one (S1-03).
 
-The work is application/backup_service.py; this only asks, runs it off the GUI thread and reports. Restoring
-always asks first and says that the current library is backed up before it is replaced.
+The work is application/backup_service.py; this only asks, runs it off the GUI thread and reports.
+
+UI flow: the user must choose a backup folder first (folder_button); backup_button and restore_button are
+disabled until a folder is set (custom_folder non-empty). Before pruning old backups a confirmation is shown.
+Restoring always asks first and says that the current library is backed up before it is replaced.
 """
 from __future__ import annotations
 
@@ -10,15 +13,15 @@ import logging
 import threading
 from datetime import datetime
 
-from PySide6.QtCore import Qt, QUrl, Signal
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QFileDialog,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
@@ -68,7 +71,8 @@ class BackupPanel(SettingsPage):
     _done = Signal(str, object, str)  # (what, BackupInfo | None, error message) -- crosses back to the GUI thread
 
     def __init__(self, context, parent=None) -> None:
-        super().__init__("Sao lưu", "Bản sao dữ liệu thư viện, để quay lại khi cần. File sách không nằm trong đó.", parent)
+        super().__init__("Sao lưu và khôi phục",
+                         "Bản sao dữ liệu thư viện, để quay lại khi cần. File sách không nằm trong đó.", parent)
         self.context = context
         self._busy = False
         self._available = False  # set by refresh(); read as soon as the list's selection signal fires
@@ -85,36 +89,13 @@ class BackupPanel(SettingsPage):
         self.before_change_check.setToolTip("Khi MewBook sửa file sách của bạn (ví dụ ghi thông tin vào EPUB/PDF), file cũ được chép "
                                             "vào thư mục sao lưu trước, để hoàn tác được.")
         self.before_change_check.toggled.connect(lambda _checked: self._show_folder())
-        self.add_row("Sao lưu file trước khi thay đổi", "Mặc định tắt. Bật thì phải chọn thư mục sao lưu bên dưới.",
+        self.add_row("Sao lưu file trước khi thay đổi", "Mặc định tắt. Bật thì phải chọn thư mục sao lưu.",
                      self.before_change_check)
         self.keep_spin = QSpinBox(self)
         self.keep_spin.setRange(MIN_RETENTION, MAX_RETENTION)
         self.keep_spin.setValue(context.config.config.backup_keep)
         self.add_row("Số bản sao lưu giữ lại", "Cho mỗi file sách, và cho bản sao lưu thư viện. Bản cũ nhất được xóa khi vượt số này.",
                      self.keep_spin)
-        folder_box = QWidget(self)
-        folder_layout = QVBoxLayout(folder_box)
-        folder_layout.setContentsMargins(0, 0, 0, 0)
-        folder_layout.setSpacing(6)
-        self.folder_label = QLabel(folder_box)
-        self.folder_label.setWordWrap(True)
-        self.folder_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.choose_folder_button = QPushButton("Chọn thư mục…", folder_box)
-        self.choose_folder_button.clicked.connect(self._on_choose_folder)
-        self.default_folder_button = QPushButton("Bỏ chọn", folder_box)
-        self.default_folder_button.clicked.connect(lambda: self._set_folder(""))
-        folder_buttons = QHBoxLayout()
-        folder_buttons.addWidget(self.choose_folder_button)
-        folder_buttons.addWidget(self.default_folder_button)
-        folder_buttons.addStretch(1)
-        self.folder_warning = QLabel(folder_box)
-        self.folder_warning.setWordWrap(True)
-        self.folder_warning.setStyleSheet(f"color: {tm.token('err')};")
-        folder_layout.addWidget(self.folder_label)
-        folder_layout.addLayout(folder_buttons)
-        folder_layout.addWidget(self.folder_warning)
-        self.add_row("Thư mục lưu bản sao", "Chưa chọn thì chưa sao lưu file sách được. Có thể chọn ổ đĩa ngoài; thư mục không dùng được "
-                     "thì MewBook báo rõ, không tự đổi chỗ khác.", folder_box)
 
         holder = QWidget(self)
         holder_layout = QVBoxLayout(holder)
@@ -123,23 +104,28 @@ class BackupPanel(SettingsPage):
         self.backup_list.setMinimumHeight(140)
         holder_layout.addWidget(self.backup_list)
         row = QHBoxLayout()
+        self.folder_button = QPushButton("Thư mục sao lưu", holder)
+        self.folder_button.setIcon(line_icon("folder", tm.token("ink"), 14))
+        self.folder_button.clicked.connect(self._on_choose_folder)
         self.backup_button = QPushButton("Sao lưu ngay", holder)
         self.backup_button.setIcon(line_icon("archive", tm.token("ink"), 14))
         self.backup_button.clicked.connect(self._on_backup_now)
         self.restore_button = QPushButton("Khôi phục…", holder)
         self.restore_button.setIcon(line_icon("refresh", tm.token("ink"), 14))
         self.restore_button.clicked.connect(self._on_restore)
-        self.folder_button = QPushButton("Mở thư mục", holder)
-        self.folder_button.setIcon(line_icon("folder", tm.token("ink"), 14))
-        self.folder_button.clicked.connect(self._on_open_folder)
-        for button in (self.backup_button, self.restore_button, self.folder_button):
+        for button in (self.folder_button, self.backup_button, self.restore_button):
             row.addWidget(button)
         row.addStretch(1)
         holder_layout.addLayout(row)
+        self.folder_path_label = QLabel(holder)
+        self.folder_path_label.setWordWrap(True)
+        holder_layout.addWidget(self.folder_path_label)
         self.status_label = QLabel(holder)
         self.status_label.setWordWrap(True)
         holder_layout.addWidget(self.status_label)
-        self.add_row("Các bản sao lưu", "Khôi phục sẽ nói rõ điều gì sẽ mất trước khi làm.", holder)
+        self.add_row("Các bản sao lưu",
+                     "Chọn thư mục sao lưu trước, sau đó \"Sao lưu ngay\" để tạo bản sao. "
+                     "Khôi phục sẽ nói rõ điều gì sẽ mất trước khi làm.", holder)
 
         # -- "Đặt lại thư viện": a separate, clearly-marked danger zone, not one more backup option -----------------
         self.add_block(add_note_box(
@@ -169,18 +155,19 @@ class BackupPanel(SettingsPage):
         return self.context.backups
 
     def _on_choose_folder(self) -> None:
-        start = self._service().custom_folder or str(self._service().directory)
+        service = self._service()
+        start = service.custom_folder or str(service.directory)
         chosen = QFileDialog.getExistingDirectory(self, "Chọn thư mục lưu bản sao lưu", start)
         if chosen:
             self._set_folder(chosen)
 
     def _set_folder(self, folder: str) -> str:
-        """Use `folder` ("" = the default one) for backups. A folder that cannot be written to is refused with the reason
-        (and the previous choice stays); returns that reason, "" when it was accepted."""
+        """Use `folder` for backups. A folder that cannot be written to is refused (previous choice stays);
+        returns the problem string, "" when accepted."""
         service = self._service()
         problem = service.check_folder(folder) if folder else ""
         if problem:
-            self.folder_warning.setText(problem)
+            self.status_label.setText(problem)
             return problem
         self.context.config.config.backup_dir = folder or None
         self.context.config.save()
@@ -188,28 +175,23 @@ class BackupPanel(SettingsPage):
         self.refresh()
         return ""
 
-    def folder(self) -> str:
-        return self.context.config.config.backup_dir or ""
-
     def _show_folder(self) -> None:
         service = self._service()
-        try:
-            where = str(service.directory)
-        except BackupError:
-            self.folder_label.setText("")
-            self.folder_warning.setText("")
-            return
         custom = service.custom_folder
-        self.folder_label.setText(where if custom else "Chưa chọn thư mục sao lưu. Bản sao lưu thư viện tạm thời nằm ở "
-                                  f"{where} (cạnh thư viện).")
-        self.default_folder_button.setEnabled(bool(custom))
-        if custom:
-            self.folder_warning.setText(service.check_folder())
-        elif self.before_change_check.isChecked():
-            self.folder_warning.setText("Bạn đã bật \"Sao lưu trước khi thay đổi\" nhưng chưa chọn thư mục sao lưu. "
-                                        "Hãy bấm \"Chọn thư mục…\"; chưa chọn thì MewBook sẽ không ghi vào file sách.")
+        if not custom:
+            msg = "Chưa chọn thư mục sao lưu. Nhấn \"Thư mục sao lưu\" để chọn."
+            if self.before_change_check.isChecked():
+                msg += " Bắt buộc để sao lưu file sách trước khi thay đổi."
+            self.folder_path_label.setText(msg)
         else:
-            self.folder_warning.setText("")
+            problem = service.check_folder()
+            if problem:
+                self.folder_path_label.setText(f"⚠ {problem}")
+            else:
+                try:
+                    self.folder_path_label.setText(f"Thư mục: {service.directory}")
+                except BackupError:
+                    self.folder_path_label.setText("")
 
     def refresh(self) -> None:
         self.backup_list.clear()
@@ -231,10 +213,10 @@ class BackupPanel(SettingsPage):
 
     def _update_buttons(self) -> None:
         idle = not self._busy and self._available
-        self.backup_button.setEnabled(idle and not (self._service().custom_folder and self.folder_warning.text()))
-        self.choose_folder_button.setEnabled(self._available and not self._busy)
-        self.restore_button.setEnabled(idle and self.backup_list.currentItem() is not None)
-        self.folder_button.setEnabled(self._available)
+        has_folder = bool(self._service().custom_folder)
+        self.folder_button.setEnabled(self._available and not self._busy)
+        self.backup_button.setEnabled(idle and has_folder)
+        self.restore_button.setEnabled(idle and has_folder and self.backup_list.currentItem() is not None)
         self.reset_button.setEnabled(idle)
 
     def _selected(self) -> BackupInfo | None:
@@ -284,6 +266,24 @@ class BackupPanel(SettingsPage):
     # -- actions ---------------------------------------------------------------------------------------------
 
     def _on_backup_now(self) -> None:
+        service = self._service()
+        try:
+            existing = len(service.list_backups())
+        except BackupError:
+            existing = 0
+        retention = service.retention()
+        if existing >= retention:
+            to_delete = existing - retention + 1
+            dlg = QMessageBox(self)
+            dlg.setWindowTitle("Xác nhận sao lưu")
+            dlg.setText(
+                f"Hiện có {existing} bản sao lưu, giới hạn là {retention}.\n"
+                f"Tạo bản mới sẽ xóa {to_delete} bản cũ nhất. Tiếp tục?"
+            )
+            dlg.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+            dlg.setDefaultButton(QMessageBox.StandardButton.Ok)
+            if dlg.exec() != QMessageBox.StandardButton.Ok:
+                return
         self._run("backup", lambda: self._service().create_backup(REASON_MANUAL))
 
     def _lost_since(self, info: BackupInfo) -> list[str]:
@@ -340,14 +340,6 @@ class BackupPanel(SettingsPage):
     def _do_reset(self, keep_config: bool, count: int) -> int:
         self.context.library_reset.reset(keep_config=keep_config)
         return count
-
-    def _on_open_folder(self) -> None:
-        try:
-            folder = self._service().directory
-        except BackupError:
-            return
-        folder.mkdir(parents=True, exist_ok=True)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
 
     def keep(self) -> int:
         return self.keep_spin.value()

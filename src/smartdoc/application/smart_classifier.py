@@ -414,7 +414,8 @@ class SmartClassifyService:
         if jobs < SMALL_JOB:
             return 1
         cap = max(1, min(4, int(self.context.config.config.smart_classify_max_workers or 1)))
-        return max(1, min(cap, (os.cpu_count() or 2) // 4))
+        # Use at most half the logical CPUs to leave headroom for the GUI; always honour the user's cap.
+        return max(1, min(cap, max(1, (os.cpu_count() or 4) // 2)))
 
     def _worker_settings(self, model_path: Path) -> dict:
         cfg = self.context.config.config

@@ -43,8 +43,9 @@ def test_an_in_memory_library_cannot_be_backed_up_and_says_so(qapp, app_context)
     assert "bộ nhớ" in panel.status_label.text()
 
 
-def test_backup_now_makes_a_backup_and_lists_it(qapp, file_context):
+def test_backup_now_makes_a_backup_and_lists_it(qapp, file_context, tmp_path):
     panel = BackupPanel(file_context)
+    panel._set_folder(str(tmp_path / "backups"))
     assert panel.backup_list.count() == 0 and not panel.restore_button.isEnabled()
 
     panel.backup_button.click()
@@ -55,8 +56,9 @@ def test_backup_now_makes_a_backup_and_lists_it(qapp, file_context):
     assert panel.restore_button.isEnabled()  # the new backup is selected
 
 
-def test_restore_asks_first_and_changes_nothing_when_declined(qapp, file_context, monkeypatch):
+def test_restore_asks_first_and_changes_nothing_when_declined(qapp, file_context, tmp_path, monkeypatch):
     panel = BackupPanel(file_context)
+    panel._set_folder(str(tmp_path / "backups"))
     panel.backup_button.click()
     _wait(qapp, panel)
     file_context.db.connection.execute("DELETE FROM documents WHERE id = 'd0'")
@@ -68,8 +70,9 @@ def test_restore_asks_first_and_changes_nothing_when_declined(qapp, file_context
     assert not panel._busy and _titles(file_context) == {"Sách 1", "Sách 2"}
 
 
-def test_a_confirmed_restore_puts_the_library_back_and_announces_it(qapp, file_context, monkeypatch):
+def test_a_confirmed_restore_puts_the_library_back_and_announces_it(qapp, file_context, tmp_path, monkeypatch):
     panel = BackupPanel(file_context)
+    panel._set_folder(str(tmp_path / "backups"))
     panel.backup_button.click()
     _wait(qapp, panel)
     file_context.db.connection.execute("DELETE FROM documents")
@@ -144,10 +147,11 @@ def test_a_reset_failure_is_shown_and_the_buttons_come_back(qapp, file_context, 
     assert len(_titles(file_context)) == 3  # nothing was actually reset
 
 
-def test_a_failure_is_shown_and_the_buttons_come_back(qapp, file_context, monkeypatch):
+def test_a_failure_is_shown_and_the_buttons_come_back(qapp, file_context, tmp_path, monkeypatch):
     from smartdoc.application.backup_service import BackupError
 
     panel = BackupPanel(file_context)
+    panel._set_folder(str(tmp_path / "backups"))
     monkeypatch.setattr(file_context.backups, "create_backup", lambda reason="manual": (_ for _ in ()).throw(BackupError("đĩa đầy")))
 
     panel.backup_button.click()
@@ -178,11 +182,13 @@ def test_settings_saves_the_three_backup_options_and_can_open_on_the_backup_tab(
 
 def test_ticking_backup_before_change_without_a_folder_says_so(qapp, file_context):
     panel = BackupPanel(file_context)
-    assert not panel.folder_warning.text()
+    # When no folder is set, the note about file-backup requirement is absent
+    assert "Bắt buộc" not in panel.folder_path_label.text()
     panel.before_change_check.setChecked(True)
-    assert "chưa chọn thư mục" in panel.folder_warning.text()
+    # After ticking "before change", the label gains the mandatory-folder note
+    assert "Bắt buộc" in panel.folder_path_label.text()
     panel.before_change_check.setChecked(False)
-    assert not panel.folder_warning.text()
+    assert "Bắt buộc" not in panel.folder_path_label.text()
 
 
 def test_choosing_a_folder_sends_backups_there_and_a_bad_one_is_refused(qapp, file_context, tmp_path):
@@ -197,7 +203,7 @@ def test_choosing_a_folder_sends_backups_there_and_a_bad_one_is_refused(qapp, fi
     blocker.write_text("x")
     assert panel._set_folder(str(blocker / "sub"))  # a reason is returned
     assert file_context.config.config.backup_dir == str(target)  # the previous choice stays
-    assert panel.folder_warning.text()
+    assert panel.status_label.text()  # error reason is shown in status
 
     panel._set_folder("")
-    assert file_context.config.config.backup_dir is None and "Chưa chọn" in panel.folder_label.text()
+    assert file_context.config.config.backup_dir is None and "Chưa chọn" in panel.folder_path_label.text()
