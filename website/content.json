@@ -1,16 +1,32 @@
 {
   "meta": {
-    "latest": "1.2.0",
+    "latest": "1.3.0",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
     "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
-      "ver": "v1.2.0",
-      "date": "2026-09-28",
+      "ver": "v1.3.0",
+      "date": "2026-10-06",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "bullets": [
+        "Hiển thị thứ tự ưu tiên nguồn trong hộp thoại Tìm thông tin sách",
+        "Icon đồng bộ metadata cộng đồng trên thanh trạng thái",
+        "Lưu trang web thành PDF (File › Lưu trang web thành PDF…)"
+      ],
+      "link": "",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.0/MewBook-Setup-1.3.0.exe",
+        "size": "100 MB"
+      }
+    },
+    {
+      "ver": "v1.2.0",
+      "date": "2026-09-28",
+      "tag": "Ổn định",
+      "tagColor": "bg-[#5A3E36] text-[#F5E6CC]",
       "auto": false,
       "bullets": [
         "“Đặt lại thư viện” mới trong Cài đặt › Sao lưu",
@@ -19,7 +35,7 @@
       ],
       "link": "",
       "download": {
-        "win": "https://github.com/meomuc/mewbook/releases/download/v1.2.0/MewBook-Setup-1.2.0.exe",
+        "win": "https://github.com/meomuc/mewbook/releases/latest",
         "size": "98 MB"
       }
     },
@@ -60,34 +76,28 @@
   ],
   "roadmap": [
     {
-      "title": "Sửa mã hóa cũ trong tên sách",
-      "desc": "Nhận diện và sửa tên sách gõ theo bảng mã cũ (TCVN3/VNI) thành Unicode chuẩn",
+      "title": "Đồng bộ với máy đọc sách: nhớ sách đã chép",
+      "desc": "Mèo nhớ cuốn nào đã chép sang máy đọc sách nào; hiện biểu tượng máy đọc sách trên bìa, cạnh đánh giá cộng đồng",
       "eta": "Kế hoạch",
       "status": "planned"
     },
     {
-      "title": "Giao diện tiếng Anh",
-      "desc": "Chuyển ngôn ngữ ngay trong Cài đặt",
+      "title": "Lọc sách đã / chưa chép sang máy đọc sách",
+      "desc": "Thêm vào bộ lọc \"Tình trạng\" để thấy ngay sách nào còn chưa mang theo",
       "eta": "Kế hoạch",
       "status": "planned"
     },
     {
-      "title": "Chuyển trang web thành PDF để đọc ngoại tuyến",
-      "desc": "Dán link, Mèo lọc bỏ menu/quảng cáo rồi lưu bài viết thành PDF vào thư viện -- bản thử, có nhắc nhở tôn trọng bản quyền trang gốc",
+      "title": "Xem sách đang có trên máy đọc sách",
+      "desc": "Cắm máy, Mèo đọc danh sách file (chỉ đọc, không kéo nội dung về) và đối chiếu với thư viện; sách đã có trên máy tính được đánh dấu biểu tượng máy tính",
       "eta": "Kế hoạch",
-      "status": "next"
+      "status": "planned"
     },
     {
-      "title": "Chia sẻ và đồng bộ thông tin sách với cộng đồng MewBook",
-      "desc": "Máy cục bộ trước, rồi đến Cộng đồng MewBook, rồi mới đến nguồn khác trên Internet; xung đột giữa các nguồn luôn cho bạn xem trước -- bản thử, luôn xin phép trước khi bật, tắt được bất cứ lúc nào, chỉ chia sẻ thông tin sách chứ không phải file sách",
+      "title": "Gửi sách tới Kindle",
+      "desc": "Kiểm chứng trên máy Kindle thật (EPUB, thư mục documents), sau đó cân nhắc gửi không dây qua email Kindle và máy ở chế độ MTP",
       "eta": "Kế hoạch",
-      "status": "next"
-    },
-    {
-      "title": "Mở rộng hỗ trợ máy đọc sách và chuyển đổi nhiều định dạng hơn",
-      "desc": "Thêm hồ sơ theo từng máy đọc sách (BOOX, Kindle...) và chuyển đổi định dạng tài liệu qua Calibre đã cài sẵn trên máy; cặp định dạng dễ lệch bố cục (như PDF sang định dạng chỉnh sửa được) luôn được cảnh báo rõ trước khi đổi",
-      "eta": "Kế hoạch",
-      "status": "next"
+      "status": "planned"
     }
   ],
   "bugs": [
@@ -97,6 +107,20 @@
       "status": "Đang tìm hiểu",
       "priority": "Vừa",
       "color": "bg-zinc-400"
+    },
+    {
+      "id": "#2EE0",
+      "desc": "Phân loại thông minh không còn bỏ sót phần lớn sách vì nhầm là \"nội dung trộn nhiều chủ đề\"",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#E7F2",
+      "desc": "Tìm/cập nhật thông tin sách đôi khi vẫn hỏi Internet dù chưa bật \"Nguồn Internet\"",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
     },
     {
       "id": "#95AD",
@@ -136,20 +160,6 @@
     {
       "id": "#11F5",
       "desc": "Scans: OCR clean-up",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#2902",
-      "desc": "Front zone (training option)",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#4BEF",
-      "desc": "Smart classification of short books and of EPUB / MOBI / AZW3",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
@@ -231,6 +241,18 @@
       "theme": "retro_tech",
       "themeHash": "308cac3303",
       "imgHash": "425d73e9d3"
+    },
+    {
+      "src": "/assets/gallery/layout-ke-sach.webp?v=1c15f89290",
+      "title": "Layout ke sach",
+      "caption": "",
+      "imgHash": "1c15f89290"
+    },
+    {
+      "src": "/assets/gallery/layout-toi-gian.webp?v=e35999e6c6",
+      "title": "Layout toi gian",
+      "caption": "",
+      "imgHash": "e35999e6c6"
     }
   ],
   "pendingShots": [],
