@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc.application.smart_classifier import UNSURE_TAG
 from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent, ReadingProgressUpdatedEvent
 from smartdoc.domain.author_names import split_author_names
 from smartdoc.domain.library_filter import LibraryFilter
@@ -847,6 +848,16 @@ class DocumentDetailPanel(QFrame):
         if not doc_id:
             return
         value = value.strip()
+        if field == "tags":
+            # When the user manually adds a real hashtag to a book that still has the UNSURE_TAG placeholder,
+            # drop the placeholder silently: the person has decided, so "Chưa chắc" should not stay.
+            parts = [t.strip() for t in value.split(",") if t.strip()]
+            real = [t for t in parts if t.casefold() != UNSURE_TAG.casefold()]
+            if real and len(real) < len(parts):
+                value = ",".join(real)
+                self.tag_editor.blockSignals(True)
+                self.tag_editor.set_tags(real)
+                self.tag_editor.blockSignals(False)
         if value == (self._current_doc.get(field) or ""):
             return
         self.context.db.update_document_fields(doc_id, {field: value})

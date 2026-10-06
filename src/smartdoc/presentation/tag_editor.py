@@ -73,6 +73,11 @@ def suggest_tags(typed: str, known: dict[str, int], already: Iterable[str], limi
 class _HintPopup(QListWidget):
     """The list of hints under the text box. A tool window that never takes focus, so typing goes on uninterrupted."""
 
+    # Fires on mouse-DOWN, before any focus-loss event can hide the popup. itemClicked fires on release, which is
+    # too late: on Windows a click can cause editingFinished → _hide_hints() between press and release so the popup
+    # is already hidden when itemClicked fires and chosen() returns "".
+    item_pressed = Signal(str)
+
     def __init__(self, anchor: QWidget) -> None:
         super().__init__(anchor.window())
         self._anchor = anchor
@@ -83,6 +88,15 @@ class _HintPopup(QListWidget):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setMouseTracking(True)
         self.restyle()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- Qt override
+        item = self.itemAt(event.position().toPoint())
+        if item is not None:
+            self.setCurrentItem(item)
+            self.item_pressed.emit(item.text().lstrip("#"))
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def restyle(self) -> None:
         tm = theme_manager()
@@ -198,9 +212,19 @@ class TagEditor(QFrame):
     def _hint_popup(self) -> _HintPopup:
         if self._popup is None:
             self._popup = _HintPopup(self.line_edit)
-            # A mouse click should immediately add the tag (fill + commit in one gesture).
-            self._popup.itemClicked.connect(lambda _item: self._fill_from_hint(commit=True))
+            self._popup.item_pressed.connect(self._on_hint_pressed)
         return self._popup
+
+    def _on_hint_pressed(self, tag: str) -> None:
+        """Mouse-press on a hint: fill and commit immediately (fires before focus-loss can hide the popup)."""
+        if not tag:
+            return
+        head = self.line_edit.text().rsplit(",", 1)[0] + ", " if "," in self.line_edit.text() else ""
+        self.line_edit.setText(head + tag)
+        self._hide_hints()
+        self.line_edit.setFocus()
+        self.line_edit.setCursorPosition(len(self.line_edit.text()))
+        self._commit()
 
     def _update_hints(self, text: str) -> None:
         hints = suggest_tags(text, self._known, self._tags)

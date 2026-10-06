@@ -253,6 +253,7 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         # --- Phân tích & tổ chức --------------------------------------------------
         _a(vi.TOOL_SMART_CLASSIFY, lambda: self.open_smart_classify(), "tag")
+        _a(vi.TOOL_FOLDER_CLASSIFY, self._on_folder_classify, "tag")
         _a(vi.TOOL_DUPLICATES, self._on_open_duplicate_finder, "search")
         _a(vi.TOOL_AUTHOR_CLEANUP, self._on_open_author_cleanup, "pen")
         menu.addSeparator()
@@ -285,6 +286,12 @@ class MainWindow(QMainWindow):
 
     def _on_open_author_cleanup(self) -> None:
         dialog = AuthorCleanupDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _on_folder_classify(self) -> None:
+        from smartdoc.presentation.folder_classify_dialog import FolderClassifyDialog
+        dialog = FolderClassifyDialog(self.context, self, smart_classifier=self.smart_classifier)
         dialog.exec()
         dialog.deleteLater()
 

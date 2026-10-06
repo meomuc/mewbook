@@ -1,5 +1,25 @@
 # Changelog
 
+<!-- [06/10/2026 - T1/T2/T3] - Task: Hashtag click fix, UNSURE_TAG auto-strip, folder-classify tool
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:tag_editor`, `:presentation:detail_panel`, `:application:folder_classify`, `:presentation:folder_classify_dialog`, `:presentation:main_window`, `:presentation:strings_vi`, `:presentation:strings_en`
+  - File tạo mới:
+    - `src/smartdoc/application/folder_classify.py`: `infer_folder_genre` + `build_folder_groups` — nhóm sách "Chưa chắc" theo thư mục lưu trữ
+    - `src/smartdoc/presentation/folder_classify_dialog.py`: dialog gán nhãn hàng loạt theo thư mục
+    - `tests/test_folder_classify.py`: 9 tests cho T3
+  - File chỉnh sửa:
+    - `src/smartdoc/presentation/tag_editor.py` (T1): thêm `item_pressed` signal vào `_HintPopup.mousePressEvent` — fix click chuột vào gợi ý hashtag bị race condition focus-loss
+    - `src/smartdoc/presentation/detail_panel.py` (T2): `_save_field` tự xóa "Chưa chắc" khi có hashtag thật
+    - `src/smartdoc/presentation/main_window.py`: thêm menu item + slot `_on_folder_classify`
+    - `src/smartdoc/presentation/strings_vi.py`, `strings_en.py`: thêm `TOOL_FOLDER_CLASSIFY`
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - T1: Root cause là Windows focus-loss race — `editingFinished` bắn trên mouse PRESS, `itemClicked` bắn trên RELEASE → popup ẩn trước khi chọn. Fix: override `mousePressEvent` để emit `item_pressed` sớm hơn.
+  - T2: Lọc UNSURE_TAG ra khỏi danh sách tags khi save, blockSignals để không gây loop.
+  - T3: Duyệt path component từ sâu ra ngoài, match với `taxonomy.match_label()` → nhóm → `SmartClassifyService.tag_books()`. Không đụng đến score thresholds.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - T3 chỉ match theo thư mục sâu nhất. Nếu người dùng tổ chức sách theo thư mục tác giả thay vì thể loại thì sẽ không match — đây là thiết kế đúng (không nhả kết quả sai).
+-->
+
 <!-- [07/10/2026 - 01:00] - Task: Fix classify wizard — result page lost after Chạy nền; race on late open
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:smart_classify_wizard`, `:presentation:main_window`, `:tests:test_smart_classify_ui`
