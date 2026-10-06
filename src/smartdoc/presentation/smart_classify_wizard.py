@@ -474,7 +474,13 @@ class SmartClassifyWizard(DesignDialog):
     # -- step 2 --------------------------------------------------------------------------------------------------
     def _show_progress(self, done: int, total: int, phase: str, recent: tuple) -> None:
         self._set_mascot(self.mascot_label, "thinking", 110)
-        if phase == "starting" or total == 0:
+        if phase == "layer2":
+            self.progress.setRange(0, 0)  # indeterminate spinner: duration unknown
+            self.running_title.setText("AI Lớp 2 đang xem lại sách chưa chắc…")
+            self.done_label.setText(f"Lớp 1 xong: {done:,} sách. Đang chờ Ollama…".replace(",", "."))
+            self.done_label.setTextFormat(Qt.PlainText)
+            self.eta_label.setText("")
+        elif phase == "starting" or total == 0:
             self.progress.setRange(0, 0)
             self.done_label.setText("Đang khởi động bộ phân loại…")
             self.eta_label.setText("")
@@ -576,6 +582,10 @@ class SmartClassifyWizard(DesignDialog):
     # -- events --------------------------------------------------------------------------------------------------
     def _on_event(self, event) -> None:
         if isinstance(event, SmartClassifyProgressEvent):
+            # Don't re-enter STEP_RUNNING after the result is shown: a second background job
+            # queued by AutoClassifyOnImport must not steal the dialog away from STEP_RESULT.
+            if self.pages.currentIndex() == STEP_RESULT:
+                return
             if self.pages.currentIndex() != STEP_RUNNING:
                 self._started_at = self._started_at or time.monotonic()
                 self._set_step(STEP_RUNNING)
@@ -588,6 +598,8 @@ class SmartClassifyWizard(DesignDialog):
             # without _job_was_running the guard would drop the event and leave the dialog stuck.
             if self.pages.currentIndex() == STEP_SCOPE and not self._started_at and not self._job_was_running:
                 return
+            if self.pages.currentIndex() == STEP_RESULT:
+                return  # already showed a result; a second background job's finished event is ignored
             self._job_was_running = False  # one finished event per opening is enough
             self._show_result(event)
 

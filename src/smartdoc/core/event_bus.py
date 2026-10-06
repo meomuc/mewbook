@@ -219,7 +219,7 @@ class SmartClassifyProgressEvent(BaseEvent):
     tagged: int = 0  # given a category so far
     unknown: int = 0  # looked at, no confident answer
     failed: int = 0
-    phase: str = "running"  # "starting" (worker warming up) | "running"
+    phase: str = "running"  # "starting" (worker warming up) | "running" | "layer2" (optional AI second pass)
     recent: tuple[tuple[str, str], ...] = ()  # the last few books looked at: (title, the tag given, "" = not sure)
 
 

@@ -599,6 +599,13 @@ class SmartClassifyService:
             killed = self._cancel.is_set() or bool(error)
             flush(final=True)
             if not killed and layer2_jobs:
+                # Signal the dialog that Layer 1 is done but Layer 2 (Ollama) is now running
+                # so it can show an indeterminate spinner instead of a frozen 100% bar.
+                bus.publish(SmartClassifyProgressEvent(
+                    job_id=job_id, done=total, total=total,
+                    tagged=tally["tagged"], unknown=tally["unknown"], failed=tally["failed"],
+                    phase="layer2", recent=tuple(recent),
+                ))
                 ai_hints = self._layer2_pass(layer2_jobs, plan.jobs)
                 named = {doc_id for doc_id, _name, _confidence in ai_hints}
                 unknown_items[:] = [(doc_id, "ai_suggested" if doc_id in named else why) for doc_id, why in unknown_items]

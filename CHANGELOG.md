@@ -1,5 +1,20 @@
 # Changelog
 
+<!-- [06/10/2026 - 19:00] - Task: Fix classify dialog stuck at STEP_RUNNING when Layer 2 (Ollama) runs silently
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:core:event_bus`, `:application:smart_classifier`, `:presentation:smart_classify_wizard`
+  - File chỉnh sửa:
+    - `src/smartdoc/core/event_bus.py` — docstring `phase` field: ghi thêm giá trị `"layer2"`
+    - `src/smartdoc/application/smart_classifier.py` — trước khi gọi `_layer2_pass`, publish `SmartClassifyProgressEvent(phase="layer2")` để dialog biết Layer 2 đang chạy
+    - `src/smartdoc/presentation/smart_classify_wizard.py` — `_show_progress`: khi `phase=="layer2"` hiển thị thanh tiến trình indeterminate + label "AI Lớp 2 đang xem lại…"; `_on_event`: hai guard mới ngăn dialog trở lại STEP_RUNNING sau khi đã vào STEP_RESULT (tránh AutoClassifyOnImport background job cướp dialog)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Root cause: khi Layer 1 xong (`done=total`, progress bar 100%), `_layer2_pass` chạy im lặng qua Ollama — không publish event nào — nên dialog vẫn ở STEP_RUNNING cho đến khi `SmartClassifyFinishedEvent` được publish ở `finally`. Người dùng thấy 100% nhưng vẫn thấy nút "Chạy nền" / "Dừng".
+  - Fix: publish một event `phase="layer2"` ngay trước Layer 2 → dialog chuyển sang spinner indeterminate + thông báo rõ ràng; thêm guard STEP_RESULT trong `_on_event` để background job thứ hai (AutoClassifyOnImport) không kéo dialog trở lại STEP_RUNNING sau khi kết quả đã hiển thị.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nếu Layer 2 bị tắt (mặc định), sự thay đổi vô hiệu — không có event nào được publish và dialog chuyển thẳng sang STEP_RESULT khi finished event đến. An toàn.
+  - Guard STEP_RESULT trong finished event: nếu người dùng mở dialog khi job đang chạy, thấy kết quả job đó, rồi một job thứ 2 kết thúc — dialog giữ nguyên STEP_RESULT của job đầu. Đây là hành vi mong muốn.
+-->
+
 <!-- [06/10/2026 - 17:30] - Task: Phase 3 + 6 + classify dialog race-condition fix
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:smart_classify_wizard`, `:presentation:settings_dialog`, `:presentation:strings`, `:application:ai_summary`, `:app`
