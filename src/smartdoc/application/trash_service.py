@@ -1,18 +1,21 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""MewBook's own trash: a file removed from the duplicate finder goes here first instead of being deleted for good.
+"""MewBook's own trash: a file removed from the library goes here first instead of being deleted for good.
 
 Every trashed book is one folder `trash/<id>/` under the app data folder holding the file itself, `meta.json` (where it
-came from, when it was trashed, the library row and its collections) and `content.txt` (the search text, so a restored
-book is searchable again without being re-read). No database table: the trash survives a library restore and a
-migration because it is just files.
+came from, when it was trashed, the library row and its collections) and `content.txt` (the search text). No database
+table for the trash itself: it survives a library restore and a migration because it is just files on disk.
 
-- `send(items)` moves the files, then removes the library entries. A file that cannot be moved (locked, no rights) is
-  left exactly where it is *and* stays in the library -- nothing is half-done -- and is reported.
-- `restore(item_id)` puts the file back where it was (never over another file: a name clash gets a " (khôi phục)"
-  suffix) and re-adds the book with its hashtags, collections and search text.
-- After `AppConfig.trash_retention_days` days (0 = never) an item is deleted for good by `purge_expired`, which the app
-  runs at start-up. The user can also delete one item or empty the trash by hand. Only files inside `trash/` are ever
-  deleted from here; the original ebook files are never touched by anything but `send`, which moves them.
+The **library row is kept** when a book is sent to trash (`file_status='trashed'`, `trash_item_id=<folder-name>`), so
+the detail panel can show "File đã xóa — trong Thùng rác" and open Thùng rác straight to that item. The row is removed
+permanently only by `delete_forever` / `empty` / `purge_expired`.
+
+- `send(items)` moves the files and marks the library rows as trashed. A file that cannot be moved (locked, no rights)
+  is left exactly where it is *and* stays in the library without a trash mark -- nothing is half-done -- and is
+  reported. A file that is already gone is removed from the library entirely (no trash entry can be created for it).
+- `restore(item_id)` puts the file back and clears the trash markers; hashtags, collections and reading progress are
+  preserved because they were never removed.
+- After `AppConfig.trash_retention_days` days (0 = never) an item is deleted for good by `purge_expired`. Only files
+  inside `trash/` are ever deleted here; the original ebook files are never touched by anything but `send`.
 """
 from __future__ import annotations
 
@@ -95,19 +98,21 @@ class TrashService:
                 result.missing.append(doc_id)
                 continue
             try:
-                self._store(doc, path, membership)
+                folder = self._store(doc, path, membership)
             except OSError as exc:
                 logger.warning("Could not move %s to the trash: %s", path, exc)
                 result.failed.append((doc_id, "File đang được chương trình khác dùng hoặc không có quyền di chuyển"
                                       if isinstance(exc, PermissionError) else f"Không di chuyển được file: {exc.strerror or exc}"))
                 continue
-            self.context.db.delete_document(doc_id)
+            # Keep the library row so the detail panel can show 'File đã xóa' with a link to Thùng rác.
+            self.context.db.mark_document_trashed(doc_id, folder.name)
             result.moved.append(doc_id)
         if result.moved or result.missing:
             self.context.event_bus.publish(LibraryUpdatedEvent())
         return result
 
-    def _store(self, doc: dict, path: Path, membership: dict[str, set[str]]) -> None:
+    def _store(self, doc: dict, path: Path, membership: dict[str, set[str]]) -> Path:
+        """Move the file into a fresh trash folder and write meta.json; returns the folder path."""
         folder = self.directory / uuid.uuid4().hex
         folder.mkdir(parents=True)
         try:
@@ -122,6 +127,7 @@ class TrashService:
         except OSError:
             shutil.rmtree(folder, ignore_errors=True)  # only ever our own fresh folder
             raise
+        return folder
 
     # -- looking --------------------------------------------------------------------------------------------------
     def list_items(self) -> list[TrashItem]:
@@ -185,14 +191,21 @@ class TrashService:
         except OSError:
             content = ""
         self.context.self_writes.mark(str(target))  # the folder watcher must not import it a second time
-        self.context.db.add_or_update_document(doc["id"], doc, extracted_text=content)
-        self.context.db.restore_document_columns(doc["id"], doc)  # publisher, ISBN, locked fields, AI summary...
-        if meta.get("reading"):
-            self.context.db.restore_reading_progress(doc["id"], meta["reading"])
-        existing = {c["id"] for c in self.context.db.list_collections()}
-        for collection_id in meta.get("collections", []):
-            if collection_id in existing:
-                self.context.db.add_documents_to_collection(collection_id, [doc["id"]])
+        # If the library row is still marked as trashed (new-style send), just update it in place --
+        # hashtags, collections and reading progress were never removed, so no need to re-add them.
+        existing_row = self.context.db.get_document(doc["id"])
+        if existing_row is not None and existing_row.get("file_status") == "trashed":
+            self.context.db.unmark_document_trashed(doc["id"], str(target))
+        else:
+            # Old-style: the row was deleted at send time (trash created before v1.1); re-insert it.
+            self.context.db.add_or_update_document(doc["id"], doc, extracted_text=content)
+            self.context.db.restore_document_columns(doc["id"], doc)
+            if meta.get("reading"):
+                self.context.db.restore_reading_progress(doc["id"], meta["reading"])
+            known_collections = {c["id"] for c in self.context.db.list_collections()}
+            for collection_id in meta.get("collections", []):
+                if collection_id in known_collections:
+                    self.context.db.add_documents_to_collection(collection_id, [doc["id"]])
         shutil.rmtree(folder, ignore_errors=True)
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return target
@@ -201,8 +214,15 @@ class TrashService:
         folder = self._folder(item_id)
         if folder.is_dir():
             meta = self._read_meta(folder) or {}
+            doc_id = (meta.get("doc") or {}).get("id")
             shutil.rmtree(folder, ignore_errors=False)
             logger.info("Trash: deleted for good %s (from %s)", meta.get("file_name", item_id), meta.get("original_path", "?"))
+            # If the library row is still trashed, remove it permanently (the file is now gone for good).
+            if doc_id:
+                existing_row = self.context.db.get_document(doc_id)
+                if existing_row is not None and existing_row.get("file_status") == "trashed":
+                    self.context.db.delete_document(doc_id)
+                    self.context.event_bus.publish(LibraryUpdatedEvent())
 
     def empty(self, progress: Callable[[int, int], None] | None = None) -> int:
         """Delete everything in the trash for good; returns how many items went."""

@@ -22,13 +22,15 @@ def library(app_context, tmp_path):
     return folder
 
 
-def test_send_moves_the_file_and_removes_the_entry(app_context, library):
+def test_send_moves_the_file_and_marks_it_as_trashed(app_context, library):
     events = []
     app_context.event_bus.subscribe(LibraryUpdatedEvent, events.append)
     result = app_context.trash.send([("d1", str(library / "b1.pdf"))])
     assert result.moved == ["d1"] and not result.failed
     assert not (library / "b1.pdf").exists() and (library / "b2.pdf").exists()
-    assert app_context.db.get_document("d1") is None
+    # Row is kept so the detail panel can show 'File đã xóa' with a link to Thùng rác.
+    doc = app_context.db.get_document("d1")
+    assert doc is not None and doc["file_status"] == "trashed" and doc["trash_item_id"] is not None
     (item,) = app_context.trash.list_items()
     assert item.title == "Sách 1" and item.original_path == str(library / "b1.pdf") and item.size == 1
     assert item.days_left() == 30 and events

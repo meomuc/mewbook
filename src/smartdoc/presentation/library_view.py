@@ -1354,15 +1354,20 @@ class LibraryListWidget(QWidget):
         if count > len(names):
             names.append(f"… và {count - len(names)} sách khác")
         if not confirm_danger(
-            self, title=f"Xóa {count} sách khỏi thư viện?", subtitle="Bước xác nhận cuối",
-            message=(f"<b>{count} sách</b> sẽ biến mất khỏi thư viện MewBook, kèm hashtag, đánh giá và ghi chú bạn đã gắn."),
+            self, title=f"Chuyển {count} sách vào Thùng rác?", subtitle="Bước xác nhận cuối",
+            message=(f"<b>{count} sách</b> sẽ được chuyển vào Thùng rác MewBook cùng với file của chúng."),
             items=names,
-            safe_text="<b>Không bị đụng tới:</b> file sách trên máy. Bạn có thể thêm lại sách vào thư viện bất cứ lúc nào.",
-            ack_text=f"Tôi hiểu {count} sách sẽ bị gỡ khỏi thư viện", action_text=f"Xóa {count} sách khỏi thư viện",
+            safe_text="<b>Có thể khôi phục:</b> vào Công cụ → Thùng rác để khôi phục file và toàn bộ thông tin sách.",
+            ack_text=f"Tôi hiểu {count} sách sẽ vào Thùng rác", action_text=f"Chuyển {count} sách vào Thùng rác",
             cancel_text="Giữ lại",
         ):
             return
-        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in docs], delete_physical_file=False)
+        items = [(d["id"], d.get("file_path")) for d in docs]
+        result = self.context.trash.send(items)
+        if result.failed:
+            from PySide6.QtWidgets import QMessageBox
+            lines = [reason for _doc_id, reason in result.failed]
+            QMessageBox.warning(self, "Không chuyển được một số sách", "\n".join(lines))
 
     # ── Edit-menu-facing operations (mirror the context menu -- see
     # main_window.py's Edit menu) ────────────────────────────────────

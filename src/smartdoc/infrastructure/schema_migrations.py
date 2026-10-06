@@ -100,6 +100,15 @@ def _add_excluded_paths(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX IF NOT EXISTS idx_documents_file_size ON documents(file_size)")
 
 
+def _add_trash_item_id(connection: sqlite3.Connection) -> None:
+    """Keep the library row when the user sends a book to the in-app trash: set file_status='trashed' and
+    record which trash folder holds the file so the detail panel can open Thùng rác straight to that item.
+    Purely additive; a library that never used the new trash flow simply has no rows with this value."""
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+    if "trash_item_id" not in existing:
+        connection.execute("ALTER TABLE documents ADD COLUMN trash_item_id TEXT")
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -151,6 +160,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(2, "reading_progress (last opened, page/chapter reached)", _add_reading_progress),
     Migration(3, "search index: accent-insensitive Vietnamese tokenizer, trigger only on indexed columns", _rebuild_search_index),
     Migration(4, "excluded_paths (files removed from the library that must not be imported again), documents.file_size index", _add_excluded_paths),
+    Migration(5, "documents.trash_item_id (keep library row when book is sent to the in-app trash)", _add_trash_item_id),
 )
 
 

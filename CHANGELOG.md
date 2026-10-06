@@ -1,5 +1,24 @@
 # Changelog
 
+<!-- [06/10/2026 - 22:30] - Task: Trash-flow redesign — keep library row, show "File đã xóa", open Thùng rác from detail panel
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:trash_service`, `:presentation:detail_panel`, `:presentation:library_view`, `:presentation:trash_dialog`
+  - File chỉnh sửa:
+    - `src/smartdoc/infrastructure/schema_migrations.py` — Migration 5: thêm cột `trash_item_id TEXT` vào `documents`
+    - `src/smartdoc/infrastructure/database.py` — `files_to_check()`: bỏ qua tài liệu `file_status='trashed'`; thêm `mark_document_trashed(doc_id, trash_item_id)` và `unmark_document_trashed(doc_id, new_path)`
+    - `src/smartdoc/application/trash_service.py` — `send()`: gọi `mark_document_trashed()` thay vì `delete_document()` (row được giữ lại); `restore()`: nếu row vẫn còn trashed thì chỉ `unmark_document_trashed()`, không cần re-insert; `delete_forever()`: xóa DB row khi xóa thật sự; `_store()`: trả về `Path`
+    - `src/smartdoc/presentation/detail_panel.py` — thêm `file_status_label` + hàng "Tình trạng" trong info grid; `_populate()`: hiện "File đã xóa / Không thấy file" theo `file_status`; `_on_reveal()`: nếu trashed → mở TrashDialog; thêm `_on_file_status_clicked()`, `_open_trash_for_current()`
+    - `src/smartdoc/presentation/library_view.py` — `_delete_documents_with_confirm()`: chuyển qua `context.trash.send()` thay vì `file_actions.delete_documents()`; cập nhật text xác nhận
+    - `src/smartdoc/presentation/trash_dialog.py` — thêm tham số `select_item_id`; thêm `_select_item(item_id)` để cuộn đến đúng hàng
+    - `tests/test_trash_service.py` — cập nhật `test_send_moves_the_file_and_marks_it_as_trashed` (tên + assertion mới)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Thay vì xóa DB row khi trash (như trước), giữ row với `file_status='trashed'` và `trash_item_id`. Cho phép detail panel hiện thông tin "File đã xóa" và link mở Thùng rác. Row chỉ bị xóa vĩnh viễn khi người dùng "Xóa hẳn" trong TrashDialog hoặc Dọn sạch.
+  - `restore()` nhận dạng row cũ (trashed) vs. row cũ (đã bị xóa từ phiên bản trước) để tương thích ngược.
+  - `files_to_check()` bỏ qua trashed để không báo sai "Không thấy file".
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Sách trashed vẫn xuất hiện trong lưới thư viện; nếu người dùng muốn ẩn sách trashed khỏi lưới chính cần thêm filter. Hiện tại chưa có filter đó.
+  - Sách trashed vẫn được đếm trong FacetCounter (collection, hashtag counts). Có thể gây nhầm lẫn nhỏ.
+
 <!-- [06/10/2026 - 20:00] - Task: Fix hashtag autocomplete click + multi-select hashtag editing
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:tag_editor`, `:core:event_bus`, `:presentation:library_view`, `:presentation:detail_panel`

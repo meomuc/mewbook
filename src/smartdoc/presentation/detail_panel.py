@@ -319,9 +319,13 @@ class DocumentDetailPanel(QFrame):
         self.rating_label.setToolTip("Bấm để xem / viết đánh giá")
         self.rating_label.setTextFormat(Qt.RichText)
         self.rating_label.clicked.connect(self._on_review)
+        self.file_status_label = _ClickableLabel(self)
+        self.file_status_label.setTextFormat(Qt.RichText)
+        self.file_status_label.clicked.connect(self._on_file_status_clicked)
         self.path_label = _PathLabel(self)
         self.path_label.clicked.connect(self._on_reveal)
         self._info_rows: list[tuple[QLabel, QWidget]] = []
+        self._status_caption_label: QLabel | None = None
         info = QGridLayout()
         info.setContentsMargins(0, 0, 0, 0)
         info.setHorizontalSpacing(8)
@@ -332,7 +336,7 @@ class DocumentDetailPanel(QFrame):
             ("Định dạng", self.format_size_label), ("Nhà xuất bản", self.publisher_label),
             ("Năm, ngôn ngữ", self.year_label), ("ISBN", self.isbn_label),
             ("Thêm / sửa", self.dates_label), ("Tiến trình đọc", self.reading_progress_label),
-            ("Đánh giá", self.rating_label), ("Vị trí file", self.path_label),
+            ("Đánh giá", self.rating_label), ("Tình trạng", self.file_status_label), ("Vị trí file", self.path_label),
         )
         for row, (caption, value) in enumerate(rows):
             label = QLabel(caption, self)
@@ -341,6 +345,8 @@ class DocumentDetailPanel(QFrame):
             info.addWidget(label, row, 0, Qt.AlignTop)
             info.addWidget(value, row, 1)
             self._info_rows.append((label, value))
+            if caption == "Tình trạng":
+                self._status_caption_label = label
 
         # -- hashtags --
         self.tags_title_label = self._caption("Hashtag")
@@ -620,7 +626,34 @@ class DocumentDetailPanel(QFrame):
                 f"<span style='color:{tm.token('accent')}; text-decoration:underline'>Chưa có đánh giá · viết đánh giá</span>")
 
         file_path = doc.get("file_path", "")
-        self.path_label.set_path(file_path)
+        file_status = doc.get("file_status")
+        if file_status == "trashed":
+            warn_color = tm.token("warn") or tm.token("err") or "#e87c3e"
+            accent = tm.token("accent")
+            self.file_status_label.setText(
+                f"<span style='color:{warn_color};'>File đã xóa — trong Thùng rác</span>"
+                f"&nbsp;<span style='color:{accent}; text-decoration:underline;'>Mở Thùng rác</span>"
+            )
+            self.file_status_label.setToolTip("File đã được chuyển vào Thùng rác MewBook\nBấm để mở Thùng rác đến đúng file này")
+            self.file_status_label.show()
+            if self._status_caption_label:
+                self._status_caption_label.show()
+            self.path_label.set_path("(trong thùng rác)")
+            self.path_label.setToolTip("File đã được chuyển vào Thùng rác MewBook\nBấm để mở Thùng rác")
+        elif file_status == "missing":
+            warn_color = tm.token("warn") or tm.token("err") or "#e87c3e"
+            self.file_status_label.setText(f"<span style='color:{warn_color};'>Không thấy file</span>")
+            self.file_status_label.setToolTip("MewBook không thấy file ở vị trí đã lưu")
+            self.file_status_label.show()
+            if self._status_caption_label:
+                self._status_caption_label.show()
+            self.path_label.set_path(file_path)
+        else:
+            self.file_status_label.setText("")
+            self.file_status_label.hide()
+            if self._status_caption_label:
+                self._status_caption_label.hide()
+            self.path_label.set_path(file_path)
 
         self.tag_editor.set_tags([t for t in (doc.get("tags", "") or "").split(",") if t.strip()])
 
@@ -730,8 +763,24 @@ class DocumentDetailPanel(QFrame):
             open_reader(self.context, self._current_doc, self)
 
     def _on_reveal(self) -> None:
-        if self._current_doc:
-            self.file_actions.show_in_file_manager(self._current_doc["file_path"])
+        if not self._current_doc:
+            return
+        if self._current_doc.get("file_status") == "trashed":
+            self._open_trash_for_current()
+        else:
+            self.file_actions.show_in_file_manager(self._current_doc.get("file_path") or "")
+
+    def _on_file_status_clicked(self) -> None:
+        if self._current_doc and self._current_doc.get("file_status") == "trashed":
+            self._open_trash_for_current()
+
+    def _open_trash_for_current(self) -> None:
+        """Open TrashDialog and jump to the trash item for the current document."""
+        from smartdoc.presentation.trash_dialog import TrashDialog
+        item_id = self._current_doc.get("trash_item_id") if self._current_doc else None
+        dialog = TrashDialog(self.context, self, select_item_id=item_id)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_review(self) -> None:
         if self._current_doc:

@@ -38,12 +38,13 @@ def _when(value: float) -> str:
 
 
 class TrashDialog(DesignDialog):
-    def __init__(self, context, parent=None) -> None:
+    def __init__(self, context, parent=None, *, select_item_id: str | None = None) -> None:
         super().__init__(parent, title="Thùng rác", subtitle="File trùng đã bỏ đi, khôi phục được trước hạn", icon="archive",
                          width=820)
         self.context = context
         self.service = context.trash
         self.resize(860, 480)
+        self._pending_select_item_id = select_item_id
 
         self.table = QTableWidget(0, 5, self)
         self.table.setHorizontalHeaderLabels(["SÁCH", "VỊ TRÍ CŨ", "DUNG LƯỢNG", "NGÀY BỎ", "CÒN LẠI"])
@@ -78,6 +79,8 @@ class TrashDialog(DesignDialog):
         self.empty_button = self.add_footer_button("Dọn sạch thùng rác…", "danger", on_click=self._on_empty, left=True)
         self.add_footer_button("Đóng", on_click=self.accept)
         self.refresh()
+        if self._pending_select_item_id:
+            self._select_item(self._pending_select_item_id)
 
     # -- state ------------------------------------------------------------------------------------------------------
     def refresh(self) -> None:
@@ -95,6 +98,17 @@ class TrashDialog(DesignDialog):
                 self.table.setItem(row, column, cell)
         self.empty_note.setText("" if items else "Thùng rác trống.")
         self._update_buttons()
+
+    def _select_item(self, item_id: str) -> None:
+        """Scroll to and select the row matching `item_id` (called when opened from the detail panel)."""
+        for row in range(self.table.rowCount()):
+            cell = self.table.item(row, _COL_TITLE)
+            if cell is not None:
+                trash_item: TrashItem = cell.data(_ITEM_ROLE)
+                if trash_item is not None and trash_item.item_id == item_id:
+                    self.table.selectRow(row)
+                    self.table.scrollToItem(cell)
+                    break
 
     def _selected(self) -> list[TrashItem]:
         rows = sorted({index.row() for index in self.table.selectedIndexes()})

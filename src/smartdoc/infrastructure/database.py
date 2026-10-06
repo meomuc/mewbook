@@ -546,8 +546,11 @@ class DatabaseManager:
     # -- Missing files and relinking (S1-04) ------------------------------------------------------------------
 
     def files_to_check(self) -> list[tuple[str, str]]:
-        """(id, file_path) of every book, for the existence check."""
-        return [(r["id"], r["file_path"]) for r in self.connection.execute("SELECT id, file_path FROM documents")]
+        """(id, file_path) of every book, for the existence check. Trashed books are skipped: their file
+        is in the application trash folder on purpose, not genuinely missing."""
+        return [(r["id"], r["file_path"]) for r in self.connection.execute(
+            "SELECT id, file_path FROM documents WHERE file_status IS NULL OR file_status != 'trashed'"
+        )]
 
     def record_file_status(self, present_ids: list[str], missing_ids: list[str]) -> None:
         """Store the result of a check. Deliberately leaves updated_at alone: checking is not an edit."""
@@ -1185,6 +1188,25 @@ class DatabaseManager:
             self.connection.execute("DELETE FROM smart_classification WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM metadata_history WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM reading_progress WHERE doc_id = ?", (doc_id,))
+            self.connection.commit()
+
+    def mark_document_trashed(self, doc_id: str, trash_item_id: str) -> None:
+        """Keep the library row but mark the book as moved to the in-app trash (file_status='trashed').
+        The row stays queryable so the detail panel can show 'File đã xóa' and a link to Thùng rác."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET file_status = 'trashed', trash_item_id = ? WHERE id = ?",
+                (trash_item_id, doc_id),
+            )
+            self.connection.commit()
+
+    def unmark_document_trashed(self, doc_id: str, new_path: str) -> None:
+        """Restore a trashed book: clear the trash markers and record the new file path."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET file_status = NULL, trash_item_id = NULL, file_path = ? WHERE id = ?",
+                (new_path, doc_id),
+            )
             self.connection.commit()
 
     # -- Reading history ("Trang đầu") -----------------------------------------------------------------------------------
