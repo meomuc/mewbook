@@ -1,5 +1,23 @@
 # Changelog
 
+<!-- [06/10/2026 - 23:50] - Task: Fix PyMuPDF deprecation warnings and BrokenProcessPool native crash risk
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:pdf_extractor`, `:infrastructure:pdf_worker`, `:infrastructure:text_sampler`, `:application:format_conversion`, `:application:webpage_to_pdf`, `:presentation:reader_window`
+  - File chỉnh sửa:
+    - `src/smartdoc/infrastructure/pdf_extractor.py` — đổi `import fitz` → `import pymupdf as fitz`; thêm early-return sau BrokenExecutor để tránh retry file PDF hỏng trong main process
+    - `src/smartdoc/infrastructure/pdf_worker.py` — đổi `import fitz` → `import pymupdf as fitz`
+    - `src/smartdoc/infrastructure/text_sampler.py` — đổi lazy `import fitz` → `import pymupdf as fitz`
+    - `src/smartdoc/application/format_conversion.py` — đổi lazy `import fitz` → `import pymupdf as fitz`
+    - `src/smartdoc/application/webpage_to_pdf.py` — đổi lazy `import fitz` → `import pymupdf as fitz`
+    - `src/smartdoc/presentation/reader_window.py` — đổi lazy `import fitz` → `import pymupdf as fitz`
+  - Dependencies: không thêm mới (pymupdf đã có trong project)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - PyMuPDF đổi tên module từ `fitz` → `pymupdf`; `import fitz` vẫn hoạt động nhưng in 9 cảnh báo mỗi lần worker process khởi động. Đổi sang `import pymupdf as fitz` loại bỏ hoàn toàn.
+  - Thêm early-return trong `extract_all` sau BrokenExecutor: file PDF hỏng gây crash worker sẽ không được retry trong main process (SIGSEGV từ MuPDF sẽ giết cả GUI process).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Khi BrokenExecutor, các thread in-flight khác cũng nhận exception cho file của chúng; early-return cũng skip chúng. File watcher sẽ detect và retry chúng sau (file_status=NULL). Rủi ro thấp.
+-->
+
 <!-- [06/10/2026 - 22:30] - Task: Trash-flow redesign — keep library row, show "File đã xóa", open Thùng rác from detail panel
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:trash_service`, `:presentation:detail_panel`, `:presentation:library_view`, `:presentation:trash_dialog`

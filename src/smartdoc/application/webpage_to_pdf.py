@@ -183,7 +183,7 @@ def render_to_pdf(page: FetchedPage, dest: str) -> None:
     Raises :class:`WebpageToPdfError` on failure.
     """
     try:
-        import fitz  # noqa: PLC0415
+        import pymupdf as fitz  # noqa: PLC0415
         from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock  # noqa: PLC0415
     except ImportError as exc:
         raise WebpageToPdfError("PyMuPDF (fitz) chưa được cài.") from exc

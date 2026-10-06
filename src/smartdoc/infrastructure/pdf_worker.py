@@ -12,7 +12,7 @@ across the process boundary. The parent saves the cover and writes the database.
 """
 from __future__ import annotations
 
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 from smartdoc.infrastructure.pdf_extractor import PdfExtractor
 

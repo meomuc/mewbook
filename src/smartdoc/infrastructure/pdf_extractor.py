@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import BrokenExecutor, CancelledError, Executor
 
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 from smartdoc.infrastructure.cover_manager import MAX_WIDTH, CoverCacheManager
 from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
@@ -75,6 +75,9 @@ class PdfExtractor:
                     # process from now on rather than fail every book.
                     logger.warning("PDF worker pool is unusable; reading PDFs in the main process", exc_info=True)
                     self.pool = None
+                    # Don't retry the file that broke the pool in-process: a corrupted PDF that kills a worker
+                    # process via a native MuPDF crash would kill the GUI process too. Skip it and report empty.
+                    return {"file_path": file_path, "extension": "pdf", "encrypted": False}, None, ""
             with pymupdf_lock, fitz.open(file_path) as doc:
                 metadata = self._metadata_from_doc(doc, file_path)
                 cover_path = self._cover_from_doc(doc, doc_id)

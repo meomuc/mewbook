@@ -375,7 +375,7 @@ def _import_pymupdf():
     try:
         import pymupdf as fitz  # the current name
     except ImportError:  # older PyMuPDF only ships the `fitz` alias
-        import fitz
+        import pymupdf as fitz
     try:
         fitz.TOOLS.mupdf_display_errors(False)  # a damaged PDF is routine here, not worth a stderr line
     except Exception:

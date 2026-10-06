@@ -216,7 +216,7 @@ class NativeConverter:
             raise FormatConversionError(f"Lỗi khi chuyển đổi: {exc}") from exc
 
     def _fitz_convert(self, src: str, target_ext: str, dest: str) -> None:
-        import fitz  # noqa: PLC0415 -- heavy; loaded only on demand so the GUI thread stays light at start-up
+        import pymupdf as fitz  # noqa: PLC0415 -- heavy; loaded only on demand so the GUI thread stays light at start-up
         from smartdoc.infrastructure.pymupdf_lock import pymupdf_lock
 
         with pymupdf_lock, fitz.open(src) as doc:

@@ -807,7 +807,7 @@ if __name__ == "__main__":
     import sys
     import tempfile
 
-    import fitz
+    import pymupdf as fitz
     from PySide6.QtWidgets import QApplication
 
     from smartdoc.core.app_context import AppContext
