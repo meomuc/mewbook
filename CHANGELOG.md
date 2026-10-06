@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-06
+
 ### Performance (06/10/2026 — Performance audit fixes)
 - **4 missing DB indexes.** Thêm `CREATE INDEX` cho `documents.created_at`, `extension`, `file_path COLLATE NOCASE`, và `file_status` (guarded — chỉ khi cột đã tồn tại). Giảm full-scan trên các truy vấn thường gặp.
 - **Batch SELECT trong `apply_smart_classifications`.** Thay N+1 queries (1 SELECT/sách) bằng một batch pre-fetch cho toàn bộ `doc_id` trước vòng lặp; tiết kiệm đáng kể với thư viện lớn.
