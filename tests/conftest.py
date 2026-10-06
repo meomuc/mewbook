@@ -1,6 +1,7 @@
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("MEWBOOK_UI_LANGUAGE", "vi")  # tests assert Vietnamese text, regardless of the developer's own settings.json
 
 import pytest
 

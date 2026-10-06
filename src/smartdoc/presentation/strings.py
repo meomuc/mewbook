@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import types
 
 _MODULES: dict[str, str] = {
@@ -27,7 +28,14 @@ _DEFAULT_LANG = "vi"
 
 
 def _active_language() -> str:
-    """Read ui_language from the saved settings without constructing the full app."""
+    """Read ui_language from the saved settings without constructing the full app.
+
+    The ``MEWBOOK_UI_LANGUAGE`` env-var overrides the settings file so that the
+    test suite can force ``"vi"`` regardless of the developer's own settings.json.
+    """
+    forced = os.environ.get("MEWBOOK_UI_LANGUAGE")
+    if forced and forced in _MODULES:
+        return forced
     try:
         from smartdoc.core.config import default_app_data_dir  # noqa: PLC0415
         settings_path = default_app_data_dir() / "settings.json"
