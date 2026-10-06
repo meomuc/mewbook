@@ -1,5 +1,26 @@
 # Changelog
 
+<!-- [06/10/2026 - Bước 1/2/3] - Task: Rename labels + Layer2 progress + Status bar click-to-reopen
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:strings_vi`, `:presentation:strings_en`, `:presentation:author_cleanup_dialog`, `:presentation:smart_classify_wizard`, `:presentation:library_view`, `:presentation:main_window`, `:presentation:status_bar_panel`, `:application:classify_layer2`, `:application:smart_classifier`
+  - File chỉnh sửa:
+    - `src/smartdoc/presentation/strings_vi.py`: đổi `TOOL_SMART_CLASSIFY` → "Tự động phân loại…", `TOOL_AUTHOR_CLEANUP` → "Sửa tác giả…"
+    - `src/smartdoc/presentation/strings_en.py`: tương tự tiếng Anh
+    - `src/smartdoc/presentation/author_cleanup_dialog.py`: title cửa sổ → "Sửa tác giả"
+    - `src/smartdoc/presentation/smart_classify_wizard.py`: title → "Tự động phân loại"; phase layer2 hiển thị "AI đang xem lại sách chưa chắc" + progress X/Y
+    - `src/smartdoc/presentation/library_view.py`: 2 chỗ nhãn context-menu cập nhật
+    - `src/smartdoc/presentation/status_bar_panel.py`: `activity_label` → `_ClickableStatusLabel`; `activity_clicked = Signal(str)`; hiển thị "AI đang xem lại X/Y" khi phase layer2; tooltip "Bấm để mở lại cửa sổ."
+    - `src/smartdoc/application/classify_layer2.py`: `review()` nhận `progress_callback: ProgressCallback | None`; gọi sau mỗi sách
+    - `src/smartdoc/application/smart_classifier.py`: tạo closure `_l2_progress` phát `SmartClassifyProgressEvent` phase=layer2 theo từng bước
+    - `src/smartdoc/presentation/main_window.py`: kết nối `status_bar.activity_clicked` → `_on_status_activity_clicked`; slot mở lại wizard hoặc metadata-batch dialog
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Phase layer2 nay phát event riêng từng bước (done/total), cùng luồng event đã có — không thêm event type mới.
+  - `_ClickableStatusLabel(QLabel)` + `clicked = Signal()` dùng `mousePressEvent`; tránh race focus-loss như T1.
+  - Click chỉ mở lại dialog đang chạy (classify wizard hoặc metadata-batch), import/housekeeping không có dialog để mở lại.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Không có.
+-->
+
 <!-- [06/10/2026 - T1/T2/T3] - Task: Hashtag click fix, UNSURE_TAG auto-strip, folder-classify tool
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:tag_editor`, `:presentation:detail_panel`, `:application:folder_classify`, `:presentation:folder_classify_dialog`, `:presentation:main_window`, `:presentation:strings_vi`, `:presentation:strings_en`

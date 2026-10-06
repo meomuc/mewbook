@@ -1257,7 +1257,7 @@ class LibraryListWidget(QWidget):
         cover_search_action.setIcon(line_icon("image"))
         ai_summary_action = _a("Tóm tắt AI...")
         ai_summary_action.setIcon(line_icon("bot"))
-        smart_classify_action = _a("Phân loại thông minh")
+        smart_classify_action = _a("Tự động phân loại")
         smart_classify_action.setIcon(line_icon("tag"))
         menu.addSeparator()
         copy_action = _a("Sao chép")
@@ -1310,7 +1310,7 @@ class LibraryListWidget(QWidget):
     def _show_multi_document_menu(self, menu: QMenu, docs: list[dict], position) -> None:
         count = len(docs)
         batch_edit_action = menu.addAction(f"Chỉnh sửa hàng loạt ({count} tài liệu)")
-        smart_classify_action = menu.addAction(f"Phân loại thông minh ({count} tài liệu)")
+        smart_classify_action = menu.addAction(f"Tự động phân loại ({count} tài liệu)")
         menu.addSeparator()
         copy_action = menu.addAction("Sao chép")
         cut_action = menu.addAction("Cắt")

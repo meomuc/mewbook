@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
 
         status_bar = StatusBarPanel(context, self)
         status_bar.relink_requested.connect(self._on_open_relink)
+        status_bar.activity_clicked.connect(self._on_status_activity_clicked)
         self.setStatusBar(status_bar)
 
         self.drop_overlay = DropOverlay(self)  # not a child of the splitter: it would become a pane of it
@@ -357,7 +358,7 @@ class MainWindow(QMainWindow):
         duplicates_action = QAction("Dọn dẹp trùng lặp...", self)
         duplicates_action.triggered.connect(self._on_open_duplicate_finder)
         tools_menu.addAction(duplicates_action)
-        smart_classify_action = QAction("Phân loại thông minh danh sách đang xem...", self)
+        smart_classify_action = QAction("Tự động phân loại danh sách đang xem...", self)
         smart_classify_action.triggered.connect(lambda: self.open_smart_classify())
         tools_menu.addAction(smart_classify_action)
         relink_action = QAction("Tìm lại file thiếu...", self)
@@ -407,6 +408,12 @@ class MainWindow(QMainWindow):
 
     def _on_open_duplicate_finder(self) -> None:
         DuplicateFinderDialog(self.context, self).exec()
+
+    def _on_status_activity_clicked(self, task: str) -> None:
+        if task == "classify":
+            self.open_smart_classify()
+        elif task == "metadata-batch-update":
+            self._on_open_metadata_batch_update()
 
     def _on_open_metadata_batch_update(self) -> None:
         """"Cập nhật thông tin sách" -- the merged file-facts + bibliographic-lookup tool. Not modal, so the

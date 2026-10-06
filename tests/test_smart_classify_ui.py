@@ -247,7 +247,7 @@ def test_context_menu_offers_classification_for_the_selection(qapp, context, mon
     widget.smart_classify_requested.connect(requested.append)
 
     def pick_classify(self, menu, _position):
-        return next((a for a in menu.actions() if "Phân loại thông minh" in a.text()), None)
+        return next((a for a in menu.actions() if "Tự động phân loại" in a.text()), None)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", pick_classify)
     widget._show_context_menu(position)

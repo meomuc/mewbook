@@ -159,7 +159,7 @@ class SmartClassifyWizard(DesignDialog):
                  selected_scope: ClassifyScope | None = None) -> None:
         """`current_scope` is a callable returning "the list I am looking at"; `selected_scope` (the books picked in
         the list) replaces that first card."""
-        super().__init__(parent, title="Phân loại thông minh", subtitle="Tự gắn hashtag dựa trên tên, mục lục và nội dung",
+        super().__init__(parent, title="Tự động phân loại", subtitle="Tự gắn hashtag dựa trên tên, mục lục và nội dung",
                          icon="bolt", width=760)
         self.context = context
         self.service = service
@@ -479,11 +479,17 @@ class SmartClassifyWizard(DesignDialog):
     def _show_progress(self, done: int, total: int, phase: str, recent: tuple) -> None:
         self._set_mascot(self.mascot_label, "thinking", 110)
         if phase == "layer2":
-            self.progress.setRange(0, 0)  # indeterminate spinner: duration unknown
-            self.running_title.setText("AI Lớp 2 đang xem lại sách chưa chắc…")
-            self.done_label.setText(f"Lớp 1 xong: {done:,} sách. Đang chờ Ollama…".replace(",", "."))
-            self.done_label.setTextFormat(Qt.PlainText)
+            self.running_title.setText("AI đang xem lại sách chưa chắc")
             self.eta_label.setText("")
+            if total > 0 and done > 0:
+                self.progress.setRange(0, total)
+                self.progress.setValue(min(done, total))
+                self.done_label.setText(f"AI đã xem: <b>{done:,}</b> / {total:,}".replace(",", "."))
+                self.done_label.setTextFormat(Qt.RichText)
+            else:
+                self.progress.setRange(0, 0)  # indeterminate until first book comes back
+                self.done_label.setText("Đang chờ Ollama trả lời…")
+                self.done_label.setTextFormat(Qt.PlainText)
         elif phase == "starting" or total == 0:
             self.progress.setRange(0, 0)
             self.done_label.setText("Đang khởi động bộ phân loại…")

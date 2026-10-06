@@ -336,6 +336,7 @@ class _DonateTicker(QLabel):
 
 class StatusBarPanel(QStatusBar):
     relink_requested = Signal()  # the "N sách không tìm thấy file. Tìm lại?" label was clicked
+    activity_clicked = Signal(str)  # the running-task label was clicked; str is the primary task type
     _ollama_probed = Signal(bool)  # the background check finished (emitted from a worker thread)
     _cloud_probed = Signal(bool)  # the community-reviews check finished (emitted from a worker thread)
 
@@ -355,7 +356,7 @@ class StatusBarPanel(QStatusBar):
         self._cloud_probe_running = False
         self.last_status_text = ""  # the sentence the latest click on a status icon showed
         self._import_progress: tuple[int, int] | None = None
-        self._classify_progress: tuple[int, int] | None = None
+        self._classify_progress: tuple[int, int, str] | None = None  # (done, total, phase)
         self._background: dict[str, tuple[int, int]] = {}  # quiet housekeeping now running: task -> (done, total)
         self._metadata_sync_state: str = "idle"   # "idle" | "fetching" | "contributed" | "error"
         self._metadata_sync_message: str = ""
@@ -370,8 +371,11 @@ class StatusBarPanel(QStatusBar):
         self.incomplete_label = QLabel(self)
         self.collection_label = QLabel(self)
         self.folders_label = _IconCount("folder", self)
-        self.activity_label = QLabel(self)
+        self.activity_label = _ClickableStatusLabel(self)
+        self.activity_label.setCursor(Qt.PointingHandCursor)
         self.activity_label.setVisible(False)
+        self.activity_label.clicked.connect(self._on_activity_clicked)
+        self._activity_primary_task = ""  # task type for the click signal
         # Task A3/B3: a shared busy indicator beside whatever background activity text is showing -- import,
         # classification, quiet housekeeping, or a person-started "Chạy nền" job like batch metadata update.
         self.activity_busy = BusyIndicator(self, dot_size=12)
@@ -573,7 +577,9 @@ class StatusBarPanel(QStatusBar):
                 self._background[event.task] = (event.done, event.total)
             self._show_activity()
         elif isinstance(event, SmartClassifyProgressEvent):
-            self._classify_progress = (event.done, event.total) if event.done < event.total else None
+            # Keep progress alive for layer2 even when done==total (layer2 starts at 0/N)
+            active = event.phase == "layer2" or event.done < event.total
+            self._classify_progress = (event.done, event.total, event.phase) if active else None
             self._show_activity()
         elif isinstance(event, SmartClassifyFinishedEvent):
             self._classify_progress = None
@@ -600,17 +606,36 @@ class StatusBarPanel(QStatusBar):
             parts.append(f"Đang nhập {done}/{total}")
             tips.append(f"Đang thêm sách vào thư viện: {done}/{total}")
         if self._classify_progress:
-            done, total = self._classify_progress
-            parts.append(f"Đang phân loại {done}/{total}")
-            tips.append(f"Đang tự phân loại sách: {done}/{total}")
+            done, total, phase = self._classify_progress
+            if phase == "layer2":
+                parts.append(f"AI đang xem lại {done}/{total}")
+                tips.append(f"AI đang xem lại sách chưa chắc: {done}/{total}")
+            else:
+                parts.append(f"Đang phân loại {done}/{total}")
+                tips.append(f"Đang tự phân loại sách: {done}/{total}")
         for task, (done, total) in self._background.items():  # what the app does by itself, so a busy disk is explained
             short, long = BACKGROUND_TEXT.get(task, ("Đang làm việc nền", "MewBook đang làm một việc nền."))
             parts.append(f"{short} {done}/{total}" if total else short)
             tips.append(f"{long} ({done}/{total})" if total else long)
+        # Priority for click target: classify > metadata-batch > import > others
+        if self._classify_progress:
+            self._activity_primary_task = "classify"
+        elif "metadata-batch-update" in self._background:
+            self._activity_primary_task = "metadata-batch-update"
+        elif self._import_progress:
+            self._activity_primary_task = "import"
+        elif self._background:
+            self._activity_primary_task = next(iter(self._background))
+        else:
+            self._activity_primary_task = ""
         self.activity_label.setText("  ".join(parts))
-        self.activity_label.setToolTip("\n".join(tips))
+        self.activity_label.setToolTip("\n".join(tips) + ("\nBấm để mở lại cửa sổ." if self._activity_primary_task else ""))
         self.activity_label.setVisible(bool(parts))
         self.activity_busy.set_busy(bool(parts))
+
+    def _on_activity_clicked(self) -> None:
+        if self._activity_primary_task:
+            self.activity_clicked.emit(self._activity_primary_task)
 
     def _show_update(self, version: str, url: str) -> None:
         self._update_url = url

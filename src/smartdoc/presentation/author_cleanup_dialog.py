@@ -78,7 +78,7 @@ class _SuggestionCard(QFrame):
 
 class AuthorCleanupDialog(DesignDialog):
     def __init__(self, context, parent=None) -> None:
-        super().__init__(parent, title="Dọn tên tác giả",
+        super().__init__(parent, title="Sửa tác giả",
                          subtitle="Không có gì thay đổi cho tới khi bạn bấm “Áp dụng”. File sách được giữ nguyên.",
                          icon="user", width=560)
         self.context = context

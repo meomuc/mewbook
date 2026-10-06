@@ -73,6 +73,7 @@ class Layer2Outcome:
 
 
 OllamaCaller = Callable[[Layer2Job, Taxonomy, str, str], Layer2Suggestion]
+ProgressCallback = Callable[[int, int], None]
 
 
 def review_candidates(jobs: Iterable[dict]) -> list[Layer2Job]:
@@ -139,7 +140,8 @@ class Layer2ClassifyService:
             return True, ""
         return False, OLLAMA_UNREACHABLE_REASON
 
-    def review(self, jobs: Iterable[dict], should_stop: Callable[[], bool] | None = None) -> list[Layer2Outcome]:
+    def review(self, jobs: Iterable[dict], should_stop: Callable[[], bool] | None = None,
+               progress_callback: ProgressCallback | None = None) -> list[Layer2Outcome]:
         """Calls Ollama for every book in `jobs` that Lớp 1 left unsure, and records each
         result on that book's smart_classification row (never a hashtag -- see the module
         docstring). Does not send a single request -- whatever `jobs` contains -- unless
@@ -160,7 +162,8 @@ class Layer2ClassifyService:
             return outcomes
         taxonomy, base_url, model = self.taxonomy, self.base_url(), self.model()
         outcomes: list[Layer2Outcome] = []
-        for job in candidates:
+        total_candidates = len(candidates)
+        for i, job in enumerate(candidates):
             if should_stop is not None and should_stop():  # "Dừng" in the wizard: one book is seconds, a library is not
                 break
             try:
@@ -177,4 +180,6 @@ class Layer2ClassifyService:
             # it confidently, in the moment between review_candidates() and this write) is a benign race, not
             # an error -- apply_layer2_suggestion() simply becomes a no-op for it.
             self.context.db.apply_layer2_suggestion(job.doc_id, outcome.category_ids, outcome.confidence, model, error=outcome.error)
+            if progress_callback is not None:
+                progress_callback(i + 1, total_candidates)
         return outcomes

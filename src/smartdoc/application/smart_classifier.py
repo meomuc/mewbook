@@ -357,7 +357,8 @@ class SmartClassifyService:
         """(sidebar folder, hashtag, category id) of every category, in the taxonomy's order: what "Gắn hashtag" offers."""
         return [(c.group, c.name, c.id) for c in self.taxonomy]
 
-    def _layer2_pass(self, results: list[dict], plan_jobs: list[dict]) -> list[tuple[str, str, float]]:
+    def _layer2_pass(self, results: list[dict], plan_jobs: list[dict],
+                     progress_callback=None) -> list[tuple[str, str, float]]:
         """Task B4, optional (AppConfig.smart_classify_layer2_enabled, off by default): the books Lớp 1 could not even lean
         to get a second look from the person's own Ollama. Returns (book id, category name, confidence) hints for the ones
         it named -- shown under UNSURE_REASONS["ai_suggested"], never tagged: the person confirms like any other suggestion.
@@ -371,7 +372,7 @@ class SmartClassifyService:
         merged = [{**by_id.get(r["id"], {}), **r} for r in results]
         hints: list[tuple[str, str, float]] = []
         try:
-            for outcome in service.review(merged, should_stop=self._cancel.is_set):
+            for outcome in service.review(merged, should_stop=self._cancel.is_set, progress_callback=progress_callback):
                 if outcome.error or outcome.insufficient_evidence or not outcome.category_ids:
                     continue
                 category = self.taxonomy.get(outcome.category_ids[0])
@@ -599,14 +600,23 @@ class SmartClassifyService:
             killed = self._cancel.is_set() or bool(error)
             flush(final=True)
             if not killed and layer2_jobs:
-                # Signal the dialog that Layer 1 is done but Layer 2 (Ollama) is now running
-                # so it can show an indeterminate spinner instead of a frozen 100% bar.
+                l2_total = len(layer2_jobs)
+                # Signal the dialog/status bar that Layer 2 (Ollama) is starting; done=0 so
+                # the progress bar can show 0/N instead of a frozen 100% from Layer 1.
                 bus.publish(SmartClassifyProgressEvent(
-                    job_id=job_id, done=total, total=total,
+                    job_id=job_id, done=0, total=l2_total,
                     tagged=tally["tagged"], unknown=tally["unknown"], failed=tally["failed"],
                     phase="layer2", recent=tuple(recent),
                 ))
-                ai_hints = self._layer2_pass(layer2_jobs, plan.jobs)
+
+                def _l2_progress(l2_done: int, l2_total_: int) -> None:
+                    bus.publish(SmartClassifyProgressEvent(
+                        job_id=job_id, done=l2_done, total=l2_total_,
+                        tagged=tally["tagged"], unknown=tally["unknown"], failed=tally["failed"],
+                        phase="layer2", recent=tuple(recent),
+                    ))
+
+                ai_hints = self._layer2_pass(layer2_jobs, plan.jobs, progress_callback=_l2_progress)
                 named = {doc_id for doc_id, _name, _confidence in ai_hints}
                 unknown_items[:] = [(doc_id, "ai_suggested" if doc_id in named else why) for doc_id, why in unknown_items]
                 unknown_hints.extend(ai_hints)
