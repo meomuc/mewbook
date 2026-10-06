@@ -128,3 +128,55 @@ def test_restore_brings_back_every_column_a_book_had_not_only_the_basics(app_con
     assert (row["publisher"], row["pub_year"], row["ai_summary"]) == ("NXB Trẻ", 2019, "tóm tắt")
     assert row["locked_fields"] == '["author"]'  # what the person typed stays protected from later suggestions
     assert app_context.db.get_reading_progress("d1")["position"] == 4
+
+
+# Regression: trashed books must not be processed by info_refresh / batch update / gather / cover / tiny queries.
+
+def test_info_refresh_does_not_overwrite_trashed_status(app_context, library):
+    """documents_for_refresh and record_file_status must not touch trashed rows (regression)."""
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    assert app_context.db.get_document("d1")["file_status"] == "trashed"
+
+    rows = app_context.db.documents_for_refresh()
+    ids_in_refresh = {r["id"] for r in rows}
+    assert "d1" not in ids_in_refresh, "trashed book must be excluded from documents_for_refresh"
+
+    # Even if someone calls record_file_status with a trashed id, the guard must protect it.
+    app_context.db.record_file_status([], ["d1"])
+    assert app_context.db.get_document("d1")["file_status"] == "trashed", \
+        "record_file_status must not overwrite 'trashed' with 'missing'"
+
+
+def test_restore_immediately_marks_book_as_present(app_context, library):
+    """After restore the row must have file_status='present', not NULL (regression)."""
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    (item,) = app_context.trash.list_items()
+    app_context.trash.restore(item.item_id)
+    doc = app_context.db.get_document("d1")
+    assert doc is not None
+    assert doc["file_status"] == "present", \
+        "restored book must be 'present' immediately, not NULL or 'missing'"
+
+
+def test_batch_update_excludes_trashed(app_context, library):
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    rows = app_context.db.documents_for_batch_update(None, False)
+    assert all(r["id"] != "d1" for r in rows)
+
+
+def test_documents_for_gather_excludes_trashed(app_context, library):
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    rows = app_context.db.documents_for_gather()
+    assert all(r["id"] != "d1" for r in rows)
+
+
+def test_tiny_documents_excludes_trashed(app_context, library):
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    rows = app_context.db.tiny_documents(limit_bytes=100)
+    assert all(r["id"] != "d1" for r in rows)
+
+
+def test_documents_without_cover_excludes_trashed(app_context, library):
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    rows = app_context.db.documents_without_cover()
+    assert all(r["id"] != "d1" for r in rows)

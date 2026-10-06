@@ -501,6 +501,8 @@ class ShelfView(QAbstractItemView):
         self._paint_star(painter, cover, doc, tm)
         if doc.get("file_status") == "missing":
             self._paint_missing(painter, cover, tm)
+        elif doc.get("file_status") == "trashed":
+            self._paint_trashed(painter, cover, tm)
         if selected:
             ring = QPen(QColor(tm.token("accent")), RING_W)
             painter.setPen(ring)
@@ -668,6 +670,26 @@ class ShelfView(QAbstractItemView):
         painter.setBrush(QColor(tm.token("surface")))
         painter.drawRoundedRect(chip, 3, 3)
         painter.drawPixmap(QPointF(chip.left() + 5, chip.center().y() - 6), icon_pixmap("warn", tm.token("warn"), 12))
+        painter.setFont(font)
+        painter.setPen(QColor(tm.token("ink")))
+        painter.drawText(chip.adjusted(20, 0, -2, 0), Qt.AlignVCenter | Qt.AlignLeft,
+                         metrics.elidedText(text, Qt.ElideRight, chip.width() - 22))
+        painter.restore()
+
+    def _paint_trashed(self, painter: QPainter, cover: QRect, tm) -> None:
+        font = QFont(tm.font_family("ui"))
+        font.setPixelSize(10)
+        font.setWeight(QFont.DemiBold)
+        metrics = QFontMetrics(font)
+        text = "Đã xóa"
+        width = min(cover.width() - 8, metrics.horizontalAdvance(text) + 30)
+        chip = QRect(cover.left() + (cover.width() - width) // 2, cover.bottom() - 26, width, 18)
+        painter.save()
+        painter.setOpacity(0.85)
+        painter.setPen(QPen(QColor(tm.token("err")), 1))
+        painter.setBrush(QColor(tm.token("surface")))
+        painter.drawRoundedRect(chip, 3, 3)
+        painter.drawPixmap(QPointF(chip.left() + 5, chip.center().y() - 6), icon_pixmap("trash", tm.token("err"), 12))
         painter.setFont(font)
         painter.setPen(QColor(tm.token("ink")))
         painter.drawText(chip.adjusted(20, 0, -2, 0), Qt.AlignVCenter | Qt.AlignLeft,

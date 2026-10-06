@@ -560,7 +560,8 @@ class DatabaseManager:
                 for start in range(0, len(ids), 500):  # stay under SQLite's bound-variable limit
                     chunk = ids[start : start + 500]
                     self.connection.execute(
-                        f"UPDATE documents SET file_status = ?, file_checked_at = ? WHERE id IN ({','.join('?' * len(chunk))})",
+                        f"UPDATE documents SET file_status = ?, file_checked_at = ? WHERE id IN ({','.join('?' * len(chunk))})"
+                        " AND COALESCE(file_status, '') != 'trashed'",
                         (status, now, *chunk),
                     )
             self.connection.commit()
@@ -579,7 +580,7 @@ class DatabaseManager:
         """Books whose stored size is under `limit_bytes` (smallest first): stubs and failed downloads, for the clean-up list."""
         rows = self.connection.execute(
             "SELECT id, title, author, file_path, file_size, extension, file_status FROM documents "
-            "WHERE file_size < ? AND COALESCE(file_status, '') != 'missing' ORDER BY file_size, title COLLATE NOCASE", (limit_bytes,)
+            "WHERE file_size < ? AND COALESCE(file_status, '') NOT IN ('missing', 'trashed') ORDER BY file_size, title COLLATE NOCASE", (limit_bytes,)
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -729,6 +730,7 @@ class DatabaseManager:
         """What "Cập nhật ngay" needs of every book: where its file is and what was last recorded about it."""
         rows = self.connection.execute(
             "SELECT id, file_path, extension, file_size, content_hash, fingerprint, page_count, length(content) > 0 AS has_text FROM documents"
+            " WHERE COALESCE(file_status, '') != 'trashed'"
             " ORDER BY doc_rowid").fetchall()
         return [dict(r) for r in rows]
 
@@ -753,7 +755,9 @@ class DatabaseManager:
         limit) for however many books the chosen scope covers, instead of one `get_document()` per book. `doc_ids=None`
         means the whole library; `only_missing_info` narrows to books this tool could actually still fill something in
         for (see `_MISSING_INFO_SQL`)."""
-        where = [self._MISSING_INFO_SQL] if only_missing_info else []
+        where = ["COALESCE(file_status, '') != 'trashed'"]
+        if only_missing_info:
+            where.append(self._MISSING_INFO_SQL)
         if doc_ids is None:
             sql = f"SELECT {self._BATCH_UPDATE_COLUMNS} FROM documents"
             if where:
@@ -771,7 +775,10 @@ class DatabaseManager:
     def documents_for_gather(self, doc_ids: list[str] | None = None) -> list[dict[str, Any]]:
         """(id, title, file_path, tags) of the given books, or of every book, for gathering files into one folder.
         `tags` is there for the "sắp xếp vào thư mục con theo hashtag" option -- gather_service picks the folder."""
-        rows = self.connection.execute("SELECT id, title, file_path, tags FROM documents ORDER BY title COLLATE NOCASE").fetchall()
+        rows = self.connection.execute(
+            "SELECT id, title, file_path, tags FROM documents"
+            " WHERE COALESCE(file_status, '') != 'trashed'"
+            " ORDER BY title COLLATE NOCASE").fetchall()
         wanted = None if doc_ids is None else set(doc_ids)
         return [dict(r) for r in rows if wanted is None or r["id"] in wanted]
 
@@ -1161,7 +1168,7 @@ class DatabaseManager:
         rows = self.connection.execute(
             "SELECT id, file_path, extension FROM documents"
             " WHERE (cover_path IS NULL OR cover_path = '')"
-            "   AND COALESCE(file_status, '') != 'missing'"
+            "   AND COALESCE(file_status, '') NOT IN ('missing', 'trashed')"
             "   AND lower(extension) IN ('pdf', 'epub')"
             " ORDER BY created_at DESC"
         ).fetchall()
@@ -1204,7 +1211,7 @@ class DatabaseManager:
         """Restore a trashed book: clear the trash markers and record the new file path."""
         with self.write_lock:
             self.connection.execute(
-                "UPDATE documents SET file_status = NULL, trash_item_id = NULL, file_path = ? WHERE id = ?",
+                "UPDATE documents SET file_status = 'present', trash_item_id = NULL, file_path = ? WHERE id = ?",
                 (new_path, doc_id),
             )
             self.connection.commit()

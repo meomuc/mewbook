@@ -1,5 +1,18 @@
 # Changelog
 
+<!-- [07/10/2026 - 00:30] - Task: Fix trash flow — trashed books no longer marked missing, restore sets 'present', shelf indicator
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, `:presentation:shelf_view`, `:tests:test_trash_service`
+  - File chỉnh sửa:
+    - `src/smartdoc/infrastructure/database.py`: T8 guard `record_file_status`; T1-T5 loại trừ trashed khỏi 5 query lô; T6 `unmark_document_trashed` set `'present'`
+    - `src/smartdoc/presentation/shelf_view.py`: chip "Đã xóa" (màu err, icon trash) cho sách trashed trong grid
+    - `tests/test_trash_service.py`: 6 regression tests
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Mọi query xử lý theo lô loại trừ trashed bằng `COALESCE(file_status,'')!='trashed'`; `record_file_status` có guard SQL phòng thủ chống overwrite; restore set ngay `'present'`
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Không có: 15/15 trash tests pass
+-->
+
 <!-- [06/10/2026 - 23:50] - Task: Fix PyMuPDF deprecation warnings and BrokenProcessPool native crash risk
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:pdf_extractor`, `:infrastructure:pdf_worker`, `:infrastructure:text_sampler`, `:application:format_conversion`, `:application:webpage_to_pdf`, `:presentation:reader_window`
