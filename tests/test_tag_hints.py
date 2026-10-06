@@ -92,9 +92,10 @@ def test_picking_a_hint_fills_the_box_and_enter_adds_it(qapp):
     _type(editor, "van")
     editor._popup.setCurrentRow(1)
     editor._popup.itemClicked.emit(editor._popup.item(1))
-    assert editor.line_edit.text() == "văn-hóa" and not editor._popup.isVisible()
-    editor._commit()
+    # itemClicked now auto-commits; the tag is added without a separate Enter press.
+    assert not editor._popup.isVisible()
     assert changes == ["python,văn-hóa"]
+    assert editor.line_edit.text() == ""  # cleared by auto-commit
     editor.deleteLater()
 
 

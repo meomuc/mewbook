@@ -398,12 +398,39 @@ class DocumentDetailPanel(QFrame):
         self._empty_label = QLabel("Chọn một tài liệu để xem chi tiết", self)
         self._empty_label.setAlignment(Qt.AlignCenter)
         self._empty_label.setWordWrap(True)
+
+        # -- multi-selection hashtag panel --
+        self._multi_docs: list[dict] = []
+        self._multi_added: set[str] = set()
+        self._multi_widget = QWidget(self)
+        multi_body = QVBoxLayout(self._multi_widget)
+        multi_body.setContentsMargins(16, 16, 16, 20)
+        multi_body.setSpacing(10)
+        self._multi_count_label = QLabel("", self._multi_widget)
+        self._multi_count_label.setObjectName("MultiCountLabel")
+        self._multi_tags_caption = QLabel("Hashtag · thêm cho tất cả", self._multi_widget)
+        self._multi_tags_caption.setObjectName("FieldCaption")
+        self._multi_tag_editor = TagEditor(self._multi_widget)
+        self._multi_tag_editor.set_known_tags_source(self.context.db.count_by_tag)
+        self._multi_tag_editor.changed.connect(self._on_multi_tags_changed)
+        self._multi_note_label = QLabel("", self._multi_widget)
+        self._multi_note_label.setObjectName("MultiNoteLabel")
+        self._multi_note_label.setWordWrap(True)
+        multi_body.addWidget(self._multi_count_label)
+        multi_body.addSpacing(4)
+        multi_body.addWidget(self._multi_tags_caption)
+        multi_body.addWidget(self._multi_tag_editor)
+        multi_body.addWidget(self._multi_note_label)
+        multi_body.addStretch(1)
+        self._multi_widget.hide()
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
         outer.addWidget(self._header)
         outer.addWidget(self._scroll, 1)
         outer.addWidget(self._empty_label, 1)
+        outer.addWidget(self._multi_widget, 1)
 
         self._restyle()
         tm.themeChanged.connect(self._restyle)
@@ -487,6 +514,8 @@ class DocumentDetailPanel(QFrame):
         self.ai_summary_action_label.setStyleSheet(f"color: {tm.token('accent')}; font-size: 12px; text-decoration: underline;")
         self.summary_label.setStyleSheet(f"color: {ink2}; font-family: {tm.token('content')}; font-size: 13px;")
         self._empty_label.setStyleSheet(f"color: {ink3}; font-family: {tm.token('content')}; font-style: italic;")
+        self._multi_count_label.setStyleSheet(f"color: {ink}; font-size: 14px; font-weight: 600;")
+        self._multi_note_label.setStyleSheet(f"color: {ink2}; font-size: 12px;")
         for button in (self.star_button, self.cover_search_label, self.metadata_button, self.ereader_button):
             button.setIcon(line_icon(button.property("icon_name"), ink2, 14))
         self._apply_content_fonts()
@@ -494,20 +523,62 @@ class DocumentDetailPanel(QFrame):
     # -- state transitions ----------------------------------------------------------------------------------------------
     def _show_empty(self) -> None:
         self._scroll.hide()
+        self._multi_widget.hide()
         self._empty_label.show()
 
     def _show_detail(self) -> None:
         self._empty_label.hide()
+        self._multi_widget.hide()
         self._scroll.show()
+
+    def _show_multi(self) -> None:
+        self._scroll.hide()
+        self._empty_label.hide()
+        self._multi_widget.show()
 
     def set_document(self, doc: dict | None) -> None:
         """Update the panel for the given document, or clear it."""
         self._current_doc = doc
+        self._multi_docs = []
         if doc is None:
             self._show_empty()
             return
         self._show_detail()
         self._populate(doc)
+
+    def set_documents(self, docs: list[dict]) -> None:
+        """Show the multi-selection hashtag editor for the given documents."""
+        self._current_doc = None
+        self._multi_docs = list(docs)
+        self._multi_added = set()
+        n = len(docs)
+        self._multi_count_label.setText(f"Đang chọn <b>{n}</b> tài liệu".replace(",", "."))
+        self._multi_count_label.setTextFormat(Qt.RichText)
+        self._multi_note_label.setText(
+            f"Hashtag bạn thêm vào sẽ được áp dụng cho tất cả {n} tài liệu. "
+            "Bỏ chip ra khỏi ô trên sẽ gỡ hashtag đó khỏi tất cả."
+        )
+        self._multi_tag_editor.set_tags([])
+        self._show_multi()
+
+    def _on_multi_tags_changed(self, new_text: str) -> None:
+        """Add/remove the delta tags across all selected documents."""
+        new_tags = {t.strip() for t in new_text.split(",") if t.strip()}
+        added = new_tags - self._multi_added
+        removed = self._multi_added - new_tags
+        self._multi_added = new_tags
+        if not added and not removed:
+            return
+        for doc in self._multi_docs:
+            doc_id = doc.get("id")
+            if not doc_id:
+                continue
+            existing = {t.strip() for t in (doc.get("tags") or "").split(",") if t.strip()}
+            existing = (existing | added) - removed
+            new_val = ",".join(sorted(existing))
+            self.context.db.update_document_fields(doc_id, {"tags": new_val})
+            doc["tags"] = new_val
+        self.context.event_bus.publish(LibraryUpdatedEvent())
 
     def _populate(self, doc: dict) -> None:
         tm = theme_manager()
@@ -627,7 +698,12 @@ class DocumentDetailPanel(QFrame):
     # -- events -----------------------------------------------------------------------------------------------------------
     def _on_bridged_event(self, event) -> None:
         if isinstance(event, DocumentSelectedEvent):
-            self.set_document(event.doc)
+            if event.doc is not None:
+                self.set_document(event.doc)
+            elif event.docs:
+                self.set_documents(list(event.docs))
+            else:
+                self.set_document(None)
         elif isinstance(event, LibraryUpdatedEvent):
             self._refresh_current_document()
         elif isinstance(event, ReadingProgressUpdatedEvent):

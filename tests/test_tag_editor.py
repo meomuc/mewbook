@@ -41,10 +41,10 @@ def test_clicking_a_hint_with_a_real_mouse_click_fills_the_box(qapp):
     item = popup.item(1)  # "văn-hóa", the less-used one -- picking it must not just coincidentally match row 0
     QTest.mouseClick(popup.viewport(), Qt.LeftButton, Qt.NoModifier, popup.visualItemRect(item).center())
 
-    assert editor.line_edit.text() == "văn-hóa"
+    # Mouse click now auto-commits: tag is added immediately without a separate Enter press.
     assert not popup.isVisible()
-    editor._commit()
     assert changes == ["python,văn-hóa"]
+    assert editor.line_edit.text() == ""  # cleared by the auto-commit
     editor.deleteLater()
 
 

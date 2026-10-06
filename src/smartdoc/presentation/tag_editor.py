@@ -198,7 +198,8 @@ class TagEditor(QFrame):
     def _hint_popup(self) -> _HintPopup:
         if self._popup is None:
             self._popup = _HintPopup(self.line_edit)
-            self._popup.itemClicked.connect(lambda _item: self._fill_from_hint())
+            # A mouse click should immediately add the tag (fill + commit in one gesture).
+            self._popup.itemClicked.connect(lambda _item: self._fill_from_hint(commit=True))
         return self._popup
 
     def _update_hints(self, text: str) -> None:
@@ -212,15 +213,17 @@ class TagEditor(QFrame):
         if self._popup is not None:
             self._popup.hide()
 
-    def _fill_from_hint(self) -> None:
+    def _fill_from_hint(self, *, commit: bool = False) -> None:
         tag = self._popup.chosen() if self._popup is not None else ""
         if not tag:
             return
         head = self.line_edit.text().rsplit(",", 1)[0] + ", " if "," in self.line_edit.text() else ""
-        self.line_edit.setText(head + tag)  # into the box: Enter adds it like anything typed
+        self.line_edit.setText(head + tag)
         self._hide_hints()
         self.line_edit.setFocus()
         self.line_edit.setCursorPosition(len(self.line_edit.text()))
+        if commit:
+            self._commit()  # mouse click: add immediately, no extra Enter needed
 
     def eventFilter(self, watched, event) -> bool:  # noqa: N802 -- Qt override
         """Down/Up move through the hints, Enter takes the highlighted one, Esc closes the list -- while it is showing."""

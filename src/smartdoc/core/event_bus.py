@@ -189,6 +189,7 @@ class ViewModeChangedEvent(BaseEvent):
 @dataclass(frozen=True)
 class DocumentSelectedEvent(BaseEvent):
     doc: dict | None  # None when nothing is selected or multi-select
+    docs: tuple[dict, ...] = ()  # non-empty when multi-select; doc is None in that case
 
 
 @dataclass(frozen=True)

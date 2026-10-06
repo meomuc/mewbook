@@ -1097,8 +1097,10 @@ class LibraryListWidget(QWidget):
         if len(rows) == 1:
             doc = model.document_at(rows[0])
             self.context.event_bus.publish(DocumentSelectedEvent(doc=doc))
+        elif len(rows) > 1:
+            docs = tuple(d for r in rows if (d := model.document_at(r)) is not None)
+            self.context.event_bus.publish(DocumentSelectedEvent(doc=None, docs=docs))
         else:
-            # Nothing selected, or multi-select → clear the detail panel.
             self.context.event_bus.publish(DocumentSelectedEvent(doc=None))
 
     def _open_selected(self, index: QModelIndex) -> None:

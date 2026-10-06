@@ -1,5 +1,22 @@
 # Changelog
 
+<!-- [06/10/2026 - 20:00] - Task: Fix hashtag autocomplete click + multi-select hashtag editing
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:tag_editor`, `:core:event_bus`, `:presentation:library_view`, `:presentation:detail_panel`
+  - File chỉnh sửa:
+    - `src/smartdoc/presentation/tag_editor.py` — `_fill_from_hint(commit=False)`: thêm tham số `commit`; khi `commit=True` gọi `_commit()` ngay sau khi điền; `_hint_popup()` nối `itemClicked` với `commit=True` để click chuột = thêm tag luôn
+    - `src/smartdoc/core/event_bus.py` — `DocumentSelectedEvent`: thêm trường `docs: tuple[dict,...]=()` cho multi-select
+    - `src/smartdoc/presentation/library_view.py` — `_on_selection_changed`: khi `len(rows)>1` gửi `DocumentSelectedEvent(doc=None, docs=tuple_of_docs)` thay vì clear panel
+    - `src/smartdoc/presentation/detail_panel.py` — thêm `_multi_widget` (QWidget + TagEditor), `set_documents()`, `_on_multi_tags_changed()`, `_show_multi()`; `_on_bridged_event` xử lý `event.docs`; `_restyle` style multi labels
+  - Tests: cập nhật 2 tests trong `test_tag_editor.py` + `test_tag_hints.py` để khớp hành vi mới (click → auto-commit)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Bug 1 (click hint): `_fill_from_hint()` cũ chỉ điền text vào box, cần Enter thêm. Fix: thêm tham số `commit`, `itemClicked` gọi với `commit=True`. Keyboard path (Down+Enter) vẫn giữ 2 bước (Fill → Enter) vì Enter rõ ràng hơn.
+  - Bug 2 (multi-select): khi chọn nhiều file, `_multi_widget` hiện panel hashtag riêng — bắt đầu rỗng, thêm tag áp dụng cho tất cả, xoá chip gỡ tag đó khỏi tất cả (delta tracking qua `_multi_added`).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Multi-edit ghi N lần DB (1 lần mỗi doc) và publish 1 `LibraryUpdatedEvent`. Nếu người dùng chọn vài nghìn doc và gõ liên tục, có thể tốn I/O — chấp nhận được vì hashtag edit không thường xuyên.
+  - `_multi_docs` giữ cache dict tại thời điểm select; nếu tag thay đổi từ bên ngoài trong lúc panel mở thì cache stale. An toàn: `update_document_fields` ghi đúng doc_id, chỉ tag có thể bị out-of-sync với cache local.
+-->
+
 <!-- [06/10/2026 - 19:00] - Task: Fix classify dialog stuck at STEP_RUNNING when Layer 2 (Ollama) runs silently
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:core:event_bus`, `:application:smart_classifier`, `:presentation:smart_classify_wizard`
