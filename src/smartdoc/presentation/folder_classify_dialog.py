@@ -104,7 +104,7 @@ class FolderClassifyDialog(QDialog):
         matched_pct = int(matched / total_unsure * 100) if total_unsure else 0
         self._info.setText(
             f"Mèo tìm thấy {len(self._groups)} nhóm thư mục khớp với thể loại, "
-            f"bao gồm {matched:,} / {total_unsure:,} sách "Chưa chắc" ({matched_pct}%). "
+            f'bao gồm {matched:,} / {total_unsure:,} sách "Chưa chắc" ({matched_pct}%). '
             "Tick các nhóm muốn gán nhãn, rồi nhấn Áp dụng.")
         self._apply_btn.setEnabled(True)
 
