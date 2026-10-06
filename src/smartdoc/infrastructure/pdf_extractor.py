@@ -65,19 +65,24 @@ class PdfExtractor:
         try:
             pool = self.pool
             if pool is not None:
+                from smartdoc.infrastructure.pdf_worker import read_pdf
                 try:
-                    from smartdoc.infrastructure.pdf_worker import read_pdf
-
-                    metadata, png, text = pool.submit(read_pdf, file_path, max_pages).result(timeout=POOL_TIMEOUT_SECONDS)
-                    return metadata, (self.cache_mgr.save_cover(doc_id, png) if png else None), text
+                    future = pool.submit(read_pdf, file_path, max_pages)
                 except BrokenExecutor:
-                    # The pool cannot run here (a frozen build without the worker, a killed child): read in this
-                    # process from now on rather than fail every book.
+                    # Pool was already broken before this file was submitted (previous crash); the file has not been
+                    # touched by any worker, so it is safe to read in this process. Fall through to in-process path.
                     logger.warning("PDF worker pool is unusable; reading PDFs in the main process", exc_info=True)
                     self.pool = None
-                    # Don't retry the file that broke the pool in-process: a corrupted PDF that kills a worker
-                    # process via a native MuPDF crash would kill the GUI process too. Skip it and report empty.
-                    return {"file_path": file_path, "extension": "pdf", "encrypted": False}, None, ""
+                else:
+                    try:
+                        metadata, png, text = future.result(timeout=POOL_TIMEOUT_SECONDS)
+                        return metadata, (self.cache_mgr.save_cover(doc_id, png) if png else None), text
+                    except BrokenExecutor:
+                        # Worker died WHILE processing this file — it is likely a corrupted PDF that triggers a
+                        # native MuPDF crash; retrying it in-process could kill the GUI. Report empty and move on.
+                        logger.warning("PDF worker died processing %s; skipping in-process retry", file_path, exc_info=True)
+                        self.pool = None
+                        return {"file_path": file_path, "extension": "pdf", "encrypted": False}, None, ""
             with pymupdf_lock, fitz.open(file_path) as doc:
                 metadata = self._metadata_from_doc(doc, file_path)
                 cover_path = self._cover_from_doc(doc, doc_id)
