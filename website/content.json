@@ -11,12 +11,13 @@
       "date": "2026-10-06",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
       "bullets": [
-        "Hiển thị thứ tự ưu tiên nguồn trong hộp thoại Tìm thông tin sách",
-        "Icon đồng bộ metadata cộng đồng trên thanh trạng thái",
-        "Lưu trang web thành PDF (File › Lưu trang web thành PDF…)"
+        "Phân loại thông minh lên 79% sách có hashtag thể loại (từ 26%), không cần huấn luyện lại",
+        "Đổi định dạng hàng loạt + lưu trang web thành PDF, không cần cài Calibre",
+        "Thứ tự ưu tiên nguồn thông tin sách rõ ràng; thêm giao diện tiếng Anh tùy chọn"
       ],
-      "link": "",
+      "link": "https://github.com/meomuc/mewbook/releases/tag/v1.3.0",
       "download": {
         "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.0/MewBook-Setup-1.3.0.exe",
         "size": "100 MB"
@@ -244,19 +245,24 @@
     },
     {
       "src": "/assets/gallery/layout-ke-sach.webp?v=1c15f89290",
-      "title": "Layout ke sach",
-      "caption": "",
+      "title": "Kệ sách (bố cục gốc)",
+      "caption": "Kệ gỗ, panel chi tiết bên phải — bố cục mặc định từ 1.0",
       "imgHash": "1c15f89290"
     },
     {
       "src": "/assets/gallery/layout-toi-gian.webp?v=e35999e6c6",
-      "title": "Layout toi gian",
-      "caption": "",
+      "title": "Tối giản",
+      "caption": "Thanh trên cùng, không kệ gỗ — gọn hơn cho màn hình nhỏ",
       "imgHash": "e35999e6c6"
     }
   ],
   "pendingShots": [],
   "announcements": [
+    {
+      "date": "2026-10-06",
+      "title": "MewBook 1.3.0: phân loại thông minh lên 79%, đổi định dạng không cần Calibre",
+      "text": "Phân loại thông minh bắt được gần 4 trên 5 cuốn sách (từ 26% lên 79%) nhờ sửa lỗi nhận nhầm sách nhiều chủ đề — không hạ ngưỡng, không huấn luyện lại; cuốn còn nghi vấn gom về nhóm "Gợi ý, cần xác nhận" để bạn duyệt một lần là xong. Đổi định dạng hàng loạt (EPUB, PDF, MOBI, AZW3, TXT) và lưu bài viết từ trang web thành PDF chạy ngay trong Mèo, không cần cài Calibre. Cập nhật thông tin sách theo thứ tự ưu tiên rõ ràng — trong file → thư viện của bạn → cộng đồng MewBook → Internet — Mèo không bao giờ ghi đè thứ bạn đã tự sửa. Thanh trạng thái có icon riêng khi đang đồng bộ metadata cộng đồng; biểu tượng tình trạng file và đánh giá cộng đồng cũng hiện trực tiếp trên bìa sách. Chuyển giao diện sang tiếng Anh trong Cài đặt (áp dụng sau khởi động lại). Thư viện lớn mượt hơn nhờ thêm chỉ mục cơ sở dữ liệu và gộp truy vấn phân loại."
+    },
     {
       "date": "2026-09-28",
       "title": "MewBook 1.2.0: Đặt lại thư viện, tìm thông tin sách gọn hơn",
