@@ -1,5 +1,23 @@
 # Changelog
 
+<!-- [06/10/2026 - 09:15] - Task: MewBook 1.3.0 official release build + website sync
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:strings`, `:tests:conftest`, `:website:content`
+  - File tạo mới / Chỉnh sửa:
+    - `src/smartdoc/presentation/strings.py` — thêm env-var `MEWBOOK_UI_LANGUAGE` để test isolation
+    - `tests/conftest.py` — setdefault `MEWBOOK_UI_LANGUAGE=vi` trước khi import strings
+    - `website/content.json` — bullets 1.3.0 (curated, auto:false), announcement, captions gallery layout
+    - `docs/releases/1.3.0.md` — release notes chính thức
+  - Dependencies: không thêm
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Env-var override cho `_active_language()` thay vì monkeypatch để tránh phụ thuộc vào thứ tự import trong pytest.
+  - Source zip được rebuilt từ tag v1.3.0 bằng `git archive` sau khi PyInstaller bị block bởi OneDrive lock.
+  - Lỗi JSON trong announcement (straight quote trong chuỗi) được fix bằng `“…”`.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - GitHub release chưa được tạo: installer download link `releases/download/v1.3.0/MewBook-Setup-1.3.0.exe` sẽ 404 cho đến khi chủ dự án upload binary lên GitHub Releases (cần làm thủ công).
+  - Roadmap section "Đang phát triển" trống vì mọi item đều là `[planned]`; chủ dự án cần quyết định item nào chuyển lên `[next]` cho 1.4.0.
+-->
+
 All notable changes to MewBook ("Mèo Mực") are documented in this file.
 
 The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
