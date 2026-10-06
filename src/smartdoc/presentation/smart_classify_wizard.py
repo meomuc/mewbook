@@ -17,7 +17,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -166,6 +166,7 @@ class SmartClassifyWizard(DesignDialog):
         self._run_id: str | None = None
         self._last_result: SmartClassifyFinishedEvent | None = None
         self._started_at = 0.0
+        self._job_was_running = False  # set just before subscribing; see _on_event guard
         tm = theme_manager()
 
         self.step_bar = StepBar(self)
@@ -307,10 +308,22 @@ class SmartClassifyWizard(DesignDialog):
         self.stop_button = self.add_footer_button("Dừng", "danger", on_click=self.service.cancel)
         self.done_button = self.add_footer_button("Xong", "primary", on_click=self.accept)
 
+        # Capture before subscribing: if the job finishes between subscribe() and
+        # the service.running check below, the guard in _on_event must still accept
+        # the finished event (see _on_event for the race-condition explanation).
+        self._job_was_running = self.service.running
+
         self._bridge = QtEventBridge(self)
         self._bridge.event_received.connect(self._on_event)
         self._bridge.subscribe(context.event_bus, SmartClassifyProgressEvent)
         self._bridge.subscribe(context.event_bus, SmartClassifyFinishedEvent)
+
+        # Watchdog: fires every 2 s while on the running step. If the finished event
+        # was somehow missed (bridge subscribed after publish, or slot raised), this
+        # catches the dialog stuck at STEP_RUNNING and shows the result from last_result.
+        self._watchdog = QTimer(self)
+        self._watchdog.setInterval(2000)
+        self._watchdog.timeout.connect(self._on_watchdog)
 
         self._load_counts()
         if self.service.running:
@@ -359,6 +372,10 @@ class SmartClassifyWizard(DesignDialog):
         self.stop_button.setVisible(step == STEP_RUNNING)
         self.done_button.setVisible(step == STEP_RESULT)
         self.undo_button.setVisible(step == STEP_RESULT)
+        if step == STEP_RUNNING:
+            self._watchdog.start()
+        else:
+            self._watchdog.stop()
 
     def _set_mascot(self, label: QLabel, role: str, height: int) -> None:
         pixmap = mascot_pixmap(role, height, self.devicePixelRatioF())
@@ -564,6 +581,25 @@ class SmartClassifyWizard(DesignDialog):
                 self._set_step(STEP_RUNNING)
             self._show_progress(event.done, event.total, event.phase, event.recent)
         elif isinstance(event, SmartClassifyFinishedEvent):
-            if self.pages.currentIndex() == STEP_SCOPE and not self._started_at:
-                return  # a job somebody else ran while this dialog only showed the choices
+            # Guard: skip a finished event for a job nobody in *this* dialog started,
+            # BUT not when a job was already running when the dialog opened (_job_was_running).
+            # Race window: job publishes finished → bridge enqueues it → we subscribe → we
+            # check service.running (False) → we land on STEP_SCOPE with _started_at=0 →
+            # without _job_was_running the guard would drop the event and leave the dialog stuck.
+            if self.pages.currentIndex() == STEP_SCOPE and not self._started_at and not self._job_was_running:
+                return
+            self._job_was_running = False  # one finished event per opening is enough
             self._show_result(event)
+
+    def _on_watchdog(self) -> None:
+        """Failsafe: if the finished event was lost (bridge subscribed after publish, or a slot
+        raised before _show_result ran), detect the stuck STEP_RUNNING state and recover."""
+        if self.pages.currentIndex() != STEP_RUNNING:
+            return
+        if self.service.running:
+            return  # still going, nothing to do
+        result = self.service.last_result
+        if result is not None:
+            self._watchdog.stop()
+            self._job_was_running = False
+            self._show_result(result)

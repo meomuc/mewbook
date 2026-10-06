@@ -523,7 +523,7 @@ def test_settings_have_nine_pages_in_the_designed_order(qapp, app_context):
     dialog = SettingsDialog(app_context)
     names = [dialog.tabs.tabText(i) for i in range(dialog.tabs.count())]
     assert names == ["Quản lý File", "Giao diện", "Hiệu năng", "Phân loại", "Kết nối & Dịch vụ",
-                     "Thông tin sách", "Sao lưu", "Cập nhật & ủng hộ", "Quyền riêng tư"]
+                     "Thông tin sách", "Sao lưu và khôi phục", "Cập nhật & ủng hộ", "Quyền riêng tư"]
     assert dialog.pills.count() == 9 and not hasattr(dialog, "supabase_url_edit")
 
 

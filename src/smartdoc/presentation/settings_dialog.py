@@ -56,6 +56,7 @@ from smartdoc.application.ai_summary import (
     OLLAMA_DEFAULT_BASE_URL,
     provider_guide_html,
     AISummaryError,
+    list_ollama_models,
     provider_requires_key,
     test_connection,
 )
@@ -141,6 +142,7 @@ class SettingsDialog(QDialog):
     connection_test_finished = Signal(bool, str)  # (success, message)
     cover_test_finished = Signal(bool, str)  # (success, message)
     reviews_test_finished = Signal(bool, str)  # (success, message)
+    ollama_models_fetched = Signal(list)  # populated by _fetch_ollama_models background thread
     calibre_import_requested = Signal()  # "Nhập từ Calibre…": the main window owns that flow
 
     FOLDER_LIST_MAX_ROWS = 5  # the watched-folders box grows up to this many rows, then scrolls
@@ -194,6 +196,7 @@ class SettingsDialog(QDialog):
         self.connection_test_finished.connect(self._on_connection_test_finished)
         self.cover_test_finished.connect(self._on_cover_test_finished)
         self.reviews_test_finished.connect(self._on_reviews_test_finished)
+        self.ollama_models_fetched.connect(self._on_ollama_models_fetched)
 
         heading = QLabel("CÀI ĐẶT", self)
         heading.setStyleSheet(f"color: {tm.token('ink3')}; font-size: 12px; letter-spacing: 1px; padding: 14px 0 0 18px;"
@@ -385,7 +388,7 @@ class SettingsDialog(QDialog):
         self.ui_language_combo.addItem("English", "en")
         self.ui_language_combo.setCurrentIndex(max(0, self.ui_language_combo.findData(config.ui_language)))
         page.add_row("Ngôn ngữ / Language",
-                     "Áp dụng sau khi khởi động lại ứng dụng. / Takes effect after restarting the app.",
+                     "Áp dụng khi đóng Cài đặt. / Takes effect when Settings is closed.",
                      self.ui_language_combo)
 
         # With no font chosen by the user, a font picker shows the theme's own typeface -- and follows the theme
@@ -736,9 +739,13 @@ class SettingsDialog(QDialog):
         page.add_row("Khóa API", "Chuỗi ký tự giống mật khẩu do nhà cung cấp cấp.", key_box,
                      extra=self._build_key_security_note(page))
 
-        self.ai_model_edit = QLineEdit(config.ai_model or "", page)
-        self.ai_model_edit.setToolTip("Để trống để dùng mẫu AI mặc định của nhà cung cấp.")
-        page.add_row("Mẫu AI", "Để trống nếu không rõ.", self.ai_model_edit)
+        self.ai_model_edit = QComboBox(page)
+        self.ai_model_edit.setEditable(True)
+        self.ai_model_edit.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        if config.ai_model:
+            self.ai_model_edit.setEditText(config.ai_model)
+        self.ai_model_edit.setToolTip("Để trống để dùng mô hình AI mặc định của nhà cung cấp.")
+        page.add_row("Mô hình AI", "Để trống nếu không rõ. Chọn Ollama sẽ liệt kê các mô hình có sẵn.", self.ai_model_edit)
 
         self.ai_base_url_edit = QLineEdit(config.ai_base_url or "", page)
         self.ai_base_url_edit.setPlaceholderText(OLLAMA_DEFAULT_BASE_URL)
@@ -1064,12 +1071,16 @@ class SettingsDialog(QDialog):
         # on the very first call from _build_ai_tab.
         if hasattr(self, "_ai_base_url_row"):
             default_model = DEFAULT_MODELS.get(provider_id, "")
-            self.ai_model_edit.setPlaceholderText(f"Mặc định: {default_model}" if default_model else "")
+            placeholder = f"Mặc định: {default_model}" if default_model else ""
+            if self.ai_model_edit.lineEdit() is not None:
+                self.ai_model_edit.lineEdit().setPlaceholderText(placeholder)
             is_local = provider_id == "ollama"
             self._ai_base_url_row.setVisible(is_local)
             self.ai_api_key_edit.setPlaceholderText(
                 "Không cần API key" if not provider_requires_key(provider_id) else "Dán API key vào đây..."
             )
+            if is_local:
+                self._fetch_ollama_models()
 
     def _on_test_connection(self) -> None:
         provider = self.ai_provider_combo.currentData()
@@ -1083,7 +1094,7 @@ class SettingsDialog(QDialog):
         self.connection_status_label.setText("Đang kết nối, vui lòng đợi...")
         self._tested_provider = provider
 
-        model = self.ai_model_edit.text().strip() or None
+        model = self.ai_model_edit.currentText().strip() or None
         base_url = self.ai_base_url_edit.text().strip() or None
 
         relay = self._relay
@@ -1169,6 +1180,26 @@ class SettingsDialog(QDialog):
         self.reviews_test_status_label.setText(message)
         tm = theme_manager()
         self.reviews_test_status_label.setStyleSheet(role_css(ROLE_RESULT, tm.token("ok" if success else "err")))
+
+    def _fetch_ollama_models(self) -> None:
+        """Background fetch of available Ollama models; result lands on the GUI thread via the signal."""
+        base_url = self.ai_base_url_edit.text().strip() or None
+        relay = self._relay
+
+        def worker() -> None:
+            models = list_ollama_models(base_url)
+            post(relay, "ollama_models_fetched", models)
+
+        threading.Thread(target=worker, name="ollama-model-list", daemon=True).start()
+
+    def _on_ollama_models_fetched(self, models: list) -> None:
+        current = self.ai_model_edit.currentText()
+        self.ai_model_edit.blockSignals(True)
+        self.ai_model_edit.clear()
+        self.ai_model_edit.addItems(models)
+        # Restore what the user had typed / saved (or leave blank if it was blank)
+        self.ai_model_edit.setEditText(current)
+        self.ai_model_edit.blockSignals(False)
 
     def _on_open_gather(self) -> None:
         from smartdoc.presentation.gather_dialog import GatherDialog
@@ -1314,7 +1345,7 @@ class SettingsDialog(QDialog):
 
         config.ai_provider = self.ai_provider_combo.currentData()
         config.ai_api_key = self.ai_api_key_edit.text().strip() or None
-        config.ai_model = self.ai_model_edit.text().strip() or None
+        config.ai_model = self.ai_model_edit.currentText().strip() or None
         config.ai_base_url = self.ai_base_url_edit.text().strip().rstrip("/") or None
 
         config.cover_match_percent = self.cover_match_spin.value()
@@ -1335,7 +1366,10 @@ class SettingsDialog(QDialog):
         config.community_reviews_enabled = self.community_reviews_check.isChecked()
         config.show_community_rating_badge = self.community_badge_check.isChecked()
         config.reviewer_nickname = self.reviewer_nickname_edit.text().strip()
-        config.ui_language = self.ui_language_combo.currentData() or "vi"
+        new_lang = self.ui_language_combo.currentData() or "vi"
+        if new_lang != config.ui_language:
+            self.appearance_changed = True
+        config.ui_language = new_lang
         config.community_metadata_enabled = self.community_metadata_check.isChecked()
         config.community_metadata_contribute = self.community_metadata_contribute_check.isChecked()
         old_page_size = config.page_size

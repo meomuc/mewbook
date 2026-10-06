@@ -53,6 +53,16 @@ def _load() -> types.ModuleType:
     return importlib.import_module(module_name)
 
 
+def reload() -> None:
+    """Re-read ui_language and re-inject the new language's strings into this module.
+    Called by app.py's on_appearance_changed so a language switch takes effect without a restart."""
+    global _active_mod
+    _active_mod = _load()
+    for _n in dir(_active_mod):
+        if not _n.startswith("_"):
+            globals()[_n] = getattr(_active_mod, _n)
+
+
 # Resolve at import time and inject all public names into this module's namespace.
 _active_mod = _load()
 for _name in dir(_active_mod):

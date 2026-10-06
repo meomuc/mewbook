@@ -172,7 +172,7 @@ PROVIDER_STEPS = {
         "Bấm nút \"Create\".",
         "Bấm biểu tượng sao chép cạnh khóa vừa hiện ra.",
         *_PASTE_KEY_STEPS,
-        "Muốn dùng miễn phí: ở ô \"Mẫu AI\", chọn một mẫu có đuôi \":free\".",
+        "Muốn dùng miễn phí: ở ô \"Mô hình AI\", chọn một mô hình có đuôi \":free\".",
     ),
     "deepseek": (
         "Mở trang platform.deepseek.com và đăng nhập.",
@@ -349,6 +349,17 @@ def probe_ollama(base_url: str | None = None, *, timeout: float = _PROBE_TIMEOUT
         return requests.get(url, timeout=timeout).ok
     except requests.RequestException:
         return False
+
+
+def list_ollama_models(base_url: str | None = None, timeout: float = 5.0) -> list[str]:
+    """Returns sorted model names available in the local Ollama server; empty list on any error."""
+    url = f"{(base_url or OLLAMA_DEFAULT_BASE_URL).rstrip('/')}/api/tags"
+    try:
+        resp = requests.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return sorted(m["name"] for m in resp.json().get("models", []))
+    except (requests.RequestException, KeyError, ValueError):
+        return []
 
 
 def test_connection(provider: str, api_key: str | None, *, model: str | None = None, base_url: str | None = None) -> None:

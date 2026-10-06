@@ -261,6 +261,8 @@ def main() -> None:
         # rather than close() -- close() would run MainWindow.closeEvent's
         # full shutdown (stop watcher/import_manager, close the db), which
         # is only correct for the user actually exiting the app.
+        from smartdoc.presentation import strings  # noqa: PLC0415
+        strings.reload()
         build_and_show_window()
         current_window.remove(old_window)
         old_window.hide()

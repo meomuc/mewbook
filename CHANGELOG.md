@@ -1,5 +1,23 @@
 # Changelog
 
+<!-- [06/10/2026 - 17:30] - Task: Phase 3 + 6 + classify dialog race-condition fix
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:smart_classify_wizard`, `:presentation:settings_dialog`, `:presentation:strings`, `:application:ai_summary`, `:app`
+  - File chỉnh sửa:
+    - `src/smartdoc/presentation/smart_classify_wizard.py` — fix race condition: `_job_was_running` flag + watchdog QTimer; guard trong `_on_event` không bỏ sót finished event khi job kết thúc trước khi bridge subscribe xong; `_set_step` start/stop watchdog
+    - `src/smartdoc/presentation/settings_dialog.py` — Phase 3: đổi hint ngôn ngữ "Áp dụng khi đóng Cài đặt", thêm language change → `appearance_changed = True`; Phase 6: `ai_model_edit` từ `QLineEdit` → editable `QComboBox`, label "Mẫu AI" → "Mô hình AI", thêm `_fetch_ollama_models()` + `_on_ollama_models_fetched()` để liệt kê mô hình Ollama khi chọn provider
+    - `src/smartdoc/application/ai_summary.py` — thêm `list_ollama_models()`, đổi "Mẫu AI" → "Mô hình AI" trong guide text
+    - `src/smartdoc/presentation/strings.py` — thêm `reload()` để hot-swap ngôn ngữ không cần restart
+    - `src/smartdoc/app.py` — `on_appearance_changed` gọi `strings.reload()` trước khi rebuild window
+    - `tests/test_settings_dialog.py` — fix assertion "Sao lưu" → "Sao lưu và khôi phục"
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Race condition: job publish finished → bridge enqueue → ta subscribe → ta check running=False → STEP_SCOPE, `_started_at=0` → guard bỏ sót event → dialog kẹt ở STEP_RUNNING. Fix: capture `_job_was_running` trước khi subscribe; guard AND watchdog timer 2s làm failsafe.
+  - Language switch: strings module đã resolve at import time → thêm `reload()` re-inject globals; `appearance_changed=True` trigger window rebuild (cùng flow với theme).
+  - Ollama model list: fetch background thread qua WorkerRelay, không block UI; chỉ fetch khi provider=ollama.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Không có: 55 test_settings_dialog pass, full suite đang chạy.
+-->
+
 <!-- [06/10/2026 - 14:00] - Task: Phase 1+2 fixes — worker count, backup UI redesign
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:smart_classifier`, `:presentation:backup_panel`, `:presentation:settings_dialog`, `:tests:test_backup_panel`
