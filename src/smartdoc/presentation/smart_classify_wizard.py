@@ -329,6 +329,10 @@ class SmartClassifyWizard(DesignDialog):
         if self.service.running:
             self._set_step(STEP_RUNNING)
             self._show_progress(0, 0, "starting", ())
+        elif self._job_was_running and self.service.last_result is not None:
+            # Race: job finished between the _job_was_running snapshot and this check;
+            # the finished event was published before we subscribed so it will never arrive.
+            self._show_result(self.service.last_result)
         else:
             self._set_step(STEP_SCOPE)
 

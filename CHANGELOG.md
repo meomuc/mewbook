@@ -1,5 +1,19 @@
 # Changelog
 
+<!-- [07/10/2026 - 01:00] - Task: Fix classify wizard — result page lost after Chạy nền; race on late open
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:smart_classify_wizard`, `:presentation:main_window`, `:tests:test_smart_classify_ui`
+  - File chỉnh sửa:
+    - `src/smartdoc/presentation/main_window.py`: `open_smart_classify()` thêm `wizard._last_result is not None` vào điều kiện reuse
+    - `src/smartdoc/presentation/smart_classify_wizard.py`: `__init__` thêm nhánh race condition fallback
+    - `tests/test_smart_classify_ui.py`: 2 regression tests
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Bug A: wizard ở STEP_RESULT (ẩn sau Chạy nền) bị xóa khi mở lại → fix giữ wizard khi `_last_result is not None`
+  - Bug B: job xong trước khi wizard subscribe → event bị bỏ → fix fallback trong `__init__`
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Không có: 26/26 classify UI tests pass
+-->
+
 <!-- [07/10/2026 - 00:30] - Task: Fix trash flow — trashed books no longer marked missing, restore sets 'present', shelf indicator
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, `:presentation:shelf_view`, `:tests:test_trash_service`

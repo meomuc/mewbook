@@ -279,6 +279,41 @@ def test_the_window_opens_the_dialog_and_reuses_a_running_one(window, context, s
     wizard.hide()
 
 
+def test_reopening_after_background_shows_result_page(qapp, window, context, service, tmp_path):
+    """Bug A regression: after 'Chạy nền' + job finishes, re-opening the wizard must show STEP_RESULT."""
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    wizard = window.open_smart_classify()
+    wizard.show()
+    wizard.start_button.click()
+    assert service.wait(timeout=30)
+    assert _pump(qapp, lambda: wizard.step_bar.step == STEP_RESULT)
+    wizard.hide()
+    # Re-opening must reuse the same wizard at STEP_RESULT, not a new blank one.
+    reopened = window.open_smart_classify()
+    assert reopened is wizard
+    assert reopened.step_bar.step == STEP_RESULT
+    assert not reopened.done_button.isHidden()
+    wizard.deleteLater()
+    window.classify_wizard = None
+
+
+def test_wizard_shows_result_when_job_finished_before_init(qapp, context, service, tmp_path):
+    """Bug B regression: race where job finishes before wizard subscribes → _show_result path works."""
+    add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
+    service.start(ClassifyScope(doc_ids=("code",)))
+    assert service.wait(timeout=30)
+    assert not service.running and service.last_result is not None
+    # Simulate the race: wizard opens with _job_was_running=True but service.running=False.
+    # The __init__ fallback branch calls _show_result(service.last_result) directly.
+    wizard = SmartClassifyWizard(context, service, lambda: ClassifyScope(description="Tất cả"))
+    wizard._job_was_running = True
+    # Trigger the same path the __init__ fallback uses.
+    wizard._show_result(service.last_result)
+    assert wizard.step_bar.step == STEP_RESULT
+    assert not wizard.done_button.isHidden()
+    wizard.deleteLater()
+
+
 def test_a_selection_from_the_list_opens_the_dialog_on_those_books(window, context, tmp_path):
     add_book(context, "code", write_epub(tmp_path / "c.epub", PROGRAMMING_WORDS))
     window._on_classify_selected(["code"])

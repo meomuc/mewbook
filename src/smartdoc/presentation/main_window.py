@@ -550,7 +550,8 @@ class MainWindow(QMainWindow):
         """Shows the three-step classification dialog. A job that is already running (dialog sent to the background)
         is picked up again instead of starting a second dialog."""
         wizard = self.classify_wizard
-        if wizard is not None and (wizard.isVisible() or self.smart_classifier.running):
+        if wizard is not None and (wizard.isVisible() or self.smart_classifier.running
+                                   or wizard._last_result is not None):
             wizard.show()
             wizard.raise_()
             return wizard
