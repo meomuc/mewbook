@@ -8,7 +8,7 @@ it from here. Versioning follows Semantic Versioning 2.0.0 -- see
 "Versioning & releases" in README.md.
 """
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 # Names and publisher: the single place the UI, log header, exe metadata and HTTP User-Agent read them from
 # (a partner's co-branding, decision D9, is deferred; the logo/icon files are resolved in presentation/resources.py).

@@ -155,6 +155,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-07
+
+### Fixed
+- **Sách đã xóa (thùng rác) không còn bị đánh dấu "Không thấy file".** Năm truy vấn xử lý theo lô (`info_refresh`, `batch_update`, `tiny_documents`, `documents_without_cover`, `documents_for_gather`) nay loại trừ sách trạng thái `trashed`; `record_file_status` có guard phòng thủ chống ghi đè `trashed` bằng `missing`.
+- **Khôi phục sách từ thùng rác đặt ngay `file_status = 'present'`** thay vì để NULL, tránh sách bị báo thiếu ở lần kiểm tra tiếp theo.
+- **Kệ sách hiển thị chip "Đã xóa" (đỏ, icon thùng rác)** trên bìa sách có `file_status = 'trashed'`, giúp phân biệt với sách bình thường.
+- **Wizard Phân loại không còn mất trang kết quả sau khi "Chạy nền".** Nếu job xong và wizard ẩn, mở lại sẽ hiển thị lại trang kết quả thay vì tạo dialog mới ở bước chọn phạm vi.
+- **Sửa race condition: wizard mở sau khi job vừa kết thúc không còn kẹt ở bước chọn phạm vi.** Nếu job xong trước khi wizard subscribe vào event bus, `__init__` phát hiện kết quả cuối và chuyển thẳng sang trang kết quả.
+- **Xóa cảnh báo deprecation PyMuPDF** (`import fitz` → `import pymupdf as fitz`) trong 6 module; tắt 9 dòng cảnh báo mỗi lần worker process khởi động.
+- **Xử lý `BrokenProcessPool` đúng hơn trong PDF extractor:** phân biệt lỗi submit (file không thể xử lý) với lỗi kết quả (worker crash), tránh retry vô hạn.
+
 ## [1.3.0] - 2026-10-06
 
 ### Performance (06/10/2026 — Performance audit fixes)
