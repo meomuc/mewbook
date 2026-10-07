@@ -1,5 +1,20 @@
 # Changelog
 
+[07/10/2026 - 22:30] - Task: Module pdf_to_epub -- chuyen PDF sang EPUB khong can Calibre
+* **1. Cau truc & Module thay doi:**
+  - Module tac dong: `:application:pdf_to_epub` (moi), `:application:format_conversion`
+  - File tao moi: `src/smartdoc/application/pdf_to_epub.py` -- module doc lap chuyen PDF sang EPUB dung PyMuPDF + ebooklib
+  - File chinh sua: `src/smartdoc/application/format_conversion.py` -- them `("pdf","epub")` vao `NativeConverter.NATIVE_PAIRS`, dispatch sang `pdf_to_epub()` trong `convert()`
+  - Dependencies: PyMuPDF (da co), ebooklib (da co) -- khong them dependency moi
+* **2. Quyet dinh Kien truc & Cot loi:**
+  - `pdf_to_epub.py` la module standalone voi diem vao `pdf_to_epub(src, dest)`, nem `FormatConversionError` khi loi, file goc khong bao gio bi sua.
+  - 3 giai doan: (1) doc PDF trong `pymupdf_lock` -> du lieu Python thuan; (2) nhom trang thanh chuong bang nhan dang tieu de (so co chu voi trung vi); (3) tao EPUB voi ebooklib.
+  - PDF quet (it van ban): render tung trang thanh PNG nhung vao EPUB, khong OCR.
+  - Cap `("pdf","epub")` van giu trong `RISKY_PAIRS` -- dialog van canh bao "bo cuc co the thay doi".
+* **3. Van de tiem an / Can Review:**
+  - PDF quet nhieu trang -> EPUB nang (PNG 120 DPI ~150-300 KB/trang).
+  - Nhan dang tieu de bang co chu hoat dong tot voi PDF co cau truc; PDF dong co chu se nhom theo `_CHUNK_SIZE=8 trang/muc`.
+
 <!-- [06/10/2026 - Bước 1/2/3] - Task: Rename labels + Layer2 progress + Status bar click-to-reopen
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:strings_vi`, `:presentation:strings_en`, `:presentation:author_cleanup_dialog`, `:presentation:smart_classify_wizard`, `:presentation:library_view`, `:presentation:main_window`, `:presentation:status_bar_panel`, `:application:classify_layer2`, `:application:smart_classifier`
@@ -195,6 +210,19 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 -- see "Versioning & releases" in README.md for how version numbers are chosen.
 
 ## [Unreleased]
+
+## [1.3.2] - 2026-10-07
+
+### Added
+- **Chuyển đổi PDF sang EPUB không cần Calibre.** Module `pdf_to_epub.py` mới xử lý thuần Python: PyMuPDF trích xuất văn bản và ảnh, ebooklib đóng gói EPUB 3. Tự động nhận diện tiêu đề chương (so sánh cỡ chữ với trung vị), nhóm 8 trang/mục khi không tìm thấy tiêu đề. Trang quét (ít hơn 15 ký tự) được render thành PNG 120 DPI nhúng trong EPUB. Cặp `("pdf", "epub")` thêm vào `NativeConverter.NATIVE_PAIRS` — dialog chuyển đổi hiện "Sẽ chuyển đổi (không cần Calibre)".
+- **Gán nhãn hàng loạt theo thư mục lưu trữ (Tools › Gán nhãn theo thư mục…).** Nhóm sách "Chưa chắc" theo thư mục cha, tự động match tên thư mục với taxonomy, người dùng xác nhận rồi gán hashtag hàng loạt.
+
+### Fixed
+- **Sửa race condition click hashtag trên Windows.** Windows kích hoạt `editingFinished` tại mouse PRESS (trước khi focus chuyển), ẩn popup trước khi `itemClicked` (RELEASE) bắn. Fix: `_HintPopup.mousePressEvent` emit `item_pressed` sớm hơn.
+- **Auto-strip "Chưa chắc" khi lưu hashtag thật.** `detail_panel._save_field` lọc `UNSURE_TAG` ra khỏi danh sách khi người dùng gán thẻ thật.
+- **Đổi tên nhãn menu:** "Tự động phân loại…" (trước: "Phân loại thông minh"), "Sửa tác giả…" (trước: "Dọn tên tác giả").
+- **Thanh trạng thái hiển thị tiến độ Layer 2 và click-to-reopen.** Khi AI Layer 2 đang chạy, thanh trạng thái hiện "AI đang xem lại X/Y", click để mở lại wizard.
+- **SyntaxError trong folder-classify-dialog** do dấu ngoặc kép kiểu chữ trong f-string — sửa bằng dấu thẳng.
 
 ## [1.3.1] - 2026-10-07
 

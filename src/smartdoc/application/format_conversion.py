@@ -188,6 +188,7 @@ class NativeConverter:
     NATIVE_PAIRS: frozenset[tuple[str, str]] = frozenset({
         ("epub", "pdf"),
         ("epub", "txt"),
+        ("pdf", "epub"),   # application/pdf_to_epub.py -- không cần Calibre
         ("pdf", "txt"),
         ("txt", "epub"),
         ("mobi", "epub"),
@@ -202,7 +203,10 @@ class NativeConverter:
         src_ext = Path(src).suffix.lstrip(".").lower()
         ext = target_ext.lower()
         try:
-            if ext in ("pdf", "txt") and src_ext in ("epub", "pdf"):
+            if src_ext == "pdf" and ext == "epub":
+                from smartdoc.application.pdf_to_epub import pdf_to_epub  # noqa: PLC0415
+                pdf_to_epub(src, dest)
+            elif ext in ("pdf", "txt") and src_ext in ("epub", "pdf"):
                 self._fitz_convert(src, ext, dest)
             elif src_ext == "txt" and ext == "epub":
                 self._txt_to_epub(src, dest)
