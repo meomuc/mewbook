@@ -1,16 +1,33 @@
 {
   "meta": {
-    "latest": "1.3.1",
+    "latest": "1.3.2",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
     "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
-      "ver": "v1.3.1",
+      "ver": "v1.3.2",
       "date": "2026-10-07",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
+      "bullets": [
+        "Chuyển đổi PDF sang EPUB không cần Calibre — nhận diện tiêu đề chương, nhúng hình minh họa, trang quét thành ảnh PNG",
+        "Gán nhãn hashtag hàng loạt theo thư mục lưu trữ; sửa race condition click hashtag trên Windows",
+        "Đổi tên \"Tự động phân loại…\" và \"Sửa tác giả…\"; thanh trạng thái hiển thị tiến độ AI Layer 2, click để mở lại"
+      ],
+      "link": "https://github.com/meomuc/mewbook/releases/tag/v1.3.2",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.2/MewBook-Setup-1.3.2.exe",
+        "size": "100 MB"
+      }
+    },
+    {
+      "ver": "v1.3.1",
+      "date": "2026-10-07",
+      "tag": "Ổn định",
+      "tagColor": "bg-[#5A3E36] text-[#F5E6CC]",
       "auto": false,
       "bullets": [
         "Sách trong thùng rác không còn bị đánh dấu \"Không thấy file\"; kệ sách hiển thị nhãn đỏ \"Đã xóa\" trực tiếp trên bìa",
@@ -275,6 +292,11 @@
   ],
   "pendingShots": [],
   "announcements": [
+    {
+      "date": "2026-10-07",
+      "title": "MewBook 1.3.2: chuyển đổi PDF sang EPUB, gán nhãn theo thư mục",
+      "text": "Bản cập nhật thêm tính năng chuyển đổi PDF sang EPUB ngay trong ứng dụng — không cần cài Calibre: Mèo tự nhận diện tiêu đề chương bằng cỡ chữ, nhúng hình minh họa và render trang quét thành ảnh PNG nhúng vào file EPUB. Thêm công cụ \"Gán nhãn theo thư mục\" trong menu Tools — nhóm sách \"Chưa chắc\" theo thư mục lưu trữ, match tên thư mục với taxonomy rồi gán hashtag hàng loạt chỉ sau một lần xác nhận. Sửa race condition trên Windows khiến gợi ý hashtag biến mất khi click chuột; \"Chưa chắc\" giờ tự bị xóa khi bạn gán hashtag thật. Đổi tên menu thành \"Tự động phân loại…\" và \"Sửa tác giả…\" cho rõ nghĩa hơn. Thanh trạng thái hiển thị tiến độ \"AI đang xem lại X/Y\" khi Layer 2 chạy và có thể click để mở lại cửa sổ."
+    },
     {
       "date": "2026-10-07",
       "title": "MewBook 1.3.1: sửa lỗi thùng rác và hộp thoại Phân loại",
