@@ -1,5 +1,16 @@
 # Changelog
 
+[07/10/2026 - 23:59] - Task: Release v1.3.2 + website sync
+* **1. Cấu trúc & Module thay đổi:**
+  - File chỉnh sửa: `src/smartdoc/__init__.py` (bump 1.3.1→1.3.2), `CHANGELOG.md` (thêm section v1.3.2), `website/content.json` (meta.latest, versions, announcements)
+  - File tạo mới: `dist/installer/MewBook-Setup-1.3.2.exe` (100 MB, PyInstaller + Inno Setup)
+  - Git: commit `2f05d48` (feat pdf_to_epub + bump), tag `v1.3.2`, push master + tag; commit `07c276a` (website content.json); push meomuc.github.io → deploy qua GitHub Actions
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - v1.3.2 gộp 4 commits kể từ v1.3.1 + module pdf_to_epub mới vào một bản release.
+  - meomuc.github.io workflow tự build (npm ci → npm test → npm run build); chỉ cần push content.json + source, không commit dist.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - GitHub Release v1.3.2 chưa có (gh auth chưa login); cần tạo thủ công tại github.com/meomuc/mewbook/releases/new?tag=v1.3.2 và upload MewBook-Setup-1.3.2.exe.
+
 [07/10/2026 - 22:30] - Task: Module pdf_to_epub -- chuyen PDF sang EPUB khong can Calibre
 * **1. Cau truc & Module thay doi:**
   - Module tac dong: `:application:pdf_to_epub` (moi), `:application:format_conversion`
