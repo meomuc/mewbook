@@ -181,6 +181,30 @@ def test_reimporting_the_same_path_is_skipped_as_a_duplicate(tmp_path, app_conte
     assert app_context.db.list_all_documents()[0]["updated_at"] == updated_at_first_pass
 
 
+def test_same_physical_file_via_differently_styled_path_is_not_duplicated(tmp_path, app_context, manager):
+    """S1-xx dup-books: a folder scan (os.walk, native separators) and a later
+    re-detection of the same file spelled with forward slashes (as a watcher
+    or a differently-built path string might) must resolve to the same
+    document id, not create a second row. See domain.models.normalize_path_key
+    and DatabaseManager.find_id_by_path."""
+    pdf_path = tmp_path / "book.pdf"
+    _make_pdf(pdf_path, "Once", "Author", "content")
+
+    manager.add_file(str(pdf_path))
+    assert _wait_until(lambda: len(app_context.db.list_all_documents()) == 1)
+
+    forward_slash_path = str(pdf_path).replace("\\", "/")
+    assert forward_slash_path != str(pdf_path)  # the test only proves something if the strings actually differ
+
+    batches: list[ImportBatchCompletedEvent] = []
+    app_context.event_bus.subscribe(ImportBatchCompletedEvent, lambda e: batches.append(e))
+    manager.add_files([forward_slash_path])
+
+    assert _wait_until(lambda: len(batches) == 1)
+    assert (batches[0].success, batches[0].duplicate, batches[0].failed) == (0, 1, 0)
+    assert len(app_context.db.list_all_documents()) == 1
+
+
 def test_add_files_tracked_returns_batch_id_and_tags_its_own_events(tmp_path, app_context, manager):
     pdf_path = tmp_path / "tracked.pdf"
     _make_pdf(pdf_path, "Tracked Book", "Author", "content")
