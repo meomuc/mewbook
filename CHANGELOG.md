@@ -1,5 +1,17 @@
 # Changelog
 
+[08/10/2026 - 10:30] - Task: Code review nhánh fix/stability-diagnostic-batch1 — phát hiện & sửa performance regression HIGH
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`
+  - File chỉnh sửa: `src/smartdoc/infrastructure/database.py` — revert `find_id_by_path()` về query gốc (`COLLATE NOCASE`, dùng index), bỏ đăng ký SQLite function `mb_normpath` không còn dùng
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Review phát hiện: đổi `find_id_by_path` sang so khớp `mb_normpath()` làm mất khả năng dùng `idx_documents_file_path_nocase` → full table scan mỗi lần gọi. Benchmark thực tế: 500 lookups từ 0.001s → 1.786s trên bảng 5.000 dòng (chậm ~1800 lần). Hàm này được gọi 1 lần/file nhập, kể cả file hoàn toàn mới — đúng case phổ biến nhất khi import, nên regression này làm "import chậm" (Vấn đề 2a gốc) tệ hơn, không phải tốt hơn.
+  - Two-tier fallback (fast-path trước, fallback khi miss) cũng bị loại vì file MỚI luôn miss fast-path → vẫn rơi vào full scan mỗi lần, cost O(N file mới × M sách có sẵn).
+  - Giải pháp: revert hoàn toàn `find_id_by_path`. Fix chuẩn hóa path ở `generate_document_id()` (commit trước) đã đủ: file mới từ nay luôn hash ra cùng id dù path style khác nhau, được bắt bởi check `get_document(doc_id)` chạy TRƯỚC `find_id_by_path` trong `_process_file` — miễn phí, không cần query bổ sung.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - MEDIUM (không chặn): `normalize_path_key()` dùng `os.path.abspath()` phụ thuộc `os.getcwd()` cho path tương đối — mọi caller hiện tại đều truyền path tuyệt đối nên an toàn, nhưng cần lưu ý nếu có caller mới trong tương lai dùng path tương đối.
+  - Đã xác nhận: toàn bộ 2364 test pass, ruff sạch, benchmark khôi phục tốc độ gốc.
+
 [08/10/2026 - 09:45] - Task: Diagnostic + fix — duplicate books, dialog lifecycle, status bar icons, feature catalog
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:domain:models`, `:infrastructure:database`, `:presentation:main_window`, `:presentation:status_bar_panel`, `:docs`
