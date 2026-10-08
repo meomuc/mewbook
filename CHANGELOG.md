@@ -1,5 +1,23 @@
 # Changelog
 
+[08/10/2026 - 09:45] - Task: Diagnostic + fix — duplicate books, dialog lifecycle, status bar icons, feature catalog
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:domain:models`, `:infrastructure:database`, `:presentation:main_window`, `:presentation:status_bar_panel`, `:docs`
+  - File tạo mới: `docs/FEATURE_CATALOG.md` — bản đồ 133 file `application/`+`presentation/` theo 20 mã nhóm chức năng (F-IMPORT, F-CLASSIFY, F-COVER...)
+  - File chỉnh sửa:
+    - `src/smartdoc/domain/models.py`: thêm `normalize_path_key()` (abspath + normcase); `generate_document_id()` hash trên path đã chuẩn hóa
+    - `src/smartdoc/infrastructure/database.py`: đăng ký SQLite function `mb_normpath` (deterministic); `find_id_by_path()` so khớp chuẩn hóa thay vì `COLLATE NOCASE` thô
+    - `src/smartdoc/presentation/main_window.py`: `AddDocumentDialog` thêm `.deleteLater()` sau `exec()`
+    - `src/smartdoc/presentation/status_bar_panel.py`: thêm `activity_icon`, `_show_activity()` hiện icon + số ngắn thay vì câu văn đầy đủ (chuyển vào tooltip)
+    - `tests/test_import_queue.py`, `tests/test_background_task.py`: regression test
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Root cause duplicate sách: `id = md5(file_path)` không chuẩn hóa + không UNIQUE trên `file_path` → cùng file vật lý, path string khác kiểu (dấu `/` vs `\`) → 2 id khác nhau → 2 row. Fix tại 1 chokepoint (`generate_document_id`) + so khớp SQL chuẩn hóa (`find_id_by_path`), không cần sửa 3 điểm phát hiện file riêng lẻ, không cần data migration (existing rows giữ nguyên id).
+  - `AddDocumentDialog` thiếu `.deleteLater()` trong khi vẫn subscribe event import — đúng class lỗi 0xc0000374 đã ghi nhận trong CLAUDE.md.
+  - Status bar: dùng icon vector theo theme (`line_icons.py`) thay vì emoji như đề xuất gốc — emoji phá vỡ tính nhất quán theme (đã giải thích lý do cho chủ dự án trước khi làm).
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - **Hoãn có chủ đích, đã ghi rõ trong report** (`.claude/PRPs/reports/mewbook-stability-diagnostic-report.md`): UNIQUE index + dọn dữ liệu trùng hiện có (cần backup), batch insert + DB lock refactor (cần profiling trước — comment code xác nhận lock-on-read tồn tại để tránh 1 crash cụ thể đã từng xảy ra), crash-loop sau thoát đột ngột khi import (cần log thật, không đoán mù).
+  - 1 lần flaky native crash khi chạy full test suite lần đầu, không tái lập — đã verify không liên quan thay đổi của phiên này.
+
 [08/10/2026 - 08:07] - Task: Fix packaging crash strings_en
 * **1. Cấu trúc & Module thay đổi:**
   - File chỉnh sửa: `packaging/MewBook.spec` — thêm `strings_vi` và `strings_en` vào `hiddenimports`
