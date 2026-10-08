@@ -502,7 +502,9 @@ class MainWindow(QMainWindow):
     def _on_add_files(self) -> None:
         if not self.import_manager:
             return
-        AddDocumentDialog(self.context, self.import_manager, self).exec()
+        dialog = AddDocumentDialog(self.context, self.import_manager, self)
+        dialog.exec()
+        dialog.deleteLater()
 
     def _on_add_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục để theo dõi", self._start_directory())
