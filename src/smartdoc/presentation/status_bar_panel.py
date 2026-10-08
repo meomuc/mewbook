@@ -72,6 +72,22 @@ def _n(value: int) -> str:
     return f"{value:,}".replace(",", ".")
 
 
+# Which line_icons.py glyph stands for each background task -- so the status bar can show a themed icon instead of a
+# sentence (S3: text was cramped and noisy). No new drawer functions: every value here already exists in line_icons.py.
+_TASK_ICON = {
+    "import": "download",
+    "classify": "tag",
+    "classify-layer2": "bot",
+    "metadata-batch-update": "refresh",
+    "ereader-send": "send",
+    "folder-scan": "folder",
+    "file-check": "file",
+    "read-text": "book",
+    "fingerprint": "shield",
+    "format-conversion": "archive",
+}
+_TASK_ICON_FALLBACK = "bolt"
+
 # What the quiet start-up work is called, short (the status bar) and long (its tooltip); see application/background_task.py.
 BACKGROUND_TEXT = {
     "file-check": ("Đang kiểm tra file", "Mèo đang kiểm tra file của từng sách còn đó không. Việc này chạy nền, bạn cứ dùng bình thường."),
@@ -371,6 +387,11 @@ class StatusBarPanel(QStatusBar):
         self.incomplete_label = QLabel(self)
         self.collection_label = QLabel(self)
         self.folders_label = _IconCount("folder", self)
+        self.activity_icon = QLabel(self)
+        self.activity_icon.setFixedSize(16, _ROW_HEIGHT)
+        self.activity_icon.setAlignment(Qt.AlignCenter)
+        self.activity_icon.setVisible(False)
+        theme_manager().themeChanged.connect(self._refresh_activity_icon)
         self.activity_label = _ClickableStatusLabel(self)
         self.activity_label.setCursor(Qt.PointingHandCursor)
         self.activity_label.setVisible(False)
@@ -422,6 +443,7 @@ class StatusBarPanel(QStatusBar):
                 self.folders_label,
                 self.collection_label,
                 self.activity_busy,
+                self.activity_icon,
                 self.activity_label,
                 self.missing_label,
                 self.update_label,
@@ -598,40 +620,61 @@ class StatusBarPanel(QStatusBar):
         return task_id in self._background
 
     def _show_activity(self) -> None:
-        """Import and classification progress: shown only while a job runs, as an icon and a count."""
-        parts: list[str] = []
+        """Import and classification progress: shown only while a job runs, as a themed icon for the primary task
+        (S3: a sentence per task used to be concatenated here, cramped and noisy) plus a short "done/total" count;
+        the full Vietnamese description moves entirely into the tooltip."""
+        counts: list[str] = []
         tips: list[str] = []
+        icon_key = ""
         if self._import_progress:
             done, total = self._import_progress
-            parts.append(f"Đang nhập {done}/{total}")
+            counts.append(f"{done}/{total}")
             tips.append(f"Đang thêm sách vào thư viện: {done}/{total}")
+            icon_key = icon_key or "import"
         if self._classify_progress:
             done, total, phase = self._classify_progress
+            counts.append(f"{done}/{total}")
             if phase == "layer2":
-                parts.append(f"AI đang xem lại {done}/{total}")
                 tips.append(f"AI đang xem lại sách chưa chắc: {done}/{total}")
+                icon_key = "classify-layer2"  # overrides: classify has top click-priority, see below
             else:
-                parts.append(f"Đang phân loại {done}/{total}")
                 tips.append(f"Đang tự phân loại sách: {done}/{total}")
+                icon_key = "classify"
         for task, (done, total) in self._background.items():  # what the app does by itself, so a busy disk is explained
             short, long = BACKGROUND_TEXT.get(task, ("Đang làm việc nền", "MewBook đang làm một việc nền."))
-            parts.append(f"{short} {done}/{total}" if total else short)
+            if total:
+                counts.append(f"{done}/{total}")
             tips.append(f"{long} ({done}/{total})" if total else long)
-        # Priority for click target: classify > metadata-batch > import > others
+            icon_key = icon_key or task
+        # Priority for click target (and which task's icon is shown): classify > metadata-batch > import > others
         if self._classify_progress:
             self._activity_primary_task = "classify"
         elif "metadata-batch-update" in self._background:
             self._activity_primary_task = "metadata-batch-update"
+            icon_key = "metadata-batch-update"
         elif self._import_progress:
             self._activity_primary_task = "import"
         elif self._background:
             self._activity_primary_task = next(iter(self._background))
         else:
             self._activity_primary_task = ""
-        self.activity_label.setText("  ".join(parts))
-        self.activity_label.setToolTip("\n".join(tips) + ("\nBấm để mở lại cửa sổ." if self._activity_primary_task else ""))
-        self.activity_label.setVisible(bool(parts))
-        self.activity_busy.set_busy(bool(parts))
+        active = bool(tips)
+        self._activity_icon_key = icon_key
+        self._refresh_activity_icon()
+        tooltip = "\n".join(tips) + ("\nBấm để mở lại cửa sổ." if self._activity_primary_task else "")
+        self.activity_icon.setToolTip(tooltip)
+        self.activity_icon.setVisible(active)
+        self.activity_label.setText("  ".join(counts))
+        self.activity_label.setToolTip(tooltip)
+        self.activity_label.setVisible(active)
+        self.activity_busy.set_busy(active)
+
+    def _refresh_activity_icon(self, _key: str = "") -> None:
+        icon_key = getattr(self, "_activity_icon_key", "")
+        if not icon_key:
+            return
+        name = _TASK_ICON.get(icon_key, _TASK_ICON_FALLBACK)
+        self.activity_icon.setPixmap(icon_pixmap(name, theme_manager().token("ink2"), 14))
 
     def _on_activity_clicked(self) -> None:
         if self._activity_primary_task:

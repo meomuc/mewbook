@@ -591,7 +591,25 @@ class DatabaseManager:
         return {STATUS_MISSING: missing, STATUS_TINY: tiny}
 
     def find_id_by_path(self, file_path: str) -> str | None:
-        """The book already filed under this path (Windows paths compare case-insensitively), or None."""
+        """The book already filed under this path (Windows paths compare case-insensitively), or None.
+
+        Deliberately a plain COLLATE NOCASE compare, index-backed
+        (idx_documents_file_path_nocase) -- this runs once per file on every
+        single import, including every genuinely-new file, so it must stay
+        O(log n). A normalized (mb_normpath) comparison was tried here to also
+        catch a stored path spelled with different slashes, but no index can
+        cover an arbitrary function of the column: it forced a full table
+        scan on every call, measured ~1800x slower on a 5k-row table, which
+        would hit hardest on exactly the common case (importing N new files
+        into an M-book library, each paying an O(M) miss) -- the opposite of
+        the "import chậm" goal. Differently-styled-path de-duplication is
+        instead handled where it's free: domain.models.generate_document_id()
+        normalizes the path before hashing, so two different-looking strings
+        for the same file already produce the same id, caught by the
+        get_document(doc_id) check this function's caller runs first. This
+        function's own job is narrower: find the old id of a book that was
+        *relinked* to this exact path (relocate_document keeps the id, see
+        ImportQueueManager._process_file's comment)."""
         # Under the lock although it only reads: every import worker runs this same statement on the one shared
         # connection, and two threads executing the same SQL at once intermittently fail with "bad parameter or other
         # API misuse" (it made test_concurrent_unrelated_batch... fail about one run in eight).

@@ -2,10 +2,25 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+
+def normalize_path_key(file_path: str) -> str:
+    """Canonical form of a file path for id generation and path-equality lookups.
+
+    The same physical file can reach the import pipeline as differently-styled
+    strings (forward vs. backward slashes, a trailing separator, mixed case):
+    the initial folder scan, the live watchdog observer and a later catch-up
+    scan each build the string independently. Without a single canonical form,
+    two such strings hash to two different document ids and the same file is
+    imported twice (S1-xx dup-books). ``abspath`` + ``normcase`` mirrors the
+    de-dup key already used by ``ImportQueueManager.catch_up_scan``.
+    """
+    return os.path.normcase(os.path.abspath(file_path))
 
 
 @dataclass
@@ -62,7 +77,7 @@ class MetadataNormalizer:
 
     @staticmethod
     def generate_document_id(file_path: str) -> str:
-        return hashlib.md5(file_path.encode("utf-8")).hexdigest()
+        return hashlib.md5(normalize_path_key(file_path).encode("utf-8")).hexdigest()
 
     @classmethod
     def clean_metadata(cls, raw_dict: dict) -> dict:
