@@ -1,5 +1,13 @@
 # Changelog
 
+[08/10/2026 - 08:07] - Task: Fix packaging crash strings_en
+* **1. Cấu trúc & Module thay đổi:**
+  - File chỉnh sửa: `packaging/MewBook.spec` — thêm `strings_vi` và `strings_en` vào `hiddenimports`
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - `strings.py` dùng `importlib.import_module()` động → PyInstaller không phát hiện tĩnh → module bị thiếu trong bundle. Fix: khai báo tường minh trong `hiddenimports`.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Nếu thêm ngôn ngữ mới, nhớ thêm vào `hiddenimports` trong spec.
+
 [07/10/2026 - 23:59] - Task: Release v1.3.2 + website sync
 * **1. Cấu trúc & Module thay đổi:**
   - File chỉnh sửa: `src/smartdoc/__init__.py` (bump 1.3.1→1.3.2), `CHANGELOG.md` (thêm section v1.3.2), `website/content.json` (meta.latest, versions, announcements)
