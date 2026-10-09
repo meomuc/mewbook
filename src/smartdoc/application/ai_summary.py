@@ -40,9 +40,14 @@ _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _MAX_RETRIES_ON_TRANSIENT_ERROR = 2
 _RETRY_DELAY_SECONDS = 2.0
 
-_ROLE = ("Bạn là một biên tập viên sách chuyên nghiệp. Bạn chỉ được cho thông tin nhận diện của cuốn sách (tiêu đề, tác giả, "
-         "nhà xuất bản, năm...), không có nội dung sách. Hãy dùng hiểu biết của bạn về cuốn sách này; nếu bạn không chắc đã biết "
-         "nó, hãy nói rõ là chưa đủ thông tin thay vì bịa ra nội dung. ")
+_ROLE = ("Bạn là trợ lý thư viện, chuyên tổng hợp thông tin về sách từ kiến thức nền của bạn. "
+         "Bạn nhận metadata (tiêu đề, tác giả, nhà xuất bản, năm, ngôn ngữ, ISBN, series) — "
+         "không có nội dung bên trong sách. "
+         "Quy tắc chính xác: nếu bạn nhận ra cuốn sách cụ thể này (tác giả + tiêu đề khớp với tác phẩm "
+         "thật bạn biết rõ), hãy viết từ kiến thức đó. Nếu không chắc đây là sách thật hoặc bạn không "
+         "có thông tin về nó, hãy ghi rõ 'Không tìm thấy đủ thông tin về cuốn sách này' trước khi "
+         "chỉ suy luận từ thể loại/tác giả (nếu có thể). Tuyệt đối không bịa nhân vật, sự kiện "
+         "hay nội dung cụ thể khi không chắc chắn. ")
 
 # Summary styles the user can pick per generation (see AISummaryDialog).
 # "intro" is the original, default behavior: a non-spoiler overview that
@@ -51,11 +56,12 @@ _ROLE = ("Bạn là một biên tập viên sách chuyên nghiệp. Bạn chỉ 
 SUMMARY_STYLES: dict[str, tuple[str, str]] = {
     "intro": (
         "Giới thiệu (không tiết lộ nội dung)",
-        "Dựa trên thông tin nhận diện của sách, hãy viết một đoạn giới thiệu giúp người đọc hiểu "
-        "được chủ đề, thể loại, văn phong, và đối tượng độc giả phù hợp của cuốn sách này. "
-        "TUYỆT ĐỐI KHÔNG được tiết lộ cốt truyện, các tình tiết bất ngờ, nhân vật quan trọng xuất hiện sau, "
-        "hay kết thúc của câu chuyện (không được spoil). Chỉ tập trung giúp người đọc quyết định có nên bắt "
-        "đầu đọc cuốn sách hay không, không phải kể lại nội dung.",
+        "Viết một đoạn giới thiệu giúp người đọc hiểu chủ đề, thể loại, văn phong và đối tượng "
+        "độc giả phù hợp. Khai thác thông tin theo thứ tự ưu tiên: (1) tiêu đề — gợi ý chủ đề "
+        "và tone; (2) tác giả — phong cách, danh tiếng, đề tài quen thuộc; (3) nhà xuất bản/series "
+        "— định vị độc giả; (4) năm — bối cảnh lịch sử nếu phù hợp. "
+        "TUYỆT ĐỐI KHÔNG tiết lộ cốt truyện, tình tiết bất ngờ, hay kết thúc. "
+        "Viết tự nhiên, không giải thích rằng bạn đang dùng metadata.",
     ),
     "key_points": (
         "Ý chính (gạch đầu dòng)",

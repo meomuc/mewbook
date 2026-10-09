@@ -1,5 +1,33 @@
 # Changelog
 
+[09/10/2026 - 16:45] - Task: Áp dụng 3 prompt tối ưu cho AI tóm tắt và phân loại sách
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `application/ai_summary.py`, `application/ollama_classifier.py`
+  - File chỉnh sửa: `ai_summary.py` — đổi `_ROLE` (vai trò rõ hơn, tiêu chí honesty) và `SUMMARY_STYLES["intro"]` (thứ tự ưu tiên metadata); `ollama_classifier.py` — đổi `_INSTRUCTIONS` (xử lý tựa dịch, tiêu chí `insufficient_evidence` cụ thể)
+  - File test: `tests/test_ai_summary.py` — update 2 assertion strings + thêm 2 regression tests; `tests/test_ollama_classifier.py` — thêm 1 regression test
+  - Dependencies: Không
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Chỉ thay đổi string literal, không thay đổi API hay architecture
+  - Prompt A: "biên tập viên" → "trợ lý thư viện tổng hợp" — đúng vai trò hơn, giảm hallucination
+  - Prompt B: thêm thứ tự ưu tiên metadata giúp AI nhất quán khi field bị thiếu
+  - Prompt C: xử lý tựa tiếng Việt là bản dịch + tiêu chí `insufficient_evidence` 3 điều kiện cụ thể
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Prompt dài hơn ~50 token — không đáng kể với free-tier providers
+  - Chưa chạy eval trên corpus thực để đo delta accuracy (Milestone 3 trong PRD chưa thực hiện)
+
+[09/10/2026 - 16:15] - Task: PRD phân tích và đề xuất 3 prompt tối ưu cho AI tóm tắt + phân loại sách
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: Không (PRD thuần documentation)
+  - File tạo mới: `.claude/prds/ai-prompt-optimization.prd.md` — PRD phân tích prompt hiện tại và đề xuất 3 prompt cải tiến
+  - Dependencies: Không
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Phân tích 2 nguồn prompt: `ai_summary.py::_ROLE + build_system_prompt()` và `ollama_classifier.py::_INSTRUCTIONS`
+  - Phát hiện 3 điểm yếu: (1) vai trò "biên tập viên" gây nhầm về quyền sáng tác, (2) style "intro" không ưu tiên metadata fields, (3) classifier không xử lý tựa dịch tiếng Việt
+  - Đề xuất 3 prompt: Prompt A (role rõ hơn + tiêu chí honesty), Prompt B (metadata-grounded intro), Prompt C (classifier đa ngôn ngữ)
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Cần validation thực tế trước khi áp dụng — corpus eval hiện tại chỉ 29 cuốn public domain
+  - Open question: người dùng có muốn AI nói rõ "không quen sách này" hay vẫn muốn AI cố tóm tắt từ genre?
+
 ## [1.3.3] - 2026-10-09
 
 ### Fixed

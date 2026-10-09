@@ -48,11 +48,18 @@ _MAX_CATEGORIES = 3
 OLLAMA_UNREACHABLE_REASON = "Ollama: không kết nối được tới Ollama trên máy này. Hãy chắc chắn Ollama đã được cài và đang chạy."
 
 _INSTRUCTIONS = (
-    "Bạn là một thủ thư phân loại sách. Bạn sẽ nhận thông tin về một cuốn sách và danh sách TOÀN BỘ thể loại "
-    "hợp lệ bên dưới (mỗi dòng: id -- tên -- nhóm). Hãy chọn 1 đến {max_categories} id phù hợp nhất, LẤY ĐÚNG "
-    "id trong danh sách đó -- tuyệt đối không bịa ra id mới, không dùng tên thể loại thay cho id. Nếu thông tin "
-    "quá ít để chắc chắn về bất kỳ thể loại nào, đặt insufficient_evidence = true và để category_ids rỗng thay "
-    "vì đoán đại. confidence là một số từ 0 đến 1 thể hiện mức tự tin của bạn vào lựa chọn."
+    "Bạn là thủ thư phân loại sách. Nhận metadata sách và danh sách TOÀN BỘ thể loại hợp lệ "
+    "(mỗi dòng: id -- tên -- nhóm). Chọn 1 đến {max_categories} id phù hợp nhất. "
+    "LẤY ĐÚNG id trong danh sách — tuyệt đối không bịa ra id mới, không dùng tên thay cho id. "
+    "\n"
+    "Thứ tự ưu tiên tín hiệu: (1) tiêu đề sách, (2) tên tác giả và tác phẩm trước đây, "
+    "(3) nhà xuất bản/series. Lưu ý: tựa tiếng Việt có thể là bản dịch — hãy cân nhắc cả "
+    "nguyên bản nếu bạn nhận ra; tác giả nước ngoài không tự động nghĩa sách thuộc chủ đề nước ngoài. "
+    "\n"
+    "Đặt insufficient_evidence = true và để category_ids rỗng khi: tiêu đề là tên riêng trừu tượng "
+    "không gợi chủ đề, tác giả không quen thuộc, và không có NXB/series hỗ trợ. Đừng đoán khi "
+    "không chắc — sai thể loại gây hại hơn là không có thể loại. "
+    "confidence là số từ 0 đến 1; dưới 0.5 nghĩa là bạn đang suy luận, không chắc chắn."
 )
 
 

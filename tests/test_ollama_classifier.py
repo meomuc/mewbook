@@ -92,6 +92,11 @@ def test_malformed_json_raises_classification_error_not_a_crash(monkeypatch):
     assert raised
 
 
+def test_instructions_handle_vietnamese_translation():
+    from smartdoc.application import ollama_classifier
+    assert "bản dịch" in ollama_classifier._INSTRUCTIONS
+
+
 def test_missing_message_field_raises_classification_error(monkeypatch):
     taxonomy = _taxonomy()
 

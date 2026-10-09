@@ -138,7 +138,7 @@ def test_the_prompt_tells_the_model_to_say_so_rather_than_invent():
     from smartdoc.application.ai_summary import build_system_prompt
 
     prompt = build_system_prompt()
-    assert "không có nội dung sách" in prompt and "bịa" in prompt
+    assert "không có nội dung bên trong sách" in prompt and "bịa" in prompt
 
 
 def test_generate_summary_from_content_uses_given_text_verbatim(monkeypatch):
@@ -290,7 +290,7 @@ def test_style_length_and_language_shape_the_system_prompt(monkeypatch):
 
 
 def test_default_style_stays_spoiler_free():
-    assert "KHÔNG được tiết lộ" in build_system_prompt()
+    assert "TUYỆT ĐỐI KHÔNG tiết lộ" in build_system_prompt()
 
 
 def test_probe_ollama_true_only_when_the_server_answers(monkeypatch):
@@ -357,3 +357,14 @@ def test_the_one_line_form_used_in_connection_errors_keeps_the_numbering():
 
     text = provider_guide_text("groq")
     assert "1) " in text and "2) " in text and text.startswith("Miễn phí")
+
+
+def test_role_does_not_say_bien_tap_vien():
+    prompt = build_system_prompt()
+    assert "biên tập viên" not in prompt
+    assert "thư viện" in prompt
+
+
+def test_intro_style_contains_priority_order():
+    prompt = build_system_prompt(style="intro")
+    assert "thứ tự ưu tiên" in prompt
