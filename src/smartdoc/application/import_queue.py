@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from smartdoc.application.background_task import TASK_FOLDER_SCAN, TaskReporter
-from smartdoc.core.perf_log import log_perf
 from smartdoc.core.event_bus import (
     DocumentIndexedEvent,
     FileDetectedEvent,
@@ -33,6 +32,7 @@ from smartdoc.core.event_bus import (
     ImportProgressEvent,
     LibraryUpdatedEvent,
 )
+from smartdoc.core.perf_log import log_perf
 from smartdoc.domain.models import MetadataNormalizer
 from smartdoc.infrastructure.epub_extractor import EpubExtractor
 from smartdoc.infrastructure.file_hash import sha256_file

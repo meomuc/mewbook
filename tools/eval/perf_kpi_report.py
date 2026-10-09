@@ -36,7 +36,8 @@ def parse_perf_lines(text: str) -> list[dict[str, str]]:
 def percentile(values: list[float], pct: float) -> float:
     if len(values) < 2:
         return values[0]
-    return statistics.quantiles(values, n=100)[int(pct) - 1]
+    cut_points = statistics.quantiles(values, n=100)
+    return cut_points[min(int(pct) - 1, len(cut_points) - 1)]
 
 
 def summarize(records: list[dict[str, str]]) -> dict[str, dict]:
