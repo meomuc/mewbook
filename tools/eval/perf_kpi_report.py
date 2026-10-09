@@ -72,6 +72,32 @@ def _default_log_paths() -> list[Path]:
     return sorted(directory.glob(f"{LOG_FILE_NAME}*")) if directory.is_dir() else []
 
 
+_OP_LABEL: dict[str, str] = {
+    "import": "Nhập sách",
+    "classify": "Phân loại thông minh",
+    "format_conversion": "Chuyển đổi định dạng",
+    "metadata_batch": "Cập nhật thông tin hàng loạt",
+    "ai_summary": "Tóm tắt AI",
+    "gather": "Gom sách",
+    "duplicate_finder_hash": "Tìm trùng — băm file",
+    "duplicate_finder_fuzzy": "Tìm trùng — so sánh mờ",
+    "webpage_to_pdf_fetch": "Lưu web→PDF: tải trang",
+    "webpage_to_pdf_render": "Lưu web→PDF: tạo PDF",
+}
+
+_SMALL_SAMPLE_WARN = 10  # fewer samples than this → warn P95/P99 are unreliable
+
+
+def _fmt(ms: float) -> str:
+    """Format milliseconds as a compact human-readable duration."""
+    if ms < 1_000:
+        return f"{round(ms)}ms"
+    if ms < 60_000:
+        return f"{ms / 1_000:.1f}s"
+    minutes, seconds = divmod(ms / 1_000, 60)
+    return f"{int(minutes)}m{int(seconds):02d}s"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--log", action="append", help="Đường dẫn file log (lặp lại để gộp nhiều file)")
@@ -95,14 +121,30 @@ def main() -> None:
         print("Không tìm thấy dòng PERF nào trong log đã cho.")
         return
 
-    for op, stats in report.items():
-        print(
-            f"{op}: n={stats['count']} mean={stats['mean_ms']}ms "
-            f"P50={stats['p50_ms']}ms P95={stats['p95_ms']}ms P99={stats['p99_ms']}ms"
-        )
+    col = max(len(_OP_LABEL.get(op, op)) for op in report) + 2
+    print(f"\n{'Tác vụ':<{col}}  {'Số lần':>6}  {'TB':>7}  {'Nhanh':>7}  {'Chậm':>7}  "
+          f"{'P50 (điển hình)':>16}  {'P95 (hiếm chậm)':>16}  {'P99 (ngoại lệ)':>15}")
+    print("-" * (col + 6 + 7 * 4 + 16 * 2 + 15 + 14))
+    for op, s in report.items():
+        label = _OP_LABEL.get(op, op)
+        warn = " ⚠" if s["count"] < _SMALL_SAMPLE_WARN else ""
+        print(f"{label:<{col}}  {s['count']:>6}{warn}  {_fmt(s['mean_ms']):>7}  "
+              f"{_fmt(s['min_ms']):>7}  {_fmt(s['max_ms']):>7}  "
+              f"{_fmt(s['p50_ms']):>16}  {_fmt(s['p95_ms']):>16}  {_fmt(s['p99_ms']):>15}")
+
+    small = [_OP_LABEL.get(op, op) for op, s in report.items() if s["count"] < _SMALL_SAMPLE_WARN]
+    if small:
+        print(f"\n⚠  Ít mẫu (< {_SMALL_SAMPLE_WARN} lần chạy): {', '.join(small)}")
+        print("   P95/P99 chưa đáng tin — cần thêm dữ liệu trước khi dùng làm ngưỡng KPI.")
+
+    print("\nGhi chú:")
+    print("  P50 = 50% lần chạy nhanh hơn giá trị này  (thời gian điển hình người dùng trải nghiệm)")
+    print("  P95 = ngưỡng đề xuất 'cần chú ý'           (1/20 lần chạy sẽ chậm hơn)")
+    print("  P99 = ngưỡng đề xuất 'cần điều tra'         (1/100 lần chạy sẽ chậm hơn)")
+
     if args.out:
         Path(args.out).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"Đã ghi {args.out}")
+        print(f"\nĐã ghi {args.out}")
 
 
 if __name__ == "__main__":

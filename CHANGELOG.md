@@ -1,5 +1,14 @@
 # Changelog
 
+[09/10/2026 - 14:30] - Task: Cải thiện định dạng đầu ra tools/eval/perf_kpi_report.py
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:tools:eval`
+  - File chỉnh sửa: `tools/eval/perf_kpi_report.py` — thêm `_fmt(ms)` chuyển ms → "38.8s" / "1m02s", thêm bảng có cột TB/Nhanh/Chậm/P50/P95/P99, label tác vụ tiếng Việt, cảnh báo ⚠ khi ít mẫu (< 10), ghi chú giải thích P50/P95/P99 ở cuối báo cáo
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Dữ liệu thống kê không thay đổi (hàm `summarize()` giữ nguyên, `_fmt()` chỉ định dạng hiển thị). JSON output (`--out`) cũng không thay đổi — vẫn theo đơn vị ms để tiện xử lý bằng script.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Không có.
+
 [09/10/2026 - 11:00] - Task: Perf/KPI timing log + dev report tool
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:core:perf_log` (mới), `:application:import_queue`, `:application:smart_classifier`, `:presentation:format_conversion_dialog`, `:presentation:metadata_batch_dialog`, `:presentation:ai_summary_dialog`, `:presentation:gather_dialog`, `:presentation:duplicate_finder_dialog`, `:presentation:webpage_to_pdf_dialog`, `:tools:eval`

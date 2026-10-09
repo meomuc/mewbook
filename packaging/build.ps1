@@ -80,9 +80,12 @@ function Invoke-Sign([string]$file) {
 
 if (-not $SkipTests) {
     $env:QT_QPA_PLATFORM = 'offscreen'
+    # PYTHONPATH=src is needed when OneDrive locks the .venv and uv cannot reinstall the package
+    $env:PYTHONPATH = "$root\src"
     uv run --no-sync pytest -q
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed -- release aborted.' }
     Remove-Item Env:QT_QPA_PLATFORM
+    Remove-Item Env:PYTHONPATH
 }
 
 uv run --no-sync pyinstaller --noconfirm --distpath "$root\dist" --workpath "$root\build_pyinstaller" "$PSScriptRoot\MewBook.spec"
