@@ -32,6 +32,7 @@ from smartdoc.core.event_bus import (
     ImportProgressEvent,
     LibraryUpdatedEvent,
 )
+from smartdoc.core.perf_log import log_perf
 from smartdoc.domain.models import MetadataNormalizer
 from smartdoc.infrastructure.epub_extractor import EpubExtractor
 from smartdoc.infrastructure.file_hash import sha256_file
@@ -59,6 +60,7 @@ class _BatchProgress:
     failed_paths: list[str] = field(default_factory=list)  # the files that could not be imported, for the list
     # A batch the watcher is still adding files to: it completes only after it is closed (see _close_watch_batch).
     is_open: bool = False
+    started_at: float = field(default_factory=time.monotonic)  # for the PERF log line in _publish_batch
 
 
 class ImportQueueManager:
@@ -367,6 +369,8 @@ class ImportQueueManager:
                 failed_paths=tuple(batch.failed_paths),
             )
         )
+        log_perf("import", time.monotonic() - batch.started_at,
+                  items=batch.total, success=batch.success, duplicate=batch.duplicate, failed=batch.failed)
 
     def _content_hash_if_needed(self, path: str, size: int) -> str | None:
         """Only files of equal size can be the same file, so a file whose size nobody else has is not read through to hash

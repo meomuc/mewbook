@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -33,6 +34,7 @@ from smartdoc.application.gather_service import (
     GatherPlan,
     GatherResult,
 )
+from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.theme_manager import theme_manager
@@ -171,6 +173,7 @@ class GatherDialog(DesignDialog):
         if plan.mode == MODE_MOVE and not self._confirm_move(plan):
             return
         self._busy = True
+        self._perf_started_at = time.monotonic()
         self._cancel.clear()
         self.result_label.setText("")
         self.progress_bar.setRange(0, max(1, len(plan.ready)))
@@ -199,6 +202,11 @@ class GatherDialog(DesignDialog):
 
     def _on_finished(self, result: GatherResult | None, error: str) -> None:
         self._busy = False
+        duration = time.monotonic() - self._perf_started_at
+        if result is None:
+            log_perf("gather", duration, outcome="error")
+        else:
+            log_perf("gather", duration, done=result.done, failed=len(result.failed), skipped=result.skipped)
         self.progress_bar.hide()
         self.start_button.setText("Bắt đầu")
         if error or result is None:

@@ -18,6 +18,7 @@ signal, same pattern as ReviewDialog/CoverSearchDialog.
 from __future__ import annotations
 
 import threading
+import time
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QDialog, QHBoxLayout, QLabel, QPushButton, QTextEdit, QVBoxLayout
@@ -32,6 +33,7 @@ from smartdoc.application.ai_summary import (
     provider_requires_key,
 )
 from smartdoc.core.event_bus import LibraryUpdatedEvent
+from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.busy_indicator import BusyIndicator
 
 
@@ -158,6 +160,7 @@ class AISummaryDialog(QDialog):
     def _on_generate(self) -> None:
         if not self._configured:
             return
+        self._perf_started_at = time.monotonic()
         self.generate_button.setEnabled(False)
         self.generate_button.setText("Đang tạo...")
         self.status_label.setText("Đang gọi AI, vui lòng đợi...")
@@ -179,6 +182,8 @@ class AISummaryDialog(QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_generation_finished(self, summary: str, error: str) -> None:
+        log_perf("ai_summary", time.monotonic() - self._perf_started_at,
+                  outcome="error" if error else "success")
         self.generate_button.setEnabled(True)
         self.generate_button.setText("Tạo tóm tắt")
         self.busy_indicator.set_busy(False)
