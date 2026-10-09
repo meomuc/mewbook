@@ -83,3 +83,6 @@ themes/incoming/*.zip
 themes/incoming/_da-nhap/*.zip
 layouts/incoming/*.zip
 layouts/incoming/_da-nhap/*.zip
+
+# dev tool outputs
+report.json
