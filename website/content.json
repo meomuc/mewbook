@@ -1,16 +1,28 @@
 {
   "meta": {
-    "latest": "1.3.2",
+    "latest": "1.3.3",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
     "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
-      "ver": "v1.3.2",
-      "date": "2026-10-07",
+      "ver": "v1.3.3",
+      "date": "2026-10-09",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "bullets": [],
+      "link": "",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.3/MewBook-Setup-1.3.3.exe",
+        "size": "100 MB"
+      }
+    },
+    {
+      "ver": "v1.3.2",
+      "date": "2026-10-07",
+      "tag": "Ổn định",
+      "tagColor": "bg-[#5A3E36] text-[#F5E6CC]",
       "auto": false,
       "bullets": [
         "Chuyển đổi PDF sang EPUB không cần Calibre — nhận diện tiêu đề chương, nhúng hình minh họa, trang quét thành ảnh PNG",
@@ -19,7 +31,7 @@
       ],
       "link": "https://github.com/meomuc/mewbook/releases/tag/v1.3.2",
       "download": {
-        "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.2/MewBook-Setup-1.3.2.exe",
+        "win": "https://github.com/meomuc/mewbook/releases/latest",
         "size": "100 MB"
       }
     },
@@ -36,7 +48,7 @@
       ],
       "link": "https://github.com/meomuc/mewbook/releases/tag/v1.3.1",
       "download": {
-        "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.1/MewBook-Setup-1.3.1.exe",
+        "win": "https://github.com/meomuc/mewbook/releases/latest",
         "size": "100 MB"
       }
     },
@@ -144,6 +156,41 @@
       "color": "bg-zinc-400"
     },
     {
+      "id": "#31D3",
+      "desc": "Sửa race condition click hashtag trên Windows",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#FD39",
+      "desc": "Auto-strip \"Chưa chắc\" khi lưu hashtag thật",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#635E",
+      "desc": "Đổi tên nhãn menu",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#F9FD",
+      "desc": "Thanh trạng thái hiển thị tiến độ Layer 2 và click-to-reopen",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
+      "id": "#D4BA",
+      "desc": "SyntaxError trong folder-classify-dialog",
+      "status": "Đã sửa",
+      "priority": "Vừa",
+      "color": "bg-emerald-500"
+    },
+    {
       "id": "#62AB",
       "desc": "Sách đã xóa (thùng rác) không còn bị đánh dấu \"Không thấy file\"",
       "status": "Đã sửa",
@@ -160,41 +207,6 @@
     {
       "id": "#1605",
       "desc": "Kệ sách hiển thị chip \"Đã xóa\" (đỏ, icon thùng rác)",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#1879",
-      "desc": "Wizard Phân loại không còn mất trang kết quả sau khi \"Chạy nền\"",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#55E7",
-      "desc": "Sửa race condition: wizard mở sau khi job vừa kết thúc không còn kẹt ở bước chọn phạm vi",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#0EA5",
-      "desc": "Xóa cảnh báo deprecation PyMuPDF",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#67B3",
-      "desc": "Xử lý BrokenProcessPool đúng hơn trong PDF extractor",
-      "status": "Đã sửa",
-      "priority": "Vừa",
-      "color": "bg-emerald-500"
-    },
-    {
-      "id": "#2EE0",
-      "desc": "Phân loại thông minh không còn bỏ sót phần lớn sách vì nhầm là \"nội dung trộn nhiều chủ đề\"",
       "status": "Đã sửa",
       "priority": "Vừa",
       "color": "bg-emerald-500"
