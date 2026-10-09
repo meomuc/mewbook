@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.3] - 2026-10-09
+
+### Fixed
+- Crash khi khởi động lần đầu sau khi cài đặt — thiếu `strings_vi`/`strings_en` trong hiddenimports của PyInstaller
+- Sách bị nhập trùng khi đường dẫn có cách viết hoa/thường hoặc ký tự gạch chéo khác nhau — normalize path trước khi hash id
+- Regression query `find_id_by_path` làm chậm nhập sách ~1800 lần trên thư viện lớn — revert về COLLATE NOCASE dùng index
+- Rò rỉ bộ nhớ tiềm ẩn: `AddDocumentDialog` không được giải phóng đúng cách sau khi `exec()`
+
+### Added
+- Thanh trạng thái hiển thị icon nhiệm vụ và số lượng gọn hơn thay vì chữ dài
+- Ghi thống kê tốc độ xử lý vào log (`PERF op=...`) cho 8 tác vụ nền — phục vụ phân tích KPI trong báo lỗi
+
 [09/10/2026 - 14:30] - Task: Cải thiện định dạng đầu ra tools/eval/perf_kpi_report.py
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:tools:eval`

@@ -11,11 +11,16 @@
       "date": "2026-10-09",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
-      "bullets": [],
-      "link": "",
+      "auto": false,
+      "bullets": [
+        "Sửa lỗi crash khi khởi động lần đầu sau khi cài — thiếu file ngôn ngữ trong bản đóng gói",
+        "Sửa lỗi nhập sách trùng: cùng một cuốn không còn bị nhập lại dù đường dẫn có cách viết khác; tốc độ nhập được khôi phục sau regression query làm chậm ~1800 lần",
+        "Thanh trạng thái hiển thị icon nhiệm vụ gọn hơn; sửa nhiều lỗi ổn định nội bộ"
+      ],
+      "link": "https://github.com/meomuc/mewbook/releases/tag/v1.3.3",
       "download": {
         "win": "https://github.com/meomuc/mewbook/releases/download/v1.3.3/MewBook-Setup-1.3.3.exe",
-        "size": "100 MB"
+        "size": "101 MB"
       }
     },
     {
@@ -304,6 +309,11 @@
   ],
   "pendingShots": [],
   "announcements": [
+    {
+      "date": "2026-10-09",
+      "title": "MewBook 1.3.3: sửa crash khi cài lần đầu, nhập trùng và tốc độ nhập",
+      "text": "Bản vá tập trung vào độ ổn định: sửa lỗi ứng dụng crash ngay khi khởi động lần đầu sau khi cài đặt do bản đóng gói thiếu file ngôn ngữ, sửa lỗi cùng một cuốn sách bị nhập vào thư viện hai lần khi đường dẫn có cách viết hoa/thường hoặc dấu gạch chéo khác nhau, khôi phục tốc độ nhập sách sau một regression query làm chậm gấp ~1800 lần trên thư viện lớn, sửa rò rỉ bộ nhớ tiềm ẩn trong hộp thoại Thêm sách, và thanh trạng thái nay hiển thị icon nhiệm vụ gọn hơn thay vì dòng chữ dài."
+    },
     {
       "date": "2026-10-07",
       "title": "MewBook 1.3.2: chuyển đổi PDF sang EPUB, gán nhãn theo thư mục",
