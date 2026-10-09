@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QCheckBox, QHBoxLayout, QLabel, QRadioButton, QStackedWidget, QVBoxLayout, QWidget
@@ -41,6 +42,7 @@ from smartdoc.application.metadata_batch_update import (
 from smartdoc.application.metadata_lookup import SOURCE_APPLE_BOOKS, SOURCE_FILE, SOURCE_GOOGLE_BOOKS, SOURCE_LIBRARY, SOURCE_OPEN_LIBRARY
 from smartdoc.application.smart_classifier import ClassifyScope
 from smartdoc.core.event_bus import BackgroundTaskEvent
+from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.hint_label import HintLabel
@@ -249,6 +251,7 @@ class MetadataBatchUpdateDialog(DesignDialog):
             scope=scope_choice,
         )
         self._running = True
+        self._perf_started_at = time.monotonic()
         self._cancel.clear()
         self.pages.setCurrentIndex(1)
         self.cancel_button.setText("Dừng")
@@ -288,6 +291,10 @@ class MetadataBatchUpdateDialog(DesignDialog):
     def _on_finished(self, result: BatchUpdateResult) -> None:
         self._running = False
         self._last_result = result
+        log_perf("metadata_batch", time.monotonic() - self._perf_started_at,
+                  checked=result.checked, updated=result.updated, files_refreshed=result.files_refreshed,
+                  skipped=result.skipped, missing_files=result.missing_files, errors=result.error_count,
+                  cancelled=result.cancelled)
         self.busy.set_busy(False)
         self.cancel_button.setText("Đóng")
         self.run_button.hide()

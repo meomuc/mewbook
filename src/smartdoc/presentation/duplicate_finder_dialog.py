@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
+from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.duplicate_list_pane import DuplicateListPane
@@ -333,6 +335,7 @@ class DuplicateFinderDialog(DesignDialog):
             return
         self.scan_status_label.setText(f"Đang đọc {pending} file để so nội dung…")
         self.scan_status_label.show()
+        self._perf_started_at_hash = time.monotonic()
         self._cancel_hash.clear()
         state, engine, cancel = self._hash_state, self.engine, self._cancel_hash  # (not the fuzzy scan's: it is replaced)
 
@@ -357,6 +360,8 @@ class DuplicateFinderDialog(DesignDialog):
                 self.scan_status_label.setText(f"Đang đọc file để so nội dung: {done}/{total}")
             return
         self._hash_poll.stop()
+        log_perf("duplicate_finder_hash", time.monotonic() - self._perf_started_at_hash,
+                  hashed=state["hashed"], outcome="error" if state.get("error") else "success")
         if state["hashed"]:
             self._groups[MODE_EXACT] = self.engine.find_exact_duplicates()
             self._keepers = {key: v for key, v in self._keepers.items() if key[0] != MODE_EXACT}
@@ -608,6 +613,7 @@ class DuplicateFinderDialog(DesignDialog):
     def _start_fuzzy_scan(self) -> None:
         self._cancel_scan.set()  # stop any scan still running from before
         self._cancel_scan = threading.Event()
+        self._perf_started_at_fuzzy = time.monotonic()
         self._scan_generation += 1
         generation, cancel = self._scan_generation, self._cancel_scan
         self._groups[MODE_FUZZY] = []
@@ -660,6 +666,8 @@ class DuplicateFinderDialog(DesignDialog):
     def _on_fuzzy_finished(self, generation: int, groups: list, error: str) -> None:
         if generation != self._scan_generation:
             return
+        log_perf("duplicate_finder_fuzzy", time.monotonic() - self._perf_started_at_fuzzy,
+                  groups=len(groups), outcome="error" if error else "success")
         self.scan_progress.hide()
         if error:
             self.fuzzy_button.setText("Gợi ý")

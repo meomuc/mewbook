@@ -1,5 +1,21 @@
 # Changelog
 
+[09/10/2026 - 11:00] - Task: Perf/KPI timing log + dev report tool
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:core:perf_log` (mới), `:application:import_queue`, `:application:smart_classifier`, `:presentation:format_conversion_dialog`, `:presentation:metadata_batch_dialog`, `:presentation:ai_summary_dialog`, `:presentation:gather_dialog`, `:presentation:duplicate_finder_dialog`, `:presentation:webpage_to_pdf_dialog`, `:tools:eval`
+  - File tạo mới:
+    - `src/smartdoc/core/perf_log.py`: hàm `log_perf(op, duration_s, **fields)` ghi 1 dòng log có cấu trúc (`PERF op=... duration_ms=... ...`) cho mỗi tác vụ nền hoàn tất
+    - `tools/eval/perf_kpi_report.py`: CLI dev-only đọc log, tổng hợp P50/P95/P99 theo từng `op`, đề xuất ngưỡng theo dữ liệu thực tế — không đóng gói vào bản cài đặt (không có trong `_datas` của `packaging/MewBook.spec`)
+    - `tests/test_perf_log.py`, `tests/test_perf_kpi_report.py`
+  - File chỉnh sửa: 8 điểm gắn `log_perf()` tại đúng nơi mỗi tác vụ hoàn tất — `_publish_batch` (import), điểm publish `SmartClassifyFinishedEvent` (classify, dùng field `seconds` có sẵn), `_on_finished`/`_on_generation_finished`/`_on_fuzzy_finished`/`_poll_hashing`/`_on_fetch_done`+`_on_fetch_error`/`_on_save_done`+`_on_save_error` của 6 dialog còn lại
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Phát hiện qua khảo sát: chỉ 2/8 tác vụ (Import, Classify) có EventBus "finished" event đủ dữ liệu; 6 tác vụ còn lại hoàn thành qua Qt Signal/callback cục bộ trong dialog — không thể dùng 1 subscriber trung tâm, phải gắn log tại từng điểm hoàn thành riêng.
+  - Cơ chế trích xuất log khi người dùng báo lỗi thủ công (tick "kèm log") đã tồn tại sẵn (`error_reporter.py::_log_tail()` → `error_scrubber.py::scrub_log_tail()`) — không cần sửa gì ở đó, dòng PERF tự động có mặt và được lọc riêng tư khi gửi.
+  - `self._perf_started_at` là instance attribute của từng dialog (không phải biến toàn cục) — tự động cô lập đúng khi 2 dialog cùng loại (format-conversion, AI-summary) chạy song song.
+  - Không đổi hành vi báo cáo lỗi tự động khi crash (vẫn không đính log) — quyết định privacy có chủ đích từ trước, ngoài phạm vi yêu cầu.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Không có — toàn bộ test pass (2364 + 9 test mới), ruff sạch, smoke test tool xác nhận hoạt động đúng với log mẫu.
+
 [08/10/2026 - 10:30] - Task: Code review nhánh fix/stability-diagnostic-batch1 — phát hiện & sửa performance regression HIGH
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`

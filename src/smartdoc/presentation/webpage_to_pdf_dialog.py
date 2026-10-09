@@ -11,6 +11,7 @@ Background fetch runs in a QThread so the UI stays responsive.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
@@ -33,6 +34,7 @@ from smartdoc.application.webpage_to_pdf import (
     render_to_pdf,
     unique_pdf_path,
 )
+from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.theme import current_colors
 
 logger = logging.getLogger(__name__)
@@ -161,6 +163,7 @@ class WebpageToPdfDialog(QDialog):
             self.url_edit.setText(url)
 
         self._fetched = None
+        self._perf_started_at_fetch = time.monotonic()
         self.save_button.setEnabled(False)
         self.preview_label.setVisible(False)
         self.progress.setVisible(True)
@@ -174,6 +177,8 @@ class WebpageToPdfDialog(QDialog):
         self._fetch_worker.start()
 
     def _on_fetch_done(self, page: FetchedPage) -> None:
+        log_perf("webpage_to_pdf_fetch", time.monotonic() - self._perf_started_at_fetch,
+                  chars=page.char_count, outcome="success")
         self.progress.setVisible(False)
         self.fetch_button.setEnabled(True)
         self._fetched = page
@@ -186,6 +191,7 @@ class WebpageToPdfDialog(QDialog):
         self.save_button.setEnabled(True)
 
     def _on_fetch_error(self, msg: str) -> None:
+        log_perf("webpage_to_pdf_fetch", time.monotonic() - self._perf_started_at_fetch, outcome="error")
         self.progress.setVisible(False)
         self.fetch_button.setEnabled(True)
         QMessageBox.warning(self, "Không tải được trang", msg)
@@ -203,6 +209,7 @@ class WebpageToPdfDialog(QDialog):
 
         self.save_button.setEnabled(False)
         self.progress.setVisible(True)
+        self._perf_started_at_render = time.monotonic()
 
         self._render_worker = _RenderWorker(self._fetched, dest, self)
         self._render_worker.finished.connect(self._on_save_done)
@@ -212,6 +219,7 @@ class WebpageToPdfDialog(QDialog):
         self._render_worker.start()
 
     def _on_save_done(self, dest: str) -> None:
+        log_perf("webpage_to_pdf_render", time.monotonic() - self._perf_started_at_render, outcome="success")
         self.progress.setVisible(False)
         self.save_button.setEnabled(True)
         self.import_manager.add_files([dest])
@@ -227,6 +235,7 @@ class WebpageToPdfDialog(QDialog):
         self.save_button.setEnabled(False)
 
     def _on_save_error(self, msg: str) -> None:
+        log_perf("webpage_to_pdf_render", time.monotonic() - self._perf_started_at_render, outcome="error")
         self.progress.setVisible(False)
         self.save_button.setEnabled(True)
         QMessageBox.critical(self, "Lỗi khi tạo PDF", msg)

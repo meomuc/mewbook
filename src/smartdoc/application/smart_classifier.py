@@ -49,6 +49,7 @@ from pathlib import Path
 
 from smartdoc.application.classify_worker import classify_chunk, init_worker
 from smartdoc.core.event_bus import LibraryUpdatedEvent, SmartClassifyFinishedEvent, SmartClassifyProgressEvent
+from smartdoc.core.perf_log import log_perf
 from smartdoc.domain.taxonomy import Taxonomy
 from smartdoc.domain.text_classifier import read_model_meta, resolve_model_path
 
@@ -647,6 +648,10 @@ class SmartClassifyService:
             )
             self.last_result = finished_event
             bus.publish(finished_event)
+            log_perf("classify", finished_event.seconds,
+                      items=finished_event.total, tagged=finished_event.tagged,
+                      unknown=finished_event.unknown, failed=finished_event.failed,
+                      cancelled=finished_event.cancelled)
 
 
 class AutoClassifyOnImport:

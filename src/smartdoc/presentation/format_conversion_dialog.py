@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -28,6 +29,7 @@ from smartdoc.application.format_conversion import (
     is_risky_pair,
 )
 from smartdoc.core.event_bus import BackgroundTaskEvent
+from smartdoc.core.perf_log import log_perf
 from smartdoc.infrastructure.drm_detect import is_drm_protected
 from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.design_dialog import DesignDialog
@@ -212,6 +214,7 @@ class FormatConversionDialog(DesignDialog):
         if not to_convert or not self._output_dir:
             return
         self._running = True
+        self._perf_started_at = time.monotonic()
         self._cancel.clear()
         self.run_button.setEnabled(False)
         self.format_combo.setEnabled(False)
@@ -243,6 +246,9 @@ class FormatConversionDialog(DesignDialog):
 
     def _on_finished(self, result: ConversionResult) -> None:
         self._running = False
+        log_perf("format_conversion", time.monotonic() - self._perf_started_at,
+                  items=len(result.items), succeeded=result.succeeded, failed=result.failed,
+                  cancelled=result.cancelled)
         self.busy.set_busy(False)
         self.format_combo.setEnabled(True)
         self.change_output_button.setEnabled(True)
