@@ -8,7 +8,6 @@ import time
 
 from smartdoc.domain.device_profiles import DeviceProfile, GENERIC_PROFILE_ID
 from smartdoc.presentation.ereader_dialog import EreaderSendDialog
-from smartdoc.presentation.file_actions import FileActionEngine
 
 
 def _docs(tmp_path, names):
@@ -29,11 +28,42 @@ def _wait_until_done(qapp, dialog, timeout: float = 5.0) -> None:
     qapp.processEvents()
 
 
+def test_the_dialog_sends_through_the_transport_it_is_given(qapp, app_context, tmp_path):
+    from smartdoc.infrastructure.devices.transport import ConnectedDevice
+    from tests.device_fakes import InMemoryTransport
+
+    docs = _docs(tmp_path, ["a.epub", "b.epub"])
+    device = InMemoryTransport([ConnectedDevice(identity="boox-1", name="Boox", kind="mtp")])
+    device.copy_file(docs[1]["file_path"], "Books", "Tác giả - Sách 1.epub")  # already on the device
+    dialog = EreaderSendDialog(app_context, docs, "Books", transport=device)
+
+    assert "1 / 2 sách sẽ gửi" in dialog.score_label.text()  # the plan read the device's own listing
+    dialog.send_all()
+    _wait_until_done(qapp, dialog)
+
+    assert dialog.sent_count() == 1 and sorted(device.files["Books"]) == ["Tác giả - Sách 0.epub", "Tác giả - Sách 1.epub"]
+    dialog.deleteLater()
+
+
+def test_a_device_unplugged_before_sending_ends_every_row_with_that_reason(qapp, app_context, tmp_path):
+    from smartdoc.infrastructure.devices.transport import REASON_UNPLUGGED
+    from tests.device_fakes import InMemoryTransport
+
+    docs = _docs(tmp_path, ["a.epub"])
+    device = InMemoryTransport()
+    dialog = EreaderSendDialog(app_context, docs, "Books", transport=device)
+    device.unplug()
+    dialog.send_all()
+    _wait_until_done(qapp, dialog)
+    assert dialog._results == {"d0": REASON_UNPLUGGED}
+    dialog.deleteLater()
+
+
 def test_shows_a_plan_before_anything_is_copied(qapp, app_context, tmp_path):
     docs = _docs(tmp_path, ["a.epub", "b.epub"])
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     assert "2 sách sẵn sàng" in dialog.score_label.text()
     assert list(target.iterdir()) == []  # nothing copied just by opening the dialog
@@ -46,7 +76,7 @@ def test_sending_reports_each_book_and_the_score(qapp, app_context, tmp_path):
     docs.append({"id": "gone", "title": "Mất file", "author": "X", "file_path": str(tmp_path / "missing.epub")})
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     dialog.send_all()
     _wait_until_done(qapp, dialog)
@@ -64,7 +94,7 @@ def test_retrying_sends_only_the_failed_ones(qapp, app_context, tmp_path):
     docs = _docs(tmp_path, ["a.epub"])
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target / "not-there"))
+    dialog = EreaderSendDialog(app_context, docs, str(target / "not-there"))
     dialog.send_all()
     _wait_until_done(qapp, dialog)
     assert dialog.failed_count() == 1
@@ -81,7 +111,7 @@ def test_the_copy_never_touches_the_original(qapp, app_context, tmp_path):
     docs = _docs(tmp_path, ["a.epub"])
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
     dialog.send_all()
     _wait_until_done(qapp, dialog)
     assert (tmp_path / "src" / "a.epub").exists()
@@ -95,7 +125,7 @@ def test_a_file_already_on_the_device_is_skipped_and_never_overwritten(qapp, app
     existing = target / "Tác giả - Sách 0.epub"
     existing.write_bytes("đã có sẵn trên máy, không được ghi đè".encode("utf-8"))
     original_bytes = existing.read_bytes()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     assert not dialog.run_button.isEnabled()  # the only document is already there -- nothing left to run
     assert "Đã có trên máy" in dialog.book_list.item(0).text()
@@ -117,7 +147,7 @@ def test_a_drm_protected_epub_is_refused_and_never_sent(qapp, app_context, tmp_p
     docs = [{"id": "d1", "title": "Sách khóa", "author": "X", "file_path": str(epub)}]
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     assert not dialog.run_button.isEnabled()
     assert "DRM" in dialog.book_list.item(0).text()
@@ -137,7 +167,7 @@ def test_an_unverified_device_profile_shows_its_note_in_the_ui(qapp, app_context
         "kindle": DeviceProfile(id="kindle", display_name="Kindle (chung)", supported_formats=("azw3", "mobi"),
                                 verified=False, verification_note="Chưa kiểm chứng trên máy thật"),
     }
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target), profiles=profiles)
+    dialog = EreaderSendDialog(app_context, docs, str(target), profiles=profiles)
 
     assert dialog.profile_notice.isHidden()  # starts on the generic (verified) profile
 
@@ -156,7 +186,7 @@ def test_device_removed_mid_run_stops_cleanly_without_crashing(qapp, app_context
     docs = _docs(tmp_path, ["a.epub", "b.epub", "c.epub"])
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     import shutil
 
@@ -173,7 +203,7 @@ def test_closing_mid_run_sets_the_cancel_flag(qapp, app_context, tmp_path):
     docs = _docs(tmp_path, ["a.epub"])
     target = tmp_path / "dev"
     target.mkdir()
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
     dialog.send_all()
 
     assert not dialog._cancel.is_set()
@@ -191,7 +221,7 @@ def test_progress_is_also_published_to_the_status_bar_as_a_background_task(qapp,
     target.mkdir()
     seen: list[BackgroundTaskEvent] = []
     app_context.event_bus.subscribe(BackgroundTaskEvent, seen.append)
-    dialog = EreaderSendDialog(app_context, docs, FileActionEngine(app_context), str(target))
+    dialog = EreaderSendDialog(app_context, docs, str(target))
 
     dialog.send_all()
     _wait_until_done(qapp, dialog)

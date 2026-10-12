@@ -10,10 +10,11 @@ this dialog only ever sends over the "ổ đĩa/thẻ nhớ" path (a plain folde
 before); MTP is out of scope this round. A profile for a *specific* device that has not been verified on real
 hardware shows its `verification_note` in the UI, per the task's own instruction not to present a guess as fact.
 
-An e-reader plugged in by USB is just a folder, so sending is a real copy of the book file into it
-(`FileActionEngine.copy_to_ereader_as`, which never overwrites an existing file of the same name); the library
-itself never copies or moves anything. Nothing here touches the originals. A file positively identified as
-DRM-protected is refused, never processed (docs/legal/DRM_POLICY.md) -- detection only, no bypass.
+An e-reader plugged in by USB is just a folder, so sending is a real copy of the book file into it. Everything that
+touches a device goes through a `DeviceTransport` (infrastructure/devices/transport.py: list devices, list files, copy a
+file, never over an existing one); the library itself never copies or moves anything. Nothing here touches the originals.
+A file positively identified as DRM-protected is refused, never processed (docs/legal/DRM_POLICY.md) -- detection only,
+no bypass.
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabe
 
 from smartdoc.core.event_bus import BackgroundTaskEvent
 from smartdoc.domain.device_profiles import DeviceProfile, GENERIC_PROFILE_ID, build_filename, load_device_profiles
+from smartdoc.infrastructure.devices.transport import DeviceTransport, FolderTransport
 from smartdoc.infrastructure.drm_detect import is_drm_protected
 from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.design_dialog import DesignDialog
@@ -59,12 +61,12 @@ class EreaderSendDialog(DesignDialog):
     _progress = Signal(int, int, str, str)  # done, total, doc_id, reason ("" = sent)
     _finished = Signal(dict, bool)  # {doc_id: reason}, stopped_early (cancelled or device removed)
 
-    def __init__(self, context, docs: list[dict], file_actions, target_folder: str, parent=None,
-                 *, profiles: dict[str, DeviceProfile] | None = None) -> None:
+    def __init__(self, context, docs: list[dict], target_folder: str, parent=None,
+                 *, profiles: dict[str, DeviceProfile] | None = None, transport: DeviceTransport | None = None) -> None:
         super().__init__(parent, title="Gửi sang máy đọc sách", subtitle=f"{len(docs)} sách đã chọn", icon="send", width=640)
         self.context = context
         self.docs = docs
-        self.file_actions = file_actions
+        self.transport = transport if transport is not None else FolderTransport()
         self.target = target_folder
         self._profiles = profiles if profiles is not None else load_device_profiles()
         self._results: dict[str, str] = {}  # doc id -> "" (sent) | the reason it failed/was skipped
@@ -178,6 +180,7 @@ class EreaderSendDialog(DesignDialog):
         profile = self._current_profile()
         self.book_list.clear()
         self._plan.clear()
+        on_device = {file.name.casefold() for file in self.transport.list_files(self.target)}  # Windows names ignore case
         for doc in self.docs:
             doc_id = doc.get("id") or ""
             path = doc.get("file_path") or ""
@@ -194,7 +197,7 @@ class EreaderSendDialog(DesignDialog):
                 status, note = _DRM, "Không tìm thấy file trên máy"  # reuses the "hard skip, never copy" lane
             elif is_drm_protected(path):
                 status, note = _DRM, "Có DRM, không gửi được"
-            elif (Path(self.target) / target_name).exists():
+            elif target_name.casefold() in on_device:
                 status, note = _ALREADY, "Đã có trên máy, bỏ qua"
             else:
                 status = _WILL_COPY
@@ -244,15 +247,15 @@ class EreaderSendDialog(DesignDialog):
         self.retry_button.setVisible(False)
         self.busy.set_busy(True)
 
-        file_actions, relay, cancel, target = self.file_actions, self._relay, self._cancel, self.target
+        transport, relay, cancel, target = self.transport, self._relay, self._cancel, self.target
         bus = self.context.event_bus
         total = len(to_send)
 
         def work() -> None:
-            # A device that disappears mid-batch is not special-cased here: copy_to_ereader_as itself checks the
-            # target folder before every file and returns a clear per-file reason ("máy đọc sách đã bị rút ra")
-            # instead of raising, so each row still ends up with an honest, individual result -- exactly the AC's
-            # "báo rõ đã chép/chưa chép". Only a user-requested cancel needs to stop the loop early.
+            # A device that disappears mid-batch is not special-cased here: the transport checks the device before
+            # every file and returns a clear per-file reason ("máy đọc sách đã bị rút ra") instead of raising, so each
+            # row still ends up with an honest, individual result -- exactly the AC's "báo rõ đã chép/chưa chép".
+            # Only a user-requested cancel needs to stop the loop early.
             results: dict[str, str] = {}
             cancelled = False
             done = 0
@@ -260,7 +263,7 @@ class EreaderSendDialog(DesignDialog):
                 if cancel.is_set():
                     cancelled = True
                     break
-                reason = file_actions.copy_to_ereader_as(doc.get("file_path") or "", target, target_name)
+                reason = transport.copy_file(doc.get("file_path") or "", target, target_name)
                 results[doc.get("id") or ""] = reason
                 done += 1
                 post(relay, "_progress", done, total, doc.get("id") or "", reason)

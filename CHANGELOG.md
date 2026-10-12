@@ -1,5 +1,22 @@
 # Changelog
 
+[12/10/2026 - 14:42] - Task: device-sync/02 - Gom việc gửi sách vào một giao diện truyền tải thiết bị
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:devices` (mới), `:presentation:ereader_dialog`, `:presentation:file_actions`, `:presentation:library_view`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `infrastructure/devices/transport.py` (mới): `DeviceTransport` (3 khả năng), `ConnectedDevice`, `DeviceFile`, các lý do bằng lời, `FolderTransport` (logic chép chuyển từ `FileActionEngine`)
+    - `ereader_dialog.py`: nhận `transport` tùy chọn, kế hoạch đọc danh sách file của thiết bị, gửi qua `copy_file`; bỏ tham số `file_actions`
+    - `file_actions.py`: gỡ `copy_to_ereader`, `copy_to_ereader_as`, `send_to_ereader` (không còn nơi gọi)
+    - `library_view.py`: bỏ đối số thừa khi mở hộp thoại
+    - tests: `tests/device_fakes.py` (bản giả trong bộ nhớ), `test_device_transport.py` (6 test hợp đồng chạy trên cả hai bản), `test_ereader_dialog.py` (+2), `test_file_actions.py` (gỡ 5 test đã chuyển)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Giao diện không có thao tác xóa/sửa nào; test khẳng định bề mặt công khai của `FolderTransport` chỉ gồm ba hàm.
+  - Mọi vấn đề trả về dạng lý do bằng lời, không ném ngoại lệ, để một file lỗi không dừng cả lô.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `FolderTransport.list_devices` lấy danh tính từ số serial ổ đĩa (`st_dev`), chưa kiểm chứng trên thẻ nhớ thật; bản MTP (ticket 05) sẽ cần danh tính riêng.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:38] - Task: manual-collections/03 - Dấu liên kết khi Bộ sưu tập trùng tên hashtag
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:facet_counter`, `:presentation:sidebar`, `:presentation:facet_panel`, `:domain:library_filter`, tests

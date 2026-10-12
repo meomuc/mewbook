@@ -1427,7 +1427,7 @@ class LibraryListWidget(QWidget):
             self.context.config.save()
 
         docs = [d for d in self._selected_documents() if d.get("file_path")]
-        dialog = EreaderSendDialog(self.context, docs, self.file_actions, target, self)
+        dialog = EreaderSendDialog(self.context, docs, target, self)
         dialog.setAttribute(Qt.WA_DeleteOnClose)
         dialog.show()
 

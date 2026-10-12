@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -67,68 +66,6 @@ class FileActionEngine:
         except (FileNotFoundError, OSError, subprocess.CalledProcessError):
             logger.exception("Failed to reveal file in file manager: %s", file_path)
             return False
-
-    def copy_to_ereader(self, file_path: str, target_folder: str) -> str:
-        """Copies one file into the e-reader's folder. Returns "" when it worked, otherwise the reason in plain words
-        (for the "Gửi sang máy đọc sách" list)."""
-        try:
-            shutil.copy2(file_path, Path(target_folder) / Path(file_path).name)
-        except FileNotFoundError:
-            logger.warning("Failed to send file to e-reader (not found): %s", file_path)
-            return "Không tìm thấy file trên máy"
-        except PermissionError:
-            logger.warning("Failed to send file to e-reader (permission): %s", file_path)
-            return "File bị khóa bởi chương trình khác"
-        except OSError as exc:
-            logger.exception("Failed to send file to e-reader: %s", file_path)
-            return "Máy đọc sách đã hết chỗ" if getattr(exc, "errno", None) == 28 else "Không chép được file này"
-        return ""
-
-    def copy_to_ereader_as(self, file_path: str, target_folder: str, target_name: str) -> str:
-        """Task C1: like copy_to_ereader, but the on-device file name is chosen by the caller (a device profile's
-        naming rule) and an existing file of that name is never overwritten -- the AC is explicit that a name
-        collision must not clobber whatever is already on the device.
-
-        The target folder's own existence is checked *first* and reported as its own reason ("máy đọc sách đã bị
-        rút ra"), not left to fall through to shutil.copy2's FileNotFoundError -- that exception is raised for a
-        missing *source* file too, and blaming "file not found on my machine" for a destination that disappeared
-        (the device unplugged mid-batch) would be misleading."""
-        if not Path(target_folder).is_dir():
-            return "Máy đọc sách đã bị rút ra"
-        target = Path(target_folder) / target_name
-        if target.exists():
-            return "Đã có file cùng tên trên máy, bỏ qua để không ghi đè"
-        try:
-            shutil.copy2(file_path, target)
-        except FileNotFoundError:
-            logger.warning("Failed to send file to e-reader (not found): %s", file_path)
-            return "Không tìm thấy file trên máy"
-        except PermissionError:
-            logger.warning("Failed to send file to e-reader (permission): %s", file_path)
-            return "File bị khóa bởi chương trình khác"
-        except OSError as exc:
-            logger.exception("Failed to send file to e-reader: %s", file_path)
-            if getattr(exc, "errno", None) == 28:
-                return "Máy đọc sách đã hết chỗ"
-            if not Path(target_folder).is_dir():
-                return "Máy đọc sách đã bị rút ra"
-            return "Không chép được file này"
-        return ""
-
-    def send_to_ereader(self, file_paths: list[str], target_folder: str) -> tuple[list[str], list[str]]:
-        """Copies files into an e-reader's book folder -- once connected
-        over USB an e-reader just mounts as a normal folder on Windows, so
-        this is a real `shutil.copy2`, unlike the library's own "never
-        copy the user's files" storage model: the whole point here is
-        putting a copy on the external device.
-
-        Returns (succeeded, failed) source paths.
-        """
-        succeeded: list[str] = []
-        failed: list[str] = []
-        for file_path in file_paths:
-            (failed if self.copy_to_ereader(file_path, target_folder) else succeeded).append(file_path)
-        return succeeded, failed
 
 
 if __name__ == "__main__":

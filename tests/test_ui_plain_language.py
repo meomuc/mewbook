@@ -173,7 +173,6 @@ def test_the_dialogs_of_the_new_design_use_plain_words(qapp, app_context, tmp_pa
     from smartdoc.presentation.design_dialog import DangerConfirmDialog
     from smartdoc.presentation.duplicate_finder_dialog import DuplicateFinderDialog
     from smartdoc.presentation.ereader_dialog import EreaderSendDialog
-    from smartdoc.presentation.file_actions import FileActionEngine
     from smartdoc.presentation.relink_dialog import RelinkDialog
     from smartdoc.presentation.smart_classify_wizard import SmartClassifyWizard
 
@@ -189,7 +188,7 @@ def test_the_dialogs_of_the_new_design_use_plain_words(qapp, app_context, tmp_pa
         AuthorCleanupDialog(app_context),
         DuplicateFinderDialog(app_context),
         RelinkDialog(app_context),
-        EreaderSendDialog(app_context, [doc], FileActionEngine(app_context), str(tmp_path / "dev")),
+        EreaderSendDialog(app_context, [doc], str(tmp_path / "dev")),
     ]
     try:
         for dialog in dialogs:
