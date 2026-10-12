@@ -1,5 +1,18 @@
 # Changelog
 
+[12/10/2026 - 13:57] - Task: unified-trash/01 - sửa theo review (Standards + Spec)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:removal`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `src/smartdoc/application/removal.py`: bỏ `logger` thừa, gắn kiểu `AppContext`, docstring nói đúng phạm vi ("mọi đường xóa người dùng yêu cầu", `forget_missing` và hết hạn nằm ngoài), `FORGET_RECORD` ghi rõ là chế độ cũ sẽ được ADR 0002 thay
+    - `tests/test_library_view_context_menu.py`: thêm test cấp nút ghi lại việc "Xóa khỏi thư viện" đang chuyển file (tiêu chí 1 của ticket)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Giữ `SendResult` làm kiểu trả về chung để không đổi các nơi gọi; tách `RemovalResult` để ticket 02 quyết khi đổi hành vi.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `trash.send` vẫn public nên chưa có gì chặn một nơi gọi bỏ qua dịch vụ; cần quy ước hoặc test chặn khi làm ticket 02.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 13:56] - Task: unified-trash/01 - Gom mọi đường xóa về một cửa vào
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:removal`, `:core:app_context`, `:presentation:library_view`, `:presentation:duplicate_finder_dialog`, `:application:library_cleanup`, `:presentation:file_actions`

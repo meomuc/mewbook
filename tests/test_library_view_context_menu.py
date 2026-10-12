@@ -309,6 +309,19 @@ def test_delete_selected_removes_confirmed_selection(qapp, app_context, monkeypa
     assert app_context.db.list_all_documents() == []
 
 
+def test_delete_selected_currently_moves_the_files_into_the_trash(qapp, app_context, tmp_path, monkeypatch):
+    # Pins today's behaviour, so changing the button to keep the file is a deliberate edit of this test.
+    file_a, file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
+
+    widget.delete_selected()
+
+    assert not file_a.exists() and not file_b.exists()
+    assert {d["file_status"] for d in (app_context.db.get_document("d1"), app_context.db.get_document("d2"))} == {"trashed"}
+
+
 def test_delete_selected_does_nothing_when_nothing_selected(qapp, app_context, monkeypatch):
     _seed_two_docs(app_context)
     widget = LibraryListWidget(app_context)
