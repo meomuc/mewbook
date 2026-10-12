@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from smartdoc.application.device_registry import DeviceError
-from smartdoc.infrastructure.devices.transport import ConnectedDevice
+from smartdoc.infrastructure.devices.transport import ConnectedDevice, DeviceFile
 
 BOOX = ConnectedDevice(identity="mtp:boox-air4", name="Note Air4", kind="mtp")
 CARD = ConnectedDevice(identity="drive:a1b2", name="E:", kind="drive")
@@ -102,6 +102,87 @@ def test_deleting_a_book_for_good_drops_what_was_recorded_about_it(app_context):
     app_context.devices.record_sent(boox.id, "d1", "a.epub", 11, "Books")
     app_context.db.delete_document("d1")
     assert app_context.devices.sent_to("d1") == []
+
+
+def _sent_to_a_boox(app_context, names=("a.epub",), size=11):
+    """A Boox with one book (per name) sent to it, on a fake device that really has those files."""
+    from tests.device_fakes import InMemoryTransport
+
+    boox = app_context.devices.register("Boox", BOOX)
+    device = InMemoryTransport([BOOX])
+    for index, name in enumerate(names):
+        doc_id = f"d{index}"
+        _book(app_context, doc_id)
+        device.files.setdefault("Books", {})[name] = DeviceFile(name, size, 1.0)
+        app_context.devices.record_sent(boox.id, doc_id, name, size, "Books")
+    return boox, device
+
+
+def _presence(app_context, doc_id="d0") -> str:
+    return app_context.devices.sent_to(doc_id)[0].presence
+
+
+def test_a_book_still_on_the_device_is_found_there(app_context):
+    boox, device = _sent_to_a_boox(app_context)
+    result = app_context.devices.check(boox, device)
+    assert result.checked and (result.present, result.missing) == (1, 0)
+    record = app_context.devices.sent_to("d0")[0]
+    assert record.presence == "present" and record.checked_at is not None
+
+
+def test_a_book_deleted_or_renamed_on_the_device_is_no_longer_there(app_context):
+    boox, device = _sent_to_a_boox(app_context, names=("a.epub", "b.epub", "c.epub"))
+    device.delete_on_device("Books", "a.epub")
+    device.rename_on_device("Books", "b.epub", "something else.epub")
+    result = app_context.devices.check(boox, device)
+    assert (result.present, result.missing) == (1, 2)
+    assert [_presence(app_context, f"d{i}") for i in range(3)] == ["missing", "missing", "present"]
+
+
+def test_a_book_replaced_by_a_file_of_another_size_is_no_longer_the_one_that_was_sent(app_context):
+    boox, device = _sent_to_a_boox(app_context)
+    device.files["Books"]["a.epub"] = DeviceFile("a.epub", 999, 2.0)
+    app_context.devices.check(boox, device)
+    assert _presence(app_context) == "missing"
+
+
+def test_checking_changes_nothing_in_the_library(app_context):
+    boox, device = _sent_to_a_boox(app_context)
+    device.delete_on_device("Books", "a.epub")
+    before = app_context.db.get_document("d0")
+    app_context.devices.check(boox, device)
+    assert app_context.db.get_document("d0") == before  # the book is exactly as it was; only the device's record moved
+
+
+def test_a_device_that_is_not_plugged_in_is_not_judged(app_context):
+    boox, device = _sent_to_a_boox(app_context)
+    device.unplug()
+    result = app_context.devices.check(boox, device)
+    assert not result.checked and _presence(app_context) == "present"  # unknown is not the same as gone
+
+
+def test_only_the_device_that_was_looked_at_is_updated(app_context):
+    boox, device = _sent_to_a_boox(app_context)
+    card = app_context.devices.register("Thẻ nhớ", CARD)
+    app_context.devices.record_sent(card.id, "d0", "a.epub", 11, "")
+    device.delete_on_device("Books", "a.epub")
+    app_context.devices.check(boox, device)
+    presence = {r.device_name: r.presence for r in app_context.devices.sent_to("d0")}
+    assert presence == {"Boox": "missing", "Thẻ nhớ": "present"}
+
+
+def test_a_check_in_the_background_reports_when_it_is_done(app_context):
+    import threading
+
+    from smartdoc.core.event_bus import DevicePresenceCheckedEvent
+
+    boox, device = _sent_to_a_boox(app_context)
+    device.delete_on_device("Books", "a.epub")
+    done = threading.Event()
+    seen: list = []
+    app_context.event_bus.subscribe(DevicePresenceCheckedEvent, lambda event: seen.append(event) or done.set())
+    app_context.devices.check_async(boox, device)
+    assert done.wait(5.0) and seen[0].device_id == boox.id and seen[0].missing == 1
 
 
 def test_several_devices_are_kept_apart(app_context):

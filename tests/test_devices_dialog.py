@@ -41,6 +41,55 @@ def test_a_device_can_be_renamed(qapp, app_context, monkeypatch):
     dialog.deleteLater()
 
 
+def test_the_check_button_looks_at_the_chosen_device_and_says_what_it_found(qapp, app_context, monkeypatch):
+    from smartdoc.infrastructure.devices.transport import DeviceFile
+    from tests.device_fakes import InMemoryTransport
+
+    boox = app_context.devices.register("Boox", BOOX, folder="Books")
+    device = InMemoryTransport([BOOX])
+    for doc_id, name in (("d1", "a.epub"), ("d2", "b.epub")):
+        app_context.db.add_or_update_document(doc_id, {"title": doc_id, "file_path": f"{doc_id}.epub", "created_at": 1.0})
+        app_context.devices.record_sent(boox.id, doc_id, name, 5, "Books")
+    device.files["Books"] = {"a.epub": DeviceFile("a.epub", 5, 1.0)}  # b.epub is gone from the device
+    told: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+    dialog = DevicesDialog(app_context, transport_for=lambda registered: device)
+    assert not dialog.check_button.isEnabled()
+    dialog.table.selectRow(0)
+
+    dialog.check_button.click()
+
+    assert told and "1 sách còn trên máy" in told[0] and "1 sách không còn" in told[0]
+    assert {r.doc_id: r.presence for d in ("d1", "d2") for r in app_context.devices.sent_to(d)} == {"d1": "present", "d2": "missing"}
+    dialog.deleteLater()
+
+
+def test_a_device_that_is_not_plugged_in_is_said_so_not_judged(qapp, app_context, monkeypatch):
+    from tests.device_fakes import InMemoryTransport
+
+    app_context.devices.register("Boox", BOOX, folder="Books")
+    device = InMemoryTransport([BOOX])
+    device.unplug()
+    told: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+    dialog = DevicesDialog(app_context, transport_for=lambda registered: device)
+    dialog.table.selectRow(0)
+    dialog.check_button.click()
+    assert told and "chưa cắm" in told[0]
+    dialog.deleteLater()
+
+
+def test_a_kind_of_device_with_no_way_in_yet_is_said_so(qapp, app_context, monkeypatch):
+    app_context.devices.register("Boox", BOOX)
+    told: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+    dialog = DevicesDialog(app_context)  # the default way in knows drives and folders, not phone-like devices
+    dialog.table.selectRow(0)
+    dialog.check_button.click()
+    assert told and "chưa hỗ trợ" in told[0]
+    dialog.deleteLater()
+
+
 def test_forgetting_a_device_asks_first_and_says_the_books_stay(qapp, app_context, monkeypatch):
     app_context.devices.register("Boox", BOOX)
     dialog = DevicesDialog(app_context)

@@ -1890,6 +1890,17 @@ class DatabaseManager:
                 (device_id, doc_id, file_name, file_size, folder, sent_at, sent_at))
             self.connection.commit()
 
+    def list_device_books(self, device_id: str) -> list[dict[str, Any]]:
+        rows = self.connection.execute("SELECT * FROM device_books WHERE device_id = ?", (device_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def set_device_book_presence(self, device_id: str, doc_id: str, presence: str, checked_at: float | None) -> None:
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE device_books SET presence = ?, checked_at = ? WHERE device_id = ? AND doc_id = ?",
+                (presence, checked_at, device_id, doc_id))
+            self.connection.commit()
+
     def list_device_books_for_doc(self, doc_id: str) -> list[dict[str, Any]]:
         """Where one book was sent, in the order the devices were registered."""
         rows = self.connection.execute(

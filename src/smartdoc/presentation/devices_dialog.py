@@ -4,6 +4,8 @@ not touched). A device is added from "Gửi sang máy đọc sách", where it is
 screen only manages the ones already there. The work is application/device_registry.py."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -16,11 +18,18 @@ from PySide6.QtWidgets import (
 
 from smartdoc.application.device_registry import Device, DeviceError
 from smartdoc.domain.device_profiles import load_device_profiles
-from smartdoc.infrastructure.devices.transport import ConnectedDevice
+from smartdoc.infrastructure.devices.transport import ConnectedDevice, DeviceTransport, FolderTransport
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme_manager import theme_manager
 
 _ID_ROLE = Qt.UserRole + 1
+
+
+def _default_transport_for(device: Device) -> DeviceTransport | None:
+    """The way in to a registered device, or None when there is none yet: a drive or card is a folder; a phone-like device
+    (MTP) has no implementation of the seam yet."""
+    return FolderTransport(device.folder) if device.kind == "drive" and device.folder else None
 _KIND_LABEL = {"drive": "Ổ đĩa / thẻ nhớ", "mtp": "Thiết bị di động (MTP)"}
 
 
@@ -32,9 +41,10 @@ def ask_device_name(parent, connected: ConnectedDevice) -> str | None:
 
 
 class DevicesDialog(DesignDialog):
-    def __init__(self, context, parent=None) -> None:
+    def __init__(self, context, parent=None, *, transport_for: Callable[[Device], DeviceTransport | None] | None = None) -> None:
         super().__init__(parent, title="Máy đọc sách", subtitle="Những máy bạn đã đặt tên", icon="send", width=680)
         self.context = context
+        self._transport_for = transport_for or _default_transport_for
         self._profiles = load_device_profiles()
         self.resize(720, 400)
 
@@ -53,6 +63,7 @@ class DevicesDialog(DesignDialog):
         self.empty_note.setStyleSheet(f"color: {theme_manager().token('ink3')};")
         self.body.addWidget(self.empty_note)
 
+        self.check_button = self.add_footer_button("Kiểm tra máy", on_click=self._on_check, left=True)
         self.rename_button = self.add_footer_button("Đổi tên…", on_click=self._on_rename, left=True)
         self.forget_button = self.add_footer_button("Bỏ đăng ký…", "danger", on_click=self._on_forget, left=True)
         self.add_footer_button("Đóng", on_click=self.accept)
@@ -82,8 +93,31 @@ class DevicesDialog(DesignDialog):
 
     def _update_buttons(self) -> None:
         picked = self._selected() is not None
+        self.check_button.setEnabled(picked)
         self.rename_button.setEnabled(picked)
         self.forget_button.setEnabled(picked)
+
+    def _on_check(self) -> None:
+        """Looks at the chosen device and says how many of the books sent to it are still there. Only this device's records
+        change; the library is not touched."""
+        device = self._selected()
+        if device is None:
+            return
+        transport = self._transport_for(device)
+        if transport is None:
+            QMessageBox.information(self, "Chưa kiểm tra được", f"MewBook chưa hỗ trợ kiểm tra loại máy của “{device.name}”.")
+            return
+        result, error = run_with_progress(
+            self, title="Kiểm tra máy", message=f"Mèo đang xem trong “{device.name}”…", delay_ms=400,
+            work=lambda progress: self.context.devices.check(device, transport))
+        if result is None:
+            QMessageBox.warning(self, "Chưa kiểm tra được", f"Có lỗi khi kiểm tra máy: {error}")
+            return
+        if not result.checked:
+            QMessageBox.information(self, "Máy chưa cắm", f"“{device.name}” chưa cắm hoặc MewBook chưa thấy máy. Cắm máy rồi thử lại.")
+            return
+        QMessageBox.information(self, "Đã kiểm tra",
+                                f"{result.present} sách còn trên máy, {result.missing} sách không còn trên máy.")
 
     def _on_rename(self) -> None:
         device = self._selected()

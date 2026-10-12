@@ -7,12 +7,17 @@ until the person says so, so a stray USB stick does not become a "device".
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
+import threading
 import time
 import uuid
 from dataclasses import dataclass
 
-from smartdoc.infrastructure.devices.transport import ConnectedDevice
+from smartdoc.core.event_bus import DevicePresenceCheckedEvent
+from smartdoc.infrastructure.devices.transport import ConnectedDevice, DeviceTransport
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceError(Exception):
@@ -48,6 +53,13 @@ class SentRecord:
     sent_at: float
     presence: str
     checked_at: float | None
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    checked: bool  # False when the device was not plugged in, so nothing was judged
+    present: int = 0
+    missing: int = 0
 
 
 def _from_row(row: dict) -> Device:
@@ -94,6 +106,36 @@ class DeviceRegistry:
     def update(self, device_id: str, *, profile_id: str | None = None, folder: str | None = None) -> None:
         changes = {key: value for key, value in (("profile_id", profile_id), ("folder", folder)) if value is not None}
         self.context.db.update_device(device_id, **changes)
+
+    def check(self, device: Device, transport: DeviceTransport) -> CheckResult:
+        """Looks at what is on the device and records, for every book sent to it, whether it is still there: the file name
+        and size noted when it was sent must both still be in the folder it went to (a book renamed or replaced on the
+        device no longer counts). A device that is not plugged in is not judged -- its records stay as they were. Only
+        this device's records change; the books in the library are never touched."""
+        if device.identity not in {connected.identity for connected in transport.list_devices()}:
+            return CheckResult(checked=False)
+        listings: dict[str, set[tuple[str, int]]] = {}
+        now = time.time()
+        present = missing = 0
+        for row in self.context.db.list_device_books(device.id):
+            folder = row["folder"]
+            if folder not in listings:
+                listings[folder] = {(file.name.casefold(), file.size) for file in transport.list_files(folder)}
+            there = (row["file_name"].casefold(), row["file_size"]) in listings[folder]
+            self.context.db.set_device_book_presence(device.id, row["doc_id"], PRESENT if there else MISSING, now)
+            present, missing = present + there, missing + (not there)
+        self.context.event_bus.publish(DevicePresenceCheckedEvent(device_id=device.id, present=present, missing=missing))
+        return CheckResult(checked=True, present=present, missing=missing)
+
+    def check_async(self, device: Device, transport: DeviceTransport) -> None:
+        """`check` on a background thread: a device can be slow to list (a phone-like one especially), and nobody waits."""
+        def run() -> None:
+            try:
+                self.check(device, transport)
+            except Exception:  # noqa: BLE001 -- one device's trouble must not take the app down; the records stay as they were
+                logger.exception("Checking device %s failed", device.name)
+
+        threading.Thread(target=run, name="device-check", daemon=True).start()
 
     def unregister(self, device_id: str) -> None:
         """Forgets the device and what was recorded as sent to it. The books on it are not touched, and neither are the

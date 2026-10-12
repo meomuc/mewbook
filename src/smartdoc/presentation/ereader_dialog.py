@@ -83,6 +83,7 @@ class EreaderSendDialog(DesignDialog):
         self.target = target_folder
         self._connected = None  # the device plugged in right now, if the transport reports one
         self._registered = None  # ...and the one the person has named, if it is that
+        self._checked_for: str | None = None  # the registered device already looked at since this dialog opened
         self._profiles = profiles if profiles is not None else load_device_profiles()
         self._results: dict[str, str] = {}  # doc id -> "" (sent) | the reason it failed/was skipped
         self._plan: dict[str, tuple[str, str]] = {}  # doc id -> (status, target file name)
@@ -175,6 +176,10 @@ class EreaderSendDialog(DesignDialog):
         self.device_label.setText(f"<b>{heading}</b>{question}<br><span style='color:{tm.token('ink2')}'>"
                                   f"Thư mục: {self.target}{' · ' + free if free else ''}</span>")
         self.register_button.setVisible(self._connected is not None and self._registered is None)
+        if self._registered is not None and self._registered.id != self._checked_for:
+            # Plugged in and recognised: see in the background which of the books sent earlier are still on it.
+            self._checked_for = self._registered.id
+            self.context.devices.check_async(self._registered, self.transport)
         if self._registered and self._registered.profile_id in self._profiles:
             index = self.profile_combo.findData(self._registered.profile_id)
             if index >= 0 and index != self.profile_combo.currentIndex():

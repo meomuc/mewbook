@@ -146,6 +146,42 @@ def test_the_panel_lists_every_device_a_book_was_sent_to(qapp, app_context):
     assert "Boox" in panel.devices_label.text() and "Thẻ nhớ" in panel.devices_label.text()
 
 
+def test_the_panel_says_whether_the_book_is_still_on_each_device_and_when_it_was_looked_at(qapp, app_context):
+    from smartdoc.infrastructure.devices.transport import ConnectedDevice
+
+    app_context.db.add_or_update_document("d1", {"title": "Sách", "file_path": "a.epub", "created_at": 1.0})
+    boox = app_context.devices.register("Boox", ConnectedDevice(identity="mtp:1", name="Air4", kind="mtp"))
+    card = app_context.devices.register("Thẻ nhớ", ConnectedDevice(identity="drive:2", name="E:", kind="drive"))
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 5, "Books")
+    app_context.devices.record_sent(card.id, "d1", "a.epub", 5, "")
+    app_context.db.set_device_book_presence(boox.id, "d1", "missing", 1_700_000_000.0)
+    app_context.db.set_device_book_presence(card.id, "d1", "unknown", None)
+    panel = DocumentDetailPanel(app_context)
+
+    panel.set_document(_sample_doc())
+
+    text = panel.devices_label.text()
+    assert "Boox" in text and "không còn trên máy" in text and "kiểm tra" in text
+    assert "Thẻ nhớ" in text and "chưa kiểm tra" in text
+
+
+def test_the_panel_refreshes_when_a_check_of_a_device_finishes(qapp, app_context):
+    from smartdoc.core.event_bus import DevicePresenceCheckedEvent
+    from smartdoc.infrastructure.devices.transport import ConnectedDevice
+
+    app_context.db.add_or_update_document("d1", {"title": "Sách", "file_path": "a.epub", "created_at": 1.0})
+    boox = app_context.devices.register("Boox", ConnectedDevice(identity="mtp:1", name="Air4", kind="mtp"))
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 5, "Books")
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+    assert "không còn trên máy" not in panel.devices_label.text()
+
+    app_context.db.set_device_book_presence(boox.id, "d1", "missing", 1_700_000_000.0)
+    app_context.event_bus.publish(DevicePresenceCheckedEvent(device_id=boox.id, present=0, missing=1))
+
+    assert _pump_until(qapp, lambda: "không còn trên máy" in panel.devices_label.text())
+
+
 def test_the_panel_has_no_device_line_for_a_book_never_sent(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc())

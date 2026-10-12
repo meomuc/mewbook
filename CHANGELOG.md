@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 14:50] - Task: device-sync/06 - Kiểm tra sách còn trên máy
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:device_registry`, `:core:event_bus`, `:infrastructure:database`, `:presentation:devices_dialog`, `:presentation:ereader_dialog`, `:presentation:detail_panel`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `device_registry.py`: `check` (so tên + kích thước đã ghi với danh sách file; máy chưa cắm không bị phán xét), `check_async` (luồng nền), `CheckResult`
+    - `event_bus.py`: `DevicePresenceCheckedEvent`; `database.py`: `list_device_books`, `set_device_book_presence`
+    - `ereader_dialog.py`: tự kiểm tra một lần khi cắm máy đã đăng ký; `devices_dialog.py`: nút "Kiểm tra máy" (chạy qua `run_with_progress`), cách vào thiết bị thay được cho test
+    - `detail_panel.py`: "còn trên máy / không còn trên máy / chưa kiểm tra" kèm ngày kiểm tra; tự cập nhật khi kiểm tra xong
+    - tests: `test_device_registry.py` (+7), `test_devices_dialog.py` (+3), `test_ereader_dialog.py` (+2), `test_detail_panel.py` (+2)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Đổi tên hoặc thay file khác kích thước trên máy được tính là "không còn" (MTP không có hash rẻ); Thư viện không bị đổi trạng thái (có test).
+  - Máy chưa cắm thì giữ nguyên bản ghi cũ: "chưa biết" khác với "đã mất".
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nếu danh sách file của máy lỗi tạm thời và trả về rỗng, mọi sách của thư mục đó bị ghi "không còn"; lần kiểm tra sau sửa lại. Cần phân biệt "lỗi đọc" với "thư mục rỗng" khi có bản MTP.
+  - Chưa có bộ theo dõi cắm/rút nền: kiểm tra tự động chỉ chạy khi mở hộp thoại gửi hoặc bấm nút.
+  - Bản MTP chưa có nên "Kiểm tra máy" với máy loại MTP báo "chưa hỗ trợ".
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:47] - Task: device-sync/04 - Ghi lại sách đã gửi và hiện trong panel chi tiết
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:device_registry`, `:presentation:ereader_dialog`, `:presentation:detail_panel`, tests
@@ -656,6 +675,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Kiểm tra sách còn trên máy đọc.** Khi cắm máy đã đặt tên và mở "Gửi sang máy đọc sách", hoặc bấm "Kiểm tra máy" trong "Máy đọc sách của tôi…", MewBook xem những sách đã gửi còn trên máy không; panel chi tiết ghi "còn trên máy / không còn trên máy" kèm ngày kiểm tra. Sách trong thư viện không bị đổi.
 - **Ghi nhớ sách đã gửi sang máy đọc nào.** Sách gửi tới một máy đã đặt tên được ghi lại, và panel chi tiết có dòng "Trên máy đọc" liệt kê từng máy kèm ngày gửi.
 - **Đặt tên cho máy đọc sách.** Khi mở "Gửi sang máy đọc sách" với một máy chưa quen, MewBook hỏi "Đây có phải máy mới không?" và bạn bấm "Đăng ký máy này…" để đặt tên; máy đã đặt tên được nhận ra ở những lần cắm sau. Công cụ › "Máy đọc sách của tôi…" cho đổi tên hoặc bỏ đăng ký.
 - **Dấu liên kết giữa bộ sưu tập và hashtag trùng tên.** Khi một bộ sưu tập có cùng tên với một hashtag đang dùng, cả hai hiện dấu 🔗 kèm gợi ý. Đây chỉ là dấu để bạn nhận ra; gắn hashtag không tự đưa sách vào bộ sưu tập.

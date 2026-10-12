@@ -61,6 +61,16 @@ class LibraryUpdatedEvent(BaseEvent):
 
 
 @dataclass(frozen=True)
+class DevicePresenceCheckedEvent(BaseEvent):
+    """A device was looked at: `present` of the books sent to it are still there, `missing` are not. Published from a
+    background thread; the detail panel's "Trên máy đọc" line refreshes from it. Nothing in the library changes."""
+
+    device_id: str = ""
+    present: int = 0
+    missing: int = 0
+
+
+@dataclass(frozen=True)
 class AiConnectionChangedEvent(BaseEvent):
     """The result of a real connection check of the local AI (Ollama), so the status bar need not wait for its next
     scheduled check. Only Ollama has this: the other providers count as connected once they have a key."""

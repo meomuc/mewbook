@@ -115,6 +115,25 @@ def test_declining_to_name_an_unknown_device_registers_nothing(qapp, app_context
     dialog.deleteLater()
 
 
+def test_opening_the_dialog_with_a_registered_device_checks_what_is_still_on_it(qapp, app_context, tmp_path, monkeypatch):
+    boox, device = _boox_transport()
+    calls: list[str] = []
+    monkeypatch.setattr(app_context.devices, "check_async", lambda registered, transport: calls.append(registered.id))
+    registered = app_context.devices.register("Boox của tôi", boox)
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)
+    assert calls == [registered.id]
+    dialog.deleteLater()
+
+
+def test_a_device_nobody_has_named_is_not_checked(qapp, app_context, tmp_path, monkeypatch):
+    _boox, device = _boox_transport()
+    calls: list[str] = []
+    monkeypatch.setattr(app_context.devices, "check_async", lambda registered, transport: calls.append(registered.id))
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)
+    assert calls == []
+    dialog.deleteLater()
+
+
 def test_nothing_is_asked_when_no_device_is_connected(qapp, app_context, tmp_path):
     from tests.device_fakes import InMemoryTransport
 

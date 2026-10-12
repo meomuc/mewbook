@@ -44,7 +44,12 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.smart_classifier import UNSURE_TAG
-from smartdoc.core.event_bus import DocumentSelectedEvent, LibraryUpdatedEvent, ReadingProgressUpdatedEvent
+from smartdoc.core.event_bus import (
+    DevicePresenceCheckedEvent,
+    DocumentSelectedEvent,
+    LibraryUpdatedEvent,
+    ReadingProgressUpdatedEvent,
+)
 from smartdoc.domain.author_names import split_author_names
 from smartdoc.domain.library_filter import LibraryFilter
 from smartdoc.infrastructure.cloud_files import is_cloud_only
@@ -453,6 +458,7 @@ class DocumentDetailPanel(QFrame):
         self._bridge.subscribe(context.event_bus, DocumentSelectedEvent)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
         self._bridge.subscribe(context.event_bus, ReadingProgressUpdatedEvent)
+        self._bridge.subscribe(context.event_bus, DevicePresenceCheckedEvent)
         # Page counts are worked out on a worker thread; the signal hands the result back to the GUI thread.
         self._counting: set[str] = set()
         self._page_count_ready.connect(self._on_page_count_ready)
@@ -681,7 +687,18 @@ class DocumentDetailPanel(QFrame):
     def _show_devices(self, doc: dict) -> None:
         """The e-readers this book was put on, one per line with the day it went; nothing at all for a book never sent."""
         records = self.context.devices.sent_to(doc.get("id") or "")
-        lines = [f"{html.escape(record.device_name)} · {datetime.fromtimestamp(record.sent_at):%d/%m/%Y}" for record in records]
+        lines = []
+        for record in records:
+            line = f"{html.escape(record.device_name)} · gửi {datetime.fromtimestamp(record.sent_at):%d/%m/%Y} · "
+            if record.presence == "present":
+                line += "còn trên máy"
+            elif record.presence == "missing":
+                line += "không còn trên máy"
+            else:
+                line += "chưa kiểm tra"
+            if record.checked_at and record.presence != "unknown":
+                line += f" (kiểm tra {datetime.fromtimestamp(record.checked_at):%d/%m/%Y})"
+            lines.append(line)
         self.devices_label.setText("<br>".join(lines))
         self.devices_label.setVisible(bool(records))
         if self._devices_caption_label is not None:
@@ -763,6 +780,9 @@ class DocumentDetailPanel(QFrame):
         elif isinstance(event, ReadingProgressUpdatedEvent):
             if self._current_doc and self._current_doc.get("id") == event.doc_id:
                 self._update_reading_progress_label(event.doc_id)
+        elif isinstance(event, DevicePresenceCheckedEvent):
+            if self._current_doc:
+                self._show_devices(self._current_doc)
 
     def _refresh_current_document(self) -> None:
         """Re-fetches the current document and repopulates the panel -- automatically on LibraryUpdatedEvent and by
