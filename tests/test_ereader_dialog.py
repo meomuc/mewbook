@@ -76,6 +76,36 @@ def test_an_unknown_device_is_asked_about_and_not_registered_until_the_person_sa
     dialog.deleteLater()
 
 
+def test_a_book_sent_to_a_registered_device_is_recorded_and_a_failed_one_is_not(qapp, app_context, tmp_path):
+    boox, device = _boox_transport()
+    registered = app_context.devices.register("Boox của tôi", boox)
+    docs = _docs(tmp_path, ["a.epub"])
+    docs.append({"id": "gone", "title": "Mất file", "author": "X", "file_path": str(tmp_path / "missing.epub")})
+    for doc in docs:
+        app_context.db.add_or_update_document(doc["id"], {"title": doc["title"], "file_path": doc["file_path"], "created_at": 1.0})
+    dialog = EreaderSendDialog(app_context, docs, "Books", transport=device)
+
+    dialog.send_all()
+    _wait_until_done(qapp, dialog)
+
+    (record,) = app_context.devices.sent_to("d0")
+    assert (record.device_id, record.file_name, record.file_size, record.folder) == (
+        registered.id, "Tác giả - Sách 0.epub", 10, "Books")
+    assert app_context.devices.sent_to("gone") == []  # that one failed: nothing was put on the device
+    dialog.deleteLater()
+
+
+def test_a_book_sent_to_an_unregistered_device_is_not_recorded(qapp, app_context, tmp_path):
+    _boox, device = _boox_transport()
+    docs = _docs(tmp_path, ["a.epub"])
+    app_context.db.add_or_update_document("d0", {"title": "Sách 0", "file_path": docs[0]["file_path"], "created_at": 1.0})
+    dialog = EreaderSendDialog(app_context, docs, "Books", transport=device)
+    dialog.send_all()
+    _wait_until_done(qapp, dialog)
+    assert dialog.sent_count() == 1 and app_context.devices.sent_to("d0") == []  # no named device to attribute it to
+    dialog.deleteLater()
+
+
 def test_declining_to_name_an_unknown_device_registers_nothing(qapp, app_context, tmp_path, monkeypatch):
     _boox, device = _boox_transport()
     dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)

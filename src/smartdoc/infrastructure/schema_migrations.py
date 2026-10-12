@@ -161,6 +161,25 @@ def _add_devices(connection: sqlite3.Connection) -> None:
     )
 
 
+def _add_device_books(connection: sqlite3.Connection) -> None:
+    """Which book was put on which device, and whether it is still there. One row per (device, book): sending the same
+    book to the same device again updates it. `presence` is 'present' | 'missing' | 'unknown' and `checked_at` says when
+    the device was last looked at; a book is never changed in the library because of what this table says."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS device_books ("
+        " device_id TEXT NOT NULL,"
+        " doc_id TEXT NOT NULL,"
+        " file_name TEXT NOT NULL,"
+        " file_size INTEGER NOT NULL DEFAULT 0,"
+        " folder TEXT NOT NULL DEFAULT '',"
+        " sent_at REAL NOT NULL,"
+        " presence TEXT NOT NULL DEFAULT 'unknown',"
+        " checked_at REAL,"
+        " PRIMARY KEY (device_id, doc_id))"
+    )
+    connection.execute("CREATE INDEX IF NOT EXISTS idx_device_books_doc ON device_books(doc_id)")
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -216,6 +235,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(6, "documents.removal_kind / removed_at (one trash, two kinds of removal)", _add_removal_columns),
     Migration(7, "collections hold only the books put in them: rule collections are frozen into their members", _freeze_rule_collections),
     Migration(8, "devices (the e-readers the person has named)", _add_devices),
+    Migration(9, "device_books (which book was put on which device)", _add_device_books),
 )
 
 

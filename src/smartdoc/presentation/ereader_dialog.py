@@ -323,8 +323,24 @@ class EreaderSendDialog(DesignDialog):
 
         threading.Thread(target=work, name="ereader-send", daemon=True).start()
 
+    def _record_sent(self, doc_id: str) -> None:
+        """A book was just put on the device the person has named: remember it. A device that has no name yet gets no
+        record -- there is nothing to attribute it to (the card above offers to register it)."""
+        if self._registered is None:
+            return
+        doc = next((d for d in self.docs if (d.get("id") or "") == doc_id), None)
+        if doc is None:
+            return
+        try:
+            size = Path(doc.get("file_path") or "").stat().st_size
+        except OSError:
+            size = 0
+        self.context.devices.record_sent(self._registered.id, doc_id, self._plan.get(doc_id, ("", ""))[1], size, self.target)
+
     def _on_progress(self, done: int, total: int, doc_id: str, reason: str) -> None:
         self._results[doc_id] = reason
+        if not reason:
+            self._record_sent(doc_id)
         for row in range(self.book_list.count()):
             item = self.book_list.item(row)
             if item.data(Qt.UserRole) == doc_id:

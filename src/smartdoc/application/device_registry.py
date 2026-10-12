@@ -30,6 +30,26 @@ class Device:
     created_at: float
 
 
+PRESENT = "present"
+MISSING = "missing"
+UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class SentRecord:
+    """One book put on one device. `presence` is what the last look at the device found (PRESENT / MISSING / UNKNOWN)."""
+
+    device_id: str
+    device_name: str
+    doc_id: str
+    file_name: str
+    file_size: int
+    folder: str
+    sent_at: float
+    presence: str
+    checked_at: float | None
+
+
 def _from_row(row: dict) -> Device:
     return Device(id=row["id"], name=row["name"], kind=row["kind"], profile_id=row["profile_id"], identity=row["identity"],
                   folder=row["folder"], created_at=row["created_at"])
@@ -76,5 +96,17 @@ class DeviceRegistry:
         self.context.db.update_device(device_id, **changes)
 
     def unregister(self, device_id: str) -> None:
-        """Forgets the device. The books on it are not touched, and neither are the library's."""
+        """Forgets the device and what was recorded as sent to it. The books on it are not touched, and neither are the
+        library's."""
         self.context.db.delete_device(device_id)
+
+    def record_sent(self, device_id: str, doc_id: str, file_name: str, file_size: int, folder: str) -> None:
+        """A book was just put on this device."""
+        self.context.db.record_device_book(device_id, doc_id, file_name, file_size, folder, time.time())
+
+    def sent_to(self, doc_id: str) -> list[SentRecord]:
+        """Every device this book was put on, in the order the devices were registered."""
+        return [SentRecord(device_id=row["device_id"], device_name=row["device_name"], doc_id=row["doc_id"],
+                           file_name=row["file_name"], file_size=row["file_size"], folder=row["folder"],
+                           sent_at=row["sent_at"], presence=row["presence"], checked_at=row["checked_at"])
+                for row in self.context.db.list_device_books_for_doc(doc_id)]

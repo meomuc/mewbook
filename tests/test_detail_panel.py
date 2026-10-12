@@ -131,6 +131,27 @@ def test_the_panel_opens_the_trash_on_the_right_item_for_both_kinds(qapp, app_co
     assert chosen == ["abc", "doc:d1"]
 
 
+def test_the_panel_lists_every_device_a_book_was_sent_to(qapp, app_context):
+    from smartdoc.infrastructure.devices.transport import ConnectedDevice
+
+    app_context.db.add_or_update_document("d1", {"title": "Sách", "file_path": "a.epub", "created_at": 1.0})
+    boox = app_context.devices.register("Boox", ConnectedDevice(identity="mtp:1", name="Air4", kind="mtp"))
+    card = app_context.devices.register("Thẻ nhớ", ConnectedDevice(identity="drive:2", name="E:", kind="drive"))
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 5, "Books")
+    app_context.devices.record_sent(card.id, "d1", "a.epub", 5, "")
+    panel = DocumentDetailPanel(app_context)
+
+    panel.set_document(_sample_doc())
+    assert not panel.devices_label.isHidden()
+    assert "Boox" in panel.devices_label.text() and "Thẻ nhớ" in panel.devices_label.text()
+
+
+def test_the_panel_has_no_device_line_for_a_book_never_sent(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc())
+    assert panel.devices_label.isHidden()
+
+
 def test_set_document_none_returns_to_empty(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc())

@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 14:47] - Task: device-sync/04 - Ghi lại sách đã gửi và hiện trong panel chi tiết
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:device_registry`, `:presentation:ereader_dialog`, `:presentation:detail_panel`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `schema_migrations.py`: Migration 9 bảng `device_books` (khóa chính thiết bị + sách; tên file, kích thước, thư mục, thời điểm gửi, trạng thái hiện diện, lần kiểm tra cuối)
+    - `database.py`: `record_device_book` (upsert), `list_device_books_for_doc`; `delete_document` và `delete_device` dọn các dòng liên quan
+    - `device_registry.py`: `SentRecord`, `record_sent`, `sent_to`; hằng `PRESENT/MISSING/UNKNOWN`
+    - `ereader_dialog.py`: ghi bản ghi khi gửi thành công tới máy đã đăng ký
+    - `detail_panel.py`: dòng "Trên máy đọc" (tên máy · ngày gửi), ẩn khi chưa gửi
+    - tests: `test_device_registry.py` (+5), `test_ereader_dialog.py` (+2), `test_detail_panel.py` (+2)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Máy chưa đặt tên không ghi bản ghi (không có thiết bị để gán); thẻ thiết bị đã gợi ý đăng ký.
+  - Bản ghi chỉ ghi sự thật về máy; không bao giờ làm đổi trạng thái của sách trong thư viện.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Cột `presence` và `checked_at` đã có nhưng chưa ai cập nhật ngoài lúc gửi: ticket 06 làm việc kiểm tra.
+  - Tên máy do người dùng đặt được thoát HTML trước khi vào panel chi tiết.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:45] - Task: device-sync/03 - Đăng ký và quản lý Thiết bị
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:device_registry` (mới), `:core:app_context`, `:presentation:devices_dialog` (mới), `:presentation:ereader_dialog`, `:presentation:main_window`, strings, tests
@@ -637,6 +656,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Ghi nhớ sách đã gửi sang máy đọc nào.** Sách gửi tới một máy đã đặt tên được ghi lại, và panel chi tiết có dòng "Trên máy đọc" liệt kê từng máy kèm ngày gửi.
 - **Đặt tên cho máy đọc sách.** Khi mở "Gửi sang máy đọc sách" với một máy chưa quen, MewBook hỏi "Đây có phải máy mới không?" và bạn bấm "Đăng ký máy này…" để đặt tên; máy đã đặt tên được nhận ra ở những lần cắm sau. Công cụ › "Máy đọc sách của tôi…" cho đổi tên hoặc bỏ đăng ký.
 - **Dấu liên kết giữa bộ sưu tập và hashtag trùng tên.** Khi một bộ sưu tập có cùng tên với một hashtag đang dùng, cả hai hiện dấu 🔗 kèm gợi ý. Đây chỉ là dấu để bạn nhận ra; gắn hashtag không tự đưa sách vào bộ sưu tập.
 - **Tạo bộ sưu tập chỉ cần một cái tên.** Không còn điều kiện lọc: bạn tự đưa sách vào; "Lưu thành bộ sưu tập" từ bộ lọc lưu các sách đang hiển thị. Menu chuột phải của bộ sưu tập còn "Đổi tên" và "Xóa bộ sưu tập".

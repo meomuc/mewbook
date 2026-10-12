@@ -1219,6 +1219,7 @@ class DatabaseManager:
             self.connection.execute("DELETE FROM smart_classification WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM metadata_history WHERE doc_id = ?", (doc_id,))
             self.connection.execute("DELETE FROM reading_progress WHERE doc_id = ?", (doc_id,))
+            self.connection.execute("DELETE FROM device_books WHERE doc_id = ?", (doc_id,))
             self.connection.commit()
 
     def mark_document_trashed(self, doc_id: str, trash_item_id: str, removed_at: float | None = None) -> None:
@@ -1874,7 +1875,27 @@ class DatabaseManager:
     def delete_device(self, device_id: str) -> None:
         with self.write_lock:
             self.connection.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+            self.connection.execute("DELETE FROM device_books WHERE device_id = ?", (device_id,))
             self.connection.commit()
+
+    def record_device_book(self, device_id: str, doc_id: str, file_name: str, file_size: int, folder: str,
+                           sent_at: float) -> None:
+        """A book was just put on a device: it is there (presence 'present', checked now). Sending it again updates the row."""
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT INTO device_books (device_id, doc_id, file_name, file_size, folder, sent_at, presence, checked_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, 'present', ?)"
+                " ON CONFLICT(device_id, doc_id) DO UPDATE SET file_name = excluded.file_name, file_size = excluded.file_size,"
+                " folder = excluded.folder, sent_at = excluded.sent_at, presence = 'present', checked_at = excluded.checked_at",
+                (device_id, doc_id, file_name, file_size, folder, sent_at, sent_at))
+            self.connection.commit()
+
+    def list_device_books_for_doc(self, doc_id: str) -> list[dict[str, Any]]:
+        """Where one book was sent, in the order the devices were registered."""
+        rows = self.connection.execute(
+            "SELECT b.*, d.name AS device_name FROM device_books b JOIN devices d ON d.id = b.device_id"
+            " WHERE b.doc_id = ? ORDER BY d.created_at ASC, d.rowid ASC", (doc_id,)).fetchall()
+        return [dict(row) for row in rows]
 
     def ensure_reading_list(self) -> str:
         """Creates the built-in "Sẽ đọc" collection on first use and returns

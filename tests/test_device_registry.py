@@ -55,6 +55,55 @@ def test_unregistering_forgets_the_device_and_a_later_plug_in_asks_again(app_con
     assert app_context.devices.list() == [] and app_context.devices.match(BOOX) is None
 
 
+def _book(app_context, doc_id="d1"):
+    app_context.db.add_or_update_document(doc_id, {"title": f"Sách {doc_id}", "file_path": f"{doc_id}.epub", "created_at": 1.0})
+
+
+def test_a_book_sent_to_two_devices_has_a_record_for_each(app_context):
+    _book(app_context)
+    boox = app_context.devices.register("Boox", BOOX)
+    card = app_context.devices.register("Thẻ nhớ", CARD)
+    app_context.devices.record_sent(boox.id, "d1", "Tác giả - Sách d1.epub", 11, "Books")
+    app_context.devices.record_sent(card.id, "d1", "Sách d1.epub", 11, "")
+    records = app_context.devices.sent_to("d1")
+    assert [(r.device_name, r.file_name, r.file_size, r.folder) for r in records] == [
+        ("Boox", "Tác giả - Sách d1.epub", 11, "Books"), ("Thẻ nhớ", "Sách d1.epub", 11, "")]
+    assert all(r.sent_at > 0 and r.presence == "present" for r in records)  # it is there: it was just copied
+
+
+def test_sending_the_same_book_to_the_same_device_again_keeps_one_record(app_context):
+    _book(app_context)
+    boox = app_context.devices.register("Boox", BOOX)
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 11, "Books")
+    app_context.devices.record_sent(boox.id, "d1", "b.epub", 12, "Books")
+    (record,) = app_context.devices.sent_to("d1")
+    assert record.file_name == "b.epub" and record.file_size == 12
+
+
+def test_a_book_never_sent_has_no_records(app_context):
+    _book(app_context)
+    assert app_context.devices.sent_to("d1") == []
+
+
+def test_forgetting_a_device_drops_its_records_but_never_the_book(app_context):
+    _book(app_context)
+    boox = app_context.devices.register("Boox", BOOX)
+    card = app_context.devices.register("Thẻ nhớ", CARD)
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 11, "Books")
+    app_context.devices.record_sent(card.id, "d1", "a.epub", 11, "")
+    app_context.devices.unregister(boox.id)
+    assert [r.device_name for r in app_context.devices.sent_to("d1")] == ["Thẻ nhớ"]
+    assert app_context.db.get_document("d1") is not None
+
+
+def test_deleting_a_book_for_good_drops_what_was_recorded_about_it(app_context):
+    _book(app_context)
+    boox = app_context.devices.register("Boox", BOOX)
+    app_context.devices.record_sent(boox.id, "d1", "a.epub", 11, "Books")
+    app_context.db.delete_document("d1")
+    assert app_context.devices.sent_to("d1") == []
+
+
 def test_several_devices_are_kept_apart(app_context):
     first = app_context.devices.register("Boox", BOOX)
     second = app_context.devices.register("Thẻ nhớ", CARD)

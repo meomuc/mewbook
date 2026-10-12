@@ -22,6 +22,7 @@ once that source lands. See DatabaseManager.add_or_update_document for where the
 """
 from __future__ import annotations
 
+import html
 import sqlite3
 import threading
 from datetime import datetime
@@ -325,8 +326,10 @@ class DocumentDetailPanel(QFrame):
         self.file_status_label.clicked.connect(self._on_file_status_clicked)
         self.path_label = _PathLabel(self)
         self.path_label.clicked.connect(self._on_reveal)
+        self.devices_label = self._value_label()  # the e-readers this book was put on (hidden when none)
         self._info_rows: list[tuple[QLabel, QWidget]] = []
         self._status_caption_label: QLabel | None = None
+        self._devices_caption_label: QLabel | None = None
         info = QGridLayout()
         info.setContentsMargins(0, 0, 0, 0)
         info.setHorizontalSpacing(8)
@@ -338,6 +341,7 @@ class DocumentDetailPanel(QFrame):
             ("Năm, ngôn ngữ", self.year_label), ("ISBN", self.isbn_label),
             ("Thêm / sửa", self.dates_label), ("Tiến trình đọc", self.reading_progress_label),
             ("Đánh giá", self.rating_label), ("Tình trạng", self.file_status_label), ("Vị trí file", self.path_label),
+            ("Trên máy đọc", self.devices_label),
         )
         for row, (caption, value) in enumerate(rows):
             label = QLabel(caption, self)
@@ -348,6 +352,8 @@ class DocumentDetailPanel(QFrame):
             self._info_rows.append((label, value))
             if caption == "Tình trạng":
                 self._status_caption_label = label
+            if caption == "Trên máy đọc":
+                self._devices_caption_label = label
 
         # -- hashtags --
         self.tags_title_label = self._caption("Hashtag")
@@ -660,6 +666,7 @@ class DocumentDetailPanel(QFrame):
                 self._status_caption_label.hide()
             self.path_label.set_path(file_path)
 
+        self._show_devices(doc)
         self.tag_editor.set_tags([t for t in (doc.get("tags", "") or "").split(",") if t.strip()])
 
         summary = doc.get("ai_summary")
@@ -670,6 +677,15 @@ class DocumentDetailPanel(QFrame):
         else:
             self.summary_label.hide()
             self.ai_summary_action_label.setText("Tạo tóm tắt")
+
+    def _show_devices(self, doc: dict) -> None:
+        """The e-readers this book was put on, one per line with the day it went; nothing at all for a book never sent."""
+        records = self.context.devices.sent_to(doc.get("id") or "")
+        lines = [f"{html.escape(record.device_name)} · {datetime.fromtimestamp(record.sent_at):%d/%m/%Y}" for record in records]
+        self.devices_label.setText("<br>".join(lines))
+        self.devices_label.setVisible(bool(records))
+        if self._devices_caption_label is not None:
+            self._devices_caption_label.setVisible(bool(records))
 
     def _show_format_line(self, doc: dict) -> None:
         tm = theme_manager()
