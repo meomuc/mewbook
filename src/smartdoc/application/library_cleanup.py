@@ -18,6 +18,7 @@ import logging
 import os
 from dataclasses import dataclass
 
+from smartdoc.application.removal import RemovalMode
 from smartdoc.core.event_bus import LibraryUpdatedEvent
 from smartdoc.domain.library_filter import TINY_FILE_BYTES
 
@@ -61,7 +62,7 @@ class LibraryCleanupService:
                 continue
             items.append((doc_id, path))
         if items:
-            sent = self.context.trash.send(items)
+            sent = self.context.removal.remove(items, RemovalMode.TRASH_FILE)
             result.done = len(sent.moved)
             result.failed = len(sent.failed)
             result.skipped += len(sent.missing)

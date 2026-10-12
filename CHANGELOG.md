@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 13:56] - Task: unified-trash/01 - Gom mọi đường xóa về một cửa vào
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:removal`, `:core:app_context`, `:presentation:library_view`, `:presentation:duplicate_finder_dialog`, `:application:library_cleanup`, `:presentation:file_actions`
+  - File tạo mới / Chỉnh sửa:
+    - `src/smartdoc/application/removal.py` (mới): `RemovalService.remove(items, mode)` với `RemovalMode.TRASH_FILE` và `FORGET_RECORD`, một nơi quyết định số phận file và dòng thư viện
+    - `src/smartdoc/core/app_context.py`: đăng ký `context.removal`
+    - `src/smartdoc/presentation/library_view.py`, `duplicate_finder_dialog.py`, `src/smartdoc/application/library_cleanup.py`: bốn chỗ xóa sách gọi `context.removal.remove`
+    - `src/smartdoc/presentation/file_actions.py`: gỡ `delete_document(s)` (hết người gọi, gồm nhánh xóa file vật lý không có giao diện nào dùng)
+    - `tests/test_removal.py` (mới), `tests/test_file_actions.py`: 5 test xóa chuyển sang `test_removal.py`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Chỉ tách cửa vào, chưa đổi hành vi nhìn thấy được; hai chế độ phản ánh đúng hai cơ chế đã có. Các ticket 02 trở đi chỉ đổi hành vi ở `removal.py`.
+  - Cả hai chế độ trả `SendResult` để các nơi gọi giữ nguyên cách đọc kết quả.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Đã có sẵn danh sách "Sách đã gỡ khỏi thư viện" (bảng đường dẫn loại trừ): ticket 02 và 07 phải hợp nhất với Thùng rác, không tạo màn hình thứ hai.
+  - Loại trừ hiện tự bị quên khi file cùng đường dẫn đổi kích thước; ADR 0002 nói "vĩnh viễn", cần chốt khi làm ticket 02.
+  - `forget_missing` trong dọn thư viện vẫn xóa cứng bản ghi (ngoài phạm vi ticket).
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 13:50] - Task: Thêm dòng Category cho 18 ticket (triage)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có code; tài liệu theo dõi công việc

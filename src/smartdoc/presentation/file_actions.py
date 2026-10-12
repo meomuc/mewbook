@@ -1,7 +1,7 @@
 """TDD-014: File Action Engine.
 
 Talks to the OS shell on behalf of the library view (open a document, reveal
-it in Explorer, remove it from the index and optionally delete the file).
+it in Explorer, copy it to an e-reader). Removing a book from the library is not done here: see application/removal.py.
 Never uses shell=True — arguments are passed as argument lists (or, for
 Windows Explorer's `/select,"path"` syntax specifically, a single pre-built
 string handed straight to CreateProcess with no shell involved) so a file
@@ -15,8 +15,6 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-
-from smartdoc.core.event_bus import LibraryUpdatedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -69,25 +67,6 @@ class FileActionEngine:
         except (FileNotFoundError, OSError, subprocess.CalledProcessError):
             logger.exception("Failed to reveal file in file manager: %s", file_path)
             return False
-
-    def delete_document(self, doc_id: str, file_path: str | None = None, delete_physical_file: bool = False) -> None:
-        self.delete_documents([(doc_id, file_path)], delete_physical_file)
-
-    def delete_documents(self, items: list[tuple[str, str | None]], delete_physical_file: bool = False) -> None:
-        """Bulk form of delete_document: one LibraryUpdatedEvent for the
-        whole batch instead of one per document."""
-        for doc_id, file_path in items:
-            self.context.db.delete_document(doc_id)
-            if not delete_physical_file and file_path and os.path.isfile(file_path):
-                # The file stays where it is, so the folder watcher would find it again: remember it was dropped on purpose.
-                self.context.db.exclude_paths([file_path])
-            if delete_physical_file and file_path:
-                try:
-                    Path(file_path).unlink(missing_ok=True)
-                except OSError:
-                    logger.exception("Failed to delete physical file: %s", file_path)
-        if items:
-            self.context.event_bus.publish(LibraryUpdatedEvent())
 
     def copy_to_ereader(self, file_path: str, target_folder: str) -> str:
         """Copies one file into the e-reader's folder. Returns "" when it worked, otherwise the reason in plain words

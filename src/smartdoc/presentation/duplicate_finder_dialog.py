@@ -51,11 +51,11 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.duplicate_finder import DuplicateEngine, DuplicateSearchCancelled
+from smartdoc.application.removal import RemovalMode
 from smartdoc.core.perf_log import log_perf
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.duplicate_list_pane import DuplicateListPane
-from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.format_utils import file_type_label, human_size
 from smartdoc.presentation.hint_label import HintLabel
 from smartdoc.presentation.theme import ROLE_RESULT, role_css
@@ -152,7 +152,6 @@ class DuplicateFinderDialog(DesignDialog):
                          icon="filter", width=860)
         self.context = context
         self.engine = DuplicateEngine(context)
-        self.file_actions = FileActionEngine(context)
         self._groups = {MODE_EXACT: [], MODE_FUZZY: []}
         self._mode = MODE_EXACT
         self._current = -1  # index of the group shown on the right
@@ -546,7 +545,7 @@ class DuplicateFinderDialog(DesignDialog):
     def _on_remove_docs(self, others: list[dict]) -> None:
         if not others:
             return
-        self.file_actions.delete_documents([(d["id"], d.get("file_path")) for d in others], delete_physical_file=False)
+        self.context.removal.remove([(d["id"], d.get("file_path")) for d in others], RemovalMode.FORGET_RECORD)
         self._forget({d["id"] for d in others})
 
     def _on_trash_files(self) -> None:
@@ -569,7 +568,8 @@ class DuplicateFinderDialog(DesignDialog):
         items = [(d["id"], d.get("file_path")) for d in others]
 
         def move(progress):
-            return self.context.trash.send(items, lambda done, total: progress(done, total, f"Đã chuyển {done}/{total} file"))
+            return self.context.removal.remove(items, RemovalMode.TRASH_FILE,
+                                               lambda done, total: progress(done, total, f"Đã chuyển {done}/{total} file"))
 
         result, error = run_with_progress(  # off the GUI thread: moving across drives copies the bytes
             self, title="Thùng rác", message=f"Mèo đang chuyển {count} file vào Thùng rác…", work=move, delay_ms=400,

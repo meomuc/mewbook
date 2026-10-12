@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from smartdoc.application.removal import RemovalMode
 from smartdoc.application.smart_classifier import ClassifyScope
 from smartdoc.core.event_bus import (
     CoverSizeChangedEvent,
@@ -1363,7 +1364,7 @@ class LibraryListWidget(QWidget):
         ):
             return
         items = [(d["id"], d.get("file_path")) for d in docs]
-        result = self.context.trash.send(items)
+        result = self.context.removal.remove(items, RemovalMode.TRASH_FILE)
         if result.failed:
             from PySide6.QtWidgets import QMessageBox
             lines = [reason for _doc_id, reason in result.failed]

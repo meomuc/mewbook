@@ -17,6 +17,7 @@ from smartdoc.application.gather_service import GatherService
 from smartdoc.application.info_refresh import InfoRefresh
 from smartdoc.application.library_reset_service import LibraryResetService
 from smartdoc.application.relink_service import RelinkService
+from smartdoc.application.removal import RemovalService
 from smartdoc.application.trash_service import TrashService
 from smartdoc.application.update_checker import UpdateChecker
 from smartdoc.core.config import ConfigManager
@@ -45,6 +46,8 @@ class AppContext:
         self.relink = RelinkService(self.db, self.event_bus)
         # MewBook's own trash: files removed as duplicates wait here before they are deleted for good.
         self.trash = TrashService(self)
+        # The one entry point for removing books from the library (file to the trash, or just the row).
+        self.removal = RemovalService(self)
         # "Gom sách về một thư mục": copy or move the library's files into one folder.
         self.gather = GatherService(self)
         # "Cập nhật ngay": re-read what the files say (size, hash, pages) on demand, next to the background work.
