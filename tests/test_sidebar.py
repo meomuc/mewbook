@@ -56,6 +56,21 @@ def test_reload_collections_lists_saved_collections(qapp, app_context):
     assert _item(sidebar, 1).text() == "Sach AI (0)"
 
 
+def test_a_collection_with_the_name_of_a_hashtag_carries_a_link_mark_and_says_so(qapp, app_context):
+    app_context.db.add_or_update_document(
+        "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "tags": "Lịch sử", "extension": "pdf", "created_at": 1.0})
+    for name in ("lịch sử", "Không trùng"):
+        collection = VirtualCollection(name=name)
+        app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at)
+
+    sidebar = LibrarySidebar(app_context)
+
+    linked = next(item for item in _items(sidebar) if item.text().startswith("lịch sử"))
+    plain = next(item for item in _items(sidebar) if item.text().startswith("Không trùng"))
+    assert "🔗" in linked.text() and "Lịch sử" in linked.toolTip()
+    assert "🔗" not in plain.text() and plain.toolTip() == ""
+
+
 def test_reload_collections_shows_document_count_per_collection(qapp, app_context):
     app_context.db.add_or_update_document(
         "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "extension": "pdf", "created_at": 1.0}

@@ -29,6 +29,27 @@ def _counts(ctx, category, flt=None):
     return {c.label: c.count for c in ctx.facets.counts(category, flt or LibraryFilter())}
 
 
+# -- a collection and a hashtag with the same name ---------------------------------------------------
+
+
+def test_a_collection_named_like_a_hashtag_is_linked_but_never_filled_from_it(app_context):
+    _add(app_context, "d1", tags="Lịch sử, Thơ")
+    same = VirtualCollection(name="  LỊCH SỬ ")  # compared the way hashtags are: case and spacing aside
+    other = VirtualCollection(name="Không trùng")
+    for collection in (same, other):
+        app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+
+    assert app_context.facets.linked_names() == {"lịch sử": "  LỊCH SỬ "}
+    assert app_context.db.list_collection_document_ids(same.id) == []  # tagging a book never files it in the collection
+
+
+def test_nothing_is_linked_when_no_book_has_that_hashtag(app_context):
+    _add(app_context, "d1", tags="Thơ")
+    collection = VirtualCollection(name="Kiếm hiệp")
+    app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+    assert app_context.facets.linked_names() == {}
+
+
 # -- filter_where ---------------------------------------------------------------------------
 
 

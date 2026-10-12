@@ -1,5 +1,20 @@
 # Changelog
 
+[12/10/2026 - 14:38] - Task: manual-collections/03 - Dấu liên kết khi Bộ sưu tập trùng tên hashtag
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:facet_counter`, `:presentation:sidebar`, `:presentation:facet_panel`, `:domain:library_filter`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `facet_counter.py`: `linked_names()` (hashtag có bộ sưu tập trùng tên, so sánh bằng `normalize_key` như mọi nơi so sánh hashtag)
+    - `sidebar.py`, `facet_panel.py`: dấu 🔗 và gợi ý ở dòng bộ sưu tập và chip hashtag
+    - `library_filter.py`: hằng `LINK_MARK`
+    - tests: `test_facet_counter.py` (2), `test_facet_panel.py` (1), `test_sidebar.py` (1)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Chỉ là dấu hiển thị; không có chỗ nào lấy thành viên từ hashtag (có test khẳng định gắn hashtag không đưa sách vào bộ sưu tập).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Một hashtag chỉ được coi là có khi còn sách (chưa xóa) mang nó; xóa hết sách thì dấu biến mất.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:36] - Task: manual-collections/02 - Gỡ giao diện quy tắc lọc khỏi Bộ sưu tập
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:collection_dialog`, `:presentation:sidebar`, `:presentation:save_filter_dialog`, `:domain:filter_collections` (xóa), tests
@@ -586,6 +601,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Dấu liên kết giữa bộ sưu tập và hashtag trùng tên.** Khi một bộ sưu tập có cùng tên với một hashtag đang dùng, cả hai hiện dấu 🔗 kèm gợi ý. Đây chỉ là dấu để bạn nhận ra; gắn hashtag không tự đưa sách vào bộ sưu tập.
 - **Tạo bộ sưu tập chỉ cần một cái tên.** Không còn điều kiện lọc: bạn tự đưa sách vào; "Lưu thành bộ sưu tập" từ bộ lọc lưu các sách đang hiển thị. Menu chuột phải của bộ sưu tập còn "Đổi tên" và "Xóa bộ sưu tập".
 - **Bộ sưu tập chỉ còn các sách bạn tự đưa vào.** Khi nâng cấp, bộ sưu tập theo quy tắc cũ được chốt thành danh sách sách khớp quy tắc tại thời điểm đó (cộng với sách bạn đã thêm tay) và không còn tự thêm sách mới.
 - **Chọn thư mục thùng rác.** Cài đặt › Sao lưu và khôi phục có hàng "Thư mục thùng rác" (chọn thư mục khác, ví dụ trên ổ khác, hoặc dùng mặc định). Đổi thư mục chỉ áp dụng cho những lần "Xóa file" sau; mục đã có vẫn khôi phục được.

@@ -45,6 +45,7 @@ from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.library_filter import (
     AUTHORS,
     FORMATS,
+    LINK_MARK,
     MODE_GO,
     MODE_TOGGLE,
     SORT_BY_COUNT,
@@ -90,6 +91,7 @@ class _Entry:
     members: tuple[str, ...] = ()
     in_group: str | None = None  # the folder a plain value is filed under
     bucket: bool = False  # "Chưa phân loại" / "Không rõ": not a real name, can't be renamed
+    linked_collection: str | None = None  # a collection with this hashtag's name (a mark only, no membership)
 
 
 def _dot_icon(color: str) -> QIcon:
@@ -352,6 +354,7 @@ class FacetPanel(QWidget):
         shown: list[_Entry] = []
         hidden = 0
         real_shown = 0
+        linked = facets.linked_names() if category == TAGS else {}
         for choice in counts:
             entry = _Entry(
                 choice.value,
@@ -360,6 +363,7 @@ class FacetPanel(QWidget):
                 flt.has_value(category, choice.value),
                 in_group=filed.get(value_key(category, choice.value)),
                 bucket=choice.value in (UNKNOWN_AUTHOR, NO_TAG),
+                linked_collection=linked.get(value_key(category, choice.value)),
             )
             is_bucket = entry.bucket
             if limit is None or category in self._expanded or entry.selected or is_bucket or real_shown < limit:
@@ -412,10 +416,12 @@ class FacetPanel(QWidget):
                 )
                 pool[entry.value] = button
             prefix = "📂 " if entry.group_id else ""
-            button.setText(f"{prefix}{entry.label} · {_fmt(entry.count)}")
-            button.setToolTip(
-                "Không có tài liệu nào với các bộ lọc khác đang bật" if not entry.count else f"{_fmt(entry.count)} tài liệu"
-            )
+            mark = f" {LINK_MARK}" if entry.linked_collection else ""
+            button.setText(f"{prefix}{entry.label}{mark} · {_fmt(entry.count)}")
+            tip = "Không có tài liệu nào với các bộ lọc khác đang bật" if not entry.count else f"{_fmt(entry.count)} tài liệu"
+            if entry.linked_collection:
+                tip += f"\nTrùng tên với bộ sưu tập “{entry.linked_collection}” (chỉ để bạn nhận ra; sách không tự vào bộ sưu tập)"
+            button.setToolTip(tip)
             button.setChecked(entry.selected)
             # A picked chip shows an accent dot as well as the accent border: not colour alone.
             button.setIcon(_dot_icon(theme_manager().token("accent")) if entry.selected else QIcon())

@@ -46,6 +46,8 @@ CATEGORY_LABELS = {
 STATUS_MISSING = "Thiếu file"
 STATUS_TINY = "File quá nhỏ"
 STATUS_TRASH = "Thùng rác"  # books removed from the library (either kind): the only list they appear in
+# Shown next to a collection and a hashtag that share a name; a mark for the person only, they never share members.
+LINK_MARK = "🔗"
 TINY_FILE_BYTES = 5 * 1024
 
 # How a list of facet values is ordered -- shared by the sidebar's sections (facet_panel.py, count/name only) and the

@@ -54,6 +54,21 @@ def _pick_action(text_substring):
 # -- what is listed ----------------------------------------------------------------------------
 
 
+def test_a_hashtag_with_the_name_of_a_collection_carries_a_link_mark_and_says_so(qapp, app_context):
+    from smartdoc.domain.smart_collections import VirtualCollection
+
+    _seed(app_context)
+    collection = VirtualCollection(name="thơ")
+    app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+    panel = FacetPanel(app_context)
+
+    chips = {button.text(): button for button in panel._chips[TAGS].values() if not button.isHidden()}
+    linked = next(button for text, button in chips.items() if text.startswith("Thơ"))
+    plain = next(button for text, button in chips.items() if text.startswith("Kiếm hiệp"))
+    assert "🔗" in linked.text() and "thơ" in linked.toolTip()
+    assert "🔗" not in plain.text() and "bộ sưu tập" not in plain.toolTip()
+
+
 def test_tags_show_as_chips_with_counts_and_an_untagged_bucket(qapp, app_context):
     _seed(app_context)
 

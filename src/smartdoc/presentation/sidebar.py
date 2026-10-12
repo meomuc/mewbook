@@ -19,8 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
-from smartdoc.domain.author_names import NO_TAG
-from smartdoc.domain.library_filter import COLLECTIONS, MODE_GO, MODE_TOGGLE, TAGS
+from smartdoc.domain.author_names import NO_TAG, normalize_key
+from smartdoc.domain.library_filter import COLLECTIONS, LINK_MARK, MODE_GO, MODE_TOGGLE, TAGS
 from smartdoc.infrastructure.database import READING_LIST_ID
 from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.design_dialog import confirm_danger
@@ -142,8 +142,9 @@ class CollectionListPanel(QWidget):
         counts = self.context.facets.collection_counts(flt)
         reading = [r for r in rows if r["id"] == READING_LIST_ID]
         others = [r for r in rows if r["id"] != READING_LIST_ID]
+        linked_tags = self.context.facets.linked_names()
         for row in reading:
-            self._add_collection_item(row, counts.get(row["id"], 0))
+            self._add_collection_item(row, counts.get(row["id"], 0), linked_tags)
         unclassified = next((c.count for c in self.context.facets.counts(TAGS, flt) if c.value == NO_TAG), 0)
         item = QListWidgetItem(self._collection_row_text("Chưa phân loại", unclassified))
         item.setData(_COLLECTION_ID_ROLE, UNCLASSIFIED_ID)
@@ -158,15 +159,19 @@ class CollectionListPanel(QWidget):
         heading.setToolTip("Tạo bộ sưu tập mới")
         self.collections_list.addItem(heading)
         for row in others:
-            self._add_collection_item(row, counts.get(row["id"], 0))
+            self._add_collection_item(row, counts.get(row["id"], 0), linked_tags)
 
         self._fit_list_height()
         self._apply_selection()
 
-    def _add_collection_item(self, row, count: int) -> None:
-        item = QListWidgetItem(self._collection_row_text(row["name"], count))
+    def _add_collection_item(self, row, count: int, linked_tags: dict[str, str] | None = None) -> None:
+        tag = (linked_tags or {}).get(normalize_key(row["name"]))
+        item = QListWidgetItem(self._collection_row_text(f"{row['name']} {LINK_MARK}" if tag else row["name"], count))
         item.setData(_COLLECTION_ID_ROLE, row["id"])
         item.setData(_COLLECTION_NAME_ROLE, row["name"])
+        if tag:
+            hashtag = self.context.facets.label_for(TAGS, row["name"])  # the hashtag as the library spells it
+            item.setToolTip(f"Trùng tên với hashtag “{hashtag}” (chỉ để bạn nhận ra; sách không tự vào bộ sưu tập)")
         self.collections_list.addItem(item)
 
     def _fit_list_height(self) -> None:

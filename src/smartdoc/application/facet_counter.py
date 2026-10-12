@@ -185,6 +185,17 @@ class FacetCounter:
             return NO_TAG_LABEL if value == NO_TAG else self._tag_labels.get(value_key(TAGS, value), value)
         return value
 
+    def linked_names(self) -> dict[str, str]:
+        """{hashtag key: collection name} for each collection whose name is also a hashtag some book has. Only something to
+        show the person: a collection never takes its members from a hashtag, nor the other way round."""
+        self._load()
+        linked: dict[str, str] = {}
+        for row in self.context.db.list_collections():
+            key = normalize_key(row["name"])
+            if key in self._tag_labels:
+                linked[key] = row["name"]
+        return linked
+
     def collection_counts(self, flt: LibraryFilter) -> dict[str, int]:
         """Documents per collection id under everything else in `flt` -- every
         collection is listed, empty ones as 0 (a collection you just made must not vanish)."""
