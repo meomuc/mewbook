@@ -8,6 +8,7 @@ instead of trying to intercept Qt's own exec().
 from PySide6.QtCore import Qt, QItemSelectionModel
 from PySide6.QtWidgets import QMessageBox
 
+from smartdoc.application.removal import RemovalMode
 from smartdoc.presentation.library_view import LibraryListWidget
 
 
@@ -97,7 +98,7 @@ def test_single_selection_delete_confirmed_removes_document(qapp, app_context, m
     doc_at_row0 = widget.model.document_at(0)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa khỏi thư viện"))
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: RemovalMode.REMOVE_FROM_LIBRARY)
 
     widget._show_context_menu(position)
 
@@ -111,7 +112,7 @@ def test_single_selection_delete_cancelled_keeps_document(qapp, app_context, mon
     position = _select_row(widget, qapp, 0)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa khỏi thư viện"))
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: False)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: None)
 
     widget._show_context_menu(position)
 
@@ -193,7 +194,7 @@ def test_multi_selection_delete_confirmed_removes_all_selected(qapp, app_context
     position = _select_row(widget, qapp, 0, 1)
 
     monkeypatch.setattr(LibraryListWidget, "_exec_menu", _pick_action_containing("Xóa"))
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: RemovalMode.REMOVE_FROM_LIBRARY)
 
     widget._show_context_menu(position)
 
@@ -302,7 +303,7 @@ def test_delete_selected_removes_confirmed_selection(qapp, app_context, monkeypa
     widget = LibraryListWidget(app_context)
     _select_row(widget, qapp, 0, 1)
 
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: RemovalMode.REMOVE_FROM_LIBRARY)
 
     widget.delete_selected()
 
@@ -313,7 +314,7 @@ def test_delete_selected_removes_the_books_from_the_library_and_keeps_the_files(
     file_a, file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
     widget = LibraryListWidget(app_context)
     _select_row(widget, qapp, 0, 1)
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: True)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: RemovalMode.REMOVE_FROM_LIBRARY)
 
     widget.delete_selected()
 
@@ -322,12 +323,38 @@ def test_delete_selected_removes_the_books_from_the_library_and_keeps_the_files(
     assert {i.kind for i in app_context.trash.list_items()} == {"library"}
 
 
+def test_delete_selected_with_delete_file_moves_the_files_into_the_trash_folder(qapp, app_context, tmp_path, monkeypatch):
+    file_a, file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: RemovalMode.TRASH_FILE)
+
+    widget.delete_selected()
+
+    assert not file_a.exists() and not file_b.exists()
+    assert app_context.db.query_documents() == []
+    items = app_context.trash.list_items()
+    assert {i.kind for i in items} == {"file"} and {i.original_path for i in items} == {str(file_a), str(file_b)}
+
+
+def test_cancelling_the_removal_dialog_changes_nothing(qapp, app_context, tmp_path, monkeypatch):
+    file_a, _file_b = _seed_two_docs_with_real_files(app_context, tmp_path)
+    widget = LibraryListWidget(app_context)
+    _select_row(widget, qapp, 0, 1)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal", lambda parent, docs: None)
+
+    widget.delete_selected()
+
+    assert file_a.exists() and len(app_context.db.query_documents()) == 2 and not app_context.trash.list_items()
+
+
 def test_delete_selected_does_nothing_when_nothing_selected(qapp, app_context, monkeypatch):
     _seed_two_docs(app_context)
     widget = LibraryListWidget(app_context)
 
     asked = []
-    monkeypatch.setattr("smartdoc.presentation.library_view.confirm_danger", lambda parent, **kw: asked.append(1) or True)
+    monkeypatch.setattr("smartdoc.presentation.library_view.ask_removal",
+                        lambda parent, docs: asked.append(1) or RemovalMode.REMOVE_FROM_LIBRARY)
 
     widget.delete_selected()
 

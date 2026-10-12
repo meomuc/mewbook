@@ -58,7 +58,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.application.removal import RemovalMode
 from smartdoc.application.smart_classifier import ClassifyScope
 from smartdoc.core.event_bus import (
     CoverSizeChangedEvent,
@@ -72,7 +71,7 @@ from smartdoc.domain.library_filter import LibraryFilter, describe
 from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
-from smartdoc.presentation.design_dialog import confirm_danger
+from smartdoc.presentation.removal_dialog import ask_removal
 from smartdoc.presentation.ereader_dialog import EreaderSendDialog
 from smartdoc.presentation.format_conversion_dialog import FormatConversionDialog
 from smartdoc.presentation.cover_loader import CoverLoader
@@ -1350,21 +1349,11 @@ class LibraryListWidget(QWidget):
     def _delete_documents_with_confirm(self, docs: list[dict]) -> None:
         if not docs:
             return
-        count = len(docs)
-        names = [f"{d.get('title') or '(không có tên)'}" for d in docs[:8]]
-        if count > len(names):
-            names.append(f"… và {count - len(names)} sách khác")
-        if not confirm_danger(
-            self, title=f"Xóa {count} sách khỏi thư viện?", subtitle="Bước xác nhận cuối",
-            message=(f"<b>{count} sách</b> sẽ rời khỏi thư viện. File của chúng vẫn nằm nguyên chỗ cũ trên máy."),
-            items=names,
-            safe_text="<b>Có thể khôi phục:</b> vào Công cụ → Thùng rác để đưa sách trở lại với toàn bộ thông tin.",
-            ack_text=f"Tôi hiểu {count} sách sẽ rời khỏi thư viện", action_text=f"Xóa {count} sách khỏi thư viện",
-            cancel_text="Giữ lại",
-        ):
+        mode = ask_removal(self, docs)
+        if mode is None:
             return
         items = [(d["id"], d.get("file_path")) for d in docs]
-        result = self.context.removal.remove(items, RemovalMode.REMOVE_FROM_LIBRARY)
+        result = self.context.removal.remove(items, mode)
         if result.failed:
             from PySide6.QtWidgets import QMessageBox
             lines = [reason for _doc_id, reason in result.failed]

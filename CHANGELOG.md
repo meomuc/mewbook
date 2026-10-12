@@ -1,5 +1,20 @@
 # Changelog
 
+[12/10/2026 - 14:15] - Task: unified-trash/03 - "Xóa file" là lựa chọn thứ hai của hộp thoại xóa
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:removal_dialog`, `:presentation:library_view`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `src/smartdoc/presentation/removal_dialog.py` (mới): `RemovalChoiceDialog` + `ask_removal(parent, docs)`; mặc định "Xóa khỏi thư viện", nút xác nhận đổi nhãn theo lựa chọn
+    - `src/smartdoc/presentation/library_view.py`: xóa một và nhiều sách dùng `ask_removal`, rồi `context.removal.remove(items, mode)`
+    - `tests/test_removal_dialog.py` (mới, 4 test), `tests/test_library_view_context_menu.py` (mô phỏng `ask_removal`, thêm test lựa chọn Xóa file và hủy), `tests/test_schema_migrations.py` (sách đã vào thùng rác kiểu cũ thành loại `file`)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Cả hai lựa chọn đều khôi phục được nên bỏ ô "Tôi hiểu"; lựa chọn an toàn (không đụng file) là mặc định.
+  - `ask_removal` là điểm thay thế duy nhất cho test và dùng lại ở lọc trùng (ticket 04).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Cột "VỊ TRÍ CŨ" của Thùng rác vẫn hiện vị trí gốc cho loại `file`; vị trí hiện tại trong thư mục thùng rác thuộc ticket 07.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:09] - Task: unified-trash/02 - "Xóa khỏi thư viện" giữ nguyên file, sách vào Thùng rác
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, `:infrastructure:schema_migrations`, `:application:removal`, `:application:trash_service`, `:presentation:library_view`, `:presentation:trash_dialog`
@@ -466,6 +481,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Hộp thoại xóa sách có hai lựa chọn.** "Xóa khỏi thư viện" (mặc định, file giữ nguyên) và "Xóa file và thư viện" (file chuyển vào thư mục thùng rác). Cả hai khôi phục được trong Công cụ › Thùng rác.
 - **"Xóa khỏi thư viện" không còn chuyển file đi.** Sách rời khỏi thư viện nhưng file vẫn nằm nguyên chỗ cũ; sách nằm trong Thùng rác (cột "Tình trạng xóa"), khôi phục được và hết hạn như mục khác. Sách đã vào Thùng rác không còn hiện trong danh sách chính, tìm kiếm, số đếm bộ lọc và công cụ lọc trùng.
 
 ## [1.3.2] - 2026-10-07

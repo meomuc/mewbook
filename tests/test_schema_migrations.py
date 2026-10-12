@@ -79,6 +79,23 @@ def test_a_fresh_database_and_an_upgraded_one_end_up_with_the_same_schema(tmp_pa
     assert shape(upgraded) == shape(fresh)
 
 
+def test_a_book_trashed_under_the_old_behaviour_becomes_the_kind_whose_file_is_in_the_trash(tmp_path):
+    path = tmp_path / "library.db"
+    _library_1_0_0(path)
+    con = sqlite3.connect(path)
+    sm.migrate(con, sm.MIGRATIONS[:5])  # the library as the release before this change leaves it
+    con.execute("UPDATE documents SET file_status = 'trashed', trash_item_id = 'abc' WHERE id = 'd1'")
+    con.commit()
+    con.close()
+
+    db = DatabaseManager(str(path))
+    db.initialize_tables()
+
+    kinds = {row["id"]: row["removal_kind"] for row in db.connection.execute("SELECT id, removal_kind FROM documents")}
+    assert kinds == {"d0": None, "d1": "file", "d2": None}
+    assert [d["id"] for d in db.query_documents(order_by="documents.id")] == ["d0", "d2"]  # the trashed one is hidden
+
+
 def test_pending_migrations_run_once_in_order_and_set_the_version(tmp_path):
     con = sqlite3.connect(tmp_path / "a.db")
     con.execute("CREATE TABLE documents (id TEXT)")
