@@ -1,5 +1,15 @@
 # Changelog
 
+[12/10/2026 - 14:03] - Task: unified-trash/01 - sửa 4 test hỏng sau khi gỡ FileActionEngine.delete_documents
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa: `tests/test_watch_consistency.py` chuyển bốn chỗ gọi sang `context.removal.remove`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Giữ nguyên các khẳng định; test "xóa cả file" tự xóa file trước rồi gọi dịch vụ.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Bộ test đầy đủ phát hiện lỗi này: lần tìm người gọi trước đó bị cắt ở 60 kết quả. Từ nay tìm người gọi không giới hạn trước khi gỡ API.
+
 [12/10/2026 - 13:57] - Task: unified-trash/01 - sửa theo review (Standards + Spec)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:removal`, tests
