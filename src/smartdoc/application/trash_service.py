@@ -82,8 +82,49 @@ class TrashService:
         self.context = context
 
     @property
-    def directory(self) -> Path:
+    def default_directory(self) -> Path:
         return self.context.config.app_data_dir / TRASH_DIR_NAME
+
+    @property
+    def directory(self) -> Path:
+        """Where the next file goes: the folder chosen in Settings, or the default."""
+        custom = self.context.config.config.trash_dir
+        return Path(custom) if custom else self.default_directory
+
+    def directories(self) -> list[Path]:
+        """Every folder that may hold items: the current one first, then the default and the ones used before, so what
+        was put in a folder stays listed, restorable and deletable after the choice changes."""
+        found: list[Path] = []
+        for folder in (self.directory, self.default_directory, *map(Path, self.context.config.config.trash_dirs_used)):
+            if folder not in found:
+                found.append(folder)
+        return found
+
+    @staticmethod
+    def check_folder(folder: Path) -> str:
+        """"" when files can be put in `folder` (it is created if needed), otherwise the reason in plain words."""
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            probe = folder / f".mewbook-write-test-{uuid.uuid4().hex}"
+            probe.write_bytes(b"")
+            probe.unlink()
+        except OSError as exc:
+            return f"Không ghi được vào thư mục này: {exc.strerror or exc}"
+        return ""
+
+    def set_directory(self, folder: str | None) -> str:
+        """Use `folder` for what is deleted from now on (None = the default folder). Returns "" when accepted, otherwise why
+        not -- and the previous choice stays. Items already in the old folder are not moved."""
+        if folder:
+            problem = self.check_folder(Path(folder))
+            if problem:
+                return problem
+        config = self.context.config.config
+        previous = str(self.directory)
+        config.trash_dir = folder or None
+        config.trash_dirs_used = sorted(({*config.trash_dirs_used, previous}) - {str(self.directory)})
+        self.context.config.save()
+        return ""
 
     def retention_days(self) -> int:
         return max(0, min(MAX_RETENTION_DAYS, int(getattr(self.context.config.config, "trash_retention_days", DEFAULT_RETENTION_DAYS))))
@@ -164,10 +205,9 @@ class TrashService:
 
     def _folder_items(self) -> list[TrashItem]:
         found: list[TrashItem] = []
-        if not self.directory.is_dir():
-            return found
         days = self.retention_days()
-        for folder in self.directory.iterdir():
+        folders = [folder for directory in self.directories() if directory.is_dir() for folder in directory.iterdir()]
+        for folder in folders:
             meta = self._read_meta(folder)
             if meta is None:
                 continue
@@ -191,6 +231,9 @@ class TrashService:
     def _folder(self, item_id: str) -> Path:
         if not item_id or item_id != Path(item_id).name:  # an id is a bare folder name, never a path
             raise TrashError("Mục này không hợp lệ.")
+        for directory in self.directories():  # it may sit in a folder that was the choice before
+            if (directory / item_id).is_dir():
+                return directory / item_id
         return self.directory / item_id
 
     # -- out of the trash -----------------------------------------------------------------------------------------

@@ -127,6 +127,27 @@ class BackupPanel(SettingsPage):
                      "Chọn thư mục sao lưu trước, sau đó \"Sao lưu ngay\" để tạo bản sao. "
                      "Khôi phục sẽ nói rõ điều gì sẽ mất trước khi làm.", holder)
 
+        # -- Thư mục thùng rác: where "Xóa file" puts the files (application/trash_service.py) --------------------------
+        trash_holder = QWidget(self)
+        trash_layout = QVBoxLayout(trash_holder)
+        trash_layout.setContentsMargins(0, 0, 0, 0)
+        trash_buttons = QHBoxLayout()
+        self.trash_folder_button = QPushButton("Chọn thư mục…", trash_holder)
+        self.trash_folder_button.setIcon(line_icon("folder", tm.token("ink"), 14))
+        self.trash_folder_button.clicked.connect(self._on_choose_trash_folder)
+        self.trash_default_button = QPushButton("Dùng thư mục mặc định", trash_holder)
+        self.trash_default_button.clicked.connect(self._on_reset_trash_folder)
+        trash_buttons.addWidget(self.trash_folder_button)
+        trash_buttons.addWidget(self.trash_default_button)
+        trash_buttons.addStretch(1)
+        trash_layout.addLayout(trash_buttons)
+        self.trash_folder_label = QLabel(trash_holder)
+        self.trash_folder_label.setWordWrap(True)
+        trash_layout.addWidget(self.trash_folder_label)
+        self.add_row("Thư mục thùng rác", "Nơi \"Xóa file\" đưa file vào (ví dụ sang ổ khác cho đỡ đầy ổ hệ thống). "
+                     "Đổi thư mục chỉ áp dụng cho những lần xóa sau; mục cũ vẫn khôi phục được.", trash_holder)
+        self._show_trash_folder()
+
         # -- "Đặt lại thư viện": a separate, clearly-marked danger zone, not one more backup option -----------------
         self.add_block(add_note_box(
             self, "<b>Đặt lại thư viện</b> xóa toàn bộ dữ liệu quản lý trong cơ sở dữ liệu thư viện <b>cục bộ</b> -- sách, "
@@ -174,6 +195,28 @@ class BackupPanel(SettingsPage):
         self.status_label.setText("")
         self.refresh()
         return ""
+
+    def _show_trash_folder(self) -> None:
+        trash = self.context.trash
+        custom = self.context.config.config.trash_dir
+        self.trash_folder_label.setText(f"Đang dùng: {trash.directory}" if custom else f"Mặc định: {trash.directory}")
+        self.trash_default_button.setEnabled(bool(custom))
+
+    def _on_choose_trash_folder(self) -> None:
+        chosen = QFileDialog.getExistingDirectory(self, "Chọn thư mục thùng rác", str(self.context.trash.directory))
+        if chosen:
+            self._set_trash_folder(chosen)
+
+    def _on_reset_trash_folder(self) -> None:
+        self._set_trash_folder(None)
+
+    def _set_trash_folder(self, folder: str | None) -> None:
+        problem = self.context.trash.set_directory(folder)
+        if problem:
+            self.status_label.setText(problem)
+            return
+        self.status_label.setText("")
+        self._show_trash_folder()
 
     def _show_folder(self) -> None:
         service = self._service()

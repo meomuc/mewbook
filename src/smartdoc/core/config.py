@@ -175,6 +175,10 @@ class AppConfig:
     # Days a file stays in MewBook's trash (application/trash_service.py) before it is deleted for good; 0 = keep until
     # the user empties it.
     trash_retention_days: int = 30
+    # Where files moved to MewBook's trash go (Settings > Sao lưu và khôi phục); None = the default folder inside the app
+    # data folder. `trash_dirs_used` remembers the folders used before, so changing the folder never strands what is in them.
+    trash_dir: str | None = None
+    trash_dirs_used: list[str] = field(default_factory=list)
     # Optional "newer version?" check (application/update_checker.py): off unless the user turns it on; notify-only.
     update_check_enabled: bool = False
     update_last_checked: float = 0.0
@@ -293,6 +297,10 @@ class ConfigManager:
         if not isinstance(config.theme_by_layout, dict):
             config.theme_by_layout = {}
         config.backup_dir = str(config.backup_dir).strip() or None if config.backup_dir else None  # "" (older versions) = not chosen
+        config.trash_dir = str(config.trash_dir).strip() or None if config.trash_dir else None
+        if not isinstance(config.trash_dirs_used, list):
+            config.trash_dirs_used = []
+        config.trash_dirs_used = [str(p) for p in config.trash_dirs_used if p]
         try:
             config.backup_keep = max(1, min(50, int(config.backup_keep)))
         except (TypeError, ValueError):

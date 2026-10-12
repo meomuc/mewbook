@@ -1,5 +1,20 @@
 # Changelog
 
+[12/10/2026 - 14:26] - Task: unified-trash/08 - Chọn Thư mục thùng rác trong Cài đặt
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:core:config`, `:application:trash_service`, `:presentation:backup_panel`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `config.py`: `trash_dir` và `trash_dirs_used` (có giá trị mặc định, file cấu hình cũ đọc bình thường)
+    - `trash_service.py`: `default_directory`, `directories()`, `check_folder`, `set_directory`; liệt kê và tìm mục trong mọi thư mục đã dùng
+    - `backup_panel.py`: hàng "Thư mục thùng rác" (chọn / dùng mặc định / hiện thư mục đang dùng)
+    - `tests/test_trash_service.py`: 4 test mới
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Không lưu đường dẫn đầy đủ trong từng dòng sách (sẽ phải đổi ý nghĩa cột `trash_item_id`); thay vào đó nhớ danh sách thư mục đã dùng và tìm mục theo tên thư mục con.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nếu người dùng chọn thư mục thùng rác nằm trong một thư mục đang được theo dõi, bộ theo dõi có thể thấy file mới ở đó; chưa chặn.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:24] - Task: unified-trash/07 - Chế độ xem Thùng rác đầy đủ
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:domain:library_filter`, `:infrastructure:database`, `:application:facet_counter`, `:application:trash_service`, `:presentation:trash_dialog`, `:presentation:detail_panel`, tests
@@ -540,6 +555,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Chọn thư mục thùng rác.** Cài đặt › Sao lưu và khôi phục có hàng "Thư mục thùng rác" (chọn thư mục khác, ví dụ trên ổ khác, hoặc dùng mặc định). Đổi thư mục chỉ áp dụng cho những lần "Xóa file" sau; mục đã có vẫn khôi phục được.
 - **Thùng rác trong bộ lọc Tình trạng file.** Chip "Thùng rác" (có số đếm) cho xem các sách đã xóa của cả hai loại; trong cửa sổ Thùng rác, cột "Vị trí hiện tại" bấm vào để mở file trong Explorer (báo rõ nếu file không còn). Panel chi tiết nói rõ sách được xóa khỏi thư viện (file vẫn ở chỗ cũ) hay xóa cả file.
 - **Khôi phục từ Thùng rác an toàn hơn.** Khôi phục không bao giờ ghi đè file khác ở chỗ cũ và cho biết sách được đưa về đâu; file đã chuyển vào thùng rác không bị tự nhập lại nếu một ứng dụng đồng bộ tạo lại nó.
 - **Công cụ lọc trùng không còn xóa cứng.** Hai nút đổi thành "Xóa khỏi thư viện" (file giữ nguyên) và "Xóa file"; cả hai đưa sách vào Thùng rác, giữ hashtag và thông tin đã nhập, khôi phục được. Thêm lại bằng tay một file đã xóa khỏi thư viện thì sách hiện lại với đủ thông tin.

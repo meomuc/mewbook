@@ -3,11 +3,24 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 
 import pytest
 
 from smartdoc.application.trash_service import TrashError
 from smartdoc.core.event_bus import LibraryUpdatedEvent
+
+
+@pytest.fixture
+def file_context_with_books(tmp_path):
+    """A context with its own folder on disk (the settings page needs one to save to)."""
+    from smartdoc.core.app_context import AppContext
+    from smartdoc.core.config import ConfigManager
+    from smartdoc.infrastructure.database import DatabaseManager
+
+    context = AppContext(config=ConfigManager(app_data_dir=tmp_path / "appdata"), db=DatabaseManager(str(tmp_path / "library.db")))
+    yield context
+    context.shutdown()
 
 
 @pytest.fixture
@@ -236,6 +249,52 @@ def test_clicking_a_place_whose_file_is_gone_says_so(qapp, app_context, library,
     dialog.table.cellClicked.emit(0, 2)
     assert not shown and told and "không còn" in told[0]
     dialog.deleteLater()
+
+
+def test_files_go_to_the_chosen_trash_folder_and_old_items_stay_restorable(app_context, library, tmp_path):
+    default = app_context.trash.directory
+    chosen = tmp_path / "elsewhere" / "Thùng rác"
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    assert app_context.trash.set_directory(str(chosen)) == "" and app_context.trash.directory == chosen
+    app_context.trash.send([("d2", str(library / "b2.pdf"))])
+    items = {i.title: i for i in app_context.trash.list_items()}
+    assert set(items) == {"Sách 1", "Sách 2"}  # the older item is still listed after the change
+    assert chosen in {Path(items["Sách 2"].current_path).parent.parent} and default in {Path(items["Sách 1"].current_path).parent.parent}
+    app_context.trash.restore(items["Sách 1"].item_id)  # ...and still comes back, from the folder it was put in
+    assert (library / "b1.pdf").is_file() and [i.title for i in app_context.trash.list_items()] == ["Sách 2"]
+    app_context.trash.delete_forever(items["Sách 2"].item_id)
+    assert not list(chosen.iterdir())
+
+
+def test_going_back_to_the_default_trash_folder_keeps_every_item_listed(app_context, library, tmp_path):
+    app_context.trash.set_directory(str(tmp_path / "other"))
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    assert app_context.trash.set_directory(None) == "" and app_context.trash.directory == app_context.trash.default_directory
+    assert [i.title for i in app_context.trash.list_items()] == ["Sách 1"]
+    assert app_context.config.config.trash_dir is None
+
+
+def test_a_trash_folder_that_cannot_be_written_to_is_refused_and_the_old_one_stays(app_context, library, tmp_path):
+    before = app_context.trash.directory
+    blocker = tmp_path / "plain-file"
+    blocker.write_text("x")
+    problem = app_context.trash.set_directory(str(blocker / "sub"))
+    assert problem and app_context.trash.directory == before and app_context.config.config.trash_dir is None
+
+
+def test_the_trash_folder_can_be_chosen_in_settings(qapp, file_context_with_books, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    from smartdoc.presentation.backup_panel import BackupPanel
+
+    context = file_context_with_books
+    panel = BackupPanel(context)
+    chosen = tmp_path / "my trash"
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory", lambda *a, **k: str(chosen))
+    panel._on_choose_trash_folder()
+    assert context.trash.directory == chosen and str(chosen) in panel.trash_folder_label.text()
+    panel._on_reset_trash_folder()
+    assert context.trash.directory == context.trash.default_directory and "Mặc định" in panel.trash_folder_label.text()
 
 
 def test_the_delete_for_good_question_says_whether_a_file_will_be_lost(qapp, app_context, library, monkeypatch):
