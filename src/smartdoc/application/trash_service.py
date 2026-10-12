@@ -104,9 +104,13 @@ class TrashService:
                 self.context.db.delete_document(doc_id)
                 result.missing.append(doc_id)
                 continue
+            # Remembered before the move (the size is read from the file): the folder watcher must not take it back if a
+            # sync client or an antivirus puts a file at this path again.
+            self.context.db.exclude_paths([str(path)])
             try:
                 folder = self._store(doc, path, membership)
             except OSError as exc:
+                self.context.db.unexclude_paths([str(path)])
                 logger.warning("Could not move %s to the trash: %s", path, exc)
                 result.failed.append((doc_id, "File đang được chương trình khác dùng hoặc không có quyền di chuyển"
                                       if isinstance(exc, PermissionError) else f"Không di chuyển được file: {exc.strerror or exc}"))
@@ -209,6 +213,7 @@ class TrashService:
             shutil.move(str(stored), str(target))
         except OSError as exc:
             raise TrashError(f"Không khôi phục được file về {target.parent}: {exc.strerror or exc}") from exc
+        self.context.db.unexclude_paths([meta["original_path"], str(target)])  # back in the library: it may be imported again
         doc = dict(meta["doc"])
         doc["file_path"] = str(target)
         try:

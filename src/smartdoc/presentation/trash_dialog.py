@@ -140,20 +140,25 @@ class TrashDialog(DesignDialog):
     def _on_restore(self) -> None:
         picked = self._selected()
 
-        def restore(progress) -> list[str]:
+        def restore(progress) -> tuple[list[str], list[str]]:
             problems: list[str] = []
+            moved_elsewhere: list[str] = []
             for done, item in enumerate(picked):
                 progress(done, len(picked), f"Đang khôi phục: {item.title}")
                 try:
-                    self.service.restore(item.item_id)
+                    where = self.service.restore(item.item_id)
                 except TrashError as exc:
                     problems.append(f"• {item.title}: {exc}")
-            return problems
+                    continue
+                if str(where) != item.original_path:  # another file was at the old place: it is never overwritten
+                    moved_elsewhere.append(f"• {item.title}: chỗ cũ đã có file khác nên sách được khôi phục về {where}")
+            return problems, moved_elsewhere
 
-        problems, error = run_with_progress(self, title="Thùng rác", message=f"Mèo đang khôi phục {len(picked)} mục…",
-                                            work=restore, delay_ms=400)
-        if problems is None:
-            problems = [f"• Lỗi không mong đợi: {error}"]
+        outcome, error = run_with_progress(self, title="Thùng rác", message=f"Mèo đang khôi phục {len(picked)} mục…",
+                                           work=restore, delay_ms=400)
+        problems, moved_elsewhere = outcome if outcome is not None else ([f"• Lỗi không mong đợi: {error}"], [])
+        if moved_elsewhere:
+            QMessageBox.information(self, "Đã khôi phục sang tên khác", "\n".join(moved_elsewhere))
         if problems:
             QMessageBox.warning(self, "Chưa khôi phục được", "\n".join(problems))
         self.refresh()

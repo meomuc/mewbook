@@ -1,5 +1,19 @@
 # Changelog
 
+[12/10/2026 - 14:20] - Task: unified-trash/05 - Khôi phục cả hai loại
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:trash_service`, `:presentation:trash_dialog`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `trash_service.py`: `send` loại trừ đường dẫn trước khi chuyển file (hoàn lại nếu chuyển thất bại), `restore` bỏ loại trừ
+    - `trash_dialog.py`: khôi phục báo vị trí mới khi chỗ cũ đã có file khác
+    - `tests/test_trash_service.py`: 4 test mới (loại trừ và bỏ loại trừ, thư mục gốc đã mất, khôi phục thất bại giữ mục trong thùng rác, thông báo vị trí mới)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Khôi phục loại "library" và việc không ghi đè đã có từ ticket 02 và từ trước; ticket này đóng các khoảng trống còn lại của tiêu chí.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Loại trừ đường dẫn tự bị quên nếu một file khác kích thước xuất hiện ở cùng đường dẫn (hành vi cũ của `is_path_excluded`): đó là sách mới, không phải sách đã xóa.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:19] - Task: unified-trash/04 - Lọc trùng dùng hai lựa chọn, không còn xóa cứng
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:duplicate_finder_dialog`, `:presentation:duplicate_list_pane`, `:application:removal`, `:application:trash_service`, `:application:import_queue`, tests
@@ -497,6 +511,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Khôi phục từ Thùng rác an toàn hơn.** Khôi phục không bao giờ ghi đè file khác ở chỗ cũ và cho biết sách được đưa về đâu; file đã chuyển vào thùng rác không bị tự nhập lại nếu một ứng dụng đồng bộ tạo lại nó.
 - **Công cụ lọc trùng không còn xóa cứng.** Hai nút đổi thành "Xóa khỏi thư viện" (file giữ nguyên) và "Xóa file"; cả hai đưa sách vào Thùng rác, giữ hashtag và thông tin đã nhập, khôi phục được. Thêm lại bằng tay một file đã xóa khỏi thư viện thì sách hiện lại với đủ thông tin.
 - **Hộp thoại xóa sách có hai lựa chọn.** "Xóa khỏi thư viện" (mặc định, file giữ nguyên) và "Xóa file và thư viện" (file chuyển vào thư mục thùng rác). Cả hai khôi phục được trong Công cụ › Thùng rác.
 - **"Xóa khỏi thư viện" không còn chuyển file đi.** Sách rời khỏi thư viện nhưng file vẫn nằm nguyên chỗ cũ; sách nằm trong Thùng rác (cột "Tình trạng xóa"), khôi phục được và hết hạn như mục khác. Sách đã vào Thùng rác không còn hiện trong danh sách chính, tìm kiếm, số đếm bộ lọc và công cụ lọc trùng.

@@ -147,6 +147,58 @@ def test_info_refresh_does_not_overwrite_trashed_status(app_context, library):
         "record_file_status must not overwrite 'trashed' with 'missing'"
 
 
+def test_a_trashed_files_path_is_remembered_for_the_watcher_and_forgotten_on_restore(app_context, library):
+    path = str(library / "b1.pdf")
+    app_context.trash.send([("d1", path)])
+    assert app_context.db.is_path_excluded(path)
+    (item,) = app_context.trash.list_items()
+    app_context.trash.restore(item.item_id)
+    assert not app_context.db.is_path_excluded(path)
+
+
+def test_restore_recreates_a_folder_that_is_gone(app_context, library):
+    import shutil
+
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    for leftover in library.iterdir():
+        leftover.unlink()
+    shutil.rmtree(library)
+    (item,) = app_context.trash.list_items()
+    where = app_context.trash.restore(item.item_id)
+    assert where == library / "b1.pdf" and where.is_file()
+
+
+def test_a_restore_that_fails_leaves_the_item_in_the_trash(app_context, library, monkeypatch):
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    (item,) = app_context.trash.list_items()
+
+    def refuse(*_args, **_kwargs):
+        raise PermissionError(13, "no rights")
+
+    monkeypatch.setattr("smartdoc.application.trash_service.shutil.move", refuse)
+    with pytest.raises(TrashError):
+        app_context.trash.restore(item.item_id)
+    assert [i.item_id for i in app_context.trash.list_items()] == [item.item_id]
+    assert app_context.db.get_document("d1")["file_status"] == "trashed"
+
+
+def test_the_trash_dialog_says_where_a_file_went_when_its_old_place_was_taken(qapp, app_context, library, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from smartdoc.presentation.trash_dialog import TrashDialog
+
+    app_context.trash.send([("d1", str(library / "b1.pdf"))])
+    (library / "b1.pdf").write_bytes(b"someone else's file")  # a different file now sits at the old place
+    told: list[str] = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+    dialog = TrashDialog(app_context)
+    dialog.table.selectRow(0)
+    dialog.restore_button.click()
+    assert (library / "b1.pdf").read_bytes() == b"someone else's file"  # never overwritten
+    assert told and "khôi phục" in told[0] and "b1" in told[0]
+    dialog.deleteLater()
+
+
 def test_restore_immediately_marks_book_as_present(app_context, library):
     """After restore the row must have file_status='present', not NULL (regression)."""
     app_context.trash.send([("d1", str(library / "b1.pdf"))])
