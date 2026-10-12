@@ -130,6 +130,39 @@ def test_a_removed_book_expires_after_the_retention_period_and_its_file_stays(ap
     assert app_context.db.get_document("d1") is None and (library / "b1.pdf").exists()
 
 
+@pytest.mark.parametrize("mode", [RemovalMode.REMOVE_FROM_LIBRARY, RemovalMode.TRASH_FILE])
+def test_an_expired_book_loses_everything_attached_to_it_but_its_path_stays_remembered(app_context, library, mode):
+    path = str(library / "b1.pdf")
+    app_context.db.save_collection("c1", "Đọc dần", "[]", "AND", 1.0)
+    app_context.db.add_documents_to_collection("c1", ["d1"])
+    app_context.db.record_reading_open("d1", total=10)
+    app_context.removal.remove([("d1", path)], mode)
+    assert app_context.trash.purge_expired(time.time() + 31 * 86_400) == 1
+    assert app_context.db.get_document("d1") is None
+    assert "d1" not in app_context.db.list_collection_document_ids("c1")
+    assert app_context.db.get_reading_progress("d1") is None
+    assert app_context.db.list_excluded_paths() and app_context.db.is_path_excluded(path)  # not imported again after expiry
+
+
+@pytest.mark.parametrize("mode", [RemovalMode.REMOVE_FROM_LIBRARY, RemovalMode.TRASH_FILE])
+def test_zero_days_means_a_removed_book_never_expires(app_context, library, mode):
+    app_context.config.config.trash_retention_days = 0
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], mode)
+    (item,) = app_context.trash.list_items()
+    assert item.expires_at is None and item.days_left() is None
+    assert app_context.trash.purge_expired(time.time() + 10_000 * 86_400) == 0
+    assert app_context.db.get_document("d1") is not None
+
+
+def test_emptying_the_trash_deletes_the_trashed_file_but_never_a_files_that_stayed(app_context, library):
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    app_context.removal.remove([("d2", str(library / "b2.pdf"))], RemovalMode.TRASH_FILE)
+    assert app_context.trash.empty() == 2
+    assert app_context.db.get_document("d1") is None and app_context.db.get_document("d2") is None
+    assert (library / "b1.pdf").exists() and not (library / "b2.pdf").exists()
+    assert not list(app_context.trash.directory.iterdir())
+
+
 def test_an_empty_list_changes_nothing_and_publishes_nothing(app_context, library):
     events = _events(app_context)
     for mode in RemovalMode:

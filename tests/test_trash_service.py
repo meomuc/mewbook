@@ -199,6 +199,27 @@ def test_the_trash_dialog_says_where_a_file_went_when_its_old_place_was_taken(qa
     dialog.deleteLater()
 
 
+def test_the_delete_for_good_question_says_whether_a_file_will_be_lost(qapp, app_context, library, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from smartdoc.application.removal import RemovalMode
+    from smartdoc.presentation.trash_dialog import TrashDialog
+
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    asked: list[str] = []
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: asked.append(a[2]) or QMessageBox.No)
+    dialog = TrashDialog(app_context)
+    dialog.table.selectRow(0)
+    dialog.delete_button.click()
+    assert "nằm nguyên chỗ cũ" in asked[-1] and "xóa khỏi ổ cứng" not in asked[-1]  # only the record goes
+    app_context.removal.remove([("d2", str(library / "b2.pdf"))], RemovalMode.TRASH_FILE)
+    dialog.refresh()
+    dialog.table.selectAll()
+    dialog.delete_button.click()
+    assert "xóa khỏi ổ cứng" in asked[-1] and "không bị đụng tới" in asked[-1]  # one kind loses its file, the other keeps it
+    dialog.deleteLater()
+
+
 def test_restore_immediately_marks_book_as_present(app_context, library):
     """After restore the row must have file_status='present', not NULL (regression)."""
     app_context.trash.send([("d1", str(library / "b1.pdf"))])

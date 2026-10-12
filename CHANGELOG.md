@@ -1,5 +1,15 @@
 # Changelog
 
+[12/10/2026 - 14:20] - Task: unified-trash/06 - Hết hạn và "Xóa hẳn" cho cả hai loại (chốt bằng test)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa: `tests/test_removal.py` (5 test, 2 test tham số hóa theo hai chế độ), `tests/test_trash_service.py` (câu hỏi xóa hẳn nói rõ file có mất hay không)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Không có mã mới: hành vi đã nằm trong `TrashService` từ ticket 02 (liệt kê, hết hạn, xóa hẳn dùng chung cho hai loại). Ticket này chỉ khóa nó bằng test.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Không có. Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:20] - Task: unified-trash/05 - Khôi phục cả hai loại
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:trash_service`, `:presentation:trash_dialog`, tests
