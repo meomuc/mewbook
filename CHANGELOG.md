@@ -1,5 +1,16 @@
 # Changelog
 
+[12/10/2026 - 15:03] - Task: sửa test đếm bộ sưu tập theo thành viên (phát hiện ở bộ test đầy đủ)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa: `tests/test_database.py`: test đếm bộ sưu tập nay khẳng định chỉ đếm sách đã đưa vào, không còn theo quy tắc cũ
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Không đổi mã; chỉ cập nhật test cho đúng hành vi "bộ sưu tập chỉ có thành viên thêm tay".
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Bộ test đầy đủ: 2465 đạt, 2 bỏ qua sau sửa. Một lần chạy trước đó có crash gốc chập chờn (loại đã biết trong CLAUDE.md §2), không lặp lại ở lần chạy sau.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:53] - Task: device-sync/07 - Biểu tượng trên bìa và bộ lọc theo máy
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:domain:library_filter`, `:infrastructure:database`, `:application:facet_counter`, `:presentation:shelf_view`, `:presentation:library_view`, `:presentation:facet_panel`, `:presentation:ereader_dialog`, tests

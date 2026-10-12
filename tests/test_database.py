@@ -474,18 +474,18 @@ def test_deleting_document_clears_its_collection_membership(db):
     assert db.list_collection_document_ids("c1") == []
 
 
-def test_count_documents_in_collection_combines_rule_and_manual_membership(db):
+def test_count_documents_in_collection_counts_only_the_books_put_in_it(db):
     _seed_with_extensions(db)  # d1/d3 pdf, d2 epub
     db.save_collection(
         "c1",
-        "PDFs plus one epub",
-        '{"rules": [{"field": "extension", "operator": "eq", "value": "pdf"}]}',
+        "One epub",
+        '{"rules": [{"field": "extension", "operator": "eq", "value": "pdf"}]}',  # an old rule: no longer followed
         "AND",
         1.0,
     )
-    db.add_documents_to_collection("c1", ["d2"])  # manually add the epub too
+    db.add_documents_to_collection("c1", ["d2"])
 
-    assert db.count_documents_in_collection("c1") == 3
+    assert db.count_documents_in_collection("c1") == 1
 
 
 def test_count_documents_in_collection_empty_collection_is_zero(db):
