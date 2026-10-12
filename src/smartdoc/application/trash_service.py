@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import shutil
 import time
 import uuid
@@ -35,6 +36,9 @@ logger = logging.getLogger(__name__)
 TRASH_DIR_NAME = "trash"
 DEFAULT_RETENTION_DAYS = 30
 MAX_RETENTION_DAYS = 365
+KIND_FILE = "file"  # Xóa file và thư viện: the file is in the trash folder
+KIND_LIBRARY = "library"  # Xóa khỏi thư viện: the file never moved, only the library row is hidden
+_DOC_PREFIX = "doc:"  # the item id of a KIND_LIBRARY entry is "doc:<document id>"; a KIND_FILE one is its folder name
 _META = "meta.json"
 _CONTENT = "content.txt"
 _DAY = 86_400.0
@@ -54,11 +58,14 @@ class TrashItem:
     trashed_at: float
     expires_at: float | None
     """None when the trash is set to keep things until they are deleted by hand."""
+    kind: str = KIND_FILE
+    doc_id: str = ""
 
     def days_left(self, now: float | None = None) -> int | None:
         if self.expires_at is None:
             return None
-        return max(0, int((self.expires_at - (time.time() if now is None else now)) // _DAY) + 1)
+        # Rounded up, so an item removed just now says the full period (floor + 1 said one day too many on a day boundary).
+        return max(0, math.ceil((self.expires_at - (time.time() if now is None else now)) / _DAY))
 
 
 @dataclass
@@ -131,7 +138,24 @@ class TrashService:
 
     # -- looking --------------------------------------------------------------------------------------------------
     def list_items(self) -> list[TrashItem]:
-        """Newest first."""
+        """Every removed book, both kinds, newest first."""
+        found = self._library_items() + self._folder_items()
+        found.sort(key=lambda item: item.trashed_at, reverse=True)
+        return found
+
+    def _library_items(self) -> list[TrashItem]:
+        days = self.retention_days()
+        items: list[TrashItem] = []
+        for row in self.context.db.list_removed_documents():
+            removed_at = float(row.get("removed_at") or 0)
+            path = row.get("file_path") or ""
+            items.append(TrashItem(
+                item_id=f"{_DOC_PREFIX}{row['id']}", title=row.get("title") or Path(path).name, original_path=path,
+                file_name=Path(path).name, size=int(row.get("file_size") or 0), trashed_at=removed_at,
+                expires_at=removed_at + days * _DAY if days else None, kind=KIND_LIBRARY, doc_id=row["id"]))
+        return items
+
+    def _folder_items(self) -> list[TrashItem]:
         found: list[TrashItem] = []
         if not self.directory.is_dir():
             return found
@@ -147,7 +171,6 @@ class TrashService:
                 original_path=meta.get("original_path", ""), file_name=meta.get("file_name", ""),
                 size=stored.stat().st_size if stored.is_file() else 0, trashed_at=trashed_at,
                 expires_at=trashed_at + days * _DAY if days else None))
-        found.sort(key=lambda item: item.trashed_at, reverse=True)
         return found
 
     @staticmethod
@@ -165,6 +188,8 @@ class TrashService:
     # -- out of the trash -----------------------------------------------------------------------------------------
     def restore(self, item_id: str) -> Path:
         """Put the file back and re-add the book; returns where the file is now."""
+        if item_id.startswith(_DOC_PREFIX):
+            return self._restore_library(item_id[len(_DOC_PREFIX):])
         folder = self._folder(item_id)
         meta = self._read_meta(folder)
         if meta is None:
@@ -210,7 +235,28 @@ class TrashService:
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return target
 
+    def _library_row(self, doc_id: str) -> dict:
+        row = self.context.db.get_document(doc_id)
+        if row is None or row.get("removal_kind") != KIND_LIBRARY:  # never touch a book that is not in the trash
+            raise TrashError("Mục này không còn trong Thùng rác.")
+        return row
+
+    def _restore_library(self, doc_id: str) -> Path:
+        """The file never moved, so only the row comes back; it is allowed to be imported again."""
+        row = self._library_row(doc_id)
+        path = row.get("file_path") or ""
+        self.context.db.unmark_document_trashed(doc_id, path)
+        self.context.db.unexclude_paths([path])
+        self.context.event_bus.publish(LibraryUpdatedEvent())
+        return Path(path)
+
     def delete_forever(self, item_id: str) -> None:
+        if item_id.startswith(_DOC_PREFIX):
+            doc_id = item_id[len(_DOC_PREFIX):]
+            self._library_row(doc_id)
+            self.context.db.delete_document(doc_id)  # the row only: the book's file is not ours to delete
+            self.context.event_bus.publish(LibraryUpdatedEvent())
+            return
         folder = self._folder(item_id)
         if folder.is_dir():
             meta = self._read_meta(folder) or {}

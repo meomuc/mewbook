@@ -20,14 +20,15 @@ from PySide6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from smartdoc.application.trash_service import MAX_RETENTION_DAYS, TrashError, TrashItem
+from smartdoc.application.trash_service import KIND_FILE, KIND_LIBRARY, MAX_RETENTION_DAYS, TrashError, TrashItem
 from smartdoc.presentation.design_dialog import DesignDialog
 from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme_manager import theme_manager
 
 _ITEM_ROLE = Qt.UserRole + 1
-_COL_TITLE, _COL_PATH, _COL_SIZE, _COL_WHEN, _COL_LEFT = range(5)
+_COL_TITLE, _COL_KIND, _COL_PATH, _COL_SIZE, _COL_WHEN, _COL_LEFT = range(6)
+_KIND_LABEL = {KIND_LIBRARY: "Xóa khỏi thư viện", KIND_FILE: "Xóa file và thư viện"}
 
 
 def _when(value: float) -> str:
@@ -37,17 +38,27 @@ def _when(value: float) -> str:
         return "—"
 
 
+def _delete_warning(items: list[TrashItem]) -> str:
+    """What deleting these for good does to the files: only the "Xóa file" kind has a file in the trash folder to lose."""
+    if any(item.kind == KIND_FILE for item in items):
+        text = "File của các mục \"Xóa file và thư viện\" sẽ bị xóa khỏi ổ cứng và không khôi phục được nữa."
+        if any(item.kind == KIND_LIBRARY for item in items):
+            text += " File của các mục \"Xóa khỏi thư viện\" không bị đụng tới."
+        return text
+    return "Thông tin sách sẽ bị xóa hẳn và không khôi phục được nữa. File của sách vẫn nằm nguyên chỗ cũ."
+
+
 class TrashDialog(DesignDialog):
     def __init__(self, context, parent=None, *, select_item_id: str | None = None) -> None:
-        super().__init__(parent, title="Thùng rác", subtitle="File trùng đã bỏ đi, khôi phục được trước hạn", icon="archive",
+        super().__init__(parent, title="Thùng rác", subtitle="Sách đã xóa, khôi phục được trước hạn", icon="archive",
                          width=820)
         self.context = context
         self.service = context.trash
         self.resize(860, 480)
         self._pending_select_item_id = select_item_id
 
-        self.table = QTableWidget(0, 5, self)
-        self.table.setHorizontalHeaderLabels(["SÁCH", "VỊ TRÍ CŨ", "DUNG LƯỢNG", "NGÀY BỎ", "CÒN LẠI"])
+        self.table = QTableWidget(0, 6, self)
+        self.table.setHorizontalHeaderLabels(["SÁCH", "TÌNH TRẠNG XÓA", "VỊ TRÍ CŨ", "DUNG LƯỢNG", "NGÀY BỎ", "CÒN LẠI"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -88,8 +99,8 @@ class TrashDialog(DesignDialog):
         self.table.setRowCount(len(items))
         for row, item in enumerate(items):
             left = item.days_left()
-            cells = (item.title, item.original_path, human_size(item.size).replace(".", ","), _when(item.trashed_at),
-                     "Không hết hạn" if left is None else f"{left} ngày")
+            cells = (item.title, _KIND_LABEL.get(item.kind, ""), item.original_path, human_size(item.size).replace(".", ","),
+                     _when(item.trashed_at), "Không hết hạn" if left is None else f"{left} ngày")
             for column, text in enumerate(cells):
                 cell = QTableWidgetItem(text)
                 cell.setToolTip(item.original_path)
@@ -152,8 +163,7 @@ class TrashDialog(DesignDialog):
 
     def _on_delete(self) -> None:
         items = self._selected()
-        if not items or not self._confirm(
-                f"Xóa hẳn {len(items)} mục?", "File sẽ bị xóa khỏi ổ cứng và không khôi phục được nữa."):
+        if not items or not self._confirm(f"Xóa hẳn {len(items)} mục?", _delete_warning(items)):
             return
         def delete(progress) -> None:
             for done, item in enumerate(items):
@@ -166,7 +176,7 @@ class TrashDialog(DesignDialog):
         self.refresh()
 
     def _on_empty(self) -> None:
-        if not self._confirm("Dọn sạch thùng rác?", "Mọi file trong thùng rác sẽ bị xóa khỏi ổ cứng và không khôi phục được nữa."):
+        if not self._confirm("Dọn sạch thùng rác?", _delete_warning(self.service.list_items())):
             return
         _result, error = run_with_progress(
             self, title="Thùng rác", message="Mèo đang dọn sạch thùng rác…", delay_ms=400,

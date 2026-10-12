@@ -1355,16 +1355,16 @@ class LibraryListWidget(QWidget):
         if count > len(names):
             names.append(f"… và {count - len(names)} sách khác")
         if not confirm_danger(
-            self, title=f"Chuyển {count} sách vào Thùng rác?", subtitle="Bước xác nhận cuối",
-            message=(f"<b>{count} sách</b> sẽ được chuyển vào Thùng rác MewBook cùng với file của chúng."),
+            self, title=f"Xóa {count} sách khỏi thư viện?", subtitle="Bước xác nhận cuối",
+            message=(f"<b>{count} sách</b> sẽ rời khỏi thư viện. File của chúng vẫn nằm nguyên chỗ cũ trên máy."),
             items=names,
-            safe_text="<b>Có thể khôi phục:</b> vào Công cụ → Thùng rác để khôi phục file và toàn bộ thông tin sách.",
-            ack_text=f"Tôi hiểu {count} sách sẽ vào Thùng rác", action_text=f"Chuyển {count} sách vào Thùng rác",
+            safe_text="<b>Có thể khôi phục:</b> vào Công cụ → Thùng rác để đưa sách trở lại với toàn bộ thông tin.",
+            ack_text=f"Tôi hiểu {count} sách sẽ rời khỏi thư viện", action_text=f"Xóa {count} sách khỏi thư viện",
             cancel_text="Giữ lại",
         ):
             return
         items = [(d["id"], d.get("file_path")) for d in docs]
-        result = self.context.removal.remove(items, RemovalMode.TRASH_FILE)
+        result = self.context.removal.remove(items, RemovalMode.REMOVE_FROM_LIBRARY)
         if result.failed:
             from PySide6.QtWidgets import QMessageBox
             lines = [reason for _doc_id, reason in result.failed]

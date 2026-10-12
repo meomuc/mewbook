@@ -1215,13 +1215,25 @@ class DatabaseManager:
             self.connection.execute("DELETE FROM reading_progress WHERE doc_id = ?", (doc_id,))
             self.connection.commit()
 
-    def mark_document_trashed(self, doc_id: str, trash_item_id: str) -> None:
-        """Keep the library row but mark the book as moved to the in-app trash (file_status='trashed').
-        The row stays queryable so the detail panel can show 'File đã xóa' and a link to Thùng rác."""
+    def mark_document_trashed(self, doc_id: str, trash_item_id: str, removed_at: float | None = None) -> None:
+        """Keep the library row but mark the book as moved to the in-app trash (file_status='trashed', the kind 'file':
+        its file is in the trash folder). The row is hidden from every library query and listed in Thùng rác."""
         with self.write_lock:
             self.connection.execute(
-                "UPDATE documents SET file_status = 'trashed', trash_item_id = ? WHERE id = ?",
-                (trash_item_id, doc_id),
+                "UPDATE documents SET file_status = 'trashed', trash_item_id = ?, removal_kind = 'file', removed_at = ?"
+                " WHERE id = ?",
+                (trash_item_id, time.time() if removed_at is None else removed_at, doc_id),
+            )
+            self.connection.commit()
+
+    def mark_document_removed(self, doc_id: str, removed_at: float | None = None) -> None:
+        """Xóa khỏi thư viện: the row is kept and hidden (file_status='trashed', the kind 'library') and the file is never
+        touched, so there is no trash folder to point at."""
+        with self.write_lock:
+            self.connection.execute(
+                "UPDATE documents SET file_status = 'trashed', trash_item_id = NULL, removal_kind = 'library', removed_at = ?"
+                " WHERE id = ?",
+                (time.time() if removed_at is None else removed_at, doc_id),
             )
             self.connection.commit()
 
@@ -1229,10 +1241,19 @@ class DatabaseManager:
         """Restore a trashed book: clear the trash markers and record the new file path."""
         with self.write_lock:
             self.connection.execute(
-                "UPDATE documents SET file_status = 'present', trash_item_id = NULL, file_path = ? WHERE id = ?",
+                "UPDATE documents SET file_status = 'present', trash_item_id = NULL, removal_kind = NULL, removed_at = NULL,"
+                " file_path = ? WHERE id = ?",
                 (new_path, doc_id),
             )
             self.connection.commit()
+
+    def list_removed_documents(self) -> list[dict[str, Any]]:
+        """The books removed with Xóa khỏi thư viện (their file is still where it was), newest first."""
+        rows = self.connection.execute(
+            "SELECT id, title, file_path, file_size, removed_at FROM documents WHERE removal_kind = 'library'"
+            " ORDER BY removed_at DESC"
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     # -- Reading history ("Trang đầu") -----------------------------------------------------------------------------------
     def record_reading_open(self, doc_id: str, *, unit: str = "page", total: int = 0, now: float | None = None) -> None:
@@ -1388,7 +1409,7 @@ class DatabaseManager:
         return [dict(row) for row in cursor.fetchall()]
 
     def count_documents(self) -> int:
-        return self.connection.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+        return self.connection.execute(f"SELECT COUNT(*) FROM documents WHERE {self._NOT_REMOVED}").fetchone()[0]
 
     def list_document_ids(self) -> list[str]:
         return [row["id"] for row in self.connection.execute("SELECT id FROM documents")]
@@ -1415,7 +1436,8 @@ class DatabaseManager:
     _DEDUP_COLUMNS = "id, title, author, file_path, extension, file_size, content_hash, created_at, cover_path"
 
     def list_documents_for_dedup(self) -> list[dict[str, Any]]:
-        cursor = self.connection.execute(f"SELECT {self._DEDUP_COLUMNS} FROM documents ORDER BY created_at DESC")
+        cursor = self.connection.execute(
+            f"SELECT {self._DEDUP_COLUMNS} FROM documents WHERE {self._NOT_REMOVED} ORDER BY created_at DESC")
         return [dict(row) for row in cursor.fetchall()]
 
     def find_duplicate_groups_by_content_hash(self) -> list[list[dict[str, Any]]]:
@@ -1427,9 +1449,9 @@ class DatabaseManager:
         rows = self.connection.execute(
             f"""
             SELECT {self._DEDUP_COLUMNS} FROM documents
-            WHERE content_hash IS NOT NULL AND content_hash IN (
+            WHERE content_hash IS NOT NULL AND {self._NOT_REMOVED} AND content_hash IN (
                 SELECT content_hash FROM documents
-                WHERE content_hash IS NOT NULL
+                WHERE content_hash IS NOT NULL AND {self._NOT_REMOVED}
                 GROUP BY content_hash HAVING COUNT(*) > 1
             )
             ORDER BY content_hash, created_at
@@ -1449,6 +1471,7 @@ class DatabaseManager:
         limit: int = 1000,
         offset: int = 0,
         order_by: str | None = None,
+        include_removed: bool = False,
     ) -> list[dict[str, Any]]:
         """General-purpose read path: an optional FTS text query combined
         with an optional parameterized WHERE clause (facet filters, virtual
@@ -1470,6 +1493,7 @@ class DatabaseManager:
         need it, but qualifying everything is the simpler habit).
         """
         match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        where_sql = self._without_removed(where_sql, include_removed)
         try:
             if match_expr:
                 extra = f"AND ({where_sql})" if where_sql else ""
@@ -1499,10 +1523,20 @@ class DatabaseManager:
             logger.error("query_documents failed (fts=%r, where=%r, order_by=%r)", fts_query, where_sql, order_by)
             return []
 
-    def count_documents_matching(self, fts_query: str = "", where_sql: str = "", params: tuple = ()) -> int:
+    _NOT_REMOVED = "COALESCE(documents.file_status, '') != 'trashed'"
+
+    def _without_removed(self, where_sql: str, include_removed: bool) -> str:
+        """A book in Thùng rác (either kind of removal) is in no library list, search or count: the one place that says so."""
+        if include_removed:
+            return where_sql
+        return f"({where_sql}) AND {self._NOT_REMOVED}" if where_sql else self._NOT_REMOVED
+
+    def count_documents_matching(self, fts_query: str = "", where_sql: str = "", params: tuple = (),
+                                 include_removed: bool = False) -> int:
         """Same filters as query_documents, but a COUNT(*) -- used to compute
         page counts for pagination without fetching every row."""
         match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        where_sql = self._without_removed(where_sql, include_removed)
         try:
             if match_expr:
                 extra = f"AND ({where_sql})" if where_sql else ""
@@ -1912,7 +1946,8 @@ class DatabaseManager:
     def list_facet_rows(self) -> list[tuple[str, str, str, str]]:
         """(id, author, tags, extension) of every document -- just the columns
         the sidebar counts are built from, never the extracted text."""
-        rows = self.connection.execute("SELECT id, author, tags, extension FROM documents").fetchall()
+        rows = self.connection.execute(
+            f"SELECT id, author, tags, extension FROM documents WHERE {self._NOT_REMOVED}").fetchall()
         return [(row["id"], row["author"] or "", row["tags"] or "", row["extension"] or "") for row in rows]
 
     def count_documents_in_collection(self, collection_id: str) -> int:

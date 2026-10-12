@@ -107,7 +107,7 @@ def test_the_trash_dialog_lists_restores_and_sets_the_period(qapp, app_context, 
     dialog.restore_button.click()
     assert dialog.table.rowCount() == 1 and app_context.db.get_document("d1") or app_context.db.get_document("d2")
     dialog.days_spin.setValue(7)
-    assert app_context.config.config.trash_retention_days == 7 and "7 ngày" in dialog.table.item(0, 4).text()
+    assert app_context.config.config.trash_retention_days == 7 and "7 ngày" in dialog.table.item(0, 5).text()
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
     dialog.empty_button.click()
     assert dialog.table.rowCount() == 0 and "trống" in dialog.empty_note.text()

@@ -109,6 +109,19 @@ def _add_trash_item_id(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE documents ADD COLUMN trash_item_id TEXT")
 
 
+def _add_removal_columns(connection: sqlite3.Connection) -> None:
+    """One Thùng rác, two kinds of removal (docs/adr/0002): `removal_kind` is 'library' (Xóa khỏi thư viện: the file is
+    never touched) or 'file' (Xóa file và thư viện: the file is in the trash folder); `removed_at` is when, so both
+    kinds expire the same way. A book already in the trash under the old behaviour has its file in the trash folder, so it
+    is the second kind. Purely additive."""
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(documents)")}
+    if "removal_kind" not in existing:
+        connection.execute("ALTER TABLE documents ADD COLUMN removal_kind TEXT")
+    if "removed_at" not in existing:
+        connection.execute("ALTER TABLE documents ADD COLUMN removed_at REAL")
+    connection.execute("UPDATE documents SET removal_kind = 'file' WHERE file_status = 'trashed' AND removal_kind IS NULL")
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -161,6 +174,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(3, "search index: accent-insensitive Vietnamese tokenizer, trigger only on indexed columns", _rebuild_search_index),
     Migration(4, "excluded_paths (files removed from the library that must not be imported again), documents.file_size index", _add_excluded_paths),
     Migration(5, "documents.trash_item_id (keep library row when book is sent to the in-app trash)", _add_trash_item_id),
+    Migration(6, "documents.removal_kind / removed_at (one trash, two kinds of removal)", _add_removal_columns),
 )
 
 

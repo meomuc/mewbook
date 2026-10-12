@@ -1,5 +1,26 @@
 # Changelog
 
+[12/10/2026 - 14:09] - Task: unified-trash/02 - "Xóa khỏi thư viện" giữ nguyên file, sách vào Thùng rác
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, `:infrastructure:schema_migrations`, `:application:removal`, `:application:trash_service`, `:presentation:library_view`, `:presentation:trash_dialog`
+  - File tạo mới / Chỉnh sửa:
+    - `schema_migrations.py`: Migration 6 thêm `documents.removal_kind` / `removed_at`; sách đã vào thùng rác kiểu cũ thành loại `file`
+    - `database.py`: `mark_document_removed`, `list_removed_documents`, `mark_document_trashed` ghi loại và thời điểm; `query_documents`, `count_documents_matching`, `list_facet_rows`, `count_documents` và hai truy vấn lọc trùng loại sách đã xóa (tham số `include_removed`)
+    - `removal.py`: `RemovalMode.REMOVE_FROM_LIBRARY`
+    - `trash_service.py`: `TrashItem.kind/doc_id`, `KIND_FILE/KIND_LIBRARY`; liệt kê, khôi phục, xóa hẳn và hết hạn cho mục không có thư mục thùng rác (không bao giờ xóa file của loại này); `days_left` làm tròn lên
+    - `library_view.py`: nút xóa dùng chế độ mới, lời nhắc nói rõ file giữ nguyên
+    - `trash_dialog.py`: cột "Tình trạng xóa", lời nhắc xóa hẳn theo loại
+    - tests: `test_removal.py` (8 test mới), `test_trash_service.py`, `test_library_view_context_menu.py`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Tái dùng `file_status='trashed'` để mọi công cụ bảo trì bỏ qua sách đã xóa; loại xóa nằm ở cột riêng.
+  - Một chỗ duy nhất (`_without_removed`) quyết định sách đã xóa không vào danh sách nào của Thư viện.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Sửa luôn lỗi cũ: sách đã vào thùng rác (loại file) trước đây vẫn hiện trong danh sách chính.
+  - `forget_missing` và các truy vấn bảo trì khác (`list_all_documents`, `list_document_ids`) vẫn thấy sách đã xóa, có chủ ý.
+  - Detail panel vẫn hiện "File đã xóa — trong Thùng rác" cho loại `library` (ticket 07 sửa).
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:03] - Task: unified-trash/01 - sửa 4 test hỏng sau khi gỡ FileActionEngine.delete_documents
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests
@@ -443,6 +464,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 -- see "Versioning & releases" in README.md for how version numbers are chosen.
 
 ## [Unreleased]
+
+### Changed
+- **"Xóa khỏi thư viện" không còn chuyển file đi.** Sách rời khỏi thư viện nhưng file vẫn nằm nguyên chỗ cũ; sách nằm trong Thùng rác (cột "Tình trạng xóa"), khôi phục được và hết hạn như mục khác. Sách đã vào Thùng rác không còn hiện trong danh sách chính, tìm kiếm, số đếm bộ lọc và công cụ lọc trùng.
 
 ## [1.3.2] - 2026-10-07
 
