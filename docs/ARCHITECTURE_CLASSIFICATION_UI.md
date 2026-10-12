@@ -89,4 +89,24 @@ Khi B2 hoặc Ollama muốn thêm nhóm lý do mới (ví dụ "Gợi ý từ AI
 
 ## Nếu gặp vướng mắc
 
-Nếu cấu trúc không cho phép mở rộng theo cách trên (ví dụ cần thêm metadata về nguồn gợi ý hoặc độ tự tin của từng reason), **dừng lại và báo cáo chi tiết** — không tự ý xây dựng khu vực hiển thị riêng hay hashtag giữ chỗ thứ hai.
+Nếu cấu trúc không cho phép mở rộng theo cách trên (ví dụ cần thêm metadata về nguồn gợi ý hoặc độ tự tin của từng reason), **dừng lại và báo cáo chi tiết** — không tự ý xây dựng khu vực hiển thị riêng hay hashtag giữ chỡ thứ hai.
+
+---
+
+## Lớp 2 (Ollama) — Parallelism & Performance
+
+**Módulo:** `src/smartdoc/application/classify_layer2.py::Layer2ClassifyService`
+
+### Concurrent Inference
+- **Worker threads:** `ThreadPoolExecutor(max_workers=LAYER2_MAX_WORKERS)` chạy `self._caller` (Ollama requests) song song
+- **Bounded window:** in-flight futures capped at `max_workers × 2` để preserve `should_stop()` cancellation mid-run ("Dừng" button works)
+- **Per-thread error isolation:** một book timeout không block others; error được ghi vào `Layer2Outcome.error`
+- **DB writes serial:** tất cả writes qua `DatabaseManager` (holds `write_lock`) từ calling thread, không race
+
+### Performance Target
+- **100 unsure books:** Sequential ~300–1000s → Parallel (4 workers) ~30–60s
+- **Real speedup phụ thuộc:** `OLLAMA_NUM_PARALLEL` config trên server; đo trên `qwen2.5:7b` thực tế
+
+### Progress UI
+- **Batch updates:** `progress_callback` mỗi 4 results (không per-book), giảm Qt signal overhead
+- **Final callback** at 100%

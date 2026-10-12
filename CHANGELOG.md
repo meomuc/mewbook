@@ -1,5 +1,21 @@
 # Changelog
 
+[12/10/2026] - Task: Parallel Ollama Layer 2 Inference (Tối ưu Lớp 2)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `application/classify_layer2.py`
+  - File chỉnh sửa: `classify_layer2.py::Layer2ClassifyService.review()` — replace sequential loop with ThreadPoolExecutor(max_workers=LAYER2_MAX_WORKERS); add bounded in-flight window; batch progress updates (every 4 results)
+  - File test: `tests/test_classify_layer2.py` — add 3 tests: speed (parallel vs sequential), partial failure, should_stop interruption
+  - Dependencies: None (stdlib `concurrent.futures`)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Bottleneck: 100 unsure books = 300–1000s sequential (per-book Ollama wait); fix = ThreadPoolExecutor(4 workers)
+  - Architecture: pool inside review(), preserves injectable `self._caller` seam (tests unbroken)
+  - DB writes stay serial on calling thread (DatabaseManager.write_lock serializes)
+  - Cancellation: bounded window (max_workers × 2) so should_stop() still works mid-run
+  - Progress: batch updates, no per-book Qt signals
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Real speedup depends on Ollama's OLLAMA_NUM_PARALLEL config; measure with qwen2.5:7b before claiming 8-16x
+  - should_stop check between futures, not per-thread (acceptable tradeoff for simplicity)
+
 [09/10/2026 - 16:45] - Task: Áp dụng 3 prompt tối ưu cho AI tóm tắt và phân loại sách
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `application/ai_summary.py`, `application/ollama_classifier.py`

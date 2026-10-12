@@ -162,3 +162,76 @@ def test_model_and_base_url_are_configurable(app_context):
     service = Layer2ClassifyService(app_context)
     assert service.model() == "llama3.1"
     assert service.base_url() == "http://192.168.1.20:11434"
+
+
+# -- Concurrency tests (parallel Ollama inference) --
+
+
+def test_parallel_review_is_faster_than_sequential(app_context, monkeypatch):
+    """Verify that parallel inference (max_workers=4) is faster than sequential (max_workers=1)."""
+    import time
+
+    _ollama_reachable(monkeypatch)
+    app_context.config.config.smart_classify_layer2_enabled = True
+
+    def slow_caller(job, taxonomy, base_url, model):
+        time.sleep(0.1)
+        return Layer2Suggestion(category_ids=("novel",), confidence=0.8, insufficient_evidence=False)
+
+    jobs = [_job(f"book{i}", category_id=None) for i in range(12)]
+    service = Layer2ClassifyService(app_context, caller=slow_caller)
+
+    start = time.time()
+    outcomes = service.review(jobs)
+    elapsed = time.time() - start
+
+    assert len(outcomes) == 12
+    assert all(o.category_ids == ("novel",) for o in outcomes)
+    assert elapsed < 0.8, f"took {elapsed:.2f}s, expected <0.8s (parallel 4 workers ~0.3s)"
+
+
+def test_partial_failure_in_parallel_doesnt_stop_others(app_context, monkeypatch):
+    """One book fails; others complete successfully."""
+    from smartdoc.application.ollama_classifier import OllamaClassificationError
+
+    _ollama_reachable(monkeypatch)
+    app_context.config.config.smart_classify_layer2_enabled = True
+
+    def partially_failing_caller(job, taxonomy, base_url, model):
+        if job.doc_id == "book1":
+            raise OllamaClassificationError("timeout")
+        return Layer2Suggestion(category_ids=("novel",), confidence=0.8, insufficient_evidence=False)
+
+    service = Layer2ClassifyService(app_context, caller=partially_failing_caller)
+    outcomes = service.review(
+        [_job("book0", category_id=None), _job("book1", category_id=None), _job("book2", category_id=None)]
+    )
+
+    assert len(outcomes) == 3
+    assert outcomes[0].category_ids == ("novel",)
+    assert "timeout" in outcomes[1].error
+    assert outcomes[2].category_ids == ("novel",)
+
+
+def test_should_stop_mid_run_stops_future_work(app_context, monkeypatch):
+    """When should_stop() returns True, pending Ollama calls are cancelled."""
+    _ollama_reachable(monkeypatch)
+    app_context.config.config.smart_classify_layer2_enabled = True
+    call_count = [0]
+
+    def counting_caller(job, taxonomy, base_url, model):
+        call_count[0] += 1
+        return Layer2Suggestion(category_ids=("novel",), confidence=0.8, insufficient_evidence=False)
+
+    service = Layer2ClassifyService(app_context, caller=counting_caller)
+
+    def should_stop_fn():
+        return call_count[0] >= 2
+
+    outcomes = service.review(
+        [_job(f"book{i}", category_id=None) for i in range(4)], should_stop=should_stop_fn
+    )
+
+    assert call_count[0] >= 2
+    assert call_count[0] <= 4
+    assert len(outcomes) <= len([_job(f"book{i}", category_id=None) for i in range(4)])

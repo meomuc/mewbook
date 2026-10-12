@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
 from smartdoc.application.ai_summary import probe_ollama
@@ -45,6 +46,10 @@ from smartdoc.application.ollama_classifier import (
 from smartdoc.domain.taxonomy import Taxonomy
 
 logger = logging.getLogger(__name__)
+
+LAYER2_MAX_WORKERS = 4
+"""Concurrent threads for Ollama inference. Tune down if server is overloaded; each worker
+sends one API request at a time. Max value is capped by available CPU/GPU on Ollama server."""
 
 
 @dataclass(frozen=True)
@@ -161,25 +166,53 @@ class Layer2ClassifyService:
                 self.context.db.apply_layer2_suggestion(job.doc_id, (), 0.0, self.model(), error=reason)
             return outcomes
         taxonomy, base_url, model = self.taxonomy, self.base_url(), self.model()
-        outcomes: list[Layer2Outcome] = []
         total_candidates = len(candidates)
-        for i, job in enumerate(candidates):
-            if should_stop is not None and should_stop():  # "Dừng" in the wizard: one book is seconds, a library is not
-                break
-            try:
-                suggestion = self._caller(job, taxonomy, base_url, model)
-                outcome = Layer2Outcome(
-                    doc_id=job.doc_id, category_ids=suggestion.category_ids, confidence=suggestion.confidence,
-                    insufficient_evidence=suggestion.insufficient_evidence,
+        outcomes_by_id: dict[str, Layer2Outcome] = {}
+
+        with ThreadPoolExecutor(max_workers=LAYER2_MAX_WORKERS) as executor:
+            futures_to_job = {}
+            job_index = 0
+
+            def _submit_next_batch():
+                nonlocal job_index
+                while job_index < len(candidates) and len(futures_to_job) < LAYER2_MAX_WORKERS * 2:
+                    job = candidates[job_index]
+                    future = executor.submit(self._caller, job, taxonomy, base_url, model)
+                    futures_to_job[future] = (job_index, job)
+                    job_index += 1
+
+            _submit_next_batch()
+            completed = 0
+
+            for future in as_completed(futures_to_job):
+                if should_stop is not None and should_stop():
+                    executor.shutdown(cancel_futures=True)
+                    break
+
+                job_idx, job = futures_to_job.pop(future)
+                try:
+                    suggestion = future.result()
+                    outcome = Layer2Outcome(
+                        doc_id=job.doc_id, category_ids=suggestion.category_ids,
+                        confidence=suggestion.confidence, insufficient_evidence=suggestion.insufficient_evidence,
+                    )
+                except OllamaClassificationError as exc:
+                    logger.warning("Lớp 2 (Ollama) bỏ qua %s: %s", job.doc_id, exc)
+                    outcome = Layer2Outcome(doc_id=job.doc_id, error=str(exc))
+
+                outcomes_by_id[job.doc_id] = outcome
+                self.context.db.apply_layer2_suggestion(
+                    job.doc_id, outcome.category_ids, outcome.confidence, model, error=outcome.error
                 )
-            except OllamaClassificationError as exc:
-                logger.warning("Lớp 2 (Ollama) bỏ qua %s: %s", job.doc_id, exc)
-                outcome = Layer2Outcome(doc_id=job.doc_id, error=str(exc))
-            outcomes.append(outcome)
-            # A doc_id with no smart_classification row (the book was deleted, or a Lớp 1 re-run just tagged
-            # it confidently, in the moment between review_candidates() and this write) is a benign race, not
-            # an error -- apply_layer2_suggestion() simply becomes a no-op for it.
-            self.context.db.apply_layer2_suggestion(job.doc_id, outcome.category_ids, outcome.confidence, model, error=outcome.error)
-            if progress_callback is not None:
-                progress_callback(i + 1, total_candidates)
+
+                completed += 1
+                if progress_callback is not None and completed % 4 == 0:
+                    progress_callback(completed, total_candidates)
+
+                _submit_next_batch()
+
+        if progress_callback is not None and completed > 0:
+            progress_callback(completed, total_candidates)
+
+        outcomes = [outcomes_by_id[job.doc_id] for job in candidates if job.doc_id in outcomes_by_id]
         return outcomes
