@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 14:24] - Task: unified-trash/07 - Chế độ xem Thùng rác đầy đủ
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:domain:library_filter`, `:infrastructure:database`, `:application:facet_counter`, `:application:trash_service`, `:presentation:trash_dialog`, `:presentation:detail_panel`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `library_filter.py`: `STATUS_TRASH = "Thùng rác"`; `database.py`: `filter_where` hiểu giá trị mới, `_without_removed` bỏ loại trừ khi bộ lọc tự đòi sách đã xóa, `list_excluded_details` bỏ đường dẫn của sách đang ở Thùng rác
+    - `facet_counter.py`: chip "Thùng rác" có số đếm
+    - `trash_service.py`: `TrashItem.current_path`
+    - `trash_dialog.py`: cột "Vị trí hiện tại" bấm mở file trong Explorer, báo khi file không còn
+    - `detail_panel.py`: chữ theo loại xóa, mở Thùng rác đúng mục (`doc:<id>` cho loại "library")
+    - tests: `test_removal.py`, `test_trash_service.py`, `test_detail_panel.py`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Chip "Thùng rác" là bộ lọc thật trong danh sách chính (không phải màn hình riêng); việc quản lý (khôi phục, xóa hẳn, hết hạn) vẫn ở hộp thoại Thùng rác.
+  - `_without_removed` nhận biết bộ lọc đòi sách đã xóa qua đoạn SQL của nó, nên không phải đổi chữ ký của mọi nơi gọi.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Khi chip "Thùng rác" bật, số đếm của các nhóm lọc khác (hashtag, tác giả, định dạng) tính trên danh sách thường nên hiện trống: cần ticket riêng nếu muốn đếm cả sách đã xóa.
+  - Mục menu "Sách đã gỡ khỏi thư viện…" vẫn còn cho các sách bị gỡ kiểu xóa cứng ở bản cũ (không có hàng nào); chưa gộp vào Thùng rác.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:20] - Task: unified-trash/06 - Hết hạn và "Xóa hẳn" cho cả hai loại (chốt bằng test)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests
@@ -521,6 +540,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Thùng rác trong bộ lọc Tình trạng file.** Chip "Thùng rác" (có số đếm) cho xem các sách đã xóa của cả hai loại; trong cửa sổ Thùng rác, cột "Vị trí hiện tại" bấm vào để mở file trong Explorer (báo rõ nếu file không còn). Panel chi tiết nói rõ sách được xóa khỏi thư viện (file vẫn ở chỗ cũ) hay xóa cả file.
 - **Khôi phục từ Thùng rác an toàn hơn.** Khôi phục không bao giờ ghi đè file khác ở chỗ cũ và cho biết sách được đưa về đâu; file đã chuyển vào thùng rác không bị tự nhập lại nếu một ứng dụng đồng bộ tạo lại nó.
 - **Công cụ lọc trùng không còn xóa cứng.** Hai nút đổi thành "Xóa khỏi thư viện" (file giữ nguyên) và "Xóa file"; cả hai đưa sách vào Thùng rác, giữ hashtag và thông tin đã nhập, khôi phục được. Thêm lại bằng tay một file đã xóa khỏi thư viện thì sách hiện lại với đủ thông tin.
 - **Hộp thoại xóa sách có hai lựa chọn.** "Xóa khỏi thư viện" (mặc định, file giữ nguyên) và "Xóa file và thư viện" (file chuyển vào thư mục thùng rác). Cả hai khôi phục được trong Công cụ › Thùng rác.

@@ -163,6 +163,36 @@ def test_emptying_the_trash_deletes_the_trashed_file_but_never_a_files_that_stay
     assert not list(app_context.trash.directory.iterdir())
 
 
+def test_the_file_status_filter_has_a_trash_value_showing_removed_books_of_both_kinds(app_context, library):
+    from smartdoc.domain.library_filter import STATUS_TRASH, LibraryFilter
+
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    app_context.removal.remove([("d2", str(library / "b2.pdf"))], RemovalMode.TRASH_FILE)
+    where, params = app_context.db.filter_where(LibraryFilter(statuses=(STATUS_TRASH,)))
+    shown = {d["id"] for d in app_context.db.query_documents(where_sql=where, params=params)}
+    assert shown == {"d1", "d2"}
+    assert app_context.db.count_documents_matching(where_sql=where, params=params) == 2
+    assert _library_ids(app_context) == {"d3"}  # without the filter they stay out of every list
+
+
+def test_the_trash_chip_counts_removed_books_and_only_appears_when_there_are_some(app_context, library):
+    from smartdoc.domain.library_filter import STATUS_TRASH, LibraryFilter
+
+    assert STATUS_TRASH not in [c.value for c in app_context.facets.status_counts(LibraryFilter())]
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    counts = {c.value: c.count for c in app_context.facets.status_counts(LibraryFilter())}
+    assert counts[STATUS_TRASH] == 1
+
+
+def test_the_older_removed_from_library_list_does_not_repeat_what_the_trash_already_shows(app_context, library, tmp_path):
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    app_context.removal.remove([("d2", str(library / "b2.pdf"))], RemovalMode.TRASH_FILE)
+    legacy = tmp_path / "old.pdf"  # dropped by an earlier version, which kept no row for it
+    legacy.write_bytes(b"x")
+    app_context.db.exclude_paths([str(legacy)])
+    assert [row["path"] for row in app_context.db.list_excluded_details()] == [str(legacy)]
+
+
 def test_an_empty_list_changes_nothing_and_publishes_nothing(app_context, library):
     events = _events(app_context)
     for mode in RemovalMode:

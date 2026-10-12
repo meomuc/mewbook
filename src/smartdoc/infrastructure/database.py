@@ -41,6 +41,7 @@ from smartdoc.domain.library_filter import (
     FORMATS,
     STATUS_MISSING,
     STATUS_TINY,
+    STATUS_TRASH,
     STATUSES,
     TAGS,
     TINY_FILE_BYTES,
@@ -692,11 +693,16 @@ class DatabaseManager:
             return {row[0]: row[1] for row in self.connection.execute("SELECT path_key, file_size FROM excluded_paths")}
 
     def list_excluded_details(self) -> list[dict[str, Any]]:
-        """What "Sách đã gỡ khỏi thư viện" lists: path, the size it had, and when it was dropped (newest first)."""
+        """What "Sách đã gỡ khỏi thư viện" lists: path, the size it had, and when it was dropped (newest first). A path
+        whose book is in Thùng rác is left out -- that is managed there; what remains are the books an earlier version
+        dropped without keeping a row, which only this list can bring back."""
         with self.write_lock:
             rows = self.connection.execute(
                 "SELECT path, file_size, excluded_at FROM excluded_paths ORDER BY excluded_at DESC").fetchall()
-        return [{"path": row[0], "file_size": row[1] or 0, "excluded_at": row[2] or 0.0} for row in rows]
+            in_trash = {self._path_key(row[0]) for row in self.connection.execute(
+                "SELECT file_path FROM documents WHERE file_status = 'trashed'")}
+        return [{"path": row[0], "file_size": row[1] or 0, "excluded_at": row[2] or 0.0}
+                for row in rows if self._path_key(row[0]) not in in_trash]
 
     def list_excluded_paths(self) -> list[str]:
         with self.write_lock:
@@ -1524,10 +1530,13 @@ class DatabaseManager:
             return []
 
     _NOT_REMOVED = "COALESCE(documents.file_status, '') != 'trashed'"
+    _IS_REMOVED = "documents.file_status = 'trashed'"  # what the "Thùng rác" status of the file-status filter asks for
 
     def _without_removed(self, where_sql: str, include_removed: bool) -> str:
-        """A book in Thùng rác (either kind of removal) is in no library list, search or count: the one place that says so."""
-        if include_removed:
+        """A book in Thùng rác (either kind of removal) is in no library list, search or count: the one place that says so.
+        The exception is a filter that asks for them (the "Thùng rác" status): its fragment says so, which saves every
+        caller from passing a flag."""
+        if include_removed or self._IS_REMOVED in where_sql:
             return where_sql
         return f"({where_sql}) AND {self._NOT_REMOVED}" if where_sql else self._NOT_REMOVED
 
@@ -1938,6 +1947,8 @@ class DatabaseManager:
             if STATUS_TINY in flt.statuses:
                 parts.append("documents.file_size < ?")
                 params.append(TINY_FILE_BYTES)
+            if STATUS_TRASH in flt.statuses:
+                parts.append(self._IS_REMOVED)
             if parts:
                 fragments.append("(" + " OR ".join(f"({part})" for part in parts) + ")")
 

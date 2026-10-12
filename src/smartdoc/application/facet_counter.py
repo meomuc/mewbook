@@ -35,6 +35,7 @@ from smartdoc.domain.library_filter import (
     FORMATS,
     STATUS_MISSING,
     STATUS_TINY,
+    STATUS_TRASH,
     STATUSES,
     TAGS,
     LibraryFilter,
@@ -229,7 +230,7 @@ class FacetCounter:
         under the current filter (STATUSES excluded so sibling choices stay visible)."""
         base_sql, base_params = self.context.db.filter_where(flt, exclude=(STATUSES,))
         result = []
-        for status in (STATUS_MISSING, STATUS_TINY):
+        for status in (STATUS_MISSING, STATUS_TINY, STATUS_TRASH):
             status_sql, status_params = self.context.db.filter_where(LibraryFilter(statuses=(status,)))
             combined_sql = f"({status_sql}) AND ({base_sql})" if base_sql else status_sql
             combined_params = status_params + base_params

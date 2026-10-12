@@ -60,6 +60,8 @@ class TrashItem:
     """None when the trash is set to keep things until they are deleted by hand."""
     kind: str = KIND_FILE
     doc_id: str = ""
+    current_path: str = ""
+    """Where the file is right now: its old place for KIND_LIBRARY, inside the trash folder for KIND_FILE."""
 
     def days_left(self, now: float | None = None) -> int | None:
         if self.expires_at is None:
@@ -156,7 +158,8 @@ class TrashService:
             items.append(TrashItem(
                 item_id=f"{_DOC_PREFIX}{row['id']}", title=row.get("title") or Path(path).name, original_path=path,
                 file_name=Path(path).name, size=int(row.get("file_size") or 0), trashed_at=removed_at,
-                expires_at=removed_at + days * _DAY if days else None, kind=KIND_LIBRARY, doc_id=row["id"]))
+                expires_at=removed_at + days * _DAY if days else None, kind=KIND_LIBRARY, doc_id=row["id"],
+                current_path=path))
         return items
 
     def _folder_items(self) -> list[TrashItem]:
@@ -174,7 +177,8 @@ class TrashService:
                 item_id=folder.name, title=(meta.get("doc") or {}).get("title") or meta.get("file_name", ""),
                 original_path=meta.get("original_path", ""), file_name=meta.get("file_name", ""),
                 size=stored.stat().st_size if stored.is_file() else 0, trashed_at=trashed_at,
-                expires_at=trashed_at + days * _DAY if days else None))
+                expires_at=trashed_at + days * _DAY if days else None, doc_id=(meta.get("doc") or {}).get("id", ""),
+                current_path=str(stored)))
         return found
 
     @staticmethod

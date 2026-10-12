@@ -631,16 +631,20 @@ class DocumentDetailPanel(QFrame):
         if file_status == "trashed":
             warn_color = tm.token("warn") or tm.token("err") or "#e87c3e"
             accent = tm.token("accent")
+            kept_file = doc.get("removal_kind") == "library"  # Xóa khỏi thư viện: the file never moved
+            what = "Đã xóa khỏi thư viện — file vẫn ở chỗ cũ" if kept_file else "File đã xóa — trong Thùng rác"
             self.file_status_label.setText(
-                f"<span style='color:{warn_color};'>File đã xóa — trong Thùng rác</span>"
+                f"<span style='color:{warn_color};'>{what}</span>"
                 f"&nbsp;<span style='color:{accent}; text-decoration:underline;'>Mở Thùng rác</span>"
             )
-            self.file_status_label.setToolTip("File đã được chuyển vào Thùng rác MewBook\nBấm để mở Thùng rác đến đúng file này")
+            self.file_status_label.setToolTip(
+                ("Sách đã rời khỏi thư viện, file không bị đụng tới" if kept_file else "File đã được chuyển vào Thùng rác MewBook")
+                + "\nBấm để mở Thùng rác đến đúng sách này")
             self.file_status_label.show()
             if self._status_caption_label:
                 self._status_caption_label.show()
-            self.path_label.set_path("(trong thùng rác)")
-            self.path_label.setToolTip("File đã được chuyển vào Thùng rác MewBook\nBấm để mở Thùng rác")
+            self.path_label.set_path(file_path if kept_file else "(trong thùng rác)")
+            self.path_label.setToolTip("Bấm để mở Thùng rác đến đúng sách này")
         elif file_status == "missing":
             warn_color = tm.token("warn") or tm.token("err") or "#e87c3e"
             self.file_status_label.setText(f"<span style='color:{warn_color};'>Không thấy file</span>")
@@ -778,7 +782,9 @@ class DocumentDetailPanel(QFrame):
     def _open_trash_for_current(self) -> None:
         """Open TrashDialog and jump to the trash item for the current document."""
         from smartdoc.presentation.trash_dialog import TrashDialog
-        item_id = self._current_doc.get("trash_item_id") if self._current_doc else None
+        doc = self._current_doc or {}
+        # A book whose file never moved has no trash folder: its Thùng rác entry is named after the document.
+        item_id = doc.get("trash_item_id") or (f"doc:{doc['id']}" if doc.get("removal_kind") == "library" else None)
         dialog = TrashDialog(self.context, self, select_item_id=item_id)
         dialog.exec()
         dialog.deleteLater()

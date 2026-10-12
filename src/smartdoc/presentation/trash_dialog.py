@@ -8,8 +8,10 @@ undone. Restoring never overwrites a file that is now at the old place (the serv
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from smartdoc.application.trash_service import KIND_FILE, KIND_LIBRARY, MAX_RETENTION_DAYS, TrashError, TrashItem
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.file_actions import FileActionEngine
 from smartdoc.presentation.format_utils import human_size
 from smartdoc.presentation.task_progress_dialog import run_with_progress
 from smartdoc.presentation.theme_manager import theme_manager
@@ -54,11 +57,13 @@ class TrashDialog(DesignDialog):
                          width=820)
         self.context = context
         self.service = context.trash
+        self.file_actions = FileActionEngine(context)
         self.resize(860, 480)
         self._pending_select_item_id = select_item_id
 
         self.table = QTableWidget(0, 6, self)
-        self.table.setHorizontalHeaderLabels(["SÁCH", "TÌNH TRẠNG XÓA", "VỊ TRÍ CŨ", "DUNG LƯỢNG", "NGÀY BỎ", "CÒN LẠI"])
+        self.table.setHorizontalHeaderLabels(["SÁCH", "TÌNH TRẠNG XÓA", "VỊ TRÍ HIỆN TẠI", "DUNG LƯỢNG", "NGÀY BỎ", "CÒN LẠI"])
+        self.table.cellClicked.connect(self._on_cell_clicked)
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -99,13 +104,20 @@ class TrashDialog(DesignDialog):
         self.table.setRowCount(len(items))
         for row, item in enumerate(items):
             left = item.days_left()
-            cells = (item.title, _KIND_LABEL.get(item.kind, ""), item.original_path, human_size(item.size).replace(".", ","),
-                     _when(item.trashed_at), "Không hết hạn" if left is None else f"{left} ngày")
+            cells = (item.title, _KIND_LABEL.get(item.kind, ""), item.current_path or item.original_path,
+                     human_size(item.size).replace(".", ","), _when(item.trashed_at),
+                     "Không hết hạn" if left is None else f"{left} ngày")
             for column, text in enumerate(cells):
                 cell = QTableWidgetItem(text)
-                cell.setToolTip(item.original_path)
+                cell.setToolTip(f"Bấm để mở file trong thư mục chứa nó\nKhôi phục sẽ đưa về: {item.original_path}"
+                                if column == _COL_PATH else item.original_path)
                 if column == _COL_TITLE:
                     cell.setData(_ITEM_ROLE, item)
+                if column == _COL_PATH:  # reads as a link
+                    font = cell.font()
+                    font.setUnderline(True)
+                    cell.setFont(font)
+                    cell.setForeground(QColor(theme_manager().token("accent")))
                 self.table.setItem(row, column, cell)
         self.empty_note.setText("" if items else "Thùng rác trống.")
         self._update_buttons()
@@ -120,6 +132,17 @@ class TrashDialog(DesignDialog):
                     self.table.selectRow(row)
                     self.table.scrollToItem(cell)
                     break
+
+    def _on_cell_clicked(self, row: int, column: int) -> None:
+        """The place column opens the file where it is now (Explorer with it selected); a file that is not there is said so."""
+        if column != _COL_PATH:
+            return
+        cell = self.table.item(row, _COL_PATH)
+        path = cell.text() if cell is not None else ""
+        if not path or not Path(path).exists():
+            QMessageBox.information(self, "Không thấy file", f"File không còn ở:\n{path}")
+            return
+        self.file_actions.show_in_file_manager(path)
 
     def _selected(self) -> list[TrashItem]:
         rows = sorted({index.row() for index in self.table.selectedIndexes()})

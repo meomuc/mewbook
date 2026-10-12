@@ -101,6 +101,36 @@ def test_set_document_shows_content(qapp, app_context):
     assert "Nguyễn Văn A" in panel.author_edit.text()
 
 
+def test_the_panel_says_how_a_removed_book_was_removed(qapp, app_context):
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc(file_status="trashed", removal_kind="library"))
+    assert "khỏi thư viện" in panel.file_status_label.text() and "chỗ cũ" in panel.file_status_label.text()
+    panel.set_document(_sample_doc(file_status="trashed", removal_kind="file", trash_item_id="abc"))
+    assert "File đã xóa" in panel.file_status_label.text()
+
+
+def test_the_panel_opens_the_trash_on_the_right_item_for_both_kinds(qapp, app_context, monkeypatch):
+    chosen: list[str | None] = []
+
+    class _FakeTrashDialog:
+        def __init__(self, context, parent=None, *, select_item_id=None) -> None:
+            chosen.append(select_item_id)
+
+        def exec(self) -> int:
+            return 0
+
+        def deleteLater(self) -> None:
+            pass
+
+    monkeypatch.setattr("smartdoc.presentation.trash_dialog.TrashDialog", _FakeTrashDialog)
+    panel = DocumentDetailPanel(app_context)
+    panel.set_document(_sample_doc(file_status="trashed", removal_kind="file", trash_item_id="abc"))
+    panel._open_trash_for_current()
+    panel.set_document(_sample_doc(file_status="trashed", removal_kind="library"))
+    panel._open_trash_for_current()
+    assert chosen == ["abc", "doc:d1"]
+
+
 def test_set_document_none_returns_to_empty(qapp, app_context):
     panel = DocumentDetailPanel(app_context)
     panel.set_document(_sample_doc())

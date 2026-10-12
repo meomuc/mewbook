@@ -45,6 +45,7 @@ CATEGORY_LABELS = {
 # default would flag good books; the clean-up dialog lets the person look wider.
 STATUS_MISSING = "Thiếu file"
 STATUS_TINY = "File quá nhỏ"
+STATUS_TRASH = "Thùng rác"  # books removed from the library (either kind): the only list they appear in
 TINY_FILE_BYTES = 5 * 1024
 
 # How a list of facet values is ordered -- shared by the sidebar's sections (facet_panel.py, count/name only) and the

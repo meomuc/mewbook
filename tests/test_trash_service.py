@@ -199,6 +199,45 @@ def test_the_trash_dialog_says_where_a_file_went_when_its_old_place_was_taken(qa
     dialog.deleteLater()
 
 
+def test_the_current_place_of_each_item_is_listed_and_a_click_opens_its_file(qapp, app_context, library, monkeypatch):
+    from pathlib import Path
+
+    from smartdoc.application.removal import RemovalMode
+    from smartdoc.presentation.trash_dialog import TrashDialog
+
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    app_context.removal.remove([("d2", str(library / "b2.pdf"))], RemovalMode.TRASH_FILE)
+    dialog = TrashDialog(app_context)
+    shown: list[str] = []
+    monkeypatch.setattr(dialog.file_actions, "show_in_file_manager", lambda path: shown.append(path) or True)
+    places = {dialog.table.item(row, 0).text(): dialog.table.item(row, 2).text() for row in range(2)}
+    assert places["Sách 1"] == str(library / "b1.pdf")  # the file never moved
+    moved = Path(places["Sách 2"])
+    assert moved.parent.parent == app_context.trash.directory and moved.name == "b2.pdf" and moved.is_file()
+    for row in range(2):
+        dialog.table.cellClicked.emit(row, 2)
+    assert sorted(shown) == sorted(places.values())
+    dialog.deleteLater()
+
+
+def test_clicking_a_place_whose_file_is_gone_says_so(qapp, app_context, library, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    from smartdoc.application.removal import RemovalMode
+    from smartdoc.presentation.trash_dialog import TrashDialog
+
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    (library / "b1.pdf").unlink()
+    dialog = TrashDialog(app_context)
+    shown: list[str] = []
+    told: list[str] = []
+    monkeypatch.setattr(dialog.file_actions, "show_in_file_manager", lambda path: shown.append(path) or True)
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: told.append(a[2]))
+    dialog.table.cellClicked.emit(0, 2)
+    assert not shown and told and "không còn" in told[0]
+    dialog.deleteLater()
+
+
 def test_the_delete_for_good_question_says_whether_a_file_will_be_lost(qapp, app_context, library, monkeypatch):
     from PySide6.QtWidgets import QMessageBox
 
