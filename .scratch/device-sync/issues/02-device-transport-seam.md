@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Giao diện không có thao tác xóa hay ghi nào ngoài chép file sách lên máy.
 - [ ] Hộp thoại gửi hiện tại đi qua giao diện này, hành vi giữ nguyên: không ghi đè file đã có, từ chối sách có DRM, dừng sạch khi rút máy giữa chừng.
 - [ ] Có bản giả trong bộ nhớ dùng được trong test, và các test gửi hiện có chạy được trên cả hai bản.

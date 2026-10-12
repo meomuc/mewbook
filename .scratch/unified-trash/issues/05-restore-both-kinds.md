@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Khôi phục mục "Xóa khỏi thư viện": sách hiện lại ngay với đủ hashtag, tác giả, bộ sưu tập và thông tin cũ.
 - [ ] Khôi phục mục "Xóa file": file về đường dẫn cũ rồi sách hiện lại.
 - [ ] Việc khôi phục không bao giờ ghi đè một file khác đang nằm ở đường dẫn cũ; người dùng được báo rõ.

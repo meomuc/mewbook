@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Dấu liên kết hiện trong danh sách Bộ sưu tập và trong danh sách hashtag khi tên trùng, so sánh theo đúng cách ứng dụng đang so sánh tên hashtag.
 - [ ] Gắn một hashtag trùng tên cho một sách không đưa sách đó vào bộ sưu tập (có test).
 - [ ] Đổi tên bộ sưu tập hoặc hashtag làm dấu hiện hoặc mất theo đúng.

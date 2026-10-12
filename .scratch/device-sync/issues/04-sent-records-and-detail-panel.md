@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Mỗi lần gửi thành công ghi một bản ghi theo cặp (Sách, Thiết bị) gồm thời điểm gửi, tên file, kích thước và đường dẫn trên máy.
 - [ ] Gửi cùng một sách sang nhiều máy tạo bản ghi riêng cho từng máy.
 - [ ] Panel chi tiết liệt kê từng Thiết bị đã nhận sách và thời điểm gửi.

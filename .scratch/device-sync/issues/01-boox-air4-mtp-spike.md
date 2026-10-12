@@ -6,6 +6,8 @@
 
 **Status:** ready-for-human
 
+**Category:** enhancement
+
 - [ ] Ghi rõ chế độ USB máy dùng (MTP, PTP hay ổ đĩa) và xác nhận máy không có ký tự ổ đĩa.
 - [ ] Ghi thư mục chứa sách trên máy.
 - [ ] Thử liệt kê file và chép một file thử qua MTP bằng một chương trình thử nghiệm bỏ đi, ghi kết quả và các lỗi gặp phải.

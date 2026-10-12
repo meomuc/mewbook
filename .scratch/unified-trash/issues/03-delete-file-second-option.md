@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Hộp thoại xóa một sách và nhiều sách đều hiện hai lựa chọn với mô tả đúng hành vi.
 - [ ] Xóa file chuyển file vào Thư mục thùng rác và không bao giờ ghi đè một file đã có ở đó.
 - [ ] Nếu việc chuyển file thất bại, sách ở lại Thư viện nguyên vẹn và người dùng được báo lý do.

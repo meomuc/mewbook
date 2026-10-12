@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Bảng Thiết bị mới được thêm bằng migration có số thứ tự, chỉ chạy sau bước sao lưu thư viện.
 - [ ] Đăng ký một Thiết bị với tên, loại máy (hồ sơ thiết bị có sẵn) và thư mục đích; đổi tên; bỏ đăng ký.
 - [ ] Có màn hình quản lý Thiết bị hiện danh sách các máy đã đăng ký.

@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Một cài đặt số ngày duy nhất áp dụng cho cả hai loại; 0 nghĩa là không bao giờ hết hạn; tối đa 365 ngày.
 - [ ] Mục hết hạn bị xóa hẳn bản ghi cùng mọi dữ liệu liên quan, gồm thành viên bộ sưu tập, kết quả phân loại, lịch sử metadata và tiến độ đọc.
 - [ ] Mục loại Xóa file hết hạn thì file trong Thư mục thùng rác cũng bị xóa.

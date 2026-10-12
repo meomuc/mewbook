@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Bảng có các cột: tên sách, Tình trạng xóa, đường dẫn hiện tại, ngày xóa, số ngày còn lại.
 - [ ] Bấm vào đường dẫn mở trình quản lý file với file đó được chọn; nếu file không còn ở đó thì báo rõ.
 - [ ] Bộ lọc Tình trạng file có thêm giá trị "Thùng rác" dẫn tới chế độ xem này.

@@ -1,5 +1,15 @@
 # Changelog
 
+[12/10/2026 - 13:50] - Task: Thêm dòng Category cho 18 ticket (triage)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có code; tài liệu theo dõi công việc
+  - File tạo mới / Chỉnh sửa: 18 file trong `.scratch/*/issues/` được thêm dòng `**Category:**` ngay sau dòng Status
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - `bug` cho `unified-trash/02` và `04` (nút xóa đang chuyển file, lọc trùng đang xóa cứng); 16 ticket còn lại là `enhancement`.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Không có. Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 13:45] - Task: Chia 3 spec thành 18 ticket (to-tickets)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có code; tài liệu theo dõi công việc

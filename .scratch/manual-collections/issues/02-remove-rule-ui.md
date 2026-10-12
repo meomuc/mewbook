@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Có thể tạo, đổi tên và xóa Bộ sưu tập; xóa bộ sưu tập không đụng đến sách bên trong.
 - [ ] Có thể thêm một hoặc nhiều sách đã chọn vào bộ sưu tập, và bớt sách ra mà không ảnh hưởng file hay hashtag.
 - [ ] Một sách thuộc được nhiều bộ sưu tập.

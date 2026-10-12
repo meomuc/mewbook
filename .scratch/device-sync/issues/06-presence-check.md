@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Việc kiểm tra so tên và kích thước đã ghi lúc gửi với danh sách file hiện có trên máy.
 - [ ] Kết quả gồm ba trạng thái: còn trên máy, không còn trên máy, chưa kiểm tra; kèm thời điểm kiểm tra gần nhất.
 - [ ] File đổi tên trên máy được coi là "không còn trên máy".

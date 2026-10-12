@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Cài đặt có chọn thư mục thùng rác; khi chưa chọn thì dùng thư mục mặc định hiện có của ứng dụng.
 - [ ] Mỗi mục lưu đường dẫn đầy đủ của riêng nó, nên đổi thư mục chỉ ảnh hưởng các lần xóa sau và các mục cũ vẫn khôi phục được.
 - [ ] Thư mục không tồn tại hoặc không ghi được thì báo rõ, và việc Xóa file không làm mất file.

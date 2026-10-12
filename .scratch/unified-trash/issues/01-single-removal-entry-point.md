@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Mỗi đường xóa hiện có có một test hồi quy ghi lại hành vi hiện tại, kể cả việc nút "Xóa khỏi thư viện" đang chuyển file (hành vi tạm, sẽ đổi ở ticket 02).
 - [ ] Chỉ còn một nơi quyết định số phận file và bản ghi khi xóa.
 - [ ] Toàn bộ test hiện có vẫn xanh, không có thay đổi hành vi nhìn thấy được.

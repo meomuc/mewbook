@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Bìa sách có một biểu tượng nhỏ kèm số máy mà sách đang còn nằm trên; không có biểu tượng khi sách chưa nằm trên máy nào.
 - [ ] Biểu tượng không che bìa sách khi có nhiều máy (chỉ một biểu tượng kèm số).
 - [ ] Số máy chỉ tính các máy mà trạng thái là còn trên máy.

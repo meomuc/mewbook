@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** bug
+
 - [ ] Xóa khỏi thư viện không di chuyển, đổi tên hay xóa file trên đĩa (có test kiểm tra file còn nguyên chỗ cũ).
 - [ ] Sách đã xóa không xuất hiện trong danh sách chính, tìm kiếm, số đếm bộ lọc và các công cụ hàng loạt.
 - [ ] Sách hiện trong chế độ xem Thùng rác với cột Tình trạng xóa là "Xóa khỏi thư viện" và vị trí gốc của file.

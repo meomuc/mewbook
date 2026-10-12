@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Có bản MTP cho Windows của giao diện truyền tải, dùng thư viện `comtypes` (giấy phép MIT, tương thích AGPL-3.0), chỉ được import bên trong mô-đun này.
 - [ ] Giấy phép của thư viện được ghi vào danh mục giấy phép và `THIRD_PARTY_NOTICES.md` trước khi thêm phụ thuộc.
 - [ ] Mọi truy cập MTP chạy ở luồng nền, mỗi luồng tự khởi tạo COM; giao diện không bị đơ khi máy chậm.

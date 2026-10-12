@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** bug
+
 - [ ] Công cụ lọc trùng có hai lựa chọn Xóa khỏi thư viện và Xóa file, với cùng ý nghĩa như ở hộp thoại xóa chính.
 - [ ] Không còn đường nào xóa cứng bản ghi theo yêu cầu người dùng từ công cụ này.
 - [ ] Sách bị gỡ qua lọc trùng nằm trong Thùng rác, giữ nguyên hashtag, tác giả và lịch sử metadata.

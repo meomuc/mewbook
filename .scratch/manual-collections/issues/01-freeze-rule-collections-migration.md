@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Category:** enhancement
+
 - [ ] Migration có số thứ tự, chỉ chạy sau bước sao lưu thư viện (không sao lưu thì không chạy).
 - [ ] Mỗi bộ sưu tập quy tắc có thành viên bằng đúng kết quả quy tắc tại thời điểm nâng cấp, hợp với thành viên thêm tay có sẵn.
 - [ ] Chạy lại migration không thêm thành viên trùng.
