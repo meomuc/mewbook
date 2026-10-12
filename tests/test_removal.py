@@ -52,26 +52,25 @@ def test_trash_file_for_a_file_that_is_already_gone_just_leaves_the_library(app_
     assert result.missing == ["d3"] and app_context.db.get_document("d3") is None
 
 
-def test_forget_record_deletes_the_row_and_leaves_the_file(app_context, library):
-    events = _events(app_context)
-    result = app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.FORGET_RECORD)
-    assert result.moved == ["d1"] and not result.failed
-    assert app_context.db.get_document("d1") is None
-    assert (library / "b1.pdf").exists()
-    assert len(events) == 1
-
-
-def test_forget_record_remembers_the_path_so_the_watcher_does_not_bring_the_book_back(app_context, library):
-    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.FORGET_RECORD)
+def test_removing_from_the_library_remembers_only_the_removed_paths(app_context, library):
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
     assert app_context.db.is_path_excluded(str(library / "b1.pdf"))
     assert not app_context.db.is_path_excluded(str(library / "b2.pdf"))
 
 
-def test_forget_record_batches_many_books_into_one_event(app_context, library):
+def test_removing_many_books_publishes_one_event(app_context, library):
     events = _events(app_context)
-    app_context.removal.remove([("d1", str(library / "b1.pdf")), ("d2", str(library / "b2.pdf"))], RemovalMode.FORGET_RECORD)
-    assert {d["id"] for d in app_context.db.list_all_documents()} == {"d3"}
+    items = [("d1", str(library / "b1.pdf")), ("d2", str(library / "b2.pdf"))]
+    app_context.removal.remove(items, RemovalMode.REMOVE_FROM_LIBRARY)
+    assert _library_ids(app_context) == {"d3"}
     assert len(events) == 1
+
+
+def test_adding_a_removed_file_by_hand_brings_the_book_back_with_its_data(app_context, library):
+    app_context.removal.remove([("d1", str(library / "b1.pdf"))], RemovalMode.REMOVE_FROM_LIBRARY)
+    assert app_context.trash.restore_removed_at([str(library / "b1.pdf"), str(library / "other.pdf")]) == 1
+    assert _library_ids(app_context) == {"d1", "d2", "d3"} and app_context.db.get_document("d1")["tags"] == "a,b"
+    assert not app_context.trash.list_items()
 
 
 def _library_ids(app_context) -> set[str]:

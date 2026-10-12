@@ -49,7 +49,7 @@ def test_every_file_of_every_group_is_listed_with_nothing_ticked(qapp):
     assert pane.table.rowCount() == 7 and pane.ticked_docs() == []
     assert pane.count_label.text() == "3/3 nhóm · 7 file"
     assert not pane.remove_button.isEnabled() and not pane.trash_button.isEnabled()
-    assert pane.remove_button.text() == "Bỏ 0 file khỏi thư viện"
+    assert pane.remove_button.text() == "Xóa 0 khỏi thư viện"
     pane.deleteLater()
 
 
@@ -74,7 +74,7 @@ def test_ticks_survive_searching_and_sorting(qapp):
     pane.search_edit.setText("python")
     pane.search_edit.setText("")
     pane.table.sortByColumn(_C_SIZE, Qt.DescendingOrder)
-    assert [d["id"] for d in pane.ticked_docs()] == ["b3"] and pane.remove_button.text() == "Bỏ 1 file khỏi thư viện"
+    assert [d["id"] for d in pane.ticked_docs()] == ["b3"] and pane.remove_button.text() == "Xóa 1 khỏi thư viện"
     sizes = [pane.table.item(r, _C_SIZE).data(Qt.UserRole + 2) for r in range(pane.table.rowCount())]
     assert sizes == sorted(sizes, reverse=True)  # a number sorts as a number ("30000" after "9000" as text would be wrong)
     pane.deleteLater()
@@ -204,7 +204,7 @@ def test_removing_ticked_files_from_the_list_keeps_the_files_and_the_rest_of_the
     _tick(pane, "d2")
     _tick(pane, "d4")
     pane.remove_button.click()
-    remaining = {d["id"] for d in app_context.db.list_all_documents()}
+    remaining = {d["id"] for d in app_context.db.query_documents()}
     assert remaining == {"d1", "d3", "d5"} and all((tmp_path / n).exists() for n in ("a.pdf", "a2.pdf", "b.pdf", "b2.pdf"))
     assert app_context.db.is_path_excluded(str(tmp_path / "a2.pdf"))  # dropped on purpose: the watcher will not bring it back
     assert pane.table.rowCount() == 0  # both groups are resolved

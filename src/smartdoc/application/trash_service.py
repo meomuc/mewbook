@@ -250,6 +250,20 @@ class TrashService:
         self.context.event_bus.publish(LibraryUpdatedEvent())
         return Path(path)
 
+    def restore_removed_at(self, paths: list[str]) -> int:
+        """The person added these files by hand: a book that was removed from the library with its file left in place comes
+        back, instead of staying hidden under a path they just asked for. Returns how many came back."""
+        restored = 0
+        for path in paths:
+            doc_id = self.context.db.find_id_by_path(path)
+            row = self.context.db.get_document(doc_id) if doc_id else None
+            if row is not None and row.get("removal_kind") == KIND_LIBRARY:
+                self.context.db.unmark_document_trashed(row["id"], row.get("file_path") or path)
+                restored += 1
+        if restored:
+            self.context.event_bus.publish(LibraryUpdatedEvent())
+        return restored
+
     def delete_forever(self, item_id: str) -> None:
         if item_id.startswith(_DOC_PREFIX):
             doc_id = item_id[len(_DOC_PREFIX):]

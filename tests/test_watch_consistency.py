@@ -34,20 +34,21 @@ def _import(app_context, manager, path, title):
 def test_a_book_dropped_from_the_library_is_not_imported_again_by_the_watcher(tmp_path, app_context, manager):
     path = tmp_path / "a.pdf"
     doc_id = _import(app_context, manager, path, "Sách bỏ")
-    app_context.removal.remove([(doc_id, str(path))], RemovalMode.FORGET_RECORD)
-    assert app_context.db.get_document(doc_id) is None and app_context.db.is_path_excluded(str(path))
+    app_context.removal.remove([(doc_id, str(path))], RemovalMode.REMOVE_FROM_LIBRARY)
+    assert app_context.db.query_documents() == [] and app_context.db.is_path_excluded(str(path))
 
     app_context.event_bus.publish(FileDetectedEvent(file_path=str(path)))  # the file was touched (antivirus, sync client)
     time.sleep(1.0)
-    assert app_context.db.get_document(doc_id) is None and app_context.db.find_id_by_path(str(path)) is None
+    assert app_context.db.query_documents() == []  # still removed: the watcher did not bring it back
+    assert app_context.db.get_document(doc_id)["file_status"] == "trashed"
 
 
 def test_adding_the_file_by_hand_lifts_the_exclusion(tmp_path, app_context, manager):
     path = tmp_path / "a.pdf"
     doc_id = _import(app_context, manager, path, "Sách bỏ")
-    app_context.removal.remove([(doc_id, str(path))], RemovalMode.FORGET_RECORD)
+    app_context.removal.remove([(doc_id, str(path))], RemovalMode.REMOVE_FROM_LIBRARY)
     manager.add_files([str(path)])
-    assert _wait_until(lambda: app_context.db.get_document(doc_id) is not None)
+    assert _wait_until(lambda: len(app_context.db.query_documents()) == 1)  # back in the library, not left hidden
     assert not app_context.db.is_path_excluded(str(path))
 
 
@@ -55,7 +56,7 @@ def test_deleting_the_file_too_leaves_no_exclusion_behind(tmp_path, app_context,
     path = tmp_path / "a.pdf"
     doc_id = _import(app_context, manager, path, "Sách xóa")
     path.unlink()
-    app_context.removal.remove([(doc_id, str(path))], RemovalMode.FORGET_RECORD)
+    app_context.removal.remove([(doc_id, str(path))], RemovalMode.REMOVE_FROM_LIBRARY)
     assert not app_context.db.is_path_excluded(str(path)) and not path.exists()
 
 
@@ -160,7 +161,7 @@ def test_the_duplicate_dialog_hashes_pending_files_in_the_background_and_then_li
 def test_a_different_file_saved_under_a_dropped_name_is_a_new_book(tmp_path, app_context, manager):
     path = tmp_path / "a.pdf"
     doc_id = _import(app_context, manager, path, "Sách bỏ")
-    app_context.removal.remove([(doc_id, str(path))], RemovalMode.FORGET_RECORD)
+    app_context.removal.remove([(doc_id, str(path))], RemovalMode.REMOVE_FROM_LIBRARY)
     assert app_context.db.is_path_excluded(str(path))
     _make_pdf(path, "Một cuốn hoàn toàn khác", "Người khác", "nội dung dài hơn nhiều " * 50)  # same name, another file
     assert not app_context.db.is_path_excluded(str(path))  # forgotten: it is not the file that was dropped

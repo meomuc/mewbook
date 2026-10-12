@@ -272,8 +272,8 @@ class DuplicateFinderDialog(DesignDialog):
         # Static how-to-use text -- the "hướng dẫn" role; HintLabel folds it to ~2 lines instead of running 3-4
         # lines tall (task A1's AC).
         self.hint_label = HintLabel(
-            "MewBook không tự chọn bản nào để xóa: hãy xem từng nhóm và chọn bản giữ lại. “Bỏ khỏi thư viện”: file vẫn nằm "
-            "trên máy. “Chuyển vào Thùng rác”: file vào thùng rác của MewBook, khôi phục được trước hạn.", self)
+            "MewBook không tự chọn bản nào để xóa: hãy xem từng nhóm và chọn bản giữ lại. “Xóa khỏi thư viện”: file vẫn nằm "
+            "trên máy. “Xóa file”: file vào thư mục thùng rác của MewBook. Cả hai khôi phục được trước hạn.", self)
 
         right = QVBoxLayout()
         right.setSpacing(10)
@@ -504,8 +504,8 @@ class DuplicateFinderDialog(DesignDialog):
 
     def _update_action_buttons(self, group: list[dict] | None) -> None:
         count = len(self._others()) if group else 0
-        self.remove_button.setText(f"Bỏ {count} bản kia khỏi thư viện")
-        self.delete_button.setText(f"Chuyển {count} file vào Thùng rác…")
+        self.remove_button.setText(f"Xóa {count} bản kia khỏi thư viện")
+        self.delete_button.setText(f"Xóa file của {count} bản kia…")
         days = self.context.trash.retention_days()
         tip = (f"Tự xóa hẳn sau {days} ngày; bạn đổi được ở cửa sổ Thùng rác." if days
                else "Giữ trong thùng rác đến khi bạn tự xóa.")
@@ -545,7 +545,7 @@ class DuplicateFinderDialog(DesignDialog):
     def _on_remove_docs(self, others: list[dict]) -> None:
         if not others:
             return
-        self.context.removal.remove([(d["id"], d.get("file_path")) for d in others], RemovalMode.FORGET_RECORD)
+        self.context.removal.remove([(d["id"], d.get("file_path")) for d in others], RemovalMode.REMOVE_FROM_LIBRARY)
         self._forget({d["id"] for d in others})
 
     def _on_trash_files(self) -> None:
@@ -559,7 +559,7 @@ class DuplicateFinderDialog(DesignDialog):
         count = len(others)
         days = self.context.trash.retention_days()
         answer = QMessageBox.question(
-            self, f"Chuyển {count} file vào Thùng rác?",
+            self, f"Xóa {count} file?",
             f"{count} file sẽ rời khỏi thư mục hiện tại và nằm trong Thùng rác của MewBook"
             + (f", tự xóa hẳn sau {days} ngày" if days else "") + ". Bạn khôi phục được bất cứ lúc nào trước hạn.\n\n"
             "Bản bạn giữ lại không bị đụng tới.", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)

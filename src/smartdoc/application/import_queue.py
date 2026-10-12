@@ -179,6 +179,7 @@ class ImportQueueManager:
         if not paths:
             return 0
         self.context.db.unexclude_paths(paths)
+        self.context.trash.restore_removed_at(paths)
         self._start_batch(paths)
         return len(paths)
 
@@ -193,6 +194,7 @@ class ImportQueueManager:
         if not paths:
             return None
         self.context.db.unexclude_paths(paths)
+        self.context.trash.restore_removed_at(paths)
         return self._start_batch(paths)
 
     def _start_batch(self, paths: list[str]) -> str:

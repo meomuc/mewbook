@@ -6,14 +6,12 @@ through `RemovalService.remove`, so changing what "remove" means is a change in 
 covered on purpose: forgetting books whose file is already gone (`LibraryCleanupService.forget_missing`) and the trash's
 own expiry and "Xóa hẳn", which delete rows for good by design.
 
-Three modes exist:
+Two modes exist (docs/adr/0002): both keep the row, hide it from every library list, and can be undone from Thùng rác.
 
-- `REMOVE_FROM_LIBRARY`: Xóa khỏi thư viện. The row is kept but hidden (listed in Thùng rác as the kind "library"), the
-  file is never touched, and its path is remembered so the folder watcher does not import it again.
-- `TRASH_FILE`: the file moves into MewBook's trash and the row is kept, marked as trashed (`TrashService.send`).
-- `FORGET_RECORD`: a legacy mode from the duplicate finder's old "gỡ khỏi thư viện": the row is deleted for good, the
-  file stays where it is, and its path is remembered so the folder watcher does not bring it back. docs/adr/0002
-  replaces it with a recoverable removal; it stays here only until that lands.
+- `REMOVE_FROM_LIBRARY`: Xóa khỏi thư viện. The row is listed in Thùng rác as the kind "library", the file is never
+  touched, and its path is remembered so the folder watcher does not import it again.
+- `TRASH_FILE`: Xóa file và thư viện. The file moves into MewBook's trash folder and the row is kept as the kind "file"
+  (`TrashService.send`).
 """
 from __future__ import annotations
 
@@ -35,7 +33,6 @@ ProgressCallback = Callable[[int, int], None]
 class RemovalMode(Enum):
     REMOVE_FROM_LIBRARY = "remove_from_library"
     TRASH_FILE = "trash_file"
-    FORGET_RECORD = "forget_record"
 
 
 class RemovalService:
@@ -44,13 +41,10 @@ class RemovalService:
 
     def remove(self, items: list[RemovalItem], mode: RemovalMode,
                progress: ProgressCallback | None = None) -> SendResult:
-        """Removes the books from the library according to `mode`. In both modes `moved` lists the ids that left
-        the library (for TRASH_FILE they are in the trash, for FORGET_RECORD they are gone)."""
+        """Removes the books from the library according to `mode`; `moved` lists the ids that left the library."""
         if mode is RemovalMode.TRASH_FILE:
             return self.context.trash.send(items, progress)
-        if mode is RemovalMode.REMOVE_FROM_LIBRARY:
-            return self._remove_from_library(items)
-        return self._forget_records(items)
+        return self._remove_from_library(items)
 
     def _remove_from_library(self, items: list[RemovalItem]) -> SendResult:
         result = SendResult([], [], [])
@@ -65,17 +59,5 @@ class RemovalService:
                 self.context.db.exclude_paths([path])
             result.moved.append(doc_id)
         if result.moved:
-            self.context.event_bus.publish(LibraryUpdatedEvent())
-        return result
-
-    def _forget_records(self, items: list[RemovalItem]) -> SendResult:
-        result = SendResult([], [], [])
-        for doc_id, file_path in items:
-            self.context.db.delete_document(doc_id)
-            if file_path and Path(file_path).is_file():
-                # The file stays where it is, so the folder watcher would find it again: remember it was dropped on purpose.
-                self.context.db.exclude_paths([file_path])
-            result.moved.append(doc_id)
-        if items:
             self.context.event_bus.publish(LibraryUpdatedEvent())
         return result

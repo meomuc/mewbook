@@ -253,8 +253,8 @@ class DuplicateListPane(QWidget):
         count = len(self._ticked)
         empty = self.groups_left_empty()
         ok = count > 0 and not empty
-        self.remove_button.setText(f"Bỏ {count} file khỏi thư viện")
-        self.trash_button.setText(f"Chuyển {count} file vào Thùng rác…")
+        self.remove_button.setText(f"Xóa {count} khỏi thư viện")
+        self.trash_button.setText(f"Xóa file của {count}…")
         self.remove_button.setEnabled(ok)
         self.trash_button.setEnabled(ok)
         self.clear_button.setEnabled(count > 0)

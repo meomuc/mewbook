@@ -81,7 +81,7 @@ def test_nothing_is_chosen_for_the_person_until_they_choose(qapp, app_context):
     assert len(radios) == 2 and not any(r.isChecked() for r in radios)
     assert "chưa chọn" in dialog.group_title.text()
     assert not dialog.remove_button.isEnabled() and not dialog.delete_button.isEnabled()
-    assert dialog.remove_button.text() == "Bỏ 0 bản kia khỏi thư viện"
+    assert dialog.remove_button.text() == "Xóa 0 bản kia khỏi thư viện"
     dialog.deleteLater()
 
 
@@ -91,8 +91,8 @@ def test_choosing_a_keeper_updates_the_buttons_and_the_group_line(qapp, app_cont
     _choose_keeper(dialog, "d2")
 
     assert "đã chọn cái giữ" in dialog.group_list.item(0).text()
-    assert dialog.remove_button.isEnabled() and dialog.remove_button.text() == "Bỏ 1 bản kia khỏi thư viện"
-    assert dialog.delete_button.text() == "Chuyển 1 file vào Thùng rác…"
+    assert dialog.remove_button.isEnabled() and dialog.remove_button.text() == "Xóa 1 bản kia khỏi thư viện"
+    assert dialog.delete_button.text() == "Xóa file của 1 bản kia…"
     assert ("Bản bạn giữ" in dialog.file_table.item(1, _COL_NOTE).text()
             or "Bản bạn giữ" in dialog.file_table.item(0, _COL_NOTE).text())
     dialog.deleteLater()
@@ -150,9 +150,13 @@ def test_removing_the_others_from_the_library_keeps_every_file(qapp, app_context
 
     dialog.remove_button.click()
 
-    remaining = {d["id"] for d in app_context.db.list_all_documents()}
+    remaining = {d["id"] for d in app_context.db.query_documents()}
     assert remaining == {"d1", "d3"}
     assert all((tmp_path / name).exists() for name in ("a.pdf", "a2.pdf", "b.pdf"))  # no file touched
+    # The record is hidden, not hard-deleted, so everything on it survives and it can be restored from Thùng rác.
+    d2 = app_context.db.get_document("d2")
+    assert d2 is not None and d2["removal_kind"] == "library"
+    assert [item.doc_id for item in app_context.trash.list_items()] == ["d2"]
     assert dialog.group_list.count() == 0
     dialog.deleteLater()
 
