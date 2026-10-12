@@ -122,6 +122,30 @@ def _add_removal_columns(connection: sqlite3.Connection) -> None:
     connection.execute("UPDATE documents SET removal_kind = 'file' WHERE file_status = 'trashed' AND removal_kind IS NULL")
 
 
+def _freeze_rule_collections(connection: sqlite3.Connection) -> None:
+    """Bộ sưu tập is now only the books the person put in it. A collection that followed a rule ("every PDF") keeps what
+    it shows today: the books its rule matches right now join its members (next to any added by hand), and from then on it
+    no longer follows the rule. The rules column is left as it was; running this twice adds nothing twice."""
+    from smartdoc.domain.smart_collections import VirtualCollection
+
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(collections)")}
+    logic_column = "logic" if "logic" in columns else "'AND'"
+    rows = connection.execute(f"SELECT id, name, rules_json, {logic_column}, created_at FROM collections").fetchall()
+    for collection_id, name, rules_json, logic, created_at in rows:
+        try:
+            collection = VirtualCollection.from_row(
+                {"id": collection_id, "name": name, "rules_json": rules_json, "logic": logic or "AND", "created_at": created_at})
+        except (ValueError, KeyError, TypeError):  # a rule this version cannot read: leave the collection as it is
+            logger.warning("Collection %s has rules that could not be read; not frozen", collection_id)
+            continue
+        if not collection.rules:
+            continue
+        where_sql, params = collection.to_sql_where_clause()
+        matching = [row[0] for row in connection.execute(f"SELECT id FROM documents WHERE {where_sql}", params)]
+        connection.executemany("INSERT OR IGNORE INTO collection_documents (collection_id, doc_id) VALUES (?, ?)",
+                               [(collection_id, doc_id) for doc_id in matching])
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -175,6 +199,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(4, "excluded_paths (files removed from the library that must not be imported again), documents.file_size index", _add_excluded_paths),
     Migration(5, "documents.trash_item_id (keep library row when book is sent to the in-app trash)", _add_trash_item_id),
     Migration(6, "documents.removal_kind / removed_at (one trash, two kinds of removal)", _add_removal_columns),
+    Migration(7, "collections hold only the books put in them: rule collections are frozen into their members", _freeze_rule_collections),
 )
 
 

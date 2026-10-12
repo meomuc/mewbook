@@ -1874,32 +1874,17 @@ class DatabaseManager:
         return [row["doc_id"] for row in rows]
 
     def collection_where_fragment(self, collection_id: str) -> tuple[str, tuple]:
-        """(sql_fragment, params) for "is this document in this Virtual
-        Collection" -- (rule match) OR (manually added). "1=0" (matches
-        nothing) if the collection has neither a rule nor any manual
-        member -- an empty collection must show zero documents, not
-        silently fall back to "no filter at all". Shared by the library
-        view's filtering (library_view.py) and the status bar's
-        per-collection count (count_documents_in_collection, below) so the
-        two never drift apart on what "in this collection" means.
+        """(sql_fragment, params) for "is this document in this collection": it is one of the books the person put in it
+        (a collection no longer follows any rule; migration 7 froze the old ones into members). "1=0" (matches nothing)
+        for an empty collection -- it must show zero documents, not silently fall back to "no filter at all". Shared by
+        the library view's filtering and the status bar's per-collection count (count_documents_in_collection, below) so
+        the two never drift apart on what "in this collection" means.
         """
-        row = self.get_collection(collection_id)
         manual_ids = self.list_collection_document_ids(collection_id)
-        parts: list[str] = []
-        params: list = []
-        if row:
-            collection = VirtualCollection.from_row(row)
-            if collection.rules:
-                rule_sql, rule_params = collection.to_sql_where_clause()
-                parts.append(f"({rule_sql})")
-                params.extend(rule_params)
-        if manual_ids:
-            placeholders = ",".join("?" for _ in manual_ids)
-            parts.append(f"documents.id IN ({placeholders})")
-            params.extend(manual_ids)
-        if not parts:
+        if not manual_ids:
             return "1=0", ()
-        return "(" + " OR ".join(parts) + ")", tuple(params)
+        placeholders = ",".join("?" for _ in manual_ids)
+        return f"(documents.id IN ({placeholders}))", tuple(manual_ids)
 
     def collections_where_fragment(self, collection_ids) -> tuple[str, tuple]:
         """Union of several collections: a document in *any* of them."""

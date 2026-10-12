@@ -63,10 +63,11 @@ def test_reload_collections_shows_document_count_per_collection(qapp, app_contex
     app_context.db.add_or_update_document(
         "d2", {"title": "B", "author": "Y", "file_path": "b.epub", "extension": "epub", "created_at": 2.0}
     )
-    collection = VirtualCollection(name="PDFs", rules=[SmartRule(field="extension", operator="eq", value="pdf")])
+    collection = VirtualCollection(name="PDFs")
     app_context.db.save_collection(
         collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at
     )
+    app_context.db.add_documents_to_collection(collection.id, ["d1"])
 
     sidebar = LibrarySidebar(app_context)
 

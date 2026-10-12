@@ -79,6 +79,29 @@ def test_a_fresh_database_and_an_upgraded_one_end_up_with_the_same_schema(tmp_pa
     assert shape(upgraded) == shape(fresh)
 
 
+def test_a_rule_collection_is_frozen_into_its_members_on_upgrade(tmp_path):
+    path = tmp_path / "library.db"
+    _library_1_0_0(path)
+    con = sqlite3.connect(path)
+    con.execute("UPDATE documents SET extension = 'pdf' WHERE id = 'd2'")
+    rules = '{"rules": [{"field": "extension", "operator": "eq", "value": "pdf"}]}'
+    con.execute("INSERT INTO collections (id, name, rules_json, created_at) VALUES ('c2', 'PDF', ?, 2.0)", (rules,))
+    con.execute("INSERT INTO collection_documents VALUES ('c2', 'd0')")  # a book added by hand to the same collection
+    con.commit()
+    con.close()
+
+    db = DatabaseManager(str(path))
+    db.initialize_tables()
+
+    assert set(db.list_collection_document_ids("c2")) == {"d0", "d2"}  # the rule's matches joined the hand-added one
+    assert set(db.list_collection_document_ids("c1")) == {"d0"}  # a collection with no rule is untouched
+    db.add_or_update_document("d9", {"title": "Mới", "file_path": "9.pdf", "extension": "pdf", "created_at": 9.0})
+    where, params = db.collection_where_fragment("c2")
+    assert {d["id"] for d in db.query_documents(where_sql=where, params=params)} == {"d0", "d2"}  # no longer follows the rule
+    assert "pdf" in db.get_collection("c2")["rules_json"]  # the column itself is left as it was
+    assert sm.migrate(db.connection) == []  # nothing left to do; running again adds nothing twice
+
+
 def test_a_book_trashed_under_the_old_behaviour_becomes_the_kind_whose_file_is_in_the_trash(tmp_path):
     path = tmp_path / "library.db"
     _library_1_0_0(path)

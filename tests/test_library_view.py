@@ -9,7 +9,7 @@ from smartdoc.core.event_bus import (
     SearchRequestedEvent,
     SortChangedEvent,
 )
-from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
+from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.library_view import COVER_ASPECT, LibraryListWidget, _badge_font_px, _truncate
 
 
@@ -152,8 +152,9 @@ def test_collection_selected_event_filters_by_virtual_collection(qapp, app_conte
     app_context.db.add_or_update_document(
         "d2", {"title": "Cooking Book", "author": "B", "file_path": "b.pdf", "extension": "pdf", "tags": "food", "created_at": 2.0}
     )
-    collection = VirtualCollection(name="AI books", rules=[SmartRule(field="tags", operator="contains", value="AI")])
+    collection = VirtualCollection(name="AI books")
     app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at)
+    app_context.db.add_documents_to_collection(collection.id, ["d1"])
 
     widget = LibraryListWidget(app_context)
     assert widget.model.rowCount() == 2

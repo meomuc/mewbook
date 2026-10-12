@@ -1,5 +1,20 @@
 # Changelog
 
+[12/10/2026 - 14:33] - Task: manual-collections/01 - Chốt bộ sưu tập quy tắc cũ thành danh sách thành viên
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `schema_migrations.py`: Migration 7 `_freeze_rule_collections` (tính quy tắc tại lúc nâng cấp, `INSERT OR IGNORE` vào `collection_documents`, bỏ qua quy tắc không đọc được và ghi log)
+    - `database.py`: `collection_where_fragment` chỉ dùng thành viên thêm tay
+    - tests: `test_schema_migrations.py` (test nâng cấp mới), `test_smart_collections.py`, `test_sidebar.py`, `test_library_filtering.py`, `test_library_view.py`, `test_status_bar_panel.py` (đưa sách vào bộ sưu tập thủ công thay vì dựa vào quy tắc)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Migration có số thứ tự nên chỉ chạy sau bước sao lưu thư viện (cơ chế sẵn có); cột `rules_json` giữ nguyên nội dung.
+  - Lớp `SmartRule`/`VirtualCollection` ở domain được giữ vì migration còn dùng.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Hộp thoại tạo bộ sưu tập theo luật và "lưu bộ lọc thành bộ sưu tập" vẫn tạo bộ sưu tập có quy tắc nhưng quy tắc nay không còn tác dụng: ticket 02 gỡ chúng.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:26] - Task: unified-trash/08 - Chọn Thư mục thùng rác trong Cài đặt
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:core:config`, `:application:trash_service`, `:presentation:backup_panel`, tests
@@ -555,6 +570,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Bộ sưu tập chỉ còn các sách bạn tự đưa vào.** Khi nâng cấp, bộ sưu tập theo quy tắc cũ được chốt thành danh sách sách khớp quy tắc tại thời điểm đó (cộng với sách bạn đã thêm tay) và không còn tự thêm sách mới.
 - **Chọn thư mục thùng rác.** Cài đặt › Sao lưu và khôi phục có hàng "Thư mục thùng rác" (chọn thư mục khác, ví dụ trên ổ khác, hoặc dùng mặc định). Đổi thư mục chỉ áp dụng cho những lần "Xóa file" sau; mục đã có vẫn khôi phục được.
 - **Thùng rác trong bộ lọc Tình trạng file.** Chip "Thùng rác" (có số đếm) cho xem các sách đã xóa của cả hai loại; trong cửa sổ Thùng rác, cột "Vị trí hiện tại" bấm vào để mở file trong Explorer (báo rõ nếu file không còn). Panel chi tiết nói rõ sách được xóa khỏi thư viện (file vẫn ở chỗ cũ) hay xóa cả file.
 - **Khôi phục từ Thùng rác an toàn hơn.** Khôi phục không bao giờ ghi đè file khác ở chỗ cũ và cho biết sách được đưa về đâu; file đã chuyển vào thùng rác không bị tự nhập lại nếu một ứng dụng đồng bộ tạo lại nó.

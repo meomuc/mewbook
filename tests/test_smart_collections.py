@@ -116,8 +116,11 @@ def test_whole_match_rules_round_trip_through_json_and_run_in_sql(app_context):
             doc_id, {"title": doc_id, "author": author, "file_path": f"{doc_id}.pdf", "created_at": 1.0}
         )
     collection = VirtualCollection(name="Nhã Ca", rules=[SmartRule(field="author", operator="has_author", value="Nhã Ca")])
-    app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+    again = VirtualCollection.from_row(
+        {"id": collection.id, "name": collection.name, "rules_json": collection.to_json(), "logic": "AND", "created_at": 1.0})
 
-    where_sql, params = app_context.db.collection_where_fragment(collection.id)
+    where_sql, params = again.to_sql_where_clause()  # the rule layer still works (the migration uses it) ...
 
     assert [d["id"] for d in app_context.db.query_documents(where_sql=where_sql, params=params)] == ["d1"]
+    app_context.db.save_collection(again.id, again.name, again.to_json(), again.logic, 1.0)
+    assert app_context.db.collection_where_fragment(again.id) == ("1=0", ())  # ...but a collection is only its members

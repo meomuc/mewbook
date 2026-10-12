@@ -10,7 +10,7 @@ from smartdoc.core.event_bus import (
     SmartClassifyFinishedEvent,
     SmartClassifyProgressEvent,
 )
-from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
+from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.theme_manager import theme_manager
 from smartdoc.presentation.status_bar_panel import (
     STATE_ERROR,
@@ -280,10 +280,11 @@ def test_collection_label_updates_on_collection_selected_event(qapp, app_context
     app_context.db.add_or_update_document(
         "d1", {"title": "A", "author": "X", "file_path": "a.pdf", "extension": "pdf", "created_at": 0.0}
     )
-    collection = VirtualCollection(name="PDFs", rules=[SmartRule(field="extension", operator="eq", value="pdf")])
+    collection = VirtualCollection(name="PDFs")
     app_context.db.save_collection(
         collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at
     )
+    app_context.db.add_documents_to_collection(collection.id, ["d1"])
     panel = StatusBarPanel(app_context)
 
     app_context.event_bus.publish(CollectionSelectedEvent(collection_id=collection.id))

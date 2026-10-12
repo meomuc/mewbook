@@ -1,6 +1,6 @@
 """The library view reads its filter from FilterService, whoever changed it."""
 from smartdoc.domain.library_filter import AUTHORS, FORMATS, TAGS, LibraryFilter
-from smartdoc.domain.smart_collections import SmartRule, VirtualCollection
+from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.presentation.library_view import PAGE_SIZE, LibraryListWidget
 
 
@@ -75,8 +75,9 @@ def test_co_authored_books_are_found_from_either_author(qapp, app_context):
 def test_a_collection_and_a_hashtag_narrow_each_other(qapp, app_context):
     _add(app_context, "d1", tags="AI")
     _add(app_context, "d2", tags="Thơ")
-    collection = VirtualCollection(name="Sách hay", rules=[SmartRule(field="extension", operator="eq", value="pdf")])
+    collection = VirtualCollection(name="Sách hay")
     app_context.db.save_collection(collection.id, collection.name, collection.to_json(), collection.logic, 1.0)
+    app_context.db.add_documents_to_collection(collection.id, ["d1"])
     widget = LibraryListWidget(app_context)
 
     app_context.filters.set(LibraryFilter(collections=(collection.id,), tags=("AI",)))
