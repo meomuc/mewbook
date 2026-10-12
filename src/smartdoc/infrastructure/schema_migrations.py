@@ -146,6 +146,21 @@ def _freeze_rule_collections(connection: sqlite3.Connection) -> None:
                                [(collection_id, doc_id) for doc_id in matching])
 
 
+def _add_devices(connection: sqlite3.Connection) -> None:
+    """Thiết bị: the e-readers the person has named. `identity` is what the connection reports and stays the same between
+    plug-ins (a drive's volume serial, a phone-like device's own id); it is what a connected device is matched by."""
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS devices ("
+        " id TEXT PRIMARY KEY,"
+        " name TEXT NOT NULL,"
+        " kind TEXT NOT NULL DEFAULT 'drive',"
+        " profile_id TEXT NOT NULL DEFAULT '',"  # which device_profiles/*.json describes it
+        " identity TEXT NOT NULL UNIQUE,"
+        " folder TEXT NOT NULL DEFAULT '',"  # where the books go on it
+        " created_at REAL NOT NULL)"
+    )
+
+
 # The full-text index as of migration 3 (database._SCHEMA creates the same thing for a new library).
 FTS_TOKENIZER = "unicode61 remove_diacritics 2"
 _FTS_TRIGGERS = """
@@ -200,6 +215,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(5, "documents.trash_item_id (keep library row when book is sent to the in-app trash)", _add_trash_item_id),
     Migration(6, "documents.removal_kind / removed_at (one trash, two kinds of removal)", _add_removal_columns),
     Migration(7, "collections hold only the books put in them: rule collections are frozen into their members", _freeze_rule_collections),
+    Migration(8, "devices (the e-readers the person has named)", _add_devices),
 )
 
 

@@ -25,14 +25,26 @@ from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPushButton
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+)
 
+from smartdoc.application.device_registry import DeviceError
 from smartdoc.core.event_bus import BackgroundTaskEvent
 from smartdoc.domain.device_profiles import DeviceProfile, GENERIC_PROFILE_ID, build_filename, load_device_profiles
 from smartdoc.infrastructure.devices.transport import DeviceTransport, FolderTransport
 from smartdoc.infrastructure.drm_detect import is_drm_protected
 from smartdoc.presentation.busy_indicator import BusyIndicator
 from smartdoc.presentation.design_dialog import DesignDialog
+from smartdoc.presentation.devices_dialog import ask_device_name
 from smartdoc.presentation.hint_label import HintLabel
 from smartdoc.presentation.line_icons import icon_pixmap, line_icon
 from smartdoc.presentation.theme import ROLE_RESULT, role_css
@@ -66,8 +78,11 @@ class EreaderSendDialog(DesignDialog):
         super().__init__(parent, title="Gửi sang máy đọc sách", subtitle=f"{len(docs)} sách đã chọn", icon="send", width=640)
         self.context = context
         self.docs = docs
-        self.transport = transport if transport is not None else FolderTransport()
+        self._own_transport = transport is None  # the default one follows the folder the person picks
+        self.transport = transport if transport is not None else FolderTransport(target_folder)
         self.target = target_folder
+        self._connected = None  # the device plugged in right now, if the transport reports one
+        self._registered = None  # ...and the one the person has named, if it is that
         self._profiles = profiles if profiles is not None else load_device_profiles()
         self._results: dict[str, str] = {}  # doc id -> "" (sent) | the reason it failed/was skipped
         self._plan: dict[str, tuple[str, str]] = {}  # doc id -> (status, target file name)
@@ -87,10 +102,14 @@ class EreaderSendDialog(DesignDialog):
         mark.setPixmap(icon_pixmap("send", tm.token("ink"), 18))
         self.change_button = QPushButton("Đổi thư mục", self.device_frame)
         self.change_button.clicked.connect(self._on_change_folder)
+        self.register_button = QPushButton("Đăng ký máy này…", self.device_frame)
+        self.register_button.setVisible(False)
+        self.register_button.clicked.connect(self._on_register_device)
         row = QHBoxLayout(self.device_frame)
         row.setContentsMargins(14, 12, 14, 12)
         row.addWidget(mark)
         row.addWidget(self.device_label, 1)
+        row.addWidget(self.register_button)
         row.addWidget(self.change_button)
         self.body.addWidget(self.device_frame)
 
@@ -143,15 +162,46 @@ class EreaderSendDialog(DesignDialog):
 
     # -- the device card ---------------------------------------------------------------------------------------------
     def _refresh_device(self) -> None:
+        tm = theme_manager()
+        devices = self.transport.list_devices()
+        self._connected = devices[0] if devices else None
+        self._registered = self.context.devices.match(self._connected) if self._connected else None
         free = _free_space_text(self.target)
         drive = Path(self.target).anchor.rstrip("\\/") or self.target
-        self.device_label.setText(f"<b>{drive}</b><br><span style='color:{theme_manager().token('ink2')}'>"
+        heading = self._registered.name if self._registered else drive
+        question = ""
+        if self._connected is not None and self._registered is None:
+            question = f"<br><span style='color:{tm.token('warn')}'>Đây có phải máy mới không?</span>"
+        self.device_label.setText(f"<b>{heading}</b>{question}<br><span style='color:{tm.token('ink2')}'>"
                                   f"Thư mục: {self.target}{' · ' + free if free else ''}</span>")
+        self.register_button.setVisible(self._connected is not None and self._registered is None)
+        if self._registered and self._registered.profile_id in self._profiles:
+            index = self.profile_combo.findData(self._registered.profile_id)
+            if index >= 0 and index != self.profile_combo.currentIndex():
+                self.profile_combo.blockSignals(True)  # a remembered choice, not a new one: do not save it again
+                self.profile_combo.setCurrentIndex(index)
+                self.profile_combo.blockSignals(False)
+
+    def _on_register_device(self) -> None:
+        """The person says this plugged-in device is one of theirs: ask for a name, then remember it. Never done unasked."""
+        if self._connected is None:
+            return
+        name = ask_device_name(self, self._connected)
+        if not name:
+            return
+        try:
+            self.context.devices.register(name, self._connected, profile_id=self._current_profile().id, folder=self.target)
+        except DeviceError as exc:
+            QMessageBox.warning(self, "Chưa đăng ký được", str(exc))
+            return
+        self._refresh_device()
 
     def _on_change_folder(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Chọn thư mục sách trên máy đọc sách", self.target)
         if folder:
             self.target = folder
+            if self._own_transport:
+                self.transport = FolderTransport(folder)
             self.context.config.config.ereader_folder_path = folder
             self.context.config.save()
             self._refresh_device()

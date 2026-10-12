@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from smartdoc.application.backup_service import BackupService
+from smartdoc.application.device_registry import DeviceRegistry
 from smartdoc.application.error_reporter import ErrorReporter
 from smartdoc.application.error_uploader import ErrorUploader
 from smartdoc.application.facet_counter import FacetCounter
@@ -48,6 +49,8 @@ class AppContext:
         self.trash = TrashService(self)
         # The one entry point for removing books from the library (file to the trash, or just the row).
         self.removal = RemovalService(self)
+        # The e-readers the person has named ("Boox của tôi"); a connected device is matched to one by its identity.
+        self.devices = DeviceRegistry(self)
         # "Gom sách về một thư mục": copy or move the library's files into one folder.
         self.gather = GatherService(self)
         # "Cập nhật ngay": re-read what the files say (size, hash, pages) on demand, next to the background work.

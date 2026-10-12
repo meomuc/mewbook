@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 14:45] - Task: device-sync/03 - Đăng ký và quản lý Thiết bị
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, `:application:device_registry` (mới), `:core:app_context`, `:presentation:devices_dialog` (mới), `:presentation:ereader_dialog`, `:presentation:main_window`, strings, tests
+  - File tạo mới / Chỉnh sửa:
+    - `schema_migrations.py`: Migration 8 tạo bảng `devices` (tên, loại kết nối, loại máy, danh tính duy nhất, thư mục, ngày tạo); `database.py`: 6 hàm thiết bị
+    - `application/device_registry.py`: `DeviceRegistry` (`list/get/match/register/rename/update/unregister`), `Device`, `DeviceError`; đăng ký `context.devices`
+    - `devices_dialog.py`: màn hình quản lý (danh sách, đổi tên, bỏ đăng ký có xác nhận) và `ask_device_name`
+    - `ereader_dialog.py`: thẻ thiết bị hiện tên máy đã đăng ký, hoặc "Đây có phải máy mới không?" kèm nút "Đăng ký máy này…"; máy đã đăng ký chọn sẵn loại máy
+    - `main_window.py`, `strings_vi/en`: mục "Máy đọc sách của tôi…" trong Công cụ
+    - tests: `test_device_registry.py` (7), `test_devices_dialog.py` (4), `test_ereader_dialog.py` (+4)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Không bật hộp thoại chặn mỗi lần cắm máy: câu hỏi nằm trong thẻ thiết bị của hộp thoại gửi, và chỉ đăng ký khi người dùng bấm nút.
+  - Khớp máy bằng danh tính kết nối, không bằng tên.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Chưa có bộ theo dõi cắm/rút: máy chỉ được nhận diện khi mở hộp thoại gửi (ticket 06 thêm kiểm tra khi cắm).
+  - Bỏ đăng ký chưa xóa bản ghi sách đã gửi vì chưa có bảng đó (ticket 04 xử lý).
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:42] - Task: device-sync/02 - Gom việc gửi sách vào một giao diện truyền tải thiết bị
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:devices` (mới), `:presentation:ereader_dialog`, `:presentation:file_actions`, `:presentation:library_view`, tests
@@ -618,6 +637,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Đặt tên cho máy đọc sách.** Khi mở "Gửi sang máy đọc sách" với một máy chưa quen, MewBook hỏi "Đây có phải máy mới không?" và bạn bấm "Đăng ký máy này…" để đặt tên; máy đã đặt tên được nhận ra ở những lần cắm sau. Công cụ › "Máy đọc sách của tôi…" cho đổi tên hoặc bỏ đăng ký.
 - **Dấu liên kết giữa bộ sưu tập và hashtag trùng tên.** Khi một bộ sưu tập có cùng tên với một hashtag đang dùng, cả hai hiện dấu 🔗 kèm gợi ý. Đây chỉ là dấu để bạn nhận ra; gắn hashtag không tự đưa sách vào bộ sưu tập.
 - **Tạo bộ sưu tập chỉ cần một cái tên.** Không còn điều kiện lọc: bạn tự đưa sách vào; "Lưu thành bộ sưu tập" từ bộ lọc lưu các sách đang hiển thị. Menu chuột phải của bộ sưu tập còn "Đổi tên" và "Xóa bộ sưu tập".
 - **Bộ sưu tập chỉ còn các sách bạn tự đưa vào.** Khi nâng cấp, bộ sưu tập theo quy tắc cũ được chốt thành danh sách sách khớp quy tắc tại thời điểm đó (cộng với sách bạn đã thêm tay) và không còn tự thêm sách mới.

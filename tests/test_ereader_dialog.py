@@ -45,6 +45,54 @@ def test_the_dialog_sends_through_the_transport_it_is_given(qapp, app_context, t
     dialog.deleteLater()
 
 
+def _boox_transport():
+    from smartdoc.infrastructure.devices.transport import ConnectedDevice
+    from tests.device_fakes import InMemoryTransport
+
+    boox = ConnectedDevice(identity="mtp:boox", name="Note Air4", kind="mtp")
+    return boox, InMemoryTransport([boox])
+
+
+def test_a_registered_device_is_shown_by_the_name_the_person_gave_it(qapp, app_context, tmp_path):
+    boox, device = _boox_transport()
+    app_context.devices.register("Boox của tôi", boox, profile_id=GENERIC_PROFILE_ID)
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)
+    assert "Boox của tôi" in dialog.device_label.text() and dialog.register_button.isHidden()
+    dialog.deleteLater()
+
+
+def test_an_unknown_device_is_asked_about_and_not_registered_until_the_person_says_so(qapp, app_context, tmp_path, monkeypatch):
+    boox, device = _boox_transport()
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)
+    assert "Đây có phải máy mới không?" in dialog.device_label.text() and not dialog.register_button.isHidden()
+    assert app_context.devices.list() == []  # opening the dialog never registers anything
+
+    monkeypatch.setattr("smartdoc.presentation.ereader_dialog.ask_device_name", lambda parent, connected: "Boox của tôi")
+    dialog.register_button.click()
+
+    (registered,) = app_context.devices.list()
+    assert registered.name == "Boox của tôi" and registered.identity == boox.identity and registered.folder == "Books"
+    assert "Boox của tôi" in dialog.device_label.text() and dialog.register_button.isHidden()
+    dialog.deleteLater()
+
+
+def test_declining_to_name_an_unknown_device_registers_nothing(qapp, app_context, tmp_path, monkeypatch):
+    _boox, device = _boox_transport()
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=device)
+    monkeypatch.setattr("smartdoc.presentation.ereader_dialog.ask_device_name", lambda parent, connected: None)
+    dialog.register_button.click()
+    assert app_context.devices.list() == [] and not dialog.register_button.isHidden()
+    dialog.deleteLater()
+
+
+def test_nothing_is_asked_when_no_device_is_connected(qapp, app_context, tmp_path):
+    from tests.device_fakes import InMemoryTransport
+
+    dialog = EreaderSendDialog(app_context, _docs(tmp_path, ["a.epub"]), "Books", transport=InMemoryTransport())
+    assert dialog.register_button.isHidden() and "máy mới" not in dialog.device_label.text()
+    dialog.deleteLater()
+
+
 def test_a_device_unplugged_before_sending_ends_every_row_with_that_reason(qapp, app_context, tmp_path):
     from smartdoc.infrastructure.devices.transport import REASON_UNPLUGGED
     from tests.device_fakes import InMemoryTransport

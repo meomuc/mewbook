@@ -266,6 +266,7 @@ class MainWindow(QMainWindow):
         menu.addSeparator()
         # --- Xuất & gửi -----------------------------------------------------------
         _a(vi.TOOL_SEND_EREADER, self._on_send_to_ereader, "send")
+        _a(vi.TOOL_DEVICES, self._on_open_devices, "send")
         _a(vi.TOOL_CONVERT_FORMAT, self._on_convert_format, "file")
         _a(vi.TOOL_EXPORT, self._on_export_library, "download")
         menu.addSeparator()
@@ -436,6 +437,13 @@ class MainWindow(QMainWindow):
         from smartdoc.presentation.gather_dialog import GatherDialog
 
         dialog = GatherDialog(self.context, self)
+        dialog.exec()
+        dialog.deleteLater()
+
+    def _on_open_devices(self) -> None:
+        from smartdoc.presentation.devices_dialog import DevicesDialog
+
+        dialog = DevicesDialog(self.context, self)
         dialog.exec()
         dialog.deleteLater()
 

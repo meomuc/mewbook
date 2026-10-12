@@ -1839,6 +1839,43 @@ class DatabaseManager:
             )
             self.connection.commit()
 
+    # -- Thiết bị (e-readers) -----------------------------------------------------------------------------------------
+    def list_devices(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute("SELECT * FROM devices ORDER BY created_at ASC, rowid ASC").fetchall()
+        return [dict(row) for row in rows]
+
+    def get_device(self, device_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
+        return dict(row) if row else None
+
+    def find_device_by_identity(self, identity: str) -> dict[str, Any] | None:
+        row = self.connection.execute("SELECT * FROM devices WHERE identity = ?", (identity,)).fetchone()
+        return dict(row) if row else None
+
+    def add_device(self, device_id: str, name: str, kind: str, profile_id: str, identity: str, folder: str,
+                   created_at: float) -> None:
+        """Raises sqlite3.IntegrityError when a device with this identity is already registered."""
+        with self.write_lock:
+            self.connection.execute(
+                "INSERT INTO devices (id, name, kind, profile_id, identity, folder, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (device_id, name, kind, profile_id, identity, folder, created_at))
+            self.connection.commit()
+
+    def update_device(self, device_id: str, **fields: str) -> None:
+        allowed = {"name", "profile_id", "folder"}
+        changes = {key: value for key, value in fields.items() if key in allowed}
+        if not changes:
+            return
+        assignments = ", ".join(f"{column} = ?" for column in changes)
+        with self.write_lock:
+            self.connection.execute(f"UPDATE devices SET {assignments} WHERE id = ?", (*changes.values(), device_id))
+            self.connection.commit()
+
+    def delete_device(self, device_id: str) -> None:
+        with self.write_lock:
+            self.connection.execute("DELETE FROM devices WHERE id = ?", (device_id,))
+            self.connection.commit()
+
     def ensure_reading_list(self) -> str:
         """Creates the built-in "Sẽ đọc" collection on first use and returns
         its id. It has a fixed id (READING_LIST_ID) rather than being looked
