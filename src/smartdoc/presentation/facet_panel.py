@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
+from smartdoc.core.event_bus import DevicePresenceCheckedEvent, FilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.library_filter import (
     AUTHORS,
     FORMATS,
@@ -245,6 +245,7 @@ class FacetPanel(QWidget):
         self._bridge.event_received.connect(self._on_bridged_event)
         self._bridge.subscribe(context.event_bus, FilterChangedEvent)
         self._bridge.subscribe(context.event_bus, LibraryUpdatedEvent)
+        self._bridge.subscribe(context.event_bus, DevicePresenceCheckedEvent)  # the device chips' counts changed
 
         self.refresh()
 

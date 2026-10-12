@@ -46,6 +46,9 @@ CATEGORY_LABELS = {
 STATUS_MISSING = "Thiếu file"
 STATUS_TINY = "File quá nhỏ"
 STATUS_TRASH = "Thùng rác"  # books removed from the library (either kind): the only list they appear in
+# "Trên máy: <name of a registered e-reader>": the books known to be on that device. One value per device, so this is a
+# prefix; DatabaseManager.filter_where turns the rest into the device's name.
+STATUS_DEVICE_PREFIX = "Trên máy: "
 # Shown next to a collection and a hashtag that share a name; a mark for the person only, they never share members.
 LINK_MARK = "🔗"
 TINY_FILE_BYTES = 5 * 1024

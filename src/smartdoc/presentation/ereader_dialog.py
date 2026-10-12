@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 )
 
 from smartdoc.application.device_registry import DeviceError
-from smartdoc.core.event_bus import BackgroundTaskEvent
+from smartdoc.core.event_bus import BackgroundTaskEvent, DevicePresenceCheckedEvent
 from smartdoc.domain.device_profiles import DeviceProfile, GENERIC_PROFILE_ID, build_filename, load_device_profiles
 from smartdoc.infrastructure.devices.transport import DeviceTransport, FolderTransport
 from smartdoc.infrastructure.drm_detect import is_drm_protected
@@ -363,6 +363,10 @@ class EreaderSendDialog(DesignDialog):
     def _on_finished(self, results: dict, cancelled: bool) -> None:
         self._results.update(results)
         self._running = False
+        if self._registered is not None and self.sent_count():
+            # What is on the device changed: let the covers' marks and the device chips recount.
+            self.context.event_bus.publish(
+                DevicePresenceCheckedEvent(device_id=self._registered.id, present=self.sent_count(), missing=0))
         self.busy.set_busy(False)
         self.change_button.setEnabled(True)
         self.profile_combo.setEnabled(True)

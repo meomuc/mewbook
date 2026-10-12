@@ -70,10 +70,11 @@ class _Shelf:
 
 
 class ShelfView(QAbstractItemView):
-    def __init__(self, parent=None, *, context=None, is_starred=None, on_toggle=None) -> None:
+    def __init__(self, parent=None, *, context=None, is_starred=None, on_toggle=None, device_count=None) -> None:
         super().__init__(parent)
         self._context = context
         self._is_starred = is_starred or (lambda _doc_id: False)
+        self._device_count = device_count or (lambda _doc_id: 0)  # on how many e-readers the book is known to be
         self._on_toggle = on_toggle or (lambda _doc_id: None)
         self._icon_size = QSize(120, int(120 * 1.42))
         self._order_by: str | None = None
@@ -499,6 +500,7 @@ class ShelfView(QAbstractItemView):
         self._paint_format_chip(painter, cover, doc)
         self._paint_rating_badge(painter, cover, doc)
         self._paint_star(painter, cover, doc, tm)
+        self._paint_device_badge(painter, cover, doc, tm)
         if doc.get("file_status") == "missing":
             self._paint_missing(painter, cover, tm)
         elif doc.get("file_status") == "trashed":
@@ -655,6 +657,28 @@ class ShelfView(QAbstractItemView):
         accent = tm.token("accent") if starred else tm.token("ink2")
         painter.drawPixmap(QPointF(rect.x() + (STAR - 12) / 2, rect.y() + (STAR - 12) / 2),
                            icon_pixmap("star_fill" if starred else "star", accent, 12))
+        painter.restore()
+
+    def _paint_device_badge(self, painter: QPainter, cover: QRect, doc: dict, tm) -> None:
+        """One small mark -- an e-reader icon and how many devices the book is on -- at the cover's lower left; nothing at
+        all for a book that is on none. One mark however many devices, so many of them never cover the picture."""
+        count = int(self._device_count(doc.get("id")) or 0)
+        if count <= 0:
+            return
+        font = QFont(tm.font_family("ui"))
+        font.setPixelSize(10)
+        font.setWeight(QFont.DemiBold)
+        text = str(count)
+        width = 18 + QFontMetrics(font).horizontalAdvance(text) + 6
+        chip = QRect(cover.left() + 4, cover.bottom() - 22, width, 18)
+        painter.save()
+        painter.setPen(QPen(QColor(tm.token("line2")), 1))
+        painter.setBrush(QColor(tm.token("panel")))
+        painter.drawRoundedRect(chip, 9, 9)
+        painter.drawPixmap(QPointF(chip.left() + 5, chip.center().y() - 6), icon_pixmap("send", tm.token("ink"), 12))
+        painter.setFont(font)
+        painter.setPen(QColor(tm.token("ink")))
+        painter.drawText(chip.adjusted(19, 0, -4, 0), Qt.AlignVCenter | Qt.AlignLeft, text)
         painter.restore()
 
     def _paint_missing(self, painter: QPainter, cover: QRect, tm) -> None:

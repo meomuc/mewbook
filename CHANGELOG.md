@@ -1,5 +1,23 @@
 # Changelog
 
+[12/10/2026 - 14:53] - Task: device-sync/07 - Biểu tượng trên bìa và bộ lọc theo máy
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:domain:library_filter`, `:infrastructure:database`, `:application:facet_counter`, `:presentation:shelf_view`, `:presentation:library_view`, `:presentation:facet_panel`, `:presentation:ereader_dialog`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `library_filter.py`: `STATUS_DEVICE_PREFIX = "Trên máy: "`; `database.py`: `filter_where` hiểu giá trị theo tên máy, `device_present_counts`
+    - `facet_counter.py`: chip cho từng máy đã đăng ký, luôn có kể cả 0
+    - `shelf_view.py`: `_paint_device_badge` (một biểu tượng kèm số máy, không vẽ khi 0); `library_view.py`: đếm cho cả trang bằng một truy vấn, cập nhật khi có kiểm tra máy
+    - `facet_panel.py`, `ereader_dialog.py`: làm mới khi trạng thái máy đổi (gửi xong cũng báo)
+    - `tests/test_device_badges.py` (7 test)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Bộ lọc theo máy là một giá trị của nhóm "Tình trạng file" (tiền tố + tên máy), không thêm nhóm lọc mới nên mọi chỗ đang xử lý bộ lọc (thanh lọc, đếm, lưu thành bộ sưu tập) dùng được ngay.
+  - "Trên máy" nghĩa là kiểm tra gần nhất thấy sách còn trên máy; sách đã mất khỏi máy không tính vào số đếm và bộ lọc.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Hai máy trùng tên cùng cho một giá trị lọc (gộp cả hai); chưa chặn đặt tên trùng.
+  - Chưa có kiểm tra bằng mắt biểu tượng trên bìa với từng theme; test chỉ đảm bảo vẽ không lỗi.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:50] - Task: device-sync/06 - Kiểm tra sách còn trên máy
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:device_registry`, `:core:event_bus`, `:infrastructure:database`, `:presentation:devices_dialog`, `:presentation:ereader_dialog`, `:presentation:detail_panel`, tests
@@ -675,6 +693,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Biểu tượng máy đọc trên bìa sách và bộ lọc theo máy.** Bìa sách đang nằm trên máy đọc có một biểu tượng nhỏ kèm số máy; mục "Tình trạng file" có chip "Trên máy: <tên máy>" cho từng máy đã đăng ký để xem những sách đang ở trên máy đó.
 - **Kiểm tra sách còn trên máy đọc.** Khi cắm máy đã đặt tên và mở "Gửi sang máy đọc sách", hoặc bấm "Kiểm tra máy" trong "Máy đọc sách của tôi…", MewBook xem những sách đã gửi còn trên máy không; panel chi tiết ghi "còn trên máy / không còn trên máy" kèm ngày kiểm tra. Sách trong thư viện không bị đổi.
 - **Ghi nhớ sách đã gửi sang máy đọc nào.** Sách gửi tới một máy đã đặt tên được ghi lại, và panel chi tiết có dòng "Trên máy đọc" liệt kê từng máy kèm ngày gửi.
 - **Đặt tên cho máy đọc sách.** Khi mở "Gửi sang máy đọc sách" với một máy chưa quen, MewBook hỏi "Đây có phải máy mới không?" và bạn bấm "Đăng ký máy này…" để đặt tên; máy đã đặt tên được nhận ra ở những lần cắm sau. Công cụ › "Máy đọc sách của tôi…" cho đổi tên hoặc bỏ đăng ký.

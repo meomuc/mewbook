@@ -33,6 +33,7 @@ from smartdoc.domain.library_filter import (
     AUTHORS,
     COLLECTIONS,
     FORMATS,
+    STATUS_DEVICE_PREFIX,
     STATUS_MISSING,
     STATUS_TINY,
     STATUS_TRASH,
@@ -241,14 +242,16 @@ class FacetCounter:
         under the current filter (STATUSES excluded so sibling choices stay visible)."""
         base_sql, base_params = self.context.db.filter_where(flt, exclude=(STATUSES,))
         result = []
-        for status in (STATUS_MISSING, STATUS_TINY, STATUS_TRASH):
+        # A registered device always has its chip, even at 0 books: it is something to pick, not a dead end to hide.
+        devices = [STATUS_DEVICE_PREFIX + device.name for device in self.context.devices.list()]
+        for status in (STATUS_MISSING, STATUS_TINY, STATUS_TRASH, *devices):
             status_sql, status_params = self.context.db.filter_where(LibraryFilter(statuses=(status,)))
             combined_sql = f"({status_sql}) AND ({base_sql})" if base_sql else status_sql
             combined_params = status_params + base_params
             count = self.context.db.count_documents_matching(
                 fts_query=flt.query, where_sql=combined_sql, params=combined_params
             )
-            if count or flt.has_value(STATUSES, status):
+            if count or flt.has_value(STATUSES, status) or status in devices:
                 result.append(FacetCount(status, status, count))
         return result
 

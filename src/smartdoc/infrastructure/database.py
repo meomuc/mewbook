@@ -39,6 +39,7 @@ from smartdoc.domain.library_filter import (
     AUTHORS,
     COLLECTIONS,
     FORMATS,
+    STATUS_DEVICE_PREFIX,
     STATUS_MISSING,
     STATUS_TINY,
     STATUS_TRASH,
@@ -1894,6 +1895,18 @@ class DatabaseManager:
         rows = self.connection.execute("SELECT * FROM device_books WHERE device_id = ?", (device_id,)).fetchall()
         return [dict(row) for row in rows]
 
+    def device_present_counts(self, doc_ids: list[str]) -> dict[str, int]:
+        """{doc id: on how many devices it is known to be} for the books given, in one query per few hundred; a book on no
+        device is left out. Lets the library mark every cover of a page without a lookup per cover."""
+        counts: dict[str, int] = {}
+        for start in range(0, len(doc_ids), 500):
+            chunk = doc_ids[start:start + 500]
+            rows = self.connection.execute(
+                f"SELECT doc_id, COUNT(*) FROM device_books WHERE presence = 'present' AND doc_id IN ({','.join('?' * len(chunk))})"
+                " GROUP BY doc_id", chunk).fetchall()
+            counts.update({row[0]: row[1] for row in rows})
+        return counts
+
     def set_device_book_presence(self, device_id: str, doc_id: str, presence: str, checked_at: float | None) -> None:
         with self.write_lock:
             self.connection.execute(
@@ -2003,6 +2016,11 @@ class DatabaseManager:
                 params.append(TINY_FILE_BYTES)
             if STATUS_TRASH in flt.statuses:
                 parts.append(self._IS_REMOVED)
+            for status in flt.statuses:
+                if status.startswith(STATUS_DEVICE_PREFIX):
+                    parts.append("documents.id IN (SELECT b.doc_id FROM device_books b JOIN devices d ON d.id = b.device_id"
+                                 " WHERE d.name = ? AND b.presence = 'present')")
+                    params.append(status[len(STATUS_DEVICE_PREFIX):])
             if parts:
                 fragments.append("(" + " OR ".join(f"({part})" for part in parts) + ")")
 

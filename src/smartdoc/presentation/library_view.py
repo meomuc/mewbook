@@ -61,6 +61,7 @@ from PySide6.QtWidgets import (
 from smartdoc.application.smart_classifier import ClassifyScope
 from smartdoc.core.event_bus import (
     CoverSizeChangedEvent,
+    DevicePresenceCheckedEvent,
     DocumentSelectedEvent,
     FilterChangedEvent,
     LibraryUpdatedEvent,
@@ -770,7 +771,10 @@ class LibraryListWidget(QWidget):
         self.model = ShelfModel(self, context=context)
         # Reading-list stars: one set lookup per painted cover, refreshed once per reload() (see _starred_ids).
         self._starred_ids: set[str] = set()
-        self.list_view = ShelfView(self, context=context, is_starred=self._is_starred, on_toggle=self.toggle_reading_list)
+        # Likewise for the e-reader mark: how many devices each book of the page is on.
+        self._device_counts: dict[str, int] = {}
+        self.list_view = ShelfView(self, context=context, is_starred=self._is_starred, on_toggle=self.toggle_reading_list,
+                                   device_count=self._device_count)
         self.list_view.setModel(self.model)
         self.list_view.setIconSize(ICON_SIZE)
         self.list_view.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -850,6 +854,7 @@ class LibraryListWidget(QWidget):
         self._bridge.subscribe(context.event_bus, SortChangedEvent)
         self._bridge.subscribe(context.event_bus, CoverSizeChangedEvent)
         self._bridge.subscribe(context.event_bus, ViewModeChangedEvent)
+        self._bridge.subscribe(context.event_bus, DevicePresenceCheckedEvent)
 
         self.reload()
 
@@ -991,6 +996,15 @@ class LibraryListWidget(QWidget):
     def _is_starred(self, doc_id) -> bool:
         return doc_id in self._starred_ids
 
+    def _device_count(self, doc_id) -> int:
+        return self._device_counts.get(doc_id, 0)
+
+    def _refresh_device_counts(self) -> None:
+        """A device was looked at: recount the page's marks and repaint, without reloading the list."""
+        shown = (self.model.document_at(row) for row in range(self.model.rowCount()))
+        self._device_counts = self.context.db.device_present_counts([doc["id"] for doc in shown if doc])
+        self._active_view().viewport().update()
+
     def toggle_reading_list(self, doc_id: str) -> bool:
         """★ button handler: files the document into (or out of) the
         built-in "Sẽ đọc" collection. Updates the local star set and
@@ -1029,6 +1043,7 @@ class LibraryListWidget(QWidget):
             order_by=self._current_sort,
         )
         self._starred_ids = self.context.db.reading_list_ids()
+        self._device_counts = self.context.db.device_present_counts([d["id"] for d in documents])
         self.list_view.set_order_by(self._current_sort)
         self.model.set_documents(documents)
         self.table_model.set_documents(documents)
@@ -1076,6 +1091,8 @@ class LibraryListWidget(QWidget):
     def _on_bridged_event(self, event) -> None:
         if isinstance(event, LibraryUpdatedEvent):
             self._reload_timer.start()
+        elif isinstance(event, DevicePresenceCheckedEvent):
+            self._refresh_device_counts()
         elif isinstance(event, FilterChangedEvent):
             self._current_page = 0  # the old page may not exist in the new result set
             self.reload()
