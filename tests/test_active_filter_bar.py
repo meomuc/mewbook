@@ -210,7 +210,7 @@ def _accept_name(monkeypatch, name):
     return prompts
 
 
-def test_saving_a_simple_filter_makes_a_self_updating_collection(qapp, app_context, monkeypatch):
+def test_saving_a_filter_keeps_the_books_it_shows_right_now_and_nothing_else(qapp, app_context, monkeypatch):
     _add(app_context, "d1", "Nhã Ca", "Thơ")
     _add(app_context, "d2", "Cổ Long", "Kiếm hiệp")
     prompts = _accept_name(monkeypatch, "Thơ Nhã Ca")
@@ -219,14 +219,14 @@ def test_saving_a_simple_filter_makes_a_self_updating_collection(qapp, app_conte
         app_context, LibraryFilter(authors=("Nhã Ca",), tags=("Thơ",))
     )
 
-    assert "tự cập nhật" in prompts[0]
-    rules = VirtualCollection.from_row(app_context.db.get_collection(collection_id)).rules
-    assert {r.operator for r in rules} == {"has_author", "has_tag"}
+    assert "cố định" in prompts[0]
+    assert VirtualCollection.from_row(app_context.db.get_collection(collection_id)).rules == []  # no rule to follow
+    assert app_context.db.list_collection_document_ids(collection_id) == ["d1"]
     assert app_context.filters.current == LibraryFilter(collections=(collection_id,))  # shows it right away
     assert app_context.facets.total(app_context.filters.current) == 1
 
-    _add(app_context, "d3", "nhã ca", "thơ")  # a new matching book joins by itself
-    assert app_context.facets.total(app_context.filters.current) == 2
+    _add(app_context, "d3", "nhã ca", "thơ")  # a new matching book does not join by itself
+    assert app_context.facets.total(app_context.filters.current) == 1
 
 
 def test_saving_a_complicated_filter_keeps_the_current_documents_and_says_so(qapp, app_context, monkeypatch):

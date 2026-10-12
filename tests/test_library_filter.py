@@ -10,7 +10,6 @@ from smartdoc.domain.author_names import (
     split_author_names,
     tag_keys,
 )
-from smartdoc.domain.filter_collections import rules_from_filter
 from smartdoc.domain.library_filter import (
     AUTHORS,
     COLLECTIONS,
@@ -156,29 +155,3 @@ def test_renaming_a_person_inside_a_field_keeps_the_others_and_the_separators():
     assert rename_person_in_field("Nhã Cát", "Nhã Ca", "Y") == "Nhã Cát"  # a different person is untouched
 
 
-# -- filter -> collection rules ---------------------------------------------------------------
-
-
-def test_single_values_become_and_rules():
-    rules, logic = rules_from_filter(LibraryFilter(authors=("Nhã Ca",), tags=("Lịch sử",), formats=("PDF",)))
-
-    assert logic == "AND"
-    assert {(r.field, r.operator, r.value) for r in rules} == {
-        ("author", "has_author", "Nhã Ca"),
-        ("tags", "has_tag", "Lịch sử"),
-        ("extension", "eq", "pdf"),
-    }
-
-
-def test_several_values_of_one_group_become_or_rules():
-    rules, logic = rules_from_filter(LibraryFilter(tags=("A", "B")))
-
-    assert logic == "OR"
-    assert [r.value for r in rules] == ["A", "B"]
-
-
-def test_filters_a_flat_rule_list_cannot_express_return_none():
-    assert rules_from_filter(LibraryFilter(tags=("A", "B"), authors=("X",))) is None  # (A or B) and X
-    assert rules_from_filter(LibraryFilter(tags=("A",), query="q")) is None
-    assert rules_from_filter(LibraryFilter(collections=("c1",))) is None
-    assert rules_from_filter(LibraryFilter()) is None

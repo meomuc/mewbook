@@ -6,7 +6,6 @@ from pathlib import Path
 
 from smartdoc.application.library_cleanup import LibraryCleanupService
 from smartdoc.application.facet_counter import FacetCounter
-from smartdoc.domain.filter_collections import rules_from_filter
 from smartdoc.domain.library_filter import STATUS_MISSING, STATUS_TINY, STATUSES, TINY_FILE_BYTES, LibraryFilter
 from smartdoc.presentation.library_cleanup_dialog import LibraryCleanupDialog
 
@@ -45,11 +44,9 @@ def test_the_status_filter_shows_missing_and_tiny_books_only(app_context, tmp_pa
     assert db.count_file_statuses() == {STATUS_MISSING: 1, STATUS_TINY: 1}
 
 
-def test_a_status_is_a_real_filter_group_not_a_saved_collection_rule(app_context, tmp_path):
+def test_a_status_is_a_real_filter_group(app_context, tmp_path):
     flt = LibraryFilter(statuses=(STATUS_MISSING,))
     assert not flt.is_empty() and flt.active_groups() == (STATUSES,)
-    assert rules_from_filter(flt) is None  # a collection cannot follow "the file is gone"
-    assert rules_from_filter(LibraryFilter(formats=("epub",), statuses=(STATUS_MISSING,))) is None  # and must not drop it silently
 
 
 def test_facet_counts_follow_the_status_filter(app_context, tmp_path):

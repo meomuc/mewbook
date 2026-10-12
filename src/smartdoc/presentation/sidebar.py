@@ -21,9 +21,8 @@ from PySide6.QtWidgets import (
 from smartdoc.core.event_bus import FilterChangedEvent, LibraryUpdatedEvent
 from smartdoc.domain.author_names import NO_TAG
 from smartdoc.domain.library_filter import COLLECTIONS, MODE_GO, MODE_TOGGLE, TAGS
-from smartdoc.domain.smart_collections import VirtualCollection
 from smartdoc.infrastructure.database import READING_LIST_ID
-from smartdoc.presentation.collection_dialog import NewCollectionDialog, can_edit_in_dialog
+from smartdoc.presentation.collection_dialog import NewCollectionDialog
 from smartdoc.presentation.design_dialog import confirm_danger
 from smartdoc.presentation.facet_panel import FacetPanel
 from smartdoc.presentation.qt_event_bridge import QtEventBridge, debounced
@@ -242,33 +241,10 @@ class CollectionListPanel(QWidget):
             return  # pseudo-entries, not real collections.
 
         menu = QMenu(self)
-        edit_action = menu.addAction("Chỉnh sửa điều kiện")
-        row = self.context.db.get_collection(collection_id)
-        if row is not None and not can_edit_in_dialog(VirtualCollection.from_row(row)):
-            # Made from a filter (several conditions): the one-rule dialog would silently flatten it.
-            edit_action.setEnabled(False)
-            edit_action.setToolTip("Bộ sưu tập này có nhiều điều kiện; hãy tạo lại từ thanh Đang lọc")
         rename_action = menu.addAction("Đổi tên")
         delete_action = menu.addAction("Xóa bộ sưu tập")
         chosen = self._exec_menu(menu, position)
-        if chosen == edit_action:
-            row = self.context.db.get_collection(collection_id)
-            if row is None:
-                return
-            dialog = NewCollectionDialog(self, collection=VirtualCollection.from_row(row), context=self.context)
-            accepted = dialog.exec() == QDialog.Accepted
-            wants_delete = dialog.delete_requested
-            updated = dialog.build_collection() if accepted else None
-            dialog.deleteLater()
-            if wants_delete:
-                self._delete_collection(collection_id, item.data(_COLLECTION_NAME_ROLE))
-            elif accepted:
-                if updated:
-                    self.context.db.save_collection(
-                        updated.id, updated.name, updated.to_json(), updated.logic, updated.created_at
-                    )
-                    self.context.event_bus.publish(LibraryUpdatedEvent())  # rules changed: recount + reload the list
-        elif chosen == rename_action:
+        if chosen == rename_action:
             raw_name = item.data(_COLLECTION_NAME_ROLE)
             new_name, ok = QInputDialog.getText(self, "Đổi tên bộ sưu tập", "Tên mới:", text=raw_name)
             new_name = new_name.strip()
@@ -299,7 +275,7 @@ class CollectionListPanel(QWidget):
         return menu.exec(self.collections_list.viewport().mapToGlobal(position))
 
     def _on_add_collection(self) -> None:
-        dialog = NewCollectionDialog(self, context=self.context)
+        dialog = NewCollectionDialog(self)
         accepted = dialog.exec() == QDialog.Accepted
         collection = dialog.build_collection() if accepted else None
         dialog.deleteLater()

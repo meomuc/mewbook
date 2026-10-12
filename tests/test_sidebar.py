@@ -229,21 +229,20 @@ def test_delete_collection_via_context_menu(qapp, app_context, monkeypatch):
     assert len(_items(sidebar)) == 1
 
 
-def test_edit_collection_rule_via_context_menu(qapp, app_context, monkeypatch):
-    collection = _seed_collection(app_context)
+def test_the_collection_menu_has_no_conditions_to_edit(qapp, app_context, monkeypatch):
+    _seed_collection(app_context)
     sidebar = LibrarySidebar(app_context)
-    monkeypatch.setattr(LibrarySidebar, "_exec_menu", _pick_action_containing("Chỉnh sửa điều kiện"))
-    monkeypatch.setattr(cd_module.NewCollectionDialog, "exec", lambda self: QDialog.Accepted)
+    offered: list[str] = []
+
+    def look_at_the_menu(self, menu, _position):
+        offered.extend(action.text() for action in menu.actions())
+        return None
+
+    monkeypatch.setattr(LibrarySidebar, "_exec_menu", look_at_the_menu)
 
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 
-    # Same id (upsert), rule value unchanged in this test (dialog wasn't
-    # actually filled with new input) -- proves the edit path round-trips
-    # through save_collection rather than creating a second row.
-    assert len(app_context.db.list_collections()) == 1
-    updated = app_context.db.get_collection(collection.id)
-    assert updated is not None
-    assert VirtualCollection.from_row(updated).rules[0].value == "AI"
+    assert offered == ["Đổi tên", "Xóa bộ sưu tập"]  # a collection is filled by hand, so there is no rule to edit
 
 
 def test_clicking_all_documents_clears_every_filter_including_the_search(qapp, app_context):
@@ -363,30 +362,6 @@ def test_deleting_the_selected_collection_drops_it_from_the_filter(qapp, app_con
     sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
 
     assert app_context.filters.current.collections == ()
-
-
-def test_a_collection_made_from_a_filter_cannot_be_edited_in_the_one_rule_dialog(qapp, app_context, monkeypatch):
-    collection = VirtualCollection(
-        name="Nhiều điều kiện",
-        rules=[
-            SmartRule(field="author", operator="has_author", value="A"),
-            SmartRule(field="tags", operator="has_tag", value="AI"),
-        ],
-    )
-    app_context.db.save_collection(
-        collection.id, collection.name, collection.to_json(), collection.logic, collection.created_at
-    )
-    sidebar = LibrarySidebar(app_context)
-    seen = []
-
-    def fake_exec_menu(self, menu, _position):
-        seen.extend((a.text(), a.isEnabled()) for a in menu.actions())
-
-    monkeypatch.setattr(LibrarySidebar, "_exec_menu", fake_exec_menu)
-    sidebar._show_collection_context_menu(_position_of_row(sidebar, 1))
-
-    assert ("Chỉnh sửa điều kiện", False) in seen
-    assert ("Đổi tên", True) in seen
 
 
 # --- the "Kệ sách" pills (stage G3) ---

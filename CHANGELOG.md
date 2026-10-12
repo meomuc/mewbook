@@ -1,5 +1,21 @@
 # Changelog
 
+[12/10/2026 - 14:36] - Task: manual-collections/02 - Gỡ giao diện quy tắc lọc khỏi Bộ sưu tập
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:collection_dialog`, `:presentation:sidebar`, `:presentation:save_filter_dialog`, `:domain:filter_collections` (xóa), tests
+  - File tạo mới / Chỉnh sửa:
+    - `collection_dialog.py`: chỉ còn ô tên (bỏ dòng điều kiện, kiểu khớp, đếm trực tiếp, chế độ sửa)
+    - `sidebar.py`: menu chỉ còn "Đổi tên" và "Xóa bộ sưu tập"
+    - `save_filter_dialog.py`: luôn lưu cố định các sách đang hiển thị
+    - `domain/filter_collections.py`: xóa (không còn nơi dùng); test của nó trong `test_library_filter.py` và `test_library_cleanup.py` gỡ theo
+    - tests: `test_collection_dialog.py` viết lại, `test_sidebar.py`, `test_active_filter_bar.py`, `test_ui_plain_language.py`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Giữ lớp `SmartRule`/`VirtualCollection` ở domain vì migration 7 còn dùng để chốt bộ sưu tập cũ.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Cột `rules_json` và lớp quy tắc vẫn còn trong mã nhưng không còn được ghi với quy tắc mới; có thể dọn ở một ticket sau khi chắc chắn không ai cần.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 14:33] - Task: manual-collections/01 - Chốt bộ sưu tập quy tắc cũ thành danh sách thành viên
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:schema_migrations`, `:infrastructure:database`, tests
@@ -570,6 +586,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Changed
+- **Tạo bộ sưu tập chỉ cần một cái tên.** Không còn điều kiện lọc: bạn tự đưa sách vào; "Lưu thành bộ sưu tập" từ bộ lọc lưu các sách đang hiển thị. Menu chuột phải của bộ sưu tập còn "Đổi tên" và "Xóa bộ sưu tập".
 - **Bộ sưu tập chỉ còn các sách bạn tự đưa vào.** Khi nâng cấp, bộ sưu tập theo quy tắc cũ được chốt thành danh sách sách khớp quy tắc tại thời điểm đó (cộng với sách bạn đã thêm tay) và không còn tự thêm sách mới.
 - **Chọn thư mục thùng rác.** Cài đặt › Sao lưu và khôi phục có hàng "Thư mục thùng rác" (chọn thư mục khác, ví dụ trên ổ khác, hoặc dùng mặc định). Đổi thư mục chỉ áp dụng cho những lần "Xóa file" sau; mục đã có vẫn khôi phục được.
 - **Thùng rác trong bộ lọc Tình trạng file.** Chip "Thùng rác" (có số đếm) cho xem các sách đã xóa của cả hai loại; trong cửa sổ Thùng rác, cột "Vị trí hiện tại" bấm vào để mở file trong Explorer (báo rõ nếu file không còn). Panel chi tiết nói rõ sách được xóa khỏi thư viện (file vẫn ở chỗ cũ) hay xóa cả file.

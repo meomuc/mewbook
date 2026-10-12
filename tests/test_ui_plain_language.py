@@ -185,7 +185,7 @@ def test_the_dialogs_of_the_new_design_use_plain_words(qapp, app_context, tmp_pa
         DangerConfirmDialog(None, title="Xóa 2 file khỏi máy?", message="Hai file sẽ bị <b>xóa</b>.", items=["a.pdf"],
                             safe_text="<b>Không bị đụng tới:</b> bản bạn giữ.", ack_text="Tôi hiểu", action_text="Xóa 2 file"),
         SmartClassifyWizard(app_context, service, lambda: ClassifyScope(description="Tất cả tài liệu")),
-        NewCollectionDialog(context=app_context),
+        NewCollectionDialog(),
         AuthorCleanupDialog(app_context),
         DuplicateFinderDialog(app_context),
         RelinkDialog(app_context),
