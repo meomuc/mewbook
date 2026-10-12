@@ -171,25 +171,15 @@ class Layer2ClassifyService:
 
         with ThreadPoolExecutor(max_workers=LAYER2_MAX_WORKERS) as executor:
             futures_to_job = {}
-            job_index = 0
-
-            def _submit_next_batch():
-                nonlocal job_index
-                while job_index < len(candidates) and len(futures_to_job) < LAYER2_MAX_WORKERS * 2:
-                    job = candidates[job_index]
-                    future = executor.submit(self._caller, job, taxonomy, base_url, model)
-                    futures_to_job[future] = (job_index, job)
-                    job_index += 1
-
-            _submit_next_batch()
-            completed = 0
-
-            for future in as_completed(futures_to_job):
+            for job in candidates:
                 if should_stop is not None and should_stop():
-                    executor.shutdown(cancel_futures=True)
                     break
+                future = executor.submit(self._caller, job, taxonomy, base_url, model)
+                futures_to_job[future] = job
 
-                job_idx, job = futures_to_job.pop(future)
+            completed = 0
+            for future in as_completed(futures_to_job):
+                job = futures_to_job[future]
                 try:
                     suggestion = future.result()
                     outcome = Layer2Outcome(
@@ -209,10 +199,8 @@ class Layer2ClassifyService:
                 if progress_callback is not None and completed % 4 == 0:
                     progress_callback(completed, total_candidates)
 
-                _submit_next_batch()
-
-        if progress_callback is not None and completed > 0:
-            progress_callback(completed, total_candidates)
+            if progress_callback is not None and completed > 0:
+                progress_callback(completed, total_candidates)
 
         outcomes = [outcomes_by_id[job.doc_id] for job in candidates if job.doc_id in outcomes_by_id]
         return outcomes
