@@ -1,5 +1,22 @@
 # Changelog
 
+[12/10/2026 - 10:54] - Task: Cài Matt Pocock skills và setup repo (issue tracker cục bộ)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có code; cấu hình tài liệu cho skill
+  - File tạo mới / Chỉnh sửa:
+    - `docs/agents/issue-tracker.md`: issue tracker cục bộ, lưu trong `.scratch/<feature>/`
+    - `docs/agents/triage-labels.md`: nhãn triage mặc định (5 vai trò)
+    - `docs/agents/domain.md`: domain docs single-context (`CONTEXT.md` + `docs/adr/`)
+    - `CLAUDE.md`: thêm khối `## Agent skills` trỏ tới ba file trên
+  - Dependencies: plugin `mattpocock-skills@claude-plugins-official` v1.2.3 (cài ở phạm vi user, không nằm trong repo)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Chọn issue tracker cục bộ: việc theo dõi nằm trong repo, không đẩy lên GitHub Issues.
+  - Giữ nhãn triage mặc định; `triage-labels.md` chỉ là bảng ánh xạ, không tạo nhãn thật.
+  - `.scratch/` chưa tồn tại; thư mục sẽ được tạo khi có issue đầu tiên.
+* **3. Vấn đề tiềm ẩn / Cần Review:**
+  - Lệnh `/setup-matt-pocock-skills` không có trong danh sách lệnh của phiên hiện tại; setup làm thủ công theo file hướng dẫn trong plugin. Cần khởi động lại Claude Code để kiểm tra lệnh đã xuất hiện.
+  - Chưa quyết định `.scratch/` có commit vào git hay không.
+
 [12/10/2026] - Task: Parallel Ollama Layer 2 Inference (Tối ưu Lớp 2)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `application/classify_layer2.py`

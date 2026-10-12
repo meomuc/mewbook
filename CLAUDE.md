@@ -204,3 +204,17 @@ Chưa cài thì gói vẫn được kiểm và ghép màu nhưng bị ẩn, đ�
    không còn `$token`). Màu chỉnh riêng của gói không đạt 4.5:1 thì làm đậm tối thiểu, nâng patch version, báo lại.
 6. Chụp từng màn trong `preview/` ở đúng theme ghi trong tên file, so và báo khác biệt.
 7. Chuyển zip vào `layouts/incoming/_da-nhap/`, báo lại ngắn.
+
+## Agent skills
+
+### Issue tracker
+
+Cục bộ bằng markdown: issue và spec nằm trong `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Nhãn mặc định: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: một `CONTEXT.md` và `docs/adr/` ở gốc repo. See `docs/agents/domain.md`.
