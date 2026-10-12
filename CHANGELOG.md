@@ -1,5 +1,20 @@
 # Changelog
 
+[12/10/2026 - 13:45] - Task: Chia 3 spec thành 18 ticket (to-tickets)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có code; tài liệu theo dõi công việc
+  - File tạo mới / Chỉnh sửa:
+    - `.scratch/unified-trash/issues/01..08-*.md`: 8 ticket Thùng rác hợp nhất
+    - `.scratch/manual-collections/issues/01..03-*.md`: 3 ticket Bộ sưu tập thủ công
+    - `.scratch/device-sync/issues/01..07-*.md`: 7 ticket Thiết bị và đồng bộ máy đọc
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Cắt theo lát dọc, có bước gom về một cửa vào trước (xóa sách, gửi sách) rồi mới đổi hành vi.
+  - Ticket khảo sát Boox qua MTP gắn `ready-for-human`; ticket gửi sách qua MTP bị chặn bởi nó.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Ticket 05 của device-sync thêm phụ thuộc `comtypes` (MIT); phải ghi giấy phép trước khi thêm.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 13:36] - Task: Grill thiết kế, viết 3 spec và ADR 0002 (Thùng rác hợp nhất)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có code; tài liệu thiết kế
