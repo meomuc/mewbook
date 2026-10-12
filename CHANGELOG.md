@@ -1,5 +1,24 @@
 # Changelog
 
+[12/10/2026 - 13:36] - Task: Grill thiết kế, viết 3 spec và ADR 0002 (Thùng rác hợp nhất)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có code; tài liệu thiết kế
+  - File tạo mới / Chỉnh sửa:
+    - `CONTEXT.md`: glossary của dự án (Thư viện, Sách, Xóa khỏi thư viện, Xóa file, Thùng rác, Bộ sưu tập, Thiết bị...)
+    - `.scratch/unified-trash/spec.md`: spec Thùng rác hợp nhất và hai loại xóa
+    - `.scratch/manual-collections/spec.md`: spec Bộ sưu tập chỉ thành viên thêm tay
+    - `.scratch/device-sync/spec.md`: spec quản lý Thiết bị và theo dõi sách đã gửi (Boox Note Air4 qua MTP)
+    - `docs/adr/0002-unified-trash-two-deletion-kinds.md`: ADR một Thùng rác, hai loại xóa
+  - Dependencies: không có (spec đề xuất `comtypes`, MIT, chưa thêm vào)
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Một Thùng rác duy nhất, hai loại xóa, đều khôi phục được và cùng hết hạn; đường dẫn bị loại trừ nhập lại vĩnh viễn.
+  - Bộ sưu tập giữ bảng thành viên riêng, không lưu thành tag ẩn trong cột hashtag.
+  - Đồng bộ máy đọc bản đầu chỉ một chiều và chỉ chép file sách; hai chiều đầy đủ bị thu hẹp vì NeoReader không có dữ liệu PC đọc được.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nút "Xóa khỏi thư viện" hiện chuyển file vật lý đi, trái với spec; công cụ lọc trùng đang xóa cứng bản ghi.
+  - MTP trên Boox chưa kiểm chứng trên máy thật; ticket khảo sát phải làm trước.
+  - Commit này cố ý không gồm `CLAUDE.md` và mục `/doctor` trong CHANGELOG (của tác vụ khác, chưa commit).
+
 [12/10/2026 - 10:54] - Task: Cài Matt Pocock skills và setup repo (issue tracker cục bộ)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có code; cấu hình tài liệu cho skill
