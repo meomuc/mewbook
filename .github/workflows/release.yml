@@ -1,0 +1,113 @@
+# Release build with code signing through SignPath Foundation (free for open-source projects).
+# Builds the exe and installer from the tag, signs the exe, rebuilds the installer around the SIGNED exe, signs the installer.
+# It never publishes: the GitHub Release is still made by hand (docs/RELEASE_CHECKLIST.md section 11).
+# The sign jobs run only when the repository variable SIGNPATH_ORGANIZATION_ID is set, so until SignPath approves the
+# project this workflow only builds, and the installer stays unsigned.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    outputs:
+      artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install (locked)
+        run: uv sync --group dev --locked
+      - name: Build the exe (PyInstaller, one folder)
+        run: uv run pyinstaller --noconfirm --distpath dist --workpath build_pyinstaller packaging/MewBook.spec
+      - name: Upload the unsigned bundle
+        id: upload-exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: mewbook-bundle-unsigned
+          path: dist/MewBook
+          retention-days: 7
+
+  sign-exe:
+    if: vars.SIGNPATH_ORGANIZATION_ID != ''
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit MewBook.exe to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ needs.build.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-bundle
+      - name: Upload the signed bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: mewbook-bundle-signed
+          path: signed-bundle
+          retention-days: 7
+
+  installer:
+    if: vars.SIGNPATH_ORGANIZATION_ID != ''
+    needs: sign-exe
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mewbook-bundle-signed
+          path: dist/MewBook
+      - name: Build the installer around the signed exe
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $version = (Select-String -Path 'src\smartdoc\__init__.py' -Pattern '^__version__ = "([^"]+)"').Matches[0].Groups[1].Value
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" packaging\MewBook.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed.' }
+          Copy-Item "dist\installer\MewBook-Setup-$version.exe" 'installer-unsigned.exe'
+      - name: Upload the unsigned installer
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-unsigned
+          path: installer-unsigned.exe
+          retention-days: 7
+
+  sign-installer:
+    if: vars.SIGNPATH_ORGANIZATION_ID != ''
+    needs: installer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Submit the installer to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ needs.installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed-installer
+      - name: Upload the signed installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-signed
+          path: signed-installer
+          retention-days: 30
