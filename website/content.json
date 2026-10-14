@@ -1,16 +1,33 @@
 {
   "meta": {
-    "latest": "1.3.3",
+    "latest": "1.4.0",
     "downloadUrl": "https://github.com/meomuc/mewbook/releases/latest",
     "fanpageUrl": "https://www.facebook.com/meomuc.mewbook/",
     "assetUrlTemplate": "https://github.com/meomuc/mewbook/releases/download/v{version}/MewBook-Setup-{version}.exe"
   },
   "versions": [
     {
-      "ver": "v1.3.3",
-      "date": "2026-10-09",
+      "ver": "v1.4.0",
+      "date": "2026-10-13",
       "tag": "Mới",
       "tagColor": "bg-[#FF8C42] text-white",
+      "auto": false,
+      "bullets": [
+        "Thùng rác: \"Xóa khỏi thư viện\" giữ nguyên file, \"Xóa file\" đưa vào Thùng rác; cả hai đều khôi phục được",
+        "Bộ sưu tập làm bằng tay, chỉ cần một cái tên; máy đọc sách được đặt tên, nhớ sách đã gửi và kiểm tra sách còn trên máy",
+        "Bộ lọc \"Trên máy\" và biểu tượng trên bìa cho sách đang nằm trên máy đọc; nâng cấp tại chỗ, dữ liệu giữ nguyên"
+      ],
+      "link": "https://github.com/meomuc/mewbook/releases/tag/v1.4.0",
+      "download": {
+        "win": "https://github.com/meomuc/mewbook/releases/download/v1.4.0/MewBook-Setup-1.4.0.exe",
+        "size": "101 MB"
+      }
+    },
+    {
+      "ver": "v1.3.3",
+      "date": "2026-10-09",
+      "tag": "Ổn định",
+      "tagColor": "bg-[#5A3E36] text-[#F5E6CC]",
       "auto": false,
       "bullets": [
         "Sửa lỗi crash khi khởi động lần đầu sau khi cài — thiếu file ngôn ngữ trong bản đóng gói",
@@ -127,24 +144,6 @@
     }
   ],
   "roadmap": [
-    {
-      "title": "Đồng bộ với máy đọc sách: nhớ sách đã chép",
-      "desc": "Mèo nhớ cuốn nào đã chép sang máy đọc sách nào; hiện biểu tượng máy đọc sách trên bìa, cạnh đánh giá cộng đồng",
-      "eta": "Kế hoạch",
-      "status": "planned"
-    },
-    {
-      "title": "Lọc sách đã / chưa chép sang máy đọc sách",
-      "desc": "Thêm vào bộ lọc \"Tình trạng\" để thấy ngay sách nào còn chưa mang theo",
-      "eta": "Kế hoạch",
-      "status": "planned"
-    },
-    {
-      "title": "Xem sách đang có trên máy đọc sách",
-      "desc": "Cắm máy, Mèo đọc danh sách file (chỉ đọc, không kéo nội dung về) và đối chiếu với thư viện; sách đã có trên máy tính được đánh dấu biểu tượng máy tính",
-      "eta": "Kế hoạch",
-      "status": "planned"
-    },
     {
       "title": "Gửi sách tới Kindle",
       "desc": "Kiểm chứng trên máy Kindle thật (EPUB, thư mục documents), sau đó cân nhắc gửi không dây qua email Kindle và máy ở chế độ MTP",
@@ -309,6 +308,11 @@
   ],
   "pendingShots": [],
   "announcements": [
+    {
+      "date": "2026-10-13",
+      "title": "MewBook 1.4.0: thùng rác, bộ sưu tập làm tay và máy đọc sách",
+      "text": "Bản này thêm thùng rác có thể khôi phục: \"Xóa khỏi thư viện\" giữ nguyên file, còn \"Xóa file\" chuyển vào Thùng rác; bộ sưu tập giờ do bạn tự đưa sách vào; máy đọc sách được đặt tên và nhớ sách đã gửi sang máy nào; Mèo kiểm tra xem sách còn trên máy không; bộ lọc \"Trên máy\" và biểu tượng trên bìa cho sách đang ở máy đọc; và dấu 🔗 khi bộ sưu tập trùng tên hashtag. Nâng cấp tại chỗ, dữ liệu của bạn giữ nguyên."
+    },
     {
       "date": "2026-10-09",
       "title": "MewBook 1.3.3: sửa crash khi cài lần đầu, nhập trùng và tốc độ nhập",
