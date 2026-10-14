@@ -145,6 +145,36 @@
   ],
   "roadmap": [
     {
+      "title": "Gửi sách sang nhiều loại máy đọc sách",
+      "desc": "Mở rộng việc gửi sách ngoài BOOX và Kindle sang các hãng máy đọc khác, mỗi máy có hồ sơ định dạng và thư mục riêng",
+      "eta": "Đang phát triển",
+      "status": "next"
+    },
+    {
+      "title": "Dịch tài liệu trong phần đọc",
+      "desc": "Dịch đoạn đang đọc hoặc cả trang ngay trong trình đọc, giữ nguyên bố cục và cho bạn chọn ngôn ngữ đích",
+      "eta": "Đang phát triển",
+      "status": "next"
+    },
+    {
+      "title": "Đọc sách bằng giọng nói (TTS)",
+      "desc": "Mèo đọc to nội dung sách thay bạn, có điều chỉnh tốc độ, tạm dừng và nhớ vị trí đang nghe",
+      "eta": "Đang phát triển",
+      "status": "next"
+    },
+    {
+      "title": "Nhiều giao diện trong phần đọc",
+      "desc": "Chọn và đổi giao diện đọc (màu nền, font, bố cục) ngay trong trình đọc, không cần đổi giao diện của cả ứng dụng",
+      "eta": "Đang phát triển",
+      "status": "next"
+    },
+    {
+      "title": "Thêm giao diện mới",
+      "desc": "Bổ sung theme và layout mới cho cả ứng dụng, mỗi cái có ảnh xem trước trong thư viện ảnh của trang web",
+      "eta": "Đang phát triển",
+      "status": "next"
+    },
+    {
       "title": "Gửi sách tới Kindle",
       "desc": "Kiểm chứng trên máy Kindle thật (EPUB, thư mục documents), sau đó cân nhắc gửi không dây qua email Kindle và máy ở chế độ MTP",
       "eta": "Kế hoạch",
