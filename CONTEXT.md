@@ -14,6 +14,10 @@ _Avoid_: Kho, database
 One catalogued entry: its metadata plus, usually, a pointer to a physical file.
 _Avoid_: Tài liệu, document, bản ghi
 
+**Nhóm nhiều định dạng** (Multi-format group):
+Sách that the duplicate finder judges to be one work in several file formats: the same title and author, or the same file name in the same folder, with at least two different formats. Each format stays its own Sách and nothing links them; the finder only helps the person choose which formats to keep.
+_Avoid_: Bản trùng (that means the same format twice), bản sao
+
 **Xóa khỏi thư viện** (Remove from library):
 Moves a Sách into the Thùng rác with the deletion kind "Xóa khỏi thư viện". The physical file stays exactly where it is.
 _Avoid_: Xóa sách, delete

@@ -362,6 +362,24 @@
   - Lệnh `/setup-matt-pocock-skills` không có trong danh sách lệnh của phiên hiện tại; setup làm thủ công theo file hướng dẫn trong plugin. Cần khởi động lại Claude Code để kiểm tra lệnh đã xuất hiện.
   - Chưa quyết định `.scratch/` có commit vào git hay không.
 
+[12/10/2026 - 11:04] - Task: /doctor - rà soát và dọn cấu hình Claude Code
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có mã ứng dụng; cấu hình tài liệu cho Claude Code
+  - File tạo mới / Chỉnh sửa:
+    - `CLAUDE.md`: rút gọn từ ~24k xuống ~11k ký tự; bỏ tên thư mục, quy tắc đặt tên chung, dòng tham chiếu tới file không tồn tại; chuyển mục theme/layout đi; giữ nguyên GIAO THỨC CHANGELOG ở §3
+    - `themes/CLAUDE.md`, `layouts/CLAUDE.md`, `src/smartdoc/application/CLAUDE.md`: tài liệu nạp theo thư mục, nội dung chuyển nguyên văn
+    - `.claude/skills/theme-import/SKILL.md`, `.claude/skills/layout-import/SKILL.md`: quy trình nhập gói chuyển thành skill, chỉ mô tả ngắn luôn nằm trong ngữ cảnh
+    - `~/.claude/settings.json` (ngoài repo): sửa 13 khóa có escape `\_` không hợp lệ làm file không đọc được; thêm `permissions.defaultMode = "auto"`; bản sao lưu ở `~/.claude/backups/settings.json.before-doctor-2026-10-12`
+    - Gỡ npm `@anthropic-ai/claude-code` 2.1.287 (bản trùng, không chạy); xóa `~/.local/bin/claude.exe.old.*` (~238 MB)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Nạp theo thư mục: quy tắc theme/layout chỉ nạp khi làm việc trong `themes/`/`layouts/`; quy trình nhập gói thành skill; mục 3 giữ các quy tắc áp dụng mọi lúc (changelog, không mã màu trong widget, không hạ min_score).
+  - Quyền: auto mode làm mặc định ở phạm vi user, được chủ dự án xác nhận; không thêm allow rule nào.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `settings.json` trước đây không đọc được nên toàn bộ cài đặt user (gồm khối `env`) bị bỏ qua; sau sửa, khối `env` bắt đầu có hiệu lực, cần rà lại các biến trong đó.
+  - `.claude/settings.local.json` còn allow `Bash(python *)`, `Bash(git reset *)`, `Bash(git push *)`, `Bash(git checkout *)`, `Bash(git merge *)`, `Bash(git commit *)`: rộng hơn quy tắc dự án (không git phá hủy khi chưa hỏi). Chưa đổi, chờ chủ dự án quyết định.
+  - Chưa gỡ: plugin `finance@synced`, `finance@inline`, `anthropic-skills@inline` và MCP `wordpress`. Cần chạy `/plugin` và `/mcp disable wordpress` trong phiên.
+
 [12/10/2026] - Task: Parallel Ollama Layer 2 Inference (Tối ưu Lớp 2)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `application/classify_layer2.py`
