@@ -721,7 +721,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [1.4.0] - 2026-10-13
 
-[13/10/2026 - 21:30] - Task: áp quy tắc global AGENTS.MD vào dự án (AGENTS.md, MASTER_PLAN.md)
+[19/10/2026 - 17:45] - Task: áp quy tắc global AGENTS.MD vào dự án (AGENTS.md, MASTER_PLAN.md)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có mã ứng dụng; tài liệu cấu hình cho agent
   - File tạo mới / Chỉnh sửa:
