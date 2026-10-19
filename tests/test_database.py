@@ -1,5 +1,6 @@
 import pytest
 
+from smartdoc.domain.library_filter import STATUS_TRASH, LibraryFilter
 from smartdoc.infrastructure.database import DatabaseManager
 
 
@@ -321,6 +322,17 @@ def test_quoted_phrase_is_exact_not_a_prefix(db):
 def test_quoted_punctuation_only_phrase_matches_nothing(db):
     _seed(db)
     assert db.query_documents(fts_query='"???"') == []
+
+
+def test_search_inside_the_trash_finds_trashed_books_only_when_trash_is_selected(db):
+    """Ticket 4: the text search reaches the trash when the Thùng rác status is selected, and nowhere else."""
+    db.add_or_update_document("trashed", {"title": "Python Trash", "author": "A", "file_path": "t.pdf", "created_at": 1.0})
+    db.add_or_update_document("live", {"title": "Python Live", "author": "B", "file_path": "l.pdf", "created_at": 2.0})
+    db.mark_document_trashed("trashed", "item-1")
+
+    assert [r["id"] for r in db.query_documents(fts_query="python")] == ["live"]
+    where, params = db.filter_where(LibraryFilter(query="python", statuses=(STATUS_TRASH,)))
+    assert [r["id"] for r in db.query_documents(fts_query="python", where_sql=where, params=params)] == ["trashed"]
 
 
 def test_chosen_sort_is_primary_and_relevance_breaks_ties(db):

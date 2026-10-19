@@ -1,5 +1,16 @@
 # Changelog
 
+[19/10/2026 - 18:02] - Task: tìm kiếm - ticket 4: tìm trong Thùng rác (kiểm chứng và khóa hành vi)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa:
+    - `tests/test_database.py`: test tìm kiếm trong thùng rác (chỉ khi chọn trạng thái Thùng rác)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Hành vi đã đúng sẵn: `_without_removed` bỏ loại trừ khi bộ lọc hỏi sách đã xóa. Không đổi mã; test chỉ khóa hành vi.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Chỉ kiểm chứng ở tầng cơ sở dữ liệu; chưa kiểm tra ô tìm kiếm trong cửa sổ Thùng rác bằng mắt.
+
 [19/10/2026 - 18:01] - Task: tìm kiếm - ticket 2: cụm từ chính xác trong dấu ngoặc kép
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, tests
