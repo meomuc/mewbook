@@ -69,7 +69,9 @@ from smartdoc.core.event_bus import (
     ViewModeChangedEvent,
 )
 from smartdoc.domain.library_filter import LibraryFilter, describe
+from smartdoc.domain.search_sections import layout_page, total_pages
 from smartdoc.domain.smart_collections import VirtualCollection
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.ai_summary_dialog import AISummaryDialog
 from smartdoc.presentation.clipboard_files import get_clipboard_file_paths, set_clipboard_files
 from smartdoc.presentation.removal_dialog import ask_removal
@@ -1056,10 +1058,36 @@ class LibraryListWidget(QWidget):
         flt = self.library_filter
         where_sql, params = self._build_combined_where(flt)
         query = flt.query
+        # Two groups (ticket 3) only for a multi-word search left in relevance order: a chosen sort is the primary order
+        # (ticket 5), and a search with one word has no exact group to head.
+        grouped = self._current_sort is None and self.context.db.has_several_words(query)
+        if grouped:
+            total, documents, table_rows, headings = self._load_two_groups(query, where_sql, params)
+        else:
+            total, documents = self._load_one_list(query, where_sql, params)
+            table_rows, headings = documents, {}
+        self._starred_ids = self.context.db.reading_list_ids()
+        self._device_counts = self.context.db.device_present_counts([d["id"] for d in documents])
+        self.list_view.set_order_by(self._current_sort)
+        self.model.set_documents(documents)  # the shelf shows books only; its headings come with the shelf-view slice
+        self.table_model.set_documents(table_rows, headings=headings)
+        self._span_headings(headings)
+        self.table_model.set_sorted(*_SORTED_COLUMN.get(self._current_sort, ("created_at", True)))
+        self._update_pagination_ui(total)
+        self._show_state_or_view(total)
+
+    def _span_headings(self, headings: dict[int, str]) -> None:
+        """A heading row is one wide cell in the table: its text spans every column. Spans are per view, so they are
+        rebuilt from scratch on each load."""
+        self.table_view.clearSpans()
+        for row in headings:
+            self.table_view.setSpan(row, 0, 1, self.table_model.columnCount())
+
+    def _load_one_list(self, query: str, where_sql: str, params: tuple) -> tuple[int, list[dict]]:
+        """The ordinary page: one list, paged by SQL, in the chosen order (or relevance)."""
         total = self.context.db.count_documents_matching(fts_query=query, where_sql=where_sql, params=params)
         self._total_pages = max(1, math.ceil(total / self.page_size))
         self._current_page = min(self._current_page, self._total_pages - 1)
-
         documents = self.context.db.query_documents(
             fts_query=query,
             where_sql=where_sql,
@@ -1068,14 +1096,28 @@ class LibraryListWidget(QWidget):
             offset=self._current_page * self.page_size,
             order_by=self._current_sort,
         )
-        self._starred_ids = self.context.db.reading_list_ids()
-        self._device_counts = self.context.db.device_present_counts([d["id"] for d in documents])
-        self.list_view.set_order_by(self._current_sort)
-        self.model.set_documents(documents)
-        self.table_model.set_documents(documents)
-        self.table_model.set_sorted(*_SORTED_COLUMN.get(self._current_sort, ("created_at", True)))
-        self._update_pagination_ui(total)
-        self._show_state_or_view(total)
+        return total, documents
+
+    def _load_two_groups(self, query: str, where_sql: str, params: tuple) -> tuple[int, list[dict], list[dict | None], dict[int, str]]:
+        """One page of a two-group result. Returns (total books, the books on this page, the table's rows with None for
+        each heading, the heading text by row). The groups are cut into pages by `layout_page`, which also places the
+        headings (see domain/search_sections.py)."""
+        exact, partial = self.context.db.search_sections(query, where_sql, params)
+        combined = [*exact, *partial]
+        sizes = (len(exact), len(partial))
+        labels = (vi.SEARCH_EXACT_HEADING, vi.SEARCH_PARTIAL_HEADING)
+        self._total_pages = total_pages(sizes, self.page_size)
+        self._current_page = min(self._current_page, self._total_pages - 1)
+        rows: list[dict | None] = []
+        headings: dict[int, str] = {}
+        for row in layout_page(sizes, labels, self._current_page, self.page_size):
+            if row.header is not None:
+                headings[len(rows)] = row.header
+                rows.append(None)
+            else:
+                rows.append(combined[row.position])
+        documents = [doc for doc in rows if doc is not None]
+        return len(combined), documents, rows, headings
 
     def _show_state_or_view(self, total: int) -> None:
         """Nothing on the shelf: say why in the middle of the area instead of showing an empty grid."""

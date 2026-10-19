@@ -1428,6 +1428,10 @@ class DatabaseManager:
             return None
         return _SANITIZE_RE.sub(" ", keyword).split()[:_MAX_QUERY_WORDS]
 
+    def has_several_words(self, text: str) -> bool:
+        """True when a query is typed as plain words, two or more: the case that gets the two-group result."""
+        return len(self._plain_words(text) or []) >= 2
+
     def search_sections(self, fts_query: str, where_sql: str = "", params: tuple = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """(exact, partial) for a multi-word query (ticket 3, step 1 of the search work).
 

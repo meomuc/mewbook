@@ -1,5 +1,22 @@
 # Changelog
 
+[19/10/2026 - 19:00] - Task: tìm kiếm - ticket 3, bước 2b lát 2: hai nhóm kết quả trong chế độ danh sách
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:library_view`, `:infrastructure:database`, strings, tests
+  - File tạo mới / Chỉnh sửa:
+    - `library_view.py`: `reload` tách thành `_load_one_list` và `_load_two_groups`; `_span_headings` gộp ô tiêu đề trong bảng
+    - `database.py`: `has_several_words`
+    - `strings_vi.py`, `strings_en.py`: "Khớp đúng cụm" / "Khớp một phần"
+    - `tests/test_library_two_groups.py` (mới): 3 test (hai nhóm trong bảng, lưới chỉ có sách, tìm một từ không có tiêu đề)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Hai nhóm chỉ hiện khi: chưa chọn kiểu sắp xếp và truy vấn có từ 2 trở lên. Khi đã chọn sắp xếp, giữ hành vi cũ (ticket 5).
+  - Lưới (chế độ xem thẻ) chưa hiện tiêu đề: sẽ làm ở lát 3.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nhóm khớp một phần tải toàn bộ danh sách trong bộ nhớ mỗi lần tải trang; thư viện rất lớn cần đo.
+  - Cần kiểm tra hình ảnh trên máy thật: vị trí và độ cao tiêu đề, chuyển trang, chọn sách dưới tiêu đề.
+  - Đã chạy 119 test liên quan và ruff sạch.
+
 [19/10/2026 - 18:56] - Task: tìm kiếm - ticket 3, bước 2b lát 1: dòng tiêu đề trong model thư viện
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:library_view`, tests
@@ -831,6 +848,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [Unreleased]
 
 ### Added
+- Tìm nhiều từ ở chế độ danh sách: kết quả chia hai nhóm "Khớp đúng cụm" và "Khớp một phần" (khớp nhiều từ hơn lên trước). Chế độ thẻ bìa sẽ có ở bản sau.
 - Gõ cụm từ trong dấu ngoặc kép (ví dụ "tên sách đầy đủ") để tìm đúng cụm đó, đúng thứ tự.
 
 ### Fixed
