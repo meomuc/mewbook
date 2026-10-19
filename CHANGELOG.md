@@ -1,5 +1,22 @@
 # Changelog
 
+[19/10/2026 - 17:45] - Task: áp quy tắc global AGENTS.MD vào dự án (AGENTS.md, MASTER_PLAN.md)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: không có mã ứng dụng; tài liệu cấu hình cho agent
+  - File tạo mới / Chỉnh sửa:
+    - `AGENTS.md`: quy chuẩn riêng của dự án (phân loại S/M/L/XL, nguồn sự thật, quy trình, giao diện Qt, an toàn, ngôn ngữ) và khối "Agent skills"; không chép quy tắc global
+    - `MASTER_PLAN.md`: kim chỉ nam 7 phần, phase theo lịch sử 1.0.0–1.4.0 và năm mục Phase 3
+    - `CLAUDE.md` giữ nguyên; `docs/devlog.md` và `GLOSSARY.md` không tạo (trùng `CHANGELOG.md` và `CONTEXT.md`)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - `CLAUDE.md` vẫn là nguồn chi tiết; `AGENTS.md` chỉ bổ sung cách làm việc. Không đổi `CLAUDE.md` thành một dòng để tránh mất nội dung.
+  - Phase 1–2 được dựng lại từ CHANGELOG và ROADMAP; không phải kế hoạch có sẵn.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `~/.claude/CLAUDE.md` (nạp `@AGENTS.MD` cho mọi dự án) chưa được tạo: bộ phân loại quyền từ chối sửa cấu hình Claude. Quy tắc global hiện không tự nạp.
+  - `MASTER_PLAN.md` ghi "đã nộp đơn SignPath" trong bản nháp và đã sửa lại thành "chưa nộp"; cần kiểm tra lại khi đơn được gửi.
+  - Chưa có mục kiểm chứng test cho tác vụ này vì chỉ thay đổi tài liệu.
+
+
 [12/10/2026 - 15:03] - Task: sửa test đếm bộ sưu tập theo thành viên (phát hiện ở bộ test đầy đủ)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests
@@ -720,22 +737,6 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 -- see "Versioning & releases" in README.md for how version numbers are chosen.
 
 ## [1.4.0] - 2026-10-13
-
-[19/10/2026 - 17:45] - Task: áp quy tắc global AGENTS.MD vào dự án (AGENTS.md, MASTER_PLAN.md)
-* **1. Cấu trúc & Module thay đổi:**
-  - Module tác động: không có mã ứng dụng; tài liệu cấu hình cho agent
-  - File tạo mới / Chỉnh sửa:
-    - `AGENTS.md`: quy chuẩn riêng của dự án (phân loại S/M/L/XL, nguồn sự thật, quy trình, giao diện Qt, an toàn, ngôn ngữ) và khối "Agent skills"; không chép quy tắc global
-    - `MASTER_PLAN.md`: kim chỉ nam 7 phần, phase theo lịch sử 1.0.0–1.4.0 và năm mục Phase 3
-    - `CLAUDE.md` giữ nguyên; `docs/devlog.md` và `GLOSSARY.md` không tạo (trùng `CHANGELOG.md` và `CONTEXT.md`)
-  - Dependencies: không có
-* **2. Quyết định Kiến trúc & Cốt lõi:**
-  - `CLAUDE.md` vẫn là nguồn chi tiết; `AGENTS.md` chỉ bổ sung cách làm việc. Không đổi `CLAUDE.md` thành một dòng để tránh mất nội dung.
-  - Phase 1–2 được dựng lại từ CHANGELOG và ROADMAP; không phải kế hoạch có sẵn.
-* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
-  - `~/.claude/CLAUDE.md` (nạp `@AGENTS.MD` cho mọi dự án) chưa được tạo: bộ phân loại quyền từ chối sửa cấu hình Claude. Quy tắc global hiện không tự nạp.
-  - `MASTER_PLAN.md` ghi "đã nộp đơn SignPath" trong bản nháp và đã sửa lại thành "chưa nộp"; cần kiểm tra lại khi đơn được gửi.
-  - Chưa có mục kiểm chứng test cho tác vụ này vì chỉ thay đổi tài liệu.
 
 ## [Unreleased]
 
