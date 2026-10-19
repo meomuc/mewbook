@@ -1,5 +1,18 @@
 # Changelog
 
+[19/10/2026 - 18:40] - Task: tìm kiếm - ticket 3, bước 2a: bố cục trang cho hai nhóm kết quả (chưa nối vào giao diện)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:domain:search_sections` (mới), tests
+  - File tạo mới / Chỉnh sửa:
+    - `src/smartdoc/domain/search_sections.py` (mới): `layout_page`, `total_pages`, `SectionRow` — tiêu đề nhóm xen với sách, phân trang theo số sách
+    - `tests/test_search_sections.py` (mới): 7 test
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Bố cục nằm trong domain thuần để test được mà không cần Qt; model và view chỉ đổi mỗi dòng thành tiêu đề hoặc sách.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Chưa nối vào `LibraryModel`/`LibraryTableModel`; đó là bước 2b, cần kiểm tra hình ảnh trên máy thật trước.
+  - Đã chạy 7 test mới và ruff sạch.
+
 [19/10/2026 - 18:24] - Task: tìm kiếm - ticket 3, bước 1: hàm cơ sở dữ liệu cho hai nhóm kết quả
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, tests
