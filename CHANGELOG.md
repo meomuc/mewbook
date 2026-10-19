@@ -1,5 +1,18 @@
 # Changelog
 
+[19/10/2026 - 17:59] - Task: tìm kiếm - ticket 5: sắp xếp là khóa chính, độ liên quan là khóa phụ
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `database.py`: `query_documents` ghép `ORDER BY <sắp xếp>, bm25(...)` khi đã chọn sắp xếp; không chọn thì vẫn theo độ liên quan
+    - `tests/test_database.py`: test thứ tự (đỏ trước khi sửa: không có độ liên quan thì hai sách cùng tác giả đi theo thứ tự thêm vào)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Độ liên quan chỉ phá thế hòa trong cùng khóa sắp xếp; `order_by` vẫn là chuỗi tin cậy từ whitelist `SORT_OPTIONS`.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Với "Sách đã tóm tắt", khóa phụ là tiêu đề rồi mới đến độ liên quan: đó là thứ tự đã có, không đổi.
+  - Chưa có kiểm tra giao diện; test ở mức cơ sở dữ liệu. Đã chạy 122 test liên quan (database, thư viện, bộ lọc).
+
 [19/10/2026 - 17:59] - Task: tìm kiếm - ticket 1: từ khóa chỉ có ký tự đặc biệt
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, `:presentation:library_view`, `:presentation:state_view`, strings, tests
@@ -758,6 +771,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Tìm kiếm chỉ có ký tự đặc biệt (ví dụ `???`) không còn hiện cả thư viện; MewBook nhắc gõ chữ hoặc số.
 
 ### Changed
+- Chọn một kiểu sắp xếp khi đang tìm kiếm thì kết quả theo đúng kiểu sắp xếp; sách cùng khóa sắp xếp vẫn xếp theo độ khớp với từ khóa.
 - **Biểu tượng máy đọc trên bìa sách và bộ lọc theo máy.** Bìa sách đang nằm trên máy đọc có một biểu tượng nhỏ kèm số máy; mục "Tình trạng file" có chip "Trên máy: <tên máy>" cho từng máy đã đăng ký để xem những sách đang ở trên máy đó.
 - **Kiểm tra sách còn trên máy đọc.** Khi cắm máy đã đặt tên và mở "Gửi sang máy đọc sách", hoặc bấm "Kiểm tra máy" trong "Máy đọc sách của tôi…", MewBook xem những sách đã gửi còn trên máy không; panel chi tiết ghi "còn trên máy / không còn trên máy" kèm ngày kiểm tra. Sách trong thư viện không bị đổi.
 - **Ghi nhớ sách đã gửi sang máy đọc nào.** Sách gửi tới một máy đã đặt tên được ghi lại, và panel chi tiết có dòng "Trên máy đọc" liệt kê từng máy kèm ngày gửi.

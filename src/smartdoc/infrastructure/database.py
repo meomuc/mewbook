@@ -1517,7 +1517,8 @@ class DatabaseManager:
         try:
             if match_expr:
                 extra = f"AND ({where_sql})" if where_sql else ""
-                order_clause = order_by or _RELEVANCE
+                # A chosen sort decides the order; relevance only breaks ties inside it (ticket 5). Without a sort it is the order.
+                order_clause = f"{order_by}, {_RELEVANCE}" if order_by else _RELEVANCE
                 sql = f"""
                     SELECT {self._list_columns()}
                     FROM documents_fts

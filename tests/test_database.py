@@ -303,6 +303,22 @@ def test_query_documents_punctuation_query_keeps_where_filter_alone_out(db):
     assert db.query_documents(fts_query="???", where_sql="documents.author = ?", params=("Nguyen Nam",)) == []
 
 
+def test_chosen_sort_is_primary_and_relevance_breaks_ties(db):
+    """With a sort chosen, the sort decides the order and relevance only orders books that tie on it (ticket 5).
+    The title match is inserted AFTER the content-only match, so falling back to insertion order fails this test."""
+    db.add_or_update_document(
+        "content_only", {"title": "Ghi chú", "author": "Nam", "file_path": "a.pdf", "created_at": 1.0},
+        extracted_text="lap trinh python co ban")
+    db.add_or_update_document(
+        "title_match", {"title": "Python co ban", "author": "Nam", "file_path": "b.pdf", "created_at": 2.0},
+        extracted_text="gioi thieu")
+    db.add_or_update_document(
+        "other_author", {"title": "Python khac", "author": "An", "file_path": "c.pdf", "created_at": 3.0},
+        extracted_text="")
+    ids = [r["id"] for r in db.query_documents(fts_query="python", order_by="documents.author ASC")]
+    assert ids == ["other_author", "title_match", "content_only"]
+
+
 def test_query_documents_custom_order_by_title(db):
     _seed_with_extensions(db)
     results = db.query_documents(order_by="documents.title ASC")
