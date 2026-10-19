@@ -68,6 +68,22 @@ def test_a_filter_with_no_match_offers_to_clear_it(qapp, app_context):
     widget.deleteLater()
 
 
+def test_a_search_with_no_words_asks_for_a_word_instead_of_blaming_the_library(qapp, app_context):
+    """"???" has nothing searchable. Saying "no book matches" with a "clear filter" button would send the person to the
+    wrong place: the fix is to type a word (ticket 1 of the search work)."""
+    app_context.db.add_or_update_document("a", {"title": "A", "author": "X", "file_path": "a.pdf", "extension": "pdf", "created_at": 1.0})
+    widget = LibraryListWidget(app_context)
+    widget.show()
+
+    app_context.filters.set_query("???")
+    qapp.processEvents()
+
+    assert widget.state_view.isVisible() and widget.state_view.role == "thinking"
+    assert widget.state_view.title_label.text() == "Từ khóa chưa đúng"
+    assert _texts(widget.state_view) == []
+    widget.deleteLater()
+
+
 def test_the_missing_files_strip_follows_the_count(qapp, app_context):
     strip = MissingFilesStrip(app_context)
     assert strip.isHidden()  # nothing is missing

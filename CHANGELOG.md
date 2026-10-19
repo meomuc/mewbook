@@ -1,5 +1,19 @@
 # Changelog
 
+[19/10/2026 - 17:59] - Task: tìm kiếm - ticket 1: từ khóa chỉ có ký tự đặc biệt
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, `:presentation:library_view`, `:presentation:state_view`, strings, tests
+  - File tạo mới / Chỉnh sửa:
+    - `database.py`: `has_search_terms` (công khai), `_unusable`; `query_documents`, `count_documents_matching`, `list_document_ids_matching` trả rỗng/0 khi từ khóa không dùng được thay vì liệt kê tất cả
+    - `library_view.py`, `state_view.py` (`show_bad_query`), `strings_vi.py`, `strings_en.py`: gợi ý "Từ khóa chưa đúng" thay cho "Không có sách nào khớp"
+    - `tests/test_database.py` (3 test hồi quy, đỏ trước khi sửa), `tests/test_state_view.py` (1 test)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Một kiểm tra chung `_unusable` cho cả ba đường đọc, để không đường nào còn rơi vào nhánh "không có từ khóa".
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Lỗi `OperationalError` của FTS vẫn trả rỗng và chỉ ghi log; giao diện chưa phân biệt được với "không khớp". Thu hẹp nhờ sanitizer, nhưng chưa đóng hết ý "báo lỗi FTS" của ticket 1.
+  - Chưa chạy bộ test đầy đủ; đã chạy test database, state view, bộ lọc nhanh và thanh bộ lọc (96 đạt) và ruff sạch trên file đã đổi.
+
 [19/10/2026 - 17:45] - Task: áp quy tắc global AGENTS.MD vào dự án (AGENTS.md, MASTER_PLAN.md)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: không có mã ứng dụng; tài liệu cấu hình cho agent
@@ -739,6 +753,9 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [1.4.0] - 2026-10-13
 
 ## [Unreleased]
+
+### Fixed
+- Tìm kiếm chỉ có ký tự đặc biệt (ví dụ `???`) không còn hiện cả thư viện; MewBook nhắc gõ chữ hoặc số.
 
 ### Changed
 - **Biểu tượng máy đọc trên bìa sách và bộ lọc theo máy.** Bìa sách đang nằm trên máy đọc có một biểu tượng nhỏ kèm số máy; mục "Tình trạng file" có chip "Trên máy: <tên máy>" cho từng máy đã đăng ký để xem những sách đang ở trên máy đó.

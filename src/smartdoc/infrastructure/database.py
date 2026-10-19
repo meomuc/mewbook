@@ -1390,6 +1390,16 @@ class DatabaseManager:
             tokens.extend(_prefix_term(w) for w in words)
         return " AND ".join(tokens)  # explicit: two adjacent (a OR b) groups are not an implicit AND in FTS5
 
+    def has_search_terms(self, text: str) -> bool:
+        """True when the text holds at least one word FTS5 can search; the UI uses it to ask for a real word."""
+        return bool(self._sanitize_query(text))
+
+    @staticmethod
+    def _unusable(fts_query: str, match_expr: str) -> bool:
+        """A text query was typed but nothing in it is searchable ("???"): it matches nothing, never everything.
+        Without this check the read paths fell through to "no text query" and listed the whole library."""
+        return bool(fts_query) and not match_expr
+
     def search(self, query_string: str) -> list[dict[str, Any]]:
         match_expr = self._sanitize_query(query_string)
         if not match_expr:
@@ -1501,6 +1511,8 @@ class DatabaseManager:
         need it, but qualifying everything is the simpler habit).
         """
         match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        if self._unusable(fts_query, match_expr):
+            return []
         where_sql = self._without_removed(where_sql, include_removed)
         try:
             if match_expr:
@@ -1547,6 +1559,8 @@ class DatabaseManager:
         """Same filters as query_documents, but a COUNT(*) -- used to compute
         page counts for pagination without fetching every row."""
         match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        if self._unusable(fts_query, match_expr):
+            return 0
         where_sql = self._without_removed(where_sql, include_removed)
         try:
             if match_expr:
@@ -1572,6 +1586,8 @@ class DatabaseManager:
         "Apply to the current list" (smart classification) means the whole
         filtered result, not just the page on screen."""
         match_expr = self._sanitize_query(fts_query) if fts_query else ""
+        if self._unusable(fts_query, match_expr):
+            return []
         try:
             if match_expr:
                 extra = f"AND ({where_sql})" if where_sql else ""

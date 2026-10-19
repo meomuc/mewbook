@@ -283,6 +283,26 @@ def test_query_documents_no_filters_returns_everything(db):
     assert len(results) == 3
 
 
+def test_query_documents_punctuation_only_query_matches_nothing(db):
+    """A query made only of characters FTS5 cannot use ("???") has no searchable word. It must match nothing: falling
+    through to "list everything" made a meaningless search show the whole library (regression test for ticket 1)."""
+    _seed(db)
+    assert db.query_documents(fts_query="???") == []
+    assert db.query_documents(fts_query="??? -- ") == []
+
+
+def test_count_and_ids_for_punctuation_only_query_match_nothing(db):
+    _seed(db)
+    assert db.count_documents_matching(fts_query="???") == 0
+    assert db.list_document_ids_matching(fts_query="???") == []
+
+
+def test_query_documents_punctuation_query_keeps_where_filter_alone_out(db):
+    """Even with a filter, an unusable text query must not widen to the filter's whole set."""
+    _seed(db)
+    assert db.query_documents(fts_query="???", where_sql="documents.author = ?", params=("Nguyen Nam",)) == []
+
+
 def test_query_documents_custom_order_by_title(db):
     _seed_with_extensions(db)
     results = db.query_documents(order_by="documents.title ASC")

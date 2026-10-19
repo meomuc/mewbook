@@ -98,6 +98,9 @@ class StateView(QWidget):
         self.set_state("logo", vi.STATE_EMPTY_TITLE, vi.STATE_EMPTY_TEXT,
                        [(vi.ADD_BOOKS, on_add_files, True), (vi.ADD_FOLDER, on_add_folder, False)])
 
+    def show_bad_query(self) -> None:
+        self.set_state("thinking", vi.STATE_BAD_QUERY_TITLE, vi.STATE_BAD_QUERY_TEXT)
+
     def show_no_match(self, on_clear_filter: Callable[[], None]) -> None:
         self.set_state("thinking", vi.STATE_NO_MATCH_TITLE, vi.STATE_NO_MATCH_TEXT, [(vi.CLEAR_FILTER, on_clear_filter, True)])
 

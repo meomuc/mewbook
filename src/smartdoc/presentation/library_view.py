@@ -1060,6 +1060,9 @@ class LibraryListWidget(QWidget):
             return
         if self.library_filter.is_empty():
             self.state_view.show_empty_library(self.add_files_requested.emit, self.add_folder_requested.emit)
+        elif self.library_filter.query and not self.context.db.has_search_terms(self.library_filter.query):
+            # "???" matches nothing, and saying "no book matches" would blame the library instead of the typing.
+            self.state_view.show_bad_query()
         else:
             self.state_view.show_no_match(self.context.filters.clear)
 
