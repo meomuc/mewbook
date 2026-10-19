@@ -50,6 +50,7 @@ GAP = 18  # between covers
 BOARD_INSET = 24  # board edge -> first cover
 TOP_PAD = 30  # above the tallest cover: room for the lift and the hint line
 LIFT = 6
+HEADING_H = 36  # a heading band of a two-group search result: its text, then the books of its group below it
 RING_GAP, RING_W = 3, 2.5
 MAX_ASPECT = 1.5  # a cover taller than this (height/width) is fitted, not stretched
 PLACEHOLDER_ASPECT = 1.4
@@ -67,6 +68,8 @@ class _Shelf:
     label: tuple[str, str] | None  # (title, subtitle) on the first shelf of a group, else None
     rows: list[int] = field(default_factory=list)
     line_y: int = 0  # y of the board's top edge, in content coordinates
+    heading: str | None = None  # a heading band of a two-group search result (ticket 3): no covers, only this text
+    heading_row: int = -1  # the model row of that heading (its rect is in _rects, so the cursor can stand on it)
 
 
 class ShelfView(QAbstractItemView):
@@ -154,38 +157,60 @@ class ShelfView(QAbstractItemView):
         model = self.model()
         count = model.rowCount() if model is not None else 0
         per_row = self._per_row()
-        left, _right = self._board_rect_x()
+        left, right = self._board_rect_x()
         width, box_h = self._icon_size.width(), self._box_h()
         row_h = self._row_height()
         y = 0
+        # A heading row (a None document, see LibraryModel) closes the books before it: each run of books is laid out on
+        # its own, so no shelf label or shelf runs across a heading.
+        run: list[int] = []
+        for row in range(count):
+            if model.document_at(row) is None:
+                y = self._layout_books(run, y, per_row, left, right, width, box_h, row_h, model)
+                run = []
+                y = self._add_heading(row, y, model)
+            else:
+                run.append(row)
+        y = self._layout_books(run, y, per_row, left, right, width, box_h, row_h, model)
+        self._content_h = y + 12
+        self.updateGeometries()
+        self.viewport().update()
+
+    def _add_heading(self, row: int, y: int, model) -> int:
+        """A heading band across the board: its text is the model's display text for the row, and it has no covers."""
+        text = model.data(model.index(row, 0), Qt.DisplayRole) or ""
+        self._shelves.append(_Shelf(top=y, height=HEADING_H, label=None, rows=[], heading=str(text), heading_row=row))
+        self._rects[row] = QRect(LEFT_PAD, y, max(40, self.viewport().width() - 2 * LEFT_PAD), HEADING_H)
+        return y + HEADING_H
+
+    def _layout_books(self, rows: list[int], y: int, per_row: int, left: int, right: int, width: int, box_h: int,
+                      row_h: int, model) -> int:
+        """Lays out one run of books (no heading inside it) from `y` down, and returns the y below it."""
+        if not rows:
+            return y
         if self._captioned():
-            _left, right = self._board_rect_x()
-            for start in range(0, count, per_row):
-                chunk = list(range(start, min(count, start + per_row)))
-                shelf = _Shelf(top=y, height=row_h, label=None, rows=chunk)
+            for start in range(0, len(rows), per_row):
+                chunk = rows[start : start + per_row]
+                self._shelves.append(_Shelf(top=y, height=row_h, label=None, rows=chunk))
                 for slot, row in enumerate(chunk):
                     self._rects[row] = QRect(self._column_x(slot, per_row, left, right, width), y + 10, width, box_h)
-                self._shelves.append(shelf)
                 y += row_h
-            self._content_h = y + 12
-            self.updateGeometries()
-            self.viewport().update()
-            return
+            return y
         # First pass: which shelf (group) each book stands on, in order.
         groups: list[tuple[str, tuple[str, str], list[int]]] = []
         titles: dict[str, object] = {}
-        for row in range(count):
+        for row in rows:
             doc = model.document_at(row) or {}
             shelf = shelf_for(doc, self._order_by)
             titles[shelf.key] = shelf
             if not groups or groups[-1][0] != shelf.key:
                 groups.append((shelf.key, (shelf.title, ""), []))
             groups[-1][2].append(row)
-        for key, (title, _sub), rows in groups:
+        for key, (title, _sub), group_rows in groups:
             shelf_def = titles[key]
-            for chunk_start in range(0, len(rows), per_row):
-                chunk = rows[chunk_start : chunk_start + per_row]
-                label = (title, shelf_def.subtitle(len(rows))) if chunk_start == 0 else None
+            for chunk_start in range(0, len(group_rows), per_row):
+                chunk = group_rows[chunk_start : chunk_start + per_row]
+                label = (title, shelf_def.subtitle(len(group_rows))) if chunk_start == 0 else None
                 shelf = _Shelf(top=y, height=row_h, label=label, rows=chunk)
                 shelf.line_y = y + TOP_PAD + box_h
                 for slot, row in enumerate(chunk):
@@ -193,9 +218,7 @@ class ShelfView(QAbstractItemView):
                     self._rects[row] = QRect(x, y + TOP_PAD, width, box_h)
                 self._shelves.append(shelf)
                 y += row_h
-        self._content_h = y + 12
-        self.updateGeometries()
-        self.viewport().update()
+        return y
 
     def updateGeometries(self) -> None:  # noqa: N802 -- Qt override
         viewport = self.viewport().size()
@@ -278,7 +301,7 @@ class ShelfView(QAbstractItemView):
 
     def _shelf_of(self, row: int) -> int:
         for i, shelf in enumerate(self._shelves):
-            if row in shelf.rows:
+            if row in shelf.rows or row == shelf.heading_row:
                 return i
         return -1
 
@@ -305,8 +328,14 @@ class ShelfView(QAbstractItemView):
             direction = 1 if action in (QAbstractItemView.MoveDown, QAbstractItemView.MovePageDown) else -1
             shelf_index = self._shelf_of(current)
             wanted = max(0, min(len(self._shelves) - 1, shelf_index + direction * steps))
-            centre = self._rects[current].center().x()
+            # A heading holds no book: a move that lands on one keeps going the same way.
+            while 0 < wanted < len(self._shelves) - 1 and not self._shelves[wanted].rows:
+                wanted += direction
+            wanted = max(0, min(len(self._shelves) - 1, wanted))
             row_choices = self._shelves[wanted].rows
+            if not row_choices:
+                return model.index(current, 0)
+            centre = self._rects[current].center().x()
             target = min(row_choices, key=lambda r: abs(self._rects[r].center().x() - centre))
         else:
             target = current
@@ -416,6 +445,9 @@ class ShelfView(QAbstractItemView):
             top = shelf.top - offset
             if top > visible.bottom() or top + shelf.height < visible.top():
                 continue
+            if shelf.heading is not None:
+                self._paint_heading(painter, shelf, offset, tm)
+                continue
             if not captioned:
                 self._paint_shelf(painter, shelf, offset, tm)
             for row in shelf.rows:
@@ -423,6 +455,16 @@ class ShelfView(QAbstractItemView):
                 if captioned:
                     self._paint_caption(painter, model, row, tm)
         painter.end()
+
+    def _paint_heading(self, painter: QPainter, shelf: _Shelf, offset: int, tm) -> None:
+        """A heading band: its text across the board, in the theme's display face and the body ink (no covers, no board)."""
+        font = QFont(tm.font_family("disp"))
+        font.setPixelSize(13)
+        font.setWeight(QFont.DemiBold)
+        painter.setFont(font)
+        painter.setPen(QColor(tm.token("ink")))
+        rect = QRect(LEFT_PAD, shelf.top - offset, max(40, self.viewport().width() - 2 * LEFT_PAD), shelf.height)
+        painter.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, shelf.heading or "")
 
     def _paint_shelf(self, painter: QPainter, shelf: _Shelf, offset: int, tm) -> None:
         left, right = self._board_rect_x()

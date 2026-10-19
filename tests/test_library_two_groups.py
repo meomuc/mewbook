@@ -28,15 +28,37 @@ def test_two_groups_show_in_the_list_with_spanned_headings(qapp, app_context):
     widget.deleteLater()
 
 
-def test_the_shelf_keeps_books_only(qapp, app_context):
+def test_the_shelf_shows_the_same_headings_as_the_list(qapp, app_context):
     _seed(app_context)
     widget = LibraryListWidget(app_context)
     widget.show()
     app_context.filters.set_query("python co")
     qapp.processEvents()
 
-    assert widget.model.rowCount() == 2
-    assert all(widget.model.document_at(row) is not None for row in range(widget.model.rowCount()))
+    shelf = widget.list_view
+    assert widget.model.rowCount() == 4
+    assert widget.model.document_at(0) is None and widget.model.document_at(2) is None
+    headings = [s.heading for s in shelf._shelves if s.heading is not None]
+    assert headings == ["Khớp đúng cụm", "Khớp một phần"]
+    widget.deleteLater()
+
+
+def test_a_heading_cannot_be_clicked_and_the_cursor_steps_over_it(qapp, app_context):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QAbstractItemView
+
+    _seed(app_context)
+    widget = LibraryListWidget(app_context)
+    widget.show()
+    app_context.filters.set_query("python co")
+    qapp.processEvents()
+
+    shelf = widget.list_view
+    heading_rect = shelf._rects[0]
+    assert not shelf.indexAt(heading_rect.center()).isValid()  # a click on the heading selects nothing
+    shelf.setCurrentIndex(widget.model.index(0, 0))  # the cursor stands on the heading
+    down = shelf.moveCursor(QAbstractItemView.MoveDown, Qt.NoModifier)
+    assert down.row() == 1  # the first book of the exact group, not another heading
     widget.deleteLater()
 
 

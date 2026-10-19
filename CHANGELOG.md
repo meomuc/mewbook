@@ -1,5 +1,20 @@
 # Changelog
 
+[19/10/2026 - 19:03] - Task: tìm kiếm - ticket 3, bước 2b lát 3: hai nhóm kết quả trong chế độ thẻ bìa
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:shelf_view`, `:presentation:library_view`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `shelf_view.py`: `_Shelf` có `heading`/`heading_row`; `_relayout` tách thành `_layout_books` (logic cũ) và `_add_heading`; `_paint_heading`; `moveCursor` và `_shelf_of` bỏ qua dải tiêu đề
+    - `library_view.py`: lưới nhận cùng dòng tiêu đề với bảng
+    - `tests/test_library_two_groups.py`: lưới có tiêu đề; tiêu đề không nhấn được; con trỏ đi qua tiêu đề
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Tiêu đề là một dải đầy chiều rộng; mỗi đoạn sách nằm giữa hai tiêu đề được xếp lại từ đầu, nên nhãn kệ không trùm qua tiêu đề.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Chưa kiểm tra bằng mắt: vị trí, chiều cao và chữ của dải tiêu đề trên lưới với từng theme; cần người dùng xem.
+  - Chế độ có nhãn (captioned) cũng dùng chung đường xếp; test mới chỉ bao phủ chế độ kệ.
+  - Đã chạy 120 test liên quan và 8 test lưới có sẵn; ruff sạch.
+
 [19/10/2026 - 19:00] - Task: tìm kiếm - ticket 3, bước 2b lát 2: hai nhóm kết quả trong chế độ danh sách
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:library_view`, `:infrastructure:database`, strings, tests

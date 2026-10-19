@@ -1069,7 +1069,7 @@ class LibraryListWidget(QWidget):
         self._starred_ids = self.context.db.reading_list_ids()
         self._device_counts = self.context.db.device_present_counts([d["id"] for d in documents])
         self.list_view.set_order_by(self._current_sort)
-        self.model.set_documents(documents)  # the shelf shows books only; its headings come with the shelf-view slice
+        self.model.set_documents(table_rows, headings=headings)
         self.table_model.set_documents(table_rows, headings=headings)
         self._span_headings(headings)
         self.table_model.set_sorted(*_SORTED_COLUMN.get(self._current_sort, ("created_at", True)))
