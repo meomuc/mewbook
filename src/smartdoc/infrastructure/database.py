@@ -90,6 +90,7 @@ _MAX_QUERY_WORDS = 30  # a pasted paragraph would otherwise become an FTS5 expre
 _MAX_D_VARIANT_LETTERS = 4  # a word with more d/đ than this is tried only all-d and all-đ (2^n spellings would explode)
 _PHRASE_RE = re.compile(r'"([^"]*)"')  # a quoted phrase is an exact, in-order match (ticket 2 of the search work)
 _MAX_PHRASE_VARIANTS = 16  # spellings of one phrase, across all its words' d/đ variants
+_NO_LIMIT = 2**31 - 1  # SQLite's largest LIMIT: "every match", for callers that need the whole result set
 
 
 def _d_variants(word: str) -> list[str]:
@@ -1419,6 +1420,47 @@ class DatabaseManager:
         """A text query was typed but nothing in it is searchable ("???"): it matches nothing, never everything.
         Without this check the read paths fell through to "no text query" and listed the whole library."""
         return bool(fts_query) and not match_expr
+
+    @staticmethod
+    def _plain_words(keyword: str) -> list[str] | None:
+        """The searchable words of a query typed without quotes or field prefixes; None when it uses that syntax."""
+        if '"' in keyword or any(_SEARCH_FIELD_RE.match(token) for token in keyword.split()):
+            return None
+        return _SANITIZE_RE.sub(" ", keyword).split()[:_MAX_QUERY_WORDS]
+
+    def search_sections(self, fts_query: str, where_sql: str = "", params: tuple = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """(exact, partial) for a multi-word query (ticket 3, step 1 of the search work).
+
+        `exact` is the books holding the words as one phrase, in order. `partial` is every other book that holds at least
+        one of the words, the ones with more of the words first, then by relevance. A single word has no exact group, and a
+        query with quotes or field prefixes keeps its ordinary results in `partial` (its own rules already say what it means).
+        """
+        words = self._plain_words(fts_query) if fts_query else []
+        if not words or len(words) < 2:  # one word, no words at all, or quotes/fields: the ordinary search decides
+            return [], self.query_documents(fts_query=fts_query, where_sql=where_sql, params=params, limit=_NO_LIMIT)
+        where = self._without_removed(where_sql, include_removed=False)
+        extra = f"AND ({where})" if where else ""
+        phrase = _phrase_term(words)
+        any_word = " OR ".join(_prefix_term(w) for w in words)
+        joins = "FROM documents_fts JOIN documents ON documents.doc_rowid = documents_fts.rowid"
+        exact_sql = f"SELECT {self._list_columns()} {joins} WHERE documents_fts MATCH ? {extra} ORDER BY {_RELEVANCE}"
+        matched_count = " + ".join(
+            "(documents.doc_rowid IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?))" for _ in words)
+        partial_sql = f"""
+            SELECT {self._list_columns()}, ({matched_count}) AS matched_words {joins}
+            WHERE documents_fts MATCH ?
+              AND documents.doc_rowid NOT IN (SELECT rowid FROM documents_fts WHERE documents_fts MATCH ?)
+              {extra}
+            ORDER BY matched_words DESC, {_RELEVANCE}
+        """
+        try:
+            exact = [dict(row) for row in self.connection.execute(exact_sql, (phrase, *params)).fetchall()]
+            partial_params = (*[_prefix_term(w) for w in words], any_word, phrase, *params)
+            partial = [dict(row) for row in self.connection.execute(partial_sql, partial_params).fetchall()]
+        except sqlite3.OperationalError:
+            logger.error("search_sections failed (fts=%r, where=%r)", fts_query, where_sql)
+            return [], []
+        return exact, partial
 
     def search(self, query_string: str) -> list[dict[str, Any]]:
         match_expr = self._sanitize_query(query_string)

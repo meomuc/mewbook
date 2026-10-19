@@ -1,5 +1,20 @@
 # Changelog
 
+[19/10/2026 - 18:24] - Task: tìm kiếm - ticket 3, bước 1: hàm cơ sở dữ liệu cho hai nhóm kết quả
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `database.py`: `search_sections` trả (khớp đúng cụm, khớp một phần); `_plain_words`; `_NO_LIMIT`
+    - `tests/test_database.py`: 3 test (hai nhóm, một từ không có nhóm chính xác, cú pháp có ngoặc kép giữ kết quả thường); đỏ trước khi viết hàm
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Nhóm khớp một phần sắp theo số từ khớp (giảm dần), rồi theo độ liên quan; nhóm chính xác loại trùng với nó.
+  - Chưa đổi giao diện và phân trang; đó là bước 2.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `search_sections` trả toàn bộ kết quả (không phân trang), nên thư viện lớn có thể tốn bộ nhớ khi đưa lên giao diện; bước 2 phải phân trang.
+  - Đếm số từ khớp dùng n truy vấn con trên FTS; cần đo với thư viện lớn trước khi bật cho người dùng.
+  - Đã chạy 157 test liên quan và ruff sạch.
+
 [19/10/2026 - 18:02] - Task: tìm kiếm - ticket 4: tìm trong Thùng rác (kiểm chứng và khóa hành vi)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests

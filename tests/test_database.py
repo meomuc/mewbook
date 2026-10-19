@@ -335,6 +335,33 @@ def test_search_inside_the_trash_finds_trashed_books_only_when_trash_is_selected
     assert [r["id"] for r in db.query_documents(fts_query="python", where_sql=where, params=params)] == ["trashed"]
 
 
+def test_search_sections_splits_exact_phrase_from_partial_matches(db):
+    """Ticket 3, step 1: a multi-word query gives (exact phrase matches, books matching some of the words). The partial
+    group is ordered by how many of the words a book has, most first, then by relevance."""
+    db.add_or_update_document("exact", {"title": "Python Co Ban", "author": "A", "file_path": "a.pdf", "created_at": 1.0})
+    db.add_or_update_document("both_words", {"title": "Co Ban Python", "author": "B", "file_path": "b.pdf", "created_at": 2.0})
+    db.add_or_update_document("one_word", {"title": "Python Khac", "author": "C", "file_path": "c.pdf", "created_at": 3.0})
+    db.add_or_update_document("no_word", {"title": "Khac Han", "author": "D", "file_path": "d.pdf", "created_at": 4.0})
+
+    exact, partial = db.search_sections("python co")
+    assert [r["id"] for r in exact] == ["exact"]
+    assert [r["id"] for r in partial] == ["both_words", "one_word"]
+
+
+def test_search_sections_single_word_has_no_exact_group(db):
+    _seed(db)
+    exact, partial = db.search_sections("python")
+    assert exact == []
+    assert {r["id"] for r in partial} == {r["id"] for r in db.query_documents(fts_query="python")}
+
+
+def test_search_sections_quoted_query_falls_back_to_plain_results(db):
+    _seed(db)
+    exact, partial = db.search_sections('"python co ban"')
+    assert exact == []
+    assert [r["id"] for r in partial] == [r["id"] for r in db.query_documents(fts_query='"python co ban"')]
+
+
 def test_chosen_sort_is_primary_and_relevance_breaks_ties(db):
     """With a sort chosen, the sort decides the order and relevance only orders books that tie on it (ticket 5).
     The title match is inserted AFTER the content-only match, so falling back to insertion order fails this test."""
