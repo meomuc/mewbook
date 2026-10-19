@@ -776,15 +776,20 @@ The format is based on [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.
 and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html)
 -- see "Versioning & releases" in README.md for how version numbers are chosen.
 
-## [1.4.0] - 2026-10-13
-
 ## [Unreleased]
+
+### Added
+- Gõ cụm từ trong dấu ngoặc kép (ví dụ "tên sách đầy đủ") để tìm đúng cụm đó, đúng thứ tự.
 
 ### Fixed
 - Tìm kiếm chỉ có ký tự đặc biệt (ví dụ `???`) không còn hiện cả thư viện; MewBook nhắc gõ chữ hoặc số.
 
 ### Changed
 - Chọn một kiểu sắp xếp khi đang tìm kiếm thì kết quả theo đúng kiểu sắp xếp; sách cùng khóa sắp xếp vẫn xếp theo độ khớp với từ khóa.
+
+## [1.4.0] - 2026-10-13
+
+### Changed
 - **Biểu tượng máy đọc trên bìa sách và bộ lọc theo máy.** Bìa sách đang nằm trên máy đọc có một biểu tượng nhỏ kèm số máy; mục "Tình trạng file" có chip "Trên máy: <tên máy>" cho từng máy đã đăng ký để xem những sách đang ở trên máy đó.
 - **Kiểm tra sách còn trên máy đọc.** Khi cắm máy đã đặt tên và mở "Gửi sang máy đọc sách", hoặc bấm "Kiểm tra máy" trong "Máy đọc sách của tôi…", MewBook xem những sách đã gửi còn trên máy không; panel chi tiết ghi "còn trên máy / không còn trên máy" kèm ngày kiểm tra. Sách trong thư viện không bị đổi.
 - **Ghi nhớ sách đã gửi sang máy đọc nào.** Sách gửi tới một máy đã đặt tên được ghi lại, và panel chi tiết có dòng "Trên máy đọc" liệt kê từng máy kèm ngày gửi.
@@ -802,7 +807,6 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [1.3.2] - 2026-10-07
 
 ### Added
-- Gõ cụm từ trong dấu ngoặc kép (ví dụ "tên sách đầy đủ") để tìm đúng cụm đó, đúng thứ tự.
 - **Chuyển đổi PDF sang EPUB không cần Calibre.** Module `pdf_to_epub.py` mới xử lý thuần Python: PyMuPDF trích xuất văn bản và ảnh, ebooklib đóng gói EPUB 3. Tự động nhận diện tiêu đề chương (so sánh cỡ chữ với trung vị), nhóm 8 trang/mục khi không tìm thấy tiêu đề. Trang quét (ít hơn 15 ký tự) được render thành PNG 120 DPI nhúng trong EPUB. Cặp `("pdf", "epub")` thêm vào `NativeConverter.NATIVE_PAIRS` — dialog chuyển đổi hiện "Sẽ chuyển đổi (không cần Calibre)".
 - **Gán nhãn hàng loạt theo thư mục lưu trữ (Tools › Gán nhãn theo thư mục…).** Nhóm sách "Chưa chắc" theo thư mục cha, tự động match tên thư mục với taxonomy, người dùng xác nhận rồi gán hashtag hàng loạt.
 
