@@ -303,6 +303,26 @@ def test_query_documents_punctuation_query_keeps_where_filter_alone_out(db):
     assert db.query_documents(fts_query="???", where_sql="documents.author = ?", params=("Nguyen Nam",)) == []
 
 
+def test_quoted_phrase_matches_the_words_in_order_only(db):
+    """"python co ban" in quotes is an exact phrase: the same words in another order must not match (ticket 2)."""
+    db.add_or_update_document("in_order", {"title": "Python Co Ban", "author": "A", "file_path": "a.pdf", "created_at": 1.0})
+    db.add_or_update_document("reversed", {"title": "Co Ban Python", "author": "B", "file_path": "b.pdf", "created_at": 2.0})
+    assert [r["id"] for r in db.query_documents(fts_query='"python co ban"')] == ["in_order"]
+    # The same words without quotes still find both books: the phrase rule is opt-in.
+    assert {r["id"] for r in db.query_documents(fts_query="python co ban")} == {"in_order", "reversed"}
+
+
+def test_quoted_phrase_is_exact_not_a_prefix(db):
+    db.add_or_update_document("doc", {"title": "Python Co Ban", "author": "A", "file_path": "a.pdf", "created_at": 1.0})
+    assert db.query_documents(fts_query='"pyth"') == []
+    assert [r["id"] for r in db.query_documents(fts_query='"python co"')] == ["doc"]
+
+
+def test_quoted_punctuation_only_phrase_matches_nothing(db):
+    _seed(db)
+    assert db.query_documents(fts_query='"???"') == []
+
+
 def test_chosen_sort_is_primary_and_relevance_breaks_ties(db):
     """With a sort chosen, the sort decides the order and relevance only orders books that tie on it (ticket 5).
     The title match is inserted AFTER the content-only match, so falling back to insertion order fails this test."""

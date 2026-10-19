@@ -1,5 +1,18 @@
 # Changelog
 
+[19/10/2026 - 18:01] - Task: tìm kiếm - ticket 2: cụm từ chính xác trong dấu ngoặc kép
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `database.py`: `_PHRASE_RE`, `_phrase_term` (cụm từ FTS5 đúng thứ tự, giữ biến thể d/đ, có giới hạn số biến thể); `_sanitize_query` tách cụm trong `"…"` trước, phần còn lại đi như cũ
+    - `tests/test_database.py`: 3 test cụm từ (thứ tự, không khớp tiền tố, cụm toàn dấu câu); 2 đỏ trước khi sửa
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Cụm từ là tùy chọn: gõ không ngoặc vẫn là AND các tiền tố như trước. Cụm không được ghép với tên trường (`title:"…"`) trong bản này.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - `title:"python co"` sinh ra một từ `title` thừa; cần quyết định có hỗ trợ không.
+  - Chưa có giao diện gợi ý cú pháp cụm từ; chỉ có test ở tầng cơ sở dữ liệu. Đã chạy 138 test liên quan và ruff sạch.
+
 [19/10/2026 - 17:59] - Task: tìm kiếm - ticket 5: sắp xếp là khóa chính, độ liên quan là khóa phụ
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, tests
@@ -789,6 +802,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 ## [1.3.2] - 2026-10-07
 
 ### Added
+- Gõ cụm từ trong dấu ngoặc kép (ví dụ "tên sách đầy đủ") để tìm đúng cụm đó, đúng thứ tự.
 - **Chuyển đổi PDF sang EPUB không cần Calibre.** Module `pdf_to_epub.py` mới xử lý thuần Python: PyMuPDF trích xuất văn bản và ảnh, ebooklib đóng gói EPUB 3. Tự động nhận diện tiêu đề chương (so sánh cỡ chữ với trung vị), nhóm 8 trang/mục khi không tìm thấy tiêu đề. Trang quét (ít hơn 15 ký tự) được render thành PNG 120 DPI nhúng trong EPUB. Cặp `("pdf", "epub")` thêm vào `NativeConverter.NATIVE_PAIRS` — dialog chuyển đổi hiện "Sẽ chuyển đổi (không cần Calibre)".
 - **Gán nhãn hàng loạt theo thư mục lưu trữ (Tools › Gán nhãn theo thư mục…).** Nhóm sách "Chưa chắc" theo thư mục cha, tự động match tên thư mục với taxonomy, người dùng xác nhận rồi gán hashtag hàng loạt.
 

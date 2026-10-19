@@ -15,8 +15,10 @@ SQLite and would fail at CREATE VIRTUAL TABLE time.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import logging
+import math
 import os
 import re
 import sqlite3
@@ -86,6 +88,8 @@ _SEARCH_FIELD_RE = re.compile(r"^(title|author|tags|content):(.+)$", re.IGNORECA
 _RELEVANCE = "bm25(documents_fts, 10.0, 5.0, 3.0, 1.0)"
 _MAX_QUERY_WORDS = 30  # a pasted paragraph would otherwise become an FTS5 expression too deep to run (and silently find nothing)
 _MAX_D_VARIANT_LETTERS = 4  # a word with more d/đ than this is tried only all-d and all-đ (2^n spellings would explode)
+_PHRASE_RE = re.compile(r'"([^"]*)"')  # a quoted phrase is an exact, in-order match (ticket 2 of the search work)
+_MAX_PHRASE_VARIANTS = 16  # spellings of one phrase, across all its words' d/đ variants
 
 
 def _d_variants(word: str) -> list[str]:
@@ -105,6 +109,16 @@ def _prefix_term(word: str) -> str:
     """`word` as a quoted FTS5 prefix term, in every d/đ spelling: "dac"* -> ("dac"* OR "đac"*)."""
     variants = [f'"{variant}"*' for variant in _d_variants(word)]
     return variants[0] if len(variants) == 1 else "(" + " OR ".join(variants) + ")"
+
+
+def _phrase_term(words: list[str]) -> str:
+    """The words, in order and next to each other, as one exact FTS5 phrase ("dac lap"), in every d/đ spelling.
+    A phrase with many d letters would multiply into too many spellings, so past the cap only the first is kept."""
+    spellings = [_d_variants(word) for word in words]
+    if math.prod(len(s) for s in spellings) > _MAX_PHRASE_VARIANTS:
+        spellings = [s[:1] for s in spellings]
+    terms = [f'"{" ".join(combo)}"' for combo in itertools.product(*spellings)]
+    return terms[0] if len(terms) == 1 else "(" + " OR ".join(terms) + ")"
 
 
 _SCHEMA = """
@@ -1372,7 +1386,13 @@ class DatabaseManager:
         letter "đ", which has no accent to remove: "dac" must find "Đắc" and "đac" must find "Dac", so a word
         containing d or đ is offered in each spelling (`_d_variants`)."""
         tokens: list[str] = []
-        for raw_token in keyword.split()[:_MAX_QUERY_WORDS]:
+        # Quoted phrases are taken out first: their words must stay together and in order, so they cannot go through the
+        # per-word loop below (which would AND them apart). Whatever is left outside the quotes is searched as before.
+        for phrase in _PHRASE_RE.findall(keyword):
+            words = _SANITIZE_RE.sub(" ", phrase).split()[:_MAX_QUERY_WORDS]
+            if words:
+                tokens.append(_phrase_term(words))
+        for raw_token in _PHRASE_RE.sub(" ", keyword).split()[:_MAX_QUERY_WORDS]:
             field_match = _SEARCH_FIELD_RE.match(raw_token)
             if field_match:
                 field = field_match.group(1).lower()
