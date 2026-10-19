@@ -256,6 +256,8 @@ class _AsyncCoverMixin:
         the decoded icon of any cover file that changed on disk."""
         self._rows_by_cover = {}
         for row, doc in enumerate(self._documents):
+            if doc is None:  # a heading row of a two-group search result has no cover
+                continue
             cover_path = doc.get("cover_path")
             if cover_path:
                 self._rows_by_cover.setdefault(cover_path, []).append(row)
@@ -354,14 +356,22 @@ class LibraryModel(_AsyncCoverMixin, QAbstractListModel):
     def __init__(self, parent=None, *, context=None) -> None:
         super().__init__(parent)
         self._context = context
-        self._documents: list[dict] = []
+        self._documents: list[dict | None] = []
+        self._headings: dict[int, str] = {}  # row -> heading text, for the rows that are None (two-group results)
         self._init_async_covers()
 
-    def set_documents(self, documents: list[dict]) -> None:
+    def set_documents(self, documents: list[dict | None], headings: dict[int, str] | None = None) -> None:
+        """`None` entries are heading rows (ticket 3): they show `headings[row]`, cannot be selected and hold no book."""
         self.beginResetModel()
         self._documents = documents
+        self._headings = dict(headings or {})
         self._index_covers()
         self.endResetModel()
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        if index.isValid() and self._documents[index.row()] is None:
+            return Qt.ItemIsEnabled  # a heading: visible, never selected
+        return super().flags(index)
 
     def _cover_key_suffix(self, doc: dict) -> str:
         # The format badge is stamped onto the pixmap itself, so the same
@@ -383,6 +393,8 @@ class LibraryModel(_AsyncCoverMixin, QAbstractListModel):
         if not index.isValid():
             return None
         doc = self._documents[index.row()]
+        if doc is None:
+            return self._headings.get(index.row(), "") if role == Qt.DisplayRole else None
         if role == Qt.DisplayRole:
             title = _truncate(doc.get("title", ""), _TITLE_MAX_CHARS)
             author = _truncate(doc.get("author", ""), _AUTHOR_MAX_CHARS)
@@ -645,13 +657,22 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         self._documents: list[dict] = []
         self._columns: list[str] = ["title", *OPTIONAL_COLUMN_KEYS]
         self._sorted: tuple[str, bool] | None = None  # (column key, descending) the list is ordered by
+        self._documents: list[dict | None] = []
+        self._headings: dict[int, str] = {}  # row -> heading text, for the rows that are None (two-group results)
         self._init_async_covers()
 
-    def set_documents(self, documents: list[dict]) -> None:
+    def set_documents(self, documents: list[dict | None], headings: dict[int, str] | None = None) -> None:
+        """`None` entries are heading rows (ticket 3): the heading text spans the row, and the row cannot be selected."""
         self.beginResetModel()
         self._documents = documents
+        self._headings = dict(headings or {})
         self._index_covers()
         self.endResetModel()
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        if index.isValid() and self._documents[index.row()] is None:
+            return Qt.ItemIsEnabled  # a heading: visible, never selected
+        return super().flags(index)
 
     def set_visible_columns(self, optional_keys: list[str]) -> None:
         self.beginResetModel()
@@ -718,6 +739,11 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         if not index.isValid():
             return None
         doc = self._documents[index.row()]
+        if doc is None:
+            # A heading is shown in the first column (the view spans it across the row); the other cells stay empty.
+            if index.column() == 0 and role == Qt.DisplayRole:
+                return self._headings.get(index.row(), "")
+            return None
         column_key = self._columns[index.column()]
         if role == Qt.DisplayRole:
             if column_key == "author" and _author_unknown(doc):

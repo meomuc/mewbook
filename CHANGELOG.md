@@ -1,5 +1,18 @@
 # Changelog
 
+[19/10/2026 - 18:56] - Task: tìm kiếm - ticket 3, bước 2b lát 1: dòng tiêu đề trong model thư viện
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:library_view`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `library_view.py`: `LibraryModel` và `LibraryTableModel` nhận `None` trong danh sách làm dòng tiêu đề (`set_documents(..., headings=)`); `flags` chặn chọn dòng tiêu đề; bảng hiện tiêu đề ở cột đầu; `_index_covers` bỏ qua dòng tiêu đề
+    - `tests/test_library_headings.py` (mới): 4 test
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Lát này không đổi hành vi: chưa có nơi nào truyền tiêu đề vào model. Các lát sau nối bố cục và vẽ tiêu đề.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Các chỗ gọi `index.row()` để lấy sách (chọn, menu, thao tác hàng loạt) chưa được rà; sẽ rà ở lát 4 trước khi có tiêu đề thật.
+  - Đã chạy 80 test (model, thư viện, phân trang, menu, trạng thái) và ruff sạch.
+
 [19/10/2026 - 18:40] - Task: tìm kiếm - ticket 3, bước 2a: bố cục trang cho hai nhóm kết quả (chưa nối vào giao diện)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:domain:search_sections` (mới), tests
