@@ -36,6 +36,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QAbstractItemView, QFrame
 
+from smartdoc.presentation import strings as vi
 from smartdoc.presentation.line_icons import icon_pixmap
 from smartdoc.presentation.ornaments import paint_backdrop, paint_shelf, shelf_thickness
 from smartdoc.presentation.shelf_groups import shelf_for
@@ -457,14 +458,19 @@ class ShelfView(QAbstractItemView):
         painter.end()
 
     def _paint_heading(self, painter: QPainter, shelf: _Shelf, offset: int, tm) -> None:
-        """A heading band: its text across the board, in the theme's display face and the body ink (no covers, no board)."""
+        """A heading band across the board. The exact-phrase group gets a tinted band and an accent bar; the partial group a
+        plain band. Both use the theme's own tokens, so the two groups read apart in every theme (ticket 3)."""
+        rect = QRect(LEFT_PAD, shelf.top - offset, max(40, self.viewport().width() - 2 * LEFT_PAD), shelf.height)
+        exact = shelf.heading == vi.SEARCH_EXACT_HEADING
+        painter.fillRect(rect, QColor(tm.token("accentsoft" if exact else "surface2")))
+        if exact:
+            painter.fillRect(QRect(rect.left(), rect.top(), 4, rect.height()), QColor(tm.token("accent")))
         font = QFont(tm.font_family("disp"))
         font.setPixelSize(13)
         font.setWeight(QFont.DemiBold)
         painter.setFont(font)
         painter.setPen(QColor(tm.token("ink")))
-        rect = QRect(LEFT_PAD, shelf.top - offset, max(40, self.viewport().width() - 2 * LEFT_PAD), shelf.height)
-        painter.drawText(rect, Qt.AlignLeft | Qt.AlignVCenter, shelf.heading or "")
+        painter.drawText(rect.adjusted(12, 0, -12, 0), Qt.AlignLeft | Qt.AlignVCenter, shelf.heading or "")
 
     def _paint_shelf(self, painter: QPainter, shelf: _Shelf, offset: int, tm) -> None:
         left, right = self._board_rect_x()

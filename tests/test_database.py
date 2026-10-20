@@ -352,6 +352,17 @@ def test_the_search_index_has_no_text_column(db):
     assert columns == ["title", "author", "tags"]
 
 
+def test_a_short_word_in_a_multi_word_search_matches_the_whole_word(db):
+    """A two-letter word typed with others ("rỡ" in "rực rỡ") matched every word starting with "ro" ("Rong", "Rodari").
+    In a multi-word search a short word matches whole words only; a single short word keeps its prefix match."""
+    db.add_or_update_document("rr", {"title": "Mùa thu vàng rực rỡ", "author": "A", "file_path": "a.pdf", "created_at": 1.0})
+    db.add_or_update_document("rong", {"title": "Rong biển", "author": "B", "file_path": "b.pdf", "created_at": 2.0})
+    ids = {r["id"] for r in db.query_documents(fts_query="rực rỡ")}
+    assert "rong" not in ids
+    assert "rr" in ids
+    assert {r["id"] for r in db.query_documents(fts_query="ro")} == {"rong", "rr"}  # alone, "ro" is still a prefix (and "rỡ" is "ro")
+
+
 HOSTILE_QUERIES = [
     '"', '""', '"unclosed', 'a"b', "AND", "OR NOT", "NEAR(a b)", "a NEAR b", "*", "^", "-x", "+", "title:",
     'title:"a', "content:", ":", "a:b:c", "(", ")", "((a))", "a*b", "\\", "'; DROP TABLE documents; --", "a\u0000b",

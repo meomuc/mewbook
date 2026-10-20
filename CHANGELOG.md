@@ -1,5 +1,22 @@
 # Changelog
 
+[20/10/2026 - 14:06] - Task: tìm kiếm - ticket 3: phân biệt hai vùng bằng màu; từ ngắn khớp đúng từ
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, `:presentation:shelf_view`, `:presentation:library_view`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `database.py`: `_word_term`, `_SHORT_WORD`; trong truy vấn nhiều từ, từ dưới 3 ký tự chỉ khớp đúng từ
+    - `shelf_view.py`: dải tiêu đề "Khớp đúng cụm" có nền accentsoft và thanh accent; nhóm còn lại nền surface2
+    - `library_view.py`: cùng hai tông cho dòng tiêu đề trong bảng
+    - `tests/test_database.py`: 1 test từ ngắn (đỏ trước khi sửa)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Màu lấy từ token của theme (không mã cứng); tông nhận ra theo nhãn đúng của ngôn ngữ đang dùng.
+  - Truy vấn một từ giữ tiền tố như cũ (test "py" vẫn đúng).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Chưa thấy trên màn hình: cần chủ dự án xem hai tông trong từng theme.
+  - Số đếm "Đang lọc" vẫn không khớp danh sách hai nhóm: cần quyết định cách hiển thị khi chọn sắp xếp.
+  - Đã chạy 196 test tìm kiếm, thư viện, chủ đề và PDF; ruff sạch.
+
 [20/10/2026 - 14:00] - Task: sửa test nhập PDF qua tiến trình con sau khi bỏ tìm nội dung
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests

@@ -106,6 +106,17 @@ def _d_variants(word: str) -> list[str]:
     return list(dict.fromkeys(variants))
 
 
+_SHORT_WORD = 3  # in a multi-word search a word shorter than this matches whole words: "rỡ" must not match "Rong"
+
+
+def _word_term(word: str, several: bool) -> str:
+    """A plain search word: a prefix, unless the search has several words and the word is too short for a prefix to mean
+    anything (then it matches the whole word, in every d/đ spelling)."""
+    if several and len(word) < _SHORT_WORD:
+        return _phrase_term([word])
+    return _prefix_term(word)
+
+
 def _prefix_term(word: str) -> str:
     """`word` as a quoted FTS5 prefix term, in every d/đ spelling: "dac"* -> ("dac"* OR "đac"*)."""
     variants = [f'"{variant}"*' for variant in _d_variants(word)]
@@ -1387,6 +1398,7 @@ class DatabaseManager:
         letter "đ", which has no accent to remove: "dac" must find "Đắc" and "đac" must find "Dac", so a word
         containing d or đ is offered in each spelling (`_d_variants`)."""
         tokens: list[str] = []
+        several = len(_SANITIZE_RE.sub(" ", keyword).split()) >= 2  # a short word counts only when others are typed with it
         # Quoted phrases are taken out first: their words must stay together and in order, so they cannot go through the
         # per-word loop below (which would AND them apart). Whatever is left outside the quotes is searched as before.
         for phrase in _PHRASE_RE.findall(keyword):
@@ -1408,7 +1420,7 @@ class DatabaseManager:
                     tokens.extend(_prefix_term(w) for w in words[1:])
                 continue
             words = _SANITIZE_RE.sub(" ", raw_token).split()
-            tokens.extend(_prefix_term(w) for w in words)
+            tokens.extend(_word_term(w, several) for w in words)
         return " AND ".join(tokens)  # explicit: two adjacent (a OR b) groups are not an implicit AND in FTS5
 
     def has_search_terms(self, text: str) -> bool:

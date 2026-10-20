@@ -743,8 +743,17 @@ class LibraryTableModel(_AsyncCoverMixin, QAbstractTableModel):
         doc = self._documents[index.row()]
         if doc is None:
             # A heading is shown in the first column (the view spans it across the row); the other cells stay empty.
-            if index.column() == 0 and role == Qt.DisplayRole:
-                return self._headings.get(index.row(), "")
+            if index.column() != 0:
+                return None
+            text = self._headings.get(index.row(), "")
+            if role == Qt.DisplayRole:
+                return text
+            # The same two tones as the shelf's heading bands (ticket 3): the exact group tinted, the partial group plain.
+            tm = theme_manager()
+            if role == Qt.BackgroundRole:
+                return QColor(tm.token("accentsoft" if text == vi.SEARCH_EXACT_HEADING else "surface2"))
+            if role == Qt.ForegroundRole:
+                return QColor(tm.token("ink"))
             return None
         column_key = self._columns[index.column()]
         if role == Qt.DisplayRole:
