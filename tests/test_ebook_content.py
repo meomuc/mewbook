@@ -60,6 +60,10 @@ def test_scrambled_legacy_encodings_are_not_indexed_as_text(tmp_path):
     assert extract_search_text(str(epub), "epub", 10) == ""
 
 
+PAUSED = "text search paused (ticket 6): book text is no longer read or searched; see CONTENT_EXTRACTION_PAUSED"
+
+
+@pytest.mark.skip(reason=PAUSED)
 def test_an_imported_epub_can_be_found_by_a_word_from_inside_it(tmp_path, app_context):
     epub = write_epub(tmp_path / "b.epub", ["nhan", "vat", "tukhoanoibo", "hiem"], repeat=100)
     manager = ImportQueueManager(app_context, num_workers=1)
@@ -72,6 +76,7 @@ def test_an_imported_epub_can_be_found_by_a_word_from_inside_it(tmp_path, app_co
     assert len(app_context.db.query_documents(fts_query="tukhoanoibo")) == 1
 
 
+@pytest.mark.skip(reason=PAUSED)
 def test_the_backfill_makes_books_imported_earlier_searchable_once(tmp_path, app_context):
     epub = write_epub(tmp_path / "old.epub", ["tukhoacu", "nhan"], repeat=50)
     app_context.db.add_or_update_document("e1", {"title": "Sách cũ", "author": "A", "file_path": str(epub), "extension": "epub", "created_at": 1.0})
@@ -95,6 +100,7 @@ def test_the_backfill_that_is_stopped_is_not_marked_done_and_a_dead_file_is_skip
     assert backfill.run() == 0 and app_context.config.config.content_backfill_done is True  # finished: a missing file is left alone
 
 
+@pytest.mark.skip(reason=PAUSED)
 def test_cap_nhat_ngay_reads_the_text_of_an_ebook_that_has_none(tmp_path, app_context):
     epub = write_epub(tmp_path / "old.epub", ["tukhoamoi", "nhan"], repeat=50)
     app_context.db.add_or_update_document("e1", {"title": "Sách cũ", "author": "A", "file_path": str(epub), "extension": "epub", "created_at": 1.0})

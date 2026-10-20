@@ -20,7 +20,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from smartdoc.application.content_backfill import SEARCH_TEXT_EXTENSIONS
+from smartdoc.application.content_backfill import CONTENT_EXTRACTION_PAUSED, SEARCH_TEXT_EXTENSIONS
 from smartdoc.core.event_bus import LibraryFilesMissingEvent, LibraryUpdatedEvent
 from smartdoc.infrastructure.cloud_files import is_cloud_only
 from smartdoc.infrastructure.file_hash import sha256_file
@@ -110,7 +110,7 @@ class InfoRefresh:
                 db.set_fingerprint(row["id"], fingerprint)  # "" = looked at, nothing to find
             changed = changed or (bool(fingerprint) and fingerprint != (row["fingerprint"] or ""))
         ext = extension.lower().lstrip(".")
-        if ext in SEARCH_TEXT_EXTENSIONS and (size_changed or not row["has_text"]):
+        if ext in SEARCH_TEXT_EXTENSIONS and not CONTENT_EXTRACTION_PAUSED and (size_changed or not row["has_text"]):
             # An e-book imported before its text was read for search (or whose file changed): read it now.
             from smartdoc.infrastructure.text_sampler import extract_search_text  # lazily: see content_backfill
 

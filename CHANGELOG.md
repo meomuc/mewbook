@@ -1,5 +1,21 @@
 # Changelog
 
+[20/10/2026 - 12:32] - Task: ticket 6: tắt đọc văn bản sách nền, ẩn cài đặt số trang đọc để tìm
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:application:content_backfill`, `:application:info_refresh`, `:presentation:settings_dialog`, tests
+  - File tạo mới / Chỉnh sửa:
+    - `content_backfill.py`: hằng `CONTENT_EXTRACTION_PAUSED = True`; `start()` không chạy khi tạm dừng
+    - `info_refresh.py`: không đọc văn bản sách khi tạm dừng
+    - `settings_dialog.py`: ẩn mục "Đọc nội dung để tìm kiếm"; giá trị đã lưu được giữ nguyên
+    - `tests/test_ebook_content.py`: 3 test về tìm theo nội dung được đánh dấu bỏ qua có lý do (không xóa)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Tạm dừng bằng một hằng số, không xóa mã, để có thể nghiên cứu lại việc trích xuất nội dung sau.
+  - Cột `documents.content` không bị xóa; sách đã có văn bản vẫn giữ.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Trạng thái "Đang đọc nội dung sách" không còn xuất hiện vì tác vụ không chạy; chuỗi vẫn còn trong strings.
+  - Chưa chạy bộ test đầy đủ (theo yêu cầu của chủ dự án). Đã chạy 160 test liên quan, 3 bỏ qua; ruff sạch.
+
 [20/10/2026 - 12:20] - Task: ticket 6 (phương án C): bỏ tìm trong nội dung sách
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:infrastructure:database`, `:infrastructure:schema_migrations`, `:presentation` (chuỗi tìm kiếm), tests

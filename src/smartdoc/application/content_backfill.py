@@ -25,6 +25,10 @@ SEARCH_TEXT_EXTENSIONS = frozenset({"epub", "mobi", "azw3", "azw", "prc"})
 
 BATCH_SIZE = 25
 
+# Paused (ticket 6): search no longer covers the book text, so reading e-books for it costs time and disk for nothing the
+# person can use. The code stays so that text extraction can be studied again later; flip this to resume.
+CONTENT_EXTRACTION_PAUSED = True
+
 
 class ContentBackfill:
     def __init__(self, context, batch_size: int = BATCH_SIZE) -> None:
@@ -34,6 +38,8 @@ class ContentBackfill:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
+        if CONTENT_EXTRACTION_PAUSED:
+            return
         if self.context.config.config.content_backfill_done or (self._thread is not None and self._thread.is_alive()):
             return
         self._stop.clear()
