@@ -335,6 +335,27 @@ def test_search_inside_the_trash_finds_trashed_books_only_when_trash_is_selected
     assert [r["id"] for r in db.query_documents(fts_query="python", where_sql=where, params=params)] == ["trashed"]
 
 
+HOSTILE_QUERIES = [
+    '"', '""', '"unclosed', 'a"b', "AND", "OR NOT", "NEAR(a b)", "a NEAR b", "*", "^", "-x", "+", "title:",
+    'title:"a', "content:", ":", "a:b:c", "(", ")", "((a))", "a*b", "\\", "'; DROP TABLE documents; --", "a\u0000b",
+    "đ" * 40, " ".join(["python"] * 40), '"a" "b" OR "c"', "tags:a OR author:b", '"""',
+]
+
+
+@pytest.mark.parametrize("text", HOSTILE_QUERIES)
+def test_no_hostile_query_reaches_the_sql_error_path(db, caplog, text):
+    """Ticket 1, the FTS error gap: the read paths log and return nothing on an SQL error. The sanitizer is meant to make
+    that unreachable from user text; this pins it for every shape of input that has ever broken the search."""
+    _seed(db)
+    with caplog.at_level("ERROR"):
+        assert isinstance(db.query_documents(fts_query=text), list)
+        assert isinstance(db.count_documents_matching(fts_query=text), int)
+        assert isinstance(db.list_document_ids_matching(fts_query=text), list)
+        exact, partial = db.search_sections(text)
+        assert isinstance(exact, list) and isinstance(partial, list)
+    assert not [r for r in caplog.records if "failed" in r.getMessage() or "syntax" in r.getMessage()]
+
+
 def test_search_sections_splits_exact_phrase_from_partial_matches(db):
     """Ticket 3, step 1: a multi-word query gives (exact phrase matches, books matching some of the words). The partial
     group is ordered by how many of the words a book has, most first, then by relevance."""

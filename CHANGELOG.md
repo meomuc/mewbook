@@ -1,5 +1,16 @@
 # Changelog
 
+[20/10/2026 - 12:11] - Task: tìm kiếm - ticket 1: kiểm chứng lỗi FTS không đến được từ đầu vào người dùng
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa: `tests/test_database.py`: 29 test tham số hóa với chuỗi nguy hiểm (ngoặc lệch, toán tử FTS, cú pháp trường, SQL injection, chuỗi dài)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Không thêm cơ chế báo lỗi mới: các chuỗi thử đều không tạo lỗi SQL, nên đường nuốt lỗi không đến được từ người dùng. Test giữ bất biến này.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nếu một lỗi SQL thật xảy ra (ví dụ hỏng chỉ mục), giao diện vẫn hiện "không khớp" và chỉ ghi log. Chấp nhận được vì không đến được từ đầu vào; cần rà nếu có lỗi hỏng chỉ mục.
+  - Đã chạy 29 test mới: đạt; ruff sạch.
+
 [20/10/2026 - 12:10] - Task: commit các file cấu hình agent và hướng dẫn con chưa theo dõi
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tài liệu và cấu hình agent (không có mã ứng dụng)
