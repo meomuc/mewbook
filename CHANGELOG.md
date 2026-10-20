@@ -1,5 +1,17 @@
 # Changelog
 
+[20/10/2026 - 11:45] - Task: viết quy tắc thiết kế giao diện (docs/rule_design_ui.md)
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tài liệu (không có mã)
+  - File tạo mới / Chỉnh sửa: `docs/rule_design_ui.md` (mới): hai lớp layout và theme, ranh giới giữa chúng, quy trình thêm giao diện, câu hỏi còn mở
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Layout gồm mọi trang (thư viện, chi tiết, cài đặt, đọc, hộp thoại); theme chỉ là dữ liệu về màu, chữ, nền, icon, trang trí.
+  - Mâu thuẫn: mô tả "theme sắp xếp lại vị trí chức năng" trái với quy ước theme là dữ liệu; nêu thành câu hỏi mở số 1.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Tài liệu chưa được chủ dự án duyệt; các câu hỏi mở cần trả lời trước khi làm.
+  - Đã kiểm tra: các test được nhắc tới (test_layouts, test_themes, test_theme_contract) tồn tại; không có test nào chạy vì không có mã đổi.
+
 [19/10/2026 - 19:03] - Task: tìm kiếm - ticket 3, bước 2b lát 3: hai nhóm kết quả trong chế độ thẻ bìa
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:shelf_view`, `:presentation:library_view`, tests
