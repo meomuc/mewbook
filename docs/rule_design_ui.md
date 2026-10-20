@@ -43,6 +43,8 @@ Một layout không được chỉ đổi cửa sổ chính. Các trang sau cũn
 - Id duy nhất, thêm vào `layouts.IMPLEMENTED_LAYOUTS` **cùng lúc** với lớp cửa sổ trong `window_shapes.py`.
 - `layout.json` khai báo số đo: khoảng đệm, cỡ bìa, chiều cao hàng, bán kính góc, độ cao thanh công cụ.
 - Danh sách theme được hỗ trợ (`layout.themes`) và trang trí dùng được (`ornaments`).
+- Danh sách **vị trí cho phép** (`layout.slots`): các chỗ mà theme được chọn để đặt chức năng (ví dụ thanh công cụ trên
+  hoặc bên trái). Theme chỉ được chọn trong danh sách này.
 - Chưa cài hình dạng thì không đưa ra Cài đặt: gói vẫn được kiểm và ghép màu nhưng bị ẩn.
 
 ### 1.4 Yêu cầu chất lượng cho mọi layout
@@ -84,9 +86,9 @@ Theme *không* được thay đổi cấu trúc của trang. Phạm vi của the
 - Người dùng có thể tắt hình nền trong Cài đặt › Giao diện.
 
 ### 2.4 Icon
-- Bộ icon của theme chọn kiểu nét (nét đều, đặc, mảnh...) và màu, lấy từ ThemeManager.
-- **Tên icon và vị trí dùng icon do layout quyết định**; theme chỉ chọn kiểu vẽ. Thêm một icon mới là thay đổi mã,
-  không phải dữ liệu theme.
+- Mỗi theme có **một bộ icon vẽ riêng**, theo phong cách của theme (nét, hình khối, màu). Icon nằm trong
+  `themes/<id>/icons/`, theo tên icon chuẩn.
+- **Tên icon và vị trí dùng icon do layout quyết định**. Thêm một icon mới (tên mới) là thay đổi mã và phải có ở mọi theme.
 - Mọi icon thao tác có nhãn hoặc tooltip đi kèm.
 
 ### 2.5 Mật độ và khoảng cách
@@ -106,7 +108,7 @@ Theme *không* được thay đổi cấu trúc của trang. Phạm vi của the
 | Hình nền, trang trí, kiểu icon | Theme | Là diện mạo |
 | Vị trí thanh bên, toolbar, panel | Layout | Là cấu trúc; một theme không được đổi |
 | Trang nào có, nút nào có mặt | Layout | Chức năng là cấu trúc |
-| Chọn một vị trí trong các vị trí layout đã cho phép | Theme (dữ liệu) | Xem câu hỏi mở số 1 |
+| Chọn một vị trí trong các vị trí layout đã cho phép (thay đổi vừa phải) | Theme (dữ liệu) | Mục 5, câu 1 |
 
 ## 4. Quy trình khi thêm một giao diện
 
@@ -115,12 +117,15 @@ Theme *không* được thay đổi cấu trúc của trang. Phạm vi của the
 3. Chụp màn hình trên máy thật, các cỡ 1440 px và 375 px; so với mẫu; liệt kê điểm lệch.
 4. Ghi `CHANGELOG.md` (mục `Added` hoặc `Changed`) và nhật ký theo giao thức.
 
-## 5. Câu hỏi còn mở
+## 5. Quyết định của chủ dự án
 
-1. **Theme có được đổi vị trí chức năng không?** Mô tả ban đầu cho theme được "sắp xếp lại vị trí đặt các chức
-   năng". `CLAUDE.md` và `themes/CLAUDE.md` đặt vị trí vào layout. Đề xuất: layout khai báo các vị trí được phép
-   (ví dụ thanh công cụ ở trên hoặc bên trái), theme chỉ *chọn* một vị trí trong số đó. Bạn chọn cách này, hay theme
-   không được đổi vị trí?
-2. **Phạm vi layout:** layout có bao gồm trang Cài đặt và cửa sổ đọc sách không (mục 1.2 mặc định là có)?
-3. **Bộ icon:** có chấp nhận icon riêng cho từng theme (vẽ khác), hay chỉ có một bộ icon và theme chỉ đổi kiểu nét?
-4. **Thời điểm áp dụng:** đổi layout cần khởi động lại (đúng với hiện trạng: ngôn ngữ đang như vậy), hay đổi ngay?
+1. **Theme có được chọn vị trí chức năng không?** Được, trong số các vị trí layout cho phép (layout khai báo
+   danh sách vị trí). Mức thay đổi vừa phải: theme chỉ đổi vị trí trong phạm vi đó, không được thay đổi cấu trúc
+   quá lớn.
+2. **Phạm vi layout:** có, layout bao gồm trang Cài đặt và cửa sổ đọc sách (mục 1.2).
+3. **Bộ icon:** mỗi theme có một bộ icon vẽ riêng, theo phong cách của theme đó. Tên icon và vị trí dùng icon vẫn do
+   layout quyết định (mục 2.4 cần cập nhật theo điểm này).
+4. **Thời điểm áp dụng:** đổi layout áp dụng ngay, không cần khởi động lại.
+
+Hệ quả cho các mục trên: mục 2.4 đổi thành "theme có bộ icon riêng"; mục 3 dòng "Chọn một vị trí" nay là
+"Theme được chọn trong các vị trí layout cho phép"; mục 1.3 cần thêm "danh sách vị trí cho phép" vào `layout.json`.

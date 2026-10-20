@@ -1,5 +1,16 @@
 # Changelog
 
+[20/10/2026 - 12:15] - Task: ghi quyết định thiết kế giao diện của chủ dự án vào docs/rule_design_ui.md
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tài liệu
+  - File tạo mới / Chỉnh sửa: `docs/rule_design_ui.md`: mục 5 thành quyết định (theme chọn vị trí vừa phải; layout gồm Cài đặt và đọc sách; mỗi theme có bộ icon riêng; đổi layout áp dụng ngay); cập nhật mục 1.3, 2.4 và bảng ranh giới
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Theme có bộ icon riêng: `themes/<id>/icons/`. Layout khai báo `layout.slots` (các vị trí cho phép).
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Đổi layout áp dụng ngay là yêu cầu mới: hiện mọi widget chỉ dựng lúc khởi động. Cần thiết kế lại việc dựng cửa sổ khi đổi.
+  - Chưa có mã; tài liệu chỉ mô tả yêu cầu.
+
 [20/10/2026 - 12:11] - Task: tìm kiếm - ticket 1: kiểm chứng lỗi FTS không đến được từ đầu vào người dùng
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tests
