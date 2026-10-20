@@ -1,5 +1,15 @@
 # Changelog
 
+[20/10/2026 - 14:00] - Task: sửa test nhập PDF qua tiến trình con sau khi bỏ tìm nội dung
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tests
+  - File tạo mới / Chỉnh sửa: `tests/test_pdf_pool.py`: tìm theo tiêu đề thay vì nội dung; kiểm tra nội dung vẫn được lưu
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Test cũ dựa vào tìm nội dung (ticket 6). Test mới giữ mục đích: nhập qua tiến trình con vẫn lập chỉ mục và lưu văn bản.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Đã chạy bộ test đầy đủ: 2520 đạt, 5 bỏ qua, 0 lỗi.
+
 [20/10/2026 - 13:38] - Task: dọn mục "Đang đọc nội dung sách" trong thanh trạng thái
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:presentation:status_bar_panel`, tests

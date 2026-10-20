@@ -42,7 +42,10 @@ def test_importing_through_the_pool_indexes_the_book(tmp_path, app_context):
         assert _wait_until(lambda: app_context.db.find_id_by_path(str(path)) is not None, timeout=30)
     finally:
         manager.stop()
-    assert app_context.db.query_documents(fts_query="tukhoahiem")[0]["title"] == "Qua tiến trình con"
+    # Search covers title, author and tags (ticket 6): the pooled import is found by its title, and its text is still stored.
+    assert app_context.db.query_documents(fts_query="qua tien trinh")[0]["title"] == "Qua tiến trình con"
+    doc = app_context.db.get_document(app_context.db.find_id_by_path(str(path)))
+    assert "tukhoahiem" in doc["content"]
 
 
 def test_a_pool_that_cannot_run_falls_back_to_reading_in_process(tmp_path, app_context):
