@@ -6,7 +6,7 @@
   - File tạo mới / Chỉnh sửa: `status_bar_panel.py`: bỏ hai mục `read-text` (biểu tượng và chữ); `tests/test_background_task.py`: dùng tác vụ `fingerprint` thay cho `read-text`
   - Dependencies: không có
 * **2. Quyết định Kiến trúc & Cốt lõi:**
-  - Tra cứu dùng `.get(..., mặc định)` nên mục đã xóa không gây lỗi. Hằng `TASK_READ_TEXT` và mã bbackfill được giữ để nghiên cứu lại sau.
+  - Tra cứu dùng `.get(..., mặc định)` nên mục đã xóa không gây lỗi. Hằng `TASK_READ_TEXT` và mã backfill được giữ để nghiên cứu lại sau.
 * **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
   - Nếu bật lại trích xuất, cần thêm lại mục trạng thái cho `read-text` (hiện sẽ hiện chữ dự phòng).
   - Đã chạy 16 test liên quan (thanh trạng thái, tác vụ nền, nội dung sách) và ruff sạch.
