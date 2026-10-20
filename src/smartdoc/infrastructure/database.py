@@ -80,12 +80,12 @@ _SANITIZE_RE = re.compile(r"[^\w\sÀ-ỹ]", re.UNICODE)
 # fixed whitelist of real documents_fts column names is accepted as a
 # prefix -- anything else falls back to being sanitized as a plain term,
 # so this can't be used to smuggle arbitrary syntax into the MATCH expression.
-_SEARCH_FIELD_RE = re.compile(r"^(title|author|tags|content):(.+)$", re.IGNORECASE | re.UNICODE)
+_SEARCH_FIELD_RE = re.compile(r"^(title|author|tags):(.+)$", re.IGNORECASE | re.UNICODE)  # content is not indexed (ticket 6)
 
 # Relevance order: a hit in the title counts most, then the author, then the hashtags, and only then the book's text
 # (bm25 is lower for a better match). Plain `rank` weighted the four columns equally, so a long text that happened to
 # mention the words could outrank the book that is called that.
-_RELEVANCE = "bm25(documents_fts, 10.0, 5.0, 3.0, 1.0)"
+_RELEVANCE = "bm25(documents_fts, 10.0, 5.0, 3.0)"  # title, author, tags: one weight per indexed column
 _MAX_QUERY_WORDS = 30  # a pasted paragraph would otherwise become an FTS5 expression too deep to run (and silently find nothing)
 _MAX_D_VARIANT_LETTERS = 4  # a word with more d/đ than this is tried only all-d and all-đ (2^n spellings would explode)
 _PHRASE_RE = re.compile(r'"([^"]*)"')  # a quoted phrase is an exact, in-order match (ticket 2 of the search work)
@@ -143,29 +143,29 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
-    title, author, tags, content,
+    title, author, tags,
     content='documents',
     content_rowid='doc_rowid',
     tokenize='unicode61 remove_diacritics 2'
 );
 
 CREATE TRIGGER IF NOT EXISTS documents_ai AFTER INSERT ON documents BEGIN
-    INSERT INTO documents_fts(rowid, title, author, tags, content)
-    VALUES (new.doc_rowid, new.title, new.author, new.tags, new.content);
+    INSERT INTO documents_fts(rowid, title, author, tags)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags);
 END;
 
 CREATE TRIGGER IF NOT EXISTS documents_ad AFTER DELETE ON documents BEGIN
-    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags, content)
-    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags);
 END;
 
 -- Only when an indexed column is written: recording a file's status, a page count or a cover must not re-index the
 -- book's whole text (see schema_migrations._rebuild_search_index).
-CREATE TRIGGER IF NOT EXISTS documents_au AFTER UPDATE OF title, author, tags, content ON documents BEGIN
-    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags, content)
-    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags, old.content);
-    INSERT INTO documents_fts(rowid, title, author, tags, content)
-    VALUES (new.doc_rowid, new.title, new.author, new.tags, new.content);
+CREATE TRIGGER IF NOT EXISTS documents_au AFTER UPDATE OF title, author, tags ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags);
+    INSERT INTO documents_fts(rowid, title, author, tags)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags);
 END;
 
 CREATE TABLE IF NOT EXISTS collections (

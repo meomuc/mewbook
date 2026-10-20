@@ -31,10 +31,12 @@ def _seed(db: DatabaseManager):
 
 
 def test_search_prefix_match_finds_python_docs(db):
+    """Search covers title, author and tags (ticket 6): only the book titled with the prefix is found, not the one whose
+    text says "Python"."""
     _seed(db)
     results = db.search("py")
     titles = {r["title"] for r in results}
-    assert titles == {"Python Co Ban", "Machine Learning"}
+    assert titles == {"Python Co Ban"}
 
 
 def test_search_matches_author(db):
@@ -335,6 +337,21 @@ def test_search_inside_the_trash_finds_trashed_books_only_when_trash_is_selected
     assert [r["id"] for r in db.query_documents(fts_query="python", where_sql=where, params=params)] == ["trashed"]
 
 
+def test_a_word_only_in_the_book_text_is_not_searched(db):
+    """Ticket 6, option C: search covers title, author and tags. A word that only appears in the book's text finds nothing
+    (the text is still stored, but no longer indexed)."""
+    db.add_or_update_document("doc", {"title": "Sach Mot", "author": "A", "file_path": "a.pdf", "created_at": 1.0},
+                              extracted_text="zebrawordxyz xuat hien trong noi dung")
+    assert db.query_documents(fts_query="zebrawordxyz") == []
+    assert db.search("zebrawordxyz") == []
+    assert [r["id"] for r in db.query_documents(fts_query="mot")] == ["doc"]
+
+
+def test_the_search_index_has_no_text_column(db):
+    columns = [row[1] for row in db.connection.execute("PRAGMA table_info(documents_fts)")]
+    assert columns == ["title", "author", "tags"]
+
+
 HOSTILE_QUERIES = [
     '"', '""', '"unclosed', 'a"b', "AND", "OR NOT", "NEAR(a b)", "a NEAR b", "*", "^", "-x", "+", "title:",
     'title:"a', "content:", ":", "a:b:c", "(", ")", "((a))", "a*b", "\\", "'; DROP TABLE documents; --", "a\u0000b",
@@ -387,8 +404,8 @@ def test_chosen_sort_is_primary_and_relevance_breaks_ties(db):
     """With a sort chosen, the sort decides the order and relevance only orders books that tie on it (ticket 5).
     The title match is inserted AFTER the content-only match, so falling back to insertion order fails this test."""
     db.add_or_update_document(
-        "content_only", {"title": "Ghi chú", "author": "Nam", "file_path": "a.pdf", "created_at": 1.0},
-        extracted_text="lap trinh python co ban")
+        "content_only", {"title": "Ghi chú", "author": "Nam", "tags": "python", "file_path": "a.pdf", "created_at": 1.0},
+        extracted_text="gioi thieu")
     db.add_or_update_document(
         "title_match", {"title": "Python co ban", "author": "Nam", "file_path": "b.pdf", "created_at": 2.0},
         extracted_text="gioi thieu")

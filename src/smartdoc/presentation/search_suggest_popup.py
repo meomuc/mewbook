@@ -138,7 +138,7 @@ class SearchSuggestPopup(QFrame):
             kind = _CATEGORY_TITLES[item.category] if item.category != previous else ""
             previous = item.category
             self._add_row(index, kind, _CATEGORY_ICONS[item.category], item.label, f"{_fmt(item.count)} tài liệu")
-        self._add_row(len(self._items), "Nội dung", "search", f"Tìm “{query}” trong tên sách và nội dung", "Enter")
+        self._add_row(len(self._items), "Nội dung", "search", f"Tìm “{query}” trong tên sách, tác giả và thẻ", "Enter")
         self._active = -1
         self._place()
         self.show()

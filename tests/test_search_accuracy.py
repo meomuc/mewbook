@@ -86,12 +86,16 @@ def test_a_title_hit_outranks_a_hit_in_the_text(db):
     db.add_or_update_document("t2", {"title": "Dế Mèn phiêu lưu ký", "author": "Tô Hoài", "file_path": "t2.pdf", "created_at": 1.0},
                               extracted_text="chữ khác " * 100)
     ranked = [d["id"] for d in db.query_documents(fts_query="dế mèn", limit=10)]
-    assert ranked[:2] == ["t2", "t1"]  # the book called that first; the one that only mentions it still shows
+    # The book called that is found; the one that only mentions the words in its text is not searched any more (ticket 6).
+    assert ranked == ["t2"]
 
 
-def test_the_text_of_a_book_is_still_searchable_without_accents(db):
+def test_the_text_of_a_book_is_not_searched_so_its_words_find_nothing(db):
+    """Ticket 6, option C: the book text is stored but not indexed, so a word that is only in the text finds nothing.
+    The title is still searched without accents."""
     db.add_or_update_document("c1", {"title": "Sổ tay", "author": "x", "file_path": "c1.pdf", "created_at": 1.0}, extracted_text="Chương một: Những người khốn khổ")
-    assert "c1" in _ids(db, "nhung nguoi khon kho")
+    assert "c1" not in _ids(db, "nhung nguoi khon kho")
+    assert "c1" in _ids(db, "so tay")
 
 
 # -- the upgrade of an existing library --------------------------------------------------------------------------------
@@ -122,7 +126,7 @@ def test_an_upgraded_library_and_a_new_one_have_the_same_index_and_triggers(tmp_
         return [(r["name"], " ".join(r["sql"].split())) for r in rows]
 
     assert shape(upgraded) == shape(fresh)
-    assert "remove_diacritics 2" in shape(fresh)[3][1] and "UPDATE OF title, author, tags, content" in shape(fresh)[2][1]
+    assert "remove_diacritics 2" in shape(fresh)[3][1] and "UPDATE OF title, author, tags ON" in shape(fresh)[2][1]
     upgraded.connection.close()
     fresh.connection.close()
 

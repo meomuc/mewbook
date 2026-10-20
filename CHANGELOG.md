@@ -1,5 +1,22 @@
 # Changelog
 
+[20/10/2026 - 12:20] - Task: ticket 6 (phương án C): bỏ tìm trong nội dung sách
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:infrastructure:database`, `:infrastructure:schema_migrations`, `:presentation` (chuỗi tìm kiếm), tests
+  - File tạo mới / Chỉnh sửa:
+    - `schema_migrations.py`: migration 10 `_search_index_without_text`: chỉ mục FTS chỉ còn title, author, tags; trigger không còn content
+    - `database.py`: `_SCHEMA` cho cơ sở dữ liệu mới; `_RELEVANCE` còn 3 trọng số; `_SEARCH_FIELD_RE` bỏ `content:`
+    - `strings_vi.py`, `strings_en.py`, `search_suggest_popup.py`: ô tìm kiếm và dòng gợi ý không còn hứa tìm trong nội dung
+    - `tests/test_database.py`, `tests/test_search_accuracy.py`: 2 test mới (đỏ trước khi sửa); các kỳ vọng dựa vào nội dung được cập nhật
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Văn bản sách vẫn được lưu trong `documents.content` (dữ liệu có thể dùng sau), chỉ không còn được lập chỉ mục. Xóa cột là quyết định riêng.
+  - Thay đổi chỉ mục là migration có đánh số (không sửa migration cũ), chạy sau sao lưu như các migration khác.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Việc đọc văn bản sách nền (`ContentBackfill`, cập nhật thông tin) vẫn chạy và tốn tài nguyên cho tính năng đã bỏ; cần quyết định tắt hay giữ.
+  - Cài đặt "số trang đọc để tìm" (`content_search_pages`) và trạng thái "Đang đọc nội dung sách" vẫn còn, nay vô nghĩa với tìm kiếm.
+  - Chưa chạy bộ test đầy đủ sau thay đổi; đã chạy 291 test liên quan tìm kiếm, cơ sở dữ liệu, migration và ruff sạch.
+
 [20/10/2026 - 12:15] - Task: ghi quyết định thiết kế giao diện của chủ dự án vào docs/rule_design_ui.md
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tài liệu
@@ -915,6 +932,7 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Tìm kiếm chỉ có ký tự đặc biệt (ví dụ `???`) không còn hiện cả thư viện; MewBook nhắc gõ chữ hoặc số.
 
 ### Changed
+- Tìm kiếm không còn tìm trong nội dung sách; tìm theo tên sách, tác giả và thẻ. Văn bản sách vẫn được giữ trong thư viện.
 - Chọn một kiểu sắp xếp khi đang tìm kiếm thì kết quả theo đúng kiểu sắp xếp; sách cùng khóa sắp xếp vẫn xếp theo độ khớp với từ khóa.
 
 ## [1.4.0] - 2026-10-13

@@ -225,6 +225,43 @@ def _rebuild_search_index(connection: sqlite3.Connection) -> None:
     connection.execute("INSERT INTO documents_fts(documents_fts) VALUES ('rebuild')")
 
 
+_FTS_TRIGGERS_WITHOUT_TEXT = """
+CREATE TRIGGER documents_ai AFTER INSERT ON documents BEGIN
+    INSERT INTO documents_fts(rowid, title, author, tags)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags);
+END;
+CREATE TRIGGER documents_ad AFTER DELETE ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags);
+END;
+CREATE TRIGGER documents_au AFTER UPDATE OF title, author, tags ON documents BEGIN
+    INSERT INTO documents_fts(documents_fts, rowid, title, author, tags)
+    VALUES ('delete', old.doc_rowid, old.title, old.author, old.tags);
+    INSERT INTO documents_fts(rowid, title, author, tags)
+    VALUES (new.doc_rowid, new.title, new.author, new.tags);
+END;
+"""
+
+
+def _search_index_without_text(connection: sqlite3.Connection) -> None:
+    """The search index covers title, author and tags only: a book's full text is still stored in `documents.content`
+    (it is data the person may want later) but no longer searched, which keeps the index small (ticket 6, option C).
+
+    Nothing is lost: the index is built from `documents`, so it is rebuilt from the rows. The text column stays where it
+    is, so a later decision to drop it is a separate, reviewable change."""
+    for trigger in ("documents_ai", "documents_ad", "documents_au"):
+        connection.execute(f"DROP TRIGGER IF EXISTS {trigger}")
+    connection.execute("DROP TABLE IF EXISTS documents_fts")
+    connection.execute(
+        "CREATE VIRTUAL TABLE documents_fts USING fts5(title, author, tags,"
+        f" content='documents', content_rowid='doc_rowid', tokenize='{FTS_TOKENIZER}')"
+    )
+    for statement in _FTS_TRIGGERS_WITHOUT_TEXT.split("END;"):
+        if statement.strip():
+            connection.execute(statement + "END;")
+    connection.execute("INSERT INTO documents_fts(documents_fts) VALUES ('rebuild')")
+
+
 # 1.0.0 is the baseline (version 0). The device tables (S3) will be the next entries.
 MIGRATIONS: tuple[Migration, ...] = (
     Migration(1, "documents.file_status / file_checked_at (missing-file detection)", _add_file_status_columns),
@@ -236,6 +273,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(7, "collections hold only the books put in them: rule collections are frozen into their members", _freeze_rule_collections),
     Migration(8, "devices (the e-readers the person has named)", _add_devices),
     Migration(9, "device_books (which book was put on which device)", _add_device_books),
+    Migration(10, "search index covers title, author and tags only (the book text is no longer searched)", _search_index_without_text),
 )
 
 
