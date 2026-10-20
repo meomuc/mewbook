@@ -1,5 +1,16 @@
 # Changelog
 
+[20/10/2026 - 13:38] - Task: dọn mục "Đang đọc nội dung sách" trong thanh trạng thái
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: `:presentation:status_bar_panel`, tests
+  - File tạo mới / Chỉnh sửa: `status_bar_panel.py`: bỏ hai mục `read-text` (biểu tượng và chữ); `tests/test_background_task.py`: dùng tác vụ `fingerprint` thay cho `read-text`
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - Tra cứu dùng `.get(..., mặc định)` nên mục đã xóa không gây lỗi. Hằng `TASK_READ_TEXT` và mã bbackfill được giữ để nghiên cứu lại sau.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Nếu bật lại trích xuất, cần thêm lại mục trạng thái cho `read-text` (hiện sẽ hiện chữ dự phòng).
+  - Đã chạy 16 test liên quan (thanh trạng thái, tác vụ nền, nội dung sách) và ruff sạch.
+
 [20/10/2026 - 12:32] - Task: ticket 6: tắt đọc văn bản sách nền, ẩn cài đặt số trang đọc để tìm
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: `:application:content_backfill`, `:application:info_refresh`, `:presentation:settings_dialog`, tests

@@ -82,7 +82,6 @@ _TASK_ICON = {
     "ereader-send": "send",
     "folder-scan": "folder",
     "file-check": "file",
-    "read-text": "book",
     "fingerprint": "shield",
     "format-conversion": "archive",
 }
@@ -92,7 +91,6 @@ _TASK_ICON_FALLBACK = "bolt"
 BACKGROUND_TEXT = {
     "file-check": ("Đang kiểm tra file", "Mèo đang kiểm tra file của từng sách còn đó không. Việc này chạy nền, bạn cứ dùng bình thường."),
     "folder-scan": ("Đang quét thư mục", "Mèo đang xem các thư mục theo dõi có file mới nào thêm vào lúc MewBook đóng không."),
-    "read-text": ("Đang đọc nội dung sách", "Mèo đang đọc chữ trong các e-book để bạn tìm được theo nội dung. Chỉ làm một lần, chạy nền."),
     "fingerprint": ("Đang ghi dấu nhận diện", "Mèo đang ghi dấu nhận diện cho từng sách để không nhầm lẫn khi cập nhật thông tin. Chạy nền."),
     "metadata-batch-update": ("Đang cập nhật thông tin sách",
                               "Mèo đang tìm và cập nhật thông tin sách cho danh sách bạn chọn. Bạn vẫn dùng MewBook bình thường."),

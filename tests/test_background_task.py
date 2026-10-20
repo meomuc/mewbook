@@ -73,13 +73,13 @@ def test_the_status_bar_shows_and_clears_the_background_work(qapp, app_context):
     from smartdoc.presentation.status_bar_panel import StatusBarPanel
 
     bar = StatusBarPanel(app_context)
-    bar._on_bridged_event(BackgroundTaskEvent(TASK_READ_TEXT, 120, 800))
+    bar._on_bridged_event(BackgroundTaskEvent("fingerprint", 120, 800))
     assert bar.activity_icon.isVisibleTo(bar) and bar.activity_label.text() == "120/800"
-    assert "tìm được theo nội dung" in bar.activity_label.toolTip()
-    assert "tìm được theo nội dung" in bar.activity_icon.toolTip()
+    assert "ghi dấu nhận diện" in bar.activity_label.toolTip()
+    assert "ghi dấu nhận diện" in bar.activity_icon.toolTip()
     bar._on_bridged_event(BackgroundTaskEvent("folder-scan", 900, 0))  # no total known: no count shown
     assert "theo dõi có file mới" in bar.activity_icon.toolTip() and "900" not in bar.activity_label.text()
-    bar._on_bridged_event(BackgroundTaskEvent(TASK_READ_TEXT, 800, 800, finished=True))
+    bar._on_bridged_event(BackgroundTaskEvent("fingerprint", 800, 800, finished=True))
     bar._on_bridged_event(BackgroundTaskEvent("folder-scan", 900, 0, finished=True))
     assert not bar.activity_icon.isVisibleTo(bar) and bar.activity_label.text() == ""
     bar.deleteLater()
