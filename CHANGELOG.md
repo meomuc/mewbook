@@ -1,5 +1,16 @@
 # Changelog
 
+[20/10/2026 - 12:10] - Task: commit các file cấu hình agent và hướng dẫn con chưa theo dõi
+* **1. Cấu trúc & Module thay đổi:**
+  - Module tác động: tài liệu và cấu hình agent (không có mã ứng dụng)
+  - File tạo mới / Chỉnh sửa: `.agents/` và `.aider-desk/` (bản sao skill), `skills-lock.json`, `layouts/CLAUDE.md`, `themes/CLAUDE.md`, `src/smartdoc/application/CLAUDE.md` (hướng dẫn theo thư mục)
+  - Dependencies: không có
+* **2. Quyết định Kiến trúc & Cốt lõi:**
+  - `CLAUDE.md` gốc đã tham chiếu các hướng dẫn con này, nên commit cùng nhau để repo không thiếu file.
+* **3. Vấn đề tiềm ẩn / Cần Review (Dành cho AI Architect):**
+  - Đã quét các file trước khi commit: không có mẫu khóa thật (sk-, AIza, JWT, token GitHub, khóa riêng).
+  - `.aider-desk/skills/` trùng với `.agents/skills/`; có thể gộp về một nơi sau.
+
 [20/10/2026 - 11:45] - Task: viết quy tắc thiết kế giao diện (docs/rule_design_ui.md)
 * **1. Cấu trúc & Module thay đổi:**
   - Module tác động: tài liệu (không có mã)
